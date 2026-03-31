@@ -28,7 +28,7 @@ typedef struct MeshData
 // struct for a global scene light
 typedef struct DirectionalLight
 {
-    Vector3 position;
+    Vector3 direction;
     Vector3 color;
     float ambient_strength;
 } DirectionalLight;
