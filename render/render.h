@@ -36,6 +36,17 @@ typedef struct PointLightData
 
 
 
+
+typedef struct MaterialProperties
+{
+    Vector3 tint_color;
+    float shininess;
+    float specular_strength;
+} MaterialProperties;
+
+
+
+
 // Structure for a render packet to send to renderer
 typedef struct RenderPacket
 {
@@ -59,6 +70,8 @@ typedef struct RenderPacket
 typedef struct { uint32_t id; } MeshHandle;
 typedef struct { uint32_t id; } TextureHandle;
 typedef struct { uint32_t id; } ShaderHandle;
+typedef struct { uint32_t id; } MaterialHandle;
+
 
 #define RENDER_INVALID_HANDLE 0
 
@@ -146,16 +159,9 @@ void Render_DestroyShader(ShaderHandle shader);
 
 // Sets the global camera matrices for the current frame
 void Render_BeginFrame(const RenderPacket* packet);
-// void Render_BeginFrame(Matrix4 view_matrix,
-//                        Matrix4 projection_matrix,
-//                        Vector3 camera_pos,
-//                        DirectionalLight light,
-//                        PointLightData* p_lights,
-//                        uint32_t p_light_count);
 
-// Adds an object to the draw queue. 
-// CRITICAL: This does NOT draw the object immediately!
-void Render_Submit(MeshHandle mesh, ShaderHandle shader, TextureHandle texture, Matrix4 transform);
+// Adds an object to the draw queue
+void Render_Submit(MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat_props, Matrix4 transform);
 
 // Sorts the queue, binds the state, and executes the actual GPU draw calls
 void Render_EndFrame(void);

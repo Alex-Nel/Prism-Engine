@@ -15,10 +15,6 @@ typedef struct RenderState
     DirectionalLight global_light;
     PointLightData point_lights[MAX_RESOURCES];
     uint32_t point_light_count;
-    
-    // Highly sensitive OpenGL variables here for later
-    // GLuint current_bound_vao;
-    // GLuint current_shader_program;
 } RenderState;
 
 
@@ -56,7 +52,6 @@ typedef struct GLTexture
 static GLMesh mesh_pool[MAX_RESOURCES];
 static GLShader shader_pool[MAX_RESOURCES];
 static GLTexture texture_pool[MAX_RESOURCES];
-// static uint32_t mesh_count = 1; // Start at 1 so ID 0 is "Invalid"
 
 
 
@@ -66,6 +61,7 @@ typedef struct RenderCommand
     MeshHandle mesh;
     ShaderHandle shader;
     TextureHandle texture;
+    MaterialProperties mat_props;
     Matrix4 transform;
 } RenderCommand;
 
@@ -463,7 +459,9 @@ void Render_BeginFrame(const RenderPacket* packet)
 
 
 
-void Render_Submit(MeshHandle mesh, ShaderHandle shader, TextureHandle texture, Matrix4 transform)
+// void Render_Submit(MeshHandle mesh, ShaderHandle shader, TextureHandle texture, Matrix4 transform)
+// void Render_Submit(MeshHandle mesh, MaterialHandle material, Matrix4 transform)
+void Render_Submit(MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat_props, Matrix4 transform)
 {
     if (command_count >= MAX_COMMANDS) return; // Queue full
     
@@ -471,6 +469,7 @@ void Render_Submit(MeshHandle mesh, ShaderHandle shader, TextureHandle texture, 
         mesh,
         shader,
         texture,
+        mat_props,
         transform
     };
 }
@@ -491,8 +490,6 @@ void Render_EndFrame(void) {
 
         // 1. Bind Shader
         glUseProgram(gl_shader->program);
-
-        // 2. Bind Texture (if valid)
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture_pool[cmd->texture.id].id);
 
@@ -544,13 +541,18 @@ void Render_EndFrame(void) {
         }
 
 
+        GLint diff_loc = glGetUniformLocation(gl_shader->program, "u_Material.diffuse");
+        if (diff_loc != -1) glUniform1i(diff_loc, 0);
 
-        GLint tex_loc = glGetUniformLocation(gl_shader->program, "u_Texture");
-        // -1 means the variable wasn't found in the shader
-        if (tex_loc != -1)
-        {
-            glUniform1i(tex_loc, 0); // '0' maps to GL_TEXTURE0
-        }
+        GLint tint_loc = glGetUniformLocation(gl_shader->program, "u_Material.tint");
+        if (tint_loc != -1) glUniform3fv(tint_loc, 1, (float*)&cmd->mat_props.tint_color);
+
+        GLint shine_loc = glGetUniformLocation(gl_shader->program, "u_Material.shininess");
+        if (shine_loc != -1) glUniform1f(shine_loc, cmd->mat_props.shininess);
+
+        GLint spec_loc = glGetUniformLocation(gl_shader->program, "u_Material.specularStrength");
+        if (spec_loc != -1) glUniform1f(spec_loc, cmd->mat_props.specular_strength);
+        
 
         // 4. Draw
         glBindVertexArray(gl_mesh->vao);
