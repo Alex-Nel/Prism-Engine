@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 #define FAST_OBJ_IMPLEMENTATION
 #include "fast_obj.h"
@@ -14,6 +15,7 @@
 #define MAX_CACHED_SHADERS 64
 #define MAX_CACHED_TEXTURES 64
 #define MAX_CACHED_MESHES 64
+#define MAX_MATERIALS 1024
 
 
 
@@ -53,14 +55,30 @@ static uint32_t texture_count = 0;
 static CachedMesh mesh_cache[MAX_CACHED_MESHES];
 static uint32_t mesh_count = 0;
 
+static Material material_pool[MAX_MATERIALS];
+static uint32_t material_count = 0;
+
+
+
 
 
 // We'll cache our builtin quad here too
 static MeshHandle builtin_quad_handle = {0};
 static bool is_quad_loaded = false;
 
+static MeshHandle builtin_cube_handle = {0};
+static bool is_cube_loaded = false;
+
+static MeshHandle builtin_sphere_handle = {0};
+static bool is_sphere_loaded = false;
+
 static TextureHandle default_white_texture = {0};
 static bool is_default_texture_loaded = false;
+
+static ShaderHandle default_shader_handle = {0};
+static bool is_default_shader_loaded = false;
+
+
 
 
 
@@ -184,6 +202,56 @@ MeshHandle Asset_LoadMesh(const char* name, const char* filepath)
 
 
 
+MaterialHandle Asset_CreateMaterial(ShaderHandle shader, TextureHandle diffuse)
+{
+    if (material_count >= MAX_MATERIALS)
+    {
+        Log_Error("Material pool full!");
+        return (MaterialHandle){0};
+    }
+    
+    uint32_t id = material_count++;
+    Material* mat = &material_pool[id];
+
+    mat->id = id;
+    mat->active = true;
+
+    if (shader.id == 0)
+        mat->shader_id = Asset_GetDefaultShader().id;
+    else
+        mat->shader_id = shader.id;
+    
+    if (diffuse.id == 0)
+        mat->diffuse_texture_id = Asset_GetDefaultTexture().id;
+    else
+        mat->diffuse_texture_id = diffuse.id;
+    
+    // Default physical properties
+    mat->properties.tint_color = (Vector3){1.0f, 1.0f, 1.0f}; // Pure white
+    mat->properties.shininess = 32.0f;                        // Standard plastic
+    mat->properties.specular_strength = 0.5f;                 // Medium reflection
+
+    
+    
+    return (MaterialHandle){id};
+}
+
+
+
+
+
+Material* Asset_GetMaterial(MaterialHandle handle)
+{
+    if (handle.id < MAX_MATERIALS && material_pool[handle.id].active)
+        return &material_pool[handle.id];
+
+    return NULL;
+}
+
+
+
+
+
 ShaderHandle Asset_LoadShader(const char* name, const char* vert_path, const char* frag_path)
 {
     // 1. Check if we already loaded this exact shader
@@ -278,6 +346,11 @@ TextureHandle Asset_LoadTexture(const char* name, const char* filepath)
 
 
 
+
+
+
+
+
 MeshHandle Asset_GetBuiltinQuad()
 {
     // If we already made the quad, just hand back the ID!
@@ -304,6 +377,152 @@ MeshHandle Asset_GetBuiltinQuad()
 
 
 
+MeshHandle Asset_GetBuiltinCube(void)
+{
+    if (is_cube_loaded) return builtin_cube_handle;
+
+    // 24 Vertices (4 per face for sharp normals and proper UVs)
+    Vertex3D vertices[24] = {
+        // Front face (Z =  0.5)
+        {{-0.5f, -0.5f,  0.5f}, {0.0f,  0.0f,  1.0f}, {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f,  0.5f}, {0.0f,  0.0f,  1.0f}, {1.0f, 0.0f}},
+        {{ 0.5f,  0.5f,  0.5f}, {0.0f,  0.0f,  1.0f}, {1.0f, 1.0f}},
+        {{-0.5f,  0.5f,  0.5f}, {0.0f,  0.0f,  1.0f}, {0.0f, 1.0f}},
+        // Back face (Z = -0.5)
+        {{ 0.5f, -0.5f, -0.5f}, {0.0f,  0.0f, -1.0f}, {0.0f, 0.0f}},
+        {{-0.5f, -0.5f, -0.5f}, {0.0f,  0.0f, -1.0f}, {1.0f, 0.0f}},
+        {{-0.5f,  0.5f, -0.5f}, {0.0f,  0.0f, -1.0f}, {1.0f, 1.0f}},
+        {{ 0.5f,  0.5f, -0.5f}, {0.0f,  0.0f, -1.0f}, {0.0f, 1.0f}},
+        // Left face (X = -0.5)
+        {{-0.5f, -0.5f, -0.5f}, {-1.0f, 0.0f,  0.0f}, {0.0f, 0.0f}},
+        {{-0.5f, -0.5f,  0.5f}, {-1.0f, 0.0f,  0.0f}, {1.0f, 0.0f}},
+        {{-0.5f,  0.5f,  0.5f}, {-1.0f, 0.0f,  0.0f}, {1.0f, 1.0f}},
+        {{-0.5f,  0.5f, -0.5f}, {-1.0f, 0.0f,  0.0f}, {0.0f, 1.0f}},
+        // Right face (X =  0.5)
+        {{ 0.5f, -0.5f,  0.5f}, {1.0f,  0.0f,  0.0f}, {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f, -0.5f}, {1.0f,  0.0f,  0.0f}, {1.0f, 0.0f}},
+        {{ 0.5f,  0.5f, -0.5f}, {1.0f,  0.0f,  0.0f}, {1.0f, 1.0f}},
+        {{ 0.5f,  0.5f,  0.5f}, {1.0f,  0.0f,  0.0f}, {0.0f, 1.0f}},
+        // Top face (Y =  0.5)
+        {{-0.5f,  0.5f,  0.5f}, {0.0f,  1.0f,  0.0f}, {0.0f, 0.0f}},
+        {{ 0.5f,  0.5f,  0.5f}, {0.0f,  1.0f,  0.0f}, {1.0f, 0.0f}},
+        {{ 0.5f,  0.5f, -0.5f}, {0.0f,  1.0f,  0.0f}, {1.0f, 1.0f}},
+        {{-0.5f,  0.5f, -0.5f}, {0.0f,  1.0f,  0.0f}, {0.0f, 1.0f}},
+        // Bottom face (Y = -0.5)
+        {{-0.5f, -0.5f, -0.5f}, {0.0f, -1.0f,  0.0f}, {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f, -0.5f}, {0.0f, -1.0f,  0.0f}, {1.0f, 0.0f}},
+        {{ 0.5f, -0.5f,  0.5f}, {0.0f, -1.0f,  0.0f}, {1.0f, 1.0f}},
+        {{-0.5f, -0.5f,  0.5f}, {0.0f, -1.0f,  0.0f}, {0.0f, 1.0f}},
+    };
+
+    uint32_t indices[36] = {
+         0,  1,  2,  2,  3,  0, // Front
+         4,  5,  6,  6,  7,  4, // Back
+         8,  9, 10, 10, 11,  8, // Left
+        12, 13, 14, 14, 15, 12, // Right
+        16, 17, 18, 18, 19, 16, // Top
+        20, 21, 22, 22, 23, 20  // Bottom
+    };
+
+    builtin_cube_handle = Render_CreateMesh(vertices, 24, indices, 36);
+    is_cube_loaded = true;
+    
+    // Cache it so it can be looked up by name if needed
+    if (mesh_count < MAX_CACHED_MESHES) {
+        strcpy(mesh_cache[mesh_count].name, "Cube");
+        mesh_cache[mesh_count].handle = builtin_cube_handle;
+        mesh_count++;
+    }
+
+    return builtin_cube_handle;
+}
+
+
+
+
+
+MeshHandle Asset_GetBuiltinSphere(void)
+{
+    if (is_sphere_loaded) return builtin_sphere_handle;
+
+    // The resolution of the sphere. Higher = smoother but more memory.
+    const int X_SEGMENTS = 32;
+    const int Y_SEGMENTS = 32;
+    const float PI = 3.14159265359f;
+
+    uint32_t vertex_count = (X_SEGMENTS + 1) * (Y_SEGMENTS + 1);
+    uint32_t index_count = X_SEGMENTS * Y_SEGMENTS * 6;
+
+    Vertex3D* vertices = malloc(vertex_count * sizeof(Vertex3D));
+    uint32_t* indices = malloc(index_count * sizeof(uint32_t));
+
+    // --- 1. Generate Vertices ---
+    uint32_t v_idx = 0;
+    for (int y = 0; y <= Y_SEGMENTS; ++y) {
+        for (int x = 0; x <= X_SEGMENTS; ++x) {
+            float xSegment = (float)x / (float)X_SEGMENTS;
+            float ySegment = (float)y / (float)Y_SEGMENTS;
+            
+            // Spherical coordinate math
+            float xPos = cosf(xSegment * 2.0f * PI) * sinf(ySegment * PI);
+            float yPos = cosf(ySegment * PI);
+            float zPos = sinf(xSegment * 2.0f * PI) * sinf(ySegment * PI);
+
+            Vertex3D v;
+            v.position = (Vector3){xPos * 0.5f, yPos * 0.5f, zPos * 0.5f}; // Radius 0.5
+            v.normal = (Vector3){xPos, yPos, zPos}; // Normal is just the normalized position!
+            v.uv = (Vector2){xSegment, ySegment};
+
+            vertices[v_idx++] = v;
+        }
+    }
+
+    // --- 2. Generate Indices ---
+    uint32_t i_idx = 0;
+    for (int y = 0; y < Y_SEGMENTS; ++y) {
+        for (int x = 0; x < X_SEGMENTS; ++x) {
+            uint32_t current = y * (X_SEGMENTS + 1) + x;
+            uint32_t next = current + X_SEGMENTS + 1;
+
+            // Triangle 1
+            indices[i_idx++] = current;
+            indices[i_idx++] = current + 1;
+            indices[i_idx++] = next + 1;
+            
+            // Triangle 2
+            indices[i_idx++] = current;
+            indices[i_idx++] = next + 1;
+            indices[i_idx++] = next;
+        }
+    }
+
+    builtin_sphere_handle = Render_CreateMesh(vertices, vertex_count, indices, index_count);
+    
+    // Clean up our temporary CPU memory
+    free(vertices);
+    free(indices);
+
+    is_sphere_loaded = true;
+
+    if (mesh_count < MAX_CACHED_MESHES) {
+        strcpy(mesh_cache[mesh_count].name, "Sphere");
+        mesh_cache[mesh_count].handle = builtin_sphere_handle;
+        mesh_count++;
+    }
+
+    return builtin_sphere_handle;
+}
+
+
+
+
+
+
+
+
+
+
+
 TextureHandle Asset_GetDefaultTexture()
 {
     if (is_default_texture_loaded)
@@ -316,4 +535,23 @@ TextureHandle Asset_GetDefaultTexture()
     is_default_texture_loaded = true;
 
     return default_white_texture;
+}
+
+
+
+
+
+ShaderHandle Asset_GetDefaultShader()
+{
+    // If we already compiled it, just hand back the ID!
+    if (is_default_shader_loaded)
+        return default_shader_handle;
+
+    // Otherwise, compile it straight from the hardcoded C-strings
+    // default_shader_handle = Render_CreateShader(standard_vert_src, standard_frag_src);
+    default_shader_handle = Asset_LoadShader("Default", "assets/shaders/default.vert", "assets/shaders/default.frag");
+    
+    is_default_shader_loaded = true;
+
+    return default_shader_handle;
 }
