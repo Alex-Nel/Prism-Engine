@@ -25,6 +25,8 @@ typedef struct Entity
     Scene* scene;
 } Entity;
 
+#define ENTITY_NONE (uint32_t) 0xFFFFFFFF
+
 
 
 
@@ -47,6 +49,8 @@ typedef enum
 typedef void (*ScriptUpdateFunc)(Entity entity, float dt, void* instance_data);
 typedef void (*ScriptStartFunc)(Entity entity, void* instance_data);
 typedef void (*ScriptDestroyFunc)(Entity entity, void* instance_data);
+typedef void (*ScriptEnableFunc)(Entity entity, void* instance_data);
+typedef void (*ScriptDisableFunc)(Entity entity, void* instance_data);
 
 
 // -------------------------------- //
@@ -62,11 +66,18 @@ typedef struct NameComponent
 // Transform: an entities positional parts
 typedef struct Transform
 {
-    Vector3 position;
-    Vector3 rotation_euler;
-    Quaternion rotation;
-    Vector3 scale;
+    Vector3 local_position;
+    Vector3 local_rotation_euler;
+    Quaternion local_rotation;
+    Vector3 local_scale;
+
     Matrix4 world_matrix; 
+
+    uint32_t parent_id;
+    uint32_t first_child_id;
+    uint32_t next_sibling_id;
+    uint32_t prev_sibling_id;
+    
     bool is_dirty; 
 } Transform;
 
@@ -75,8 +86,9 @@ typedef struct Transform
 typedef struct RenderComponent
 {
     uint32_t mesh_id;
-    uint32_t shader_id;
-    uint32_t texture_id;
+    // uint32_t shader_id;
+    // uint32_t texture_id;
+    uint32_t material_id;
 } RenderComponent;
 
 
@@ -111,6 +123,8 @@ typedef struct ScriptInstance
     ScriptStartFunc OnStart;
     ScriptUpdateFunc OnUpdate;
     ScriptDestroyFunc OnDestroy;
+    ScriptEnableFunc OnEnable;
+    ScriptDisableFunc OnDisable;
     bool has_started;
 } ScriptInstance;
 
@@ -127,6 +141,9 @@ typedef struct ScriptComponent
 typedef struct Scene
 {
     uint32_t component_masks[MAX_ENTITIES];
+
+    bool is_active_self[MAX_ENTITIES]; // Changable by the user
+    bool is_active_in_hierarchy[MAX_ENTITIES];
     
     // The tightly packed component arrays
     NameComponent names[MAX_ENTITIES];
@@ -148,37 +165,62 @@ typedef struct Scene
 // --- Scene API ---
 void Scene_Init(Scene* scene);
 void Scene_Update(Scene* scene);
+void Scene_UpdateTransforms(Scene* scene);
+Entity Scene_GetEntity(Scene* scene, const char* name);
+void Scene_SetMainCamera(Scene* scene, Entity camera_entity);
 
 // --- Entity Lifecycle API ---
 Entity Entity_Create(Scene* scene, const char* name);
 void Entity_Destroy(Entity entity);
 bool Entity_IsValid(Entity entity);
+void Entity_SetParent(Entity child, Entity parent);
+void Entity_RemoveParent(Entity child);
 
-// --- Component Setters ---
-void Entity_SetName(Entity entity, const char* name);
-void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, Vector3 scale);
-void Entity_SetPosition(Entity entity, Vector3 position);
-void Entity_SetRotationEuler(Entity entity, Vector3 euler_angles);
-void Entity_SetScale(Entity entity, Vector3 scale);
-void Entity_AddRenderable(Entity entity, uint32_t mesh_id, uint32_t shader_id, uint32_t texture_id);
-void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ);
-void Entity_AddPointLight(Entity entity, Vector3 color, float intensity, float constant, float linear, float quadratic);
-void Entity_BindScript(Entity entity, void* data, ScriptStartFunc start, ScriptUpdateFunc update, ScriptDestroyFunc destroy);
+void Entity_SetActive(Entity entity, bool active);
 
-void Scene_SetMainCamera(Scene* scene, Entity camera_entity);
 
-// --- Component Getters (Returns a pointer to the actual data so the user can modify it!) ---
-Entity Scene_GetEntity(Scene* scene, const char* name);
-Transform* Entity_GetTransform(Entity entity);
-RenderComponent* Entity_GetRenderable(Entity entity);
-CameraComponent* Entity_GetCamera(Entity entity);
 
 // Removing components
 void Entity_RemoveComponent(Entity entity, ComponentMask component);
 void Entity_UnbindScript(Entity entity, void* target_instance_data);
 
-// Other functions
-void Entity_Translate(Entity entity, Vector3 translation);
-void Entity_RotateEuler(Entity entity, Vector3 euler_addition);
+
+
+
+
+// Component Setters
+void Entity_SetName(Entity entity, const char* name);
+void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, Vector3 scale);
+// void Entity_AddRenderable(Entity entity, uint32_t mesh_id, uint32_t shader_id, uint32_t texture_id);
+void Entity_AddRenderable(Entity entity, uint32_t mesh_id, uint32_t material_id);
+void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ);
+void Entity_AddPointLight(Entity entity, Vector3 color, float intensity, float constant, float linear, float quadratic);
+void Entity_BindScript(Entity entity, void* data, ScriptStartFunc start, ScriptUpdateFunc update, ScriptDestroyFunc destroy);
+
+
+
+
+
+// Component Getters
+Transform* Entity_GetTransform(Entity entity);
+RenderComponent* Entity_GetRenderable(Entity entity);
+CameraComponent* Entity_GetCamera(Entity entity);
+PointLightComponent* Entity_GetPointLight(Entity entity);
+
+
+
+
+
+// Transform setters and getters
+void Transform_SetLocalPosition(Transform* t, Vector3 position);
+void Transform_SetLocalRotationEuler(Transform* t, Vector3 euler_angles);
+void Transform_SetLocalRotation(Transform* t, Quaternion rotation);
+void Transform_SetLocalScale(Transform* t, Vector3 scale);
+
+void Transform_Translate(Transform* t, Vector3 translation);
+void Transform_RotateEuler(Transform* t, Vector3 euler_addition);
+
+Vector3 Transform_GetLocalPosition(Transform* t);
+Vector3 Transform_GetGlobalPosition(Transform* t);
 
 #endif

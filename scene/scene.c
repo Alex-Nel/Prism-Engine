@@ -21,6 +21,11 @@ void Scene_Init(Scene* scene)
     scene->global_light.ambient_strength = 0.2f;
 }
 
+
+
+
+
+
 void Scene_Update(Scene* scene)
 {
     if (!scene) return;
@@ -30,6 +35,8 @@ void Scene_Update(Scene* scene)
     // 1. EXECUTE SCRIPTS
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
     {
+        if (!scene->is_active_in_hierarchy[i]) continue;
+
         if (scene->component_masks[i] & COMPONENT_SCRIPT)
         {
             ScriptComponent* script_comp = &scene->scripts[i];
@@ -60,23 +67,156 @@ void Scene_Update(Scene* scene)
         }
     }
 
+    Scene_UpdateTransforms(scene);
+}
 
-    // Loop through all entities to update their math
+
+
+
+
+// Private helper to trigger enable/disable events
+static void TriggerScriptStateChange(Scene* scene, uint32_t entity_id, bool is_enabling)
+{
+    if (!(scene->component_masks[entity_id] & COMPONENT_SCRIPT)) return;
+
+    ScriptComponent* script_comp = &scene->scripts[entity_id];
+    Entity e = { entity_id, scene };
+
+    for (uint32_t s = 0; s < script_comp->count; s++)
+    {
+        ScriptInstance* script = &script_comp->instances[s];
+        
+        if (is_enabling && script->OnEnable != NULL)
+            script->OnEnable(e, script->instance_data);
+        else if (!is_enabling && script->OnDisable != NULL)
+            script->OnDisable(e, script->instance_data);
+    }
+}
+
+
+
+
+
+// A private helper function for the Scene
+static void UpdateTransformTree(Scene* scene, uint32_t entity_id, Matrix4* parent_world, bool force_update)
+{
+    if (entity_id == ENTITY_NONE) return;
+
+    Transform* t = &scene->transforms[entity_id];
+
+    // Hierarchy cascade for enabling and disabling
+    bool was_active = scene->is_active_in_hierarchy[entity_id];
+    
+    bool parent_is_active = (t->parent_id != ENTITY_NONE) ? scene->is_active_in_hierarchy[t->parent_id] : true;
+    
+    bool now_active = scene->is_active_self[entity_id] && parent_is_active;
+    scene->is_active_in_hierarchy[entity_id] = now_active;
+
+    if (was_active != now_active)
+    {
+        TriggerScriptStateChange(scene, entity_id, now_active);
+        force_update = true;
+    }
+    
+
+    // If entity or parent moved, recalculate
+    bool needs_update = t->is_dirty || force_update;
+
+    if (needs_update)
+    {
+        Matrix4 local = Matrix4CreateTransform(t->local_position, t->local_rotation, t->local_scale);
+
+        // 2. Build the World Matrix
+        if (parent_world != NULL)
+            t->world_matrix = Matrix4Multiply(*parent_world, local);
+        else
+            t->world_matrix = local;
+
+        // transform is clean for this frame
+        t->is_dirty = false;
+    }
+
+
+    // --- LEFT-CHILD, RIGHT-SIBLING TRAVERSAL ---
+    // 3. Process the oldest child. We pass OUR new world_matrix down to them!
+    if (t->first_child_id != ENTITY_NONE)
+        UpdateTransformTree(scene, t->first_child_id, &t->world_matrix, needs_update);
+
+    // 4. Process our next sibling. Siblings share the same parent, 
+    if (t->next_sibling_id != ENTITY_NONE)
+        UpdateTransformTree(scene, t->next_sibling_id, parent_world, force_update);
+}
+
+
+
+
+
+void Scene_UpdateTransforms(Scene* scene)
+{
+    if (!scene) return;
+
+    uint32_t mask = COMPONENT_TRANSFORM;
+
+    // Find all the Root entities and build their trees downwards
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
     {
-        if ((scene->component_masks[i] & COMPONENT_TRANSFORM) == COMPONENT_TRANSFORM)
-        {
-            Transform* t = &scene->transforms[i];
-            
-            // If the object moved, recalculate its matrix
-            if (t->is_dirty)
+        if ((scene->component_masks[i] & mask) == mask)
+        {    
+            // Is this a Root entity?
+            if (scene->transforms[i].parent_id == ENTITY_NONE)
             {
-                t->world_matrix = Matrix4CreateTransform(t->position, t->rotation, t->scale);
-                t->is_dirty = false;
+                // Start recursion
+                UpdateTransformTree(scene, i, NULL, false);
             }
         }
     }
 }
+
+
+
+
+
+Entity Scene_GetEntity(Scene* scene, const char* name)
+{
+    if (!scene || !name) return (Entity){ 0, NULL };
+
+    // Search every active entity in the scene
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        // Only check entities that actually have a name component
+        if (scene->component_masks[i] & COMPONENT_NAME)
+        {       
+            // If the strings match, we found our entity!
+            if (strcmp(scene->names[i].name, name) == 0)
+            {
+                return (Entity){ i, scene };
+            }
+        }
+    }
+
+    // If we didn't find it, return a null entity
+    return (Entity){ 0, NULL }; 
+}
+
+
+
+
+
+void Scene_SetMainCamera(Scene* scene, Entity camera_entity)
+{
+    if (scene && Entity_IsValid(camera_entity))
+    {
+        scene->main_camera_id = camera_entity.id;
+    }
+}
+
+
+
+
+
+
+
+
 
 // --- ENTITY LIFECYCLE ---
 
@@ -103,6 +243,9 @@ Entity Entity_Create(Scene* scene, const char* name)
                 (Vector3){1.0f, 1.0f, 1.0f}
             );
 
+            scene->is_active_self[new_entity.id] = true;
+            scene->is_active_in_hierarchy[new_entity.id] = true;
+
             return new_entity;
         }
     }
@@ -113,244 +256,162 @@ Entity Entity_Create(Scene* scene, const char* name)
 
 
 
+
+
 void Entity_Destroy(Entity entity)
 {
-    if (Entity_IsValid(entity))
+    if (!Entity_IsValid(entity)) return;
+
+    // 1. SCENE GRAPH CLEANUP
+    if (entity.scene->component_masks[entity.id] & COMPONENT_TRANSFORM) 
     {
-        // Erasing the mask instantly "deletes" the entity and all its components
-        entity.scene->component_masks[entity.id] = COMPONENT_NONE;
+        Transform* t = &entity.scene->transforms[entity.id];
+
+        // A. Recursively destroy all children!
+        uint32_t current_child_id = t->first_child_id;
+        while (current_child_id != ENTITY_NONE) 
+        {
+            // CRITICAL: Save the next sibling's ID *before* we destroy the current child!
+            // If we destroy the child first, its data is wiped and we lose the sibling chain.
+            uint32_t next_id = entity.scene->transforms[current_child_id].next_sibling_id;
+            
+            Entity child_entity = { current_child_id, entity.scene };
+            Entity_Destroy(child_entity); // Boom. Recursive destruction.
+            
+            current_child_id = next_id;
+        }
+
+        // B. Detach OURSELVES from our parent so we don't leave a dead pointer in their sibling list!
+        Entity_RemoveParent(entity);
     }
+
+    // 2. Finally, erase ourselves from the ECS
+    entity.scene->component_masks[entity.id] = COMPONENT_NONE;
 }
+
+
 
 
 
 bool Entity_IsValid(Entity entity)
 {
     // It is valid if the scene pointer is not null AND the mask is not NONE
-    return (entity.scene != NULL) && 
-           (entity.scene->component_masks[entity.id] != COMPONENT_NONE);
+    return (entity.scene != NULL) && (entity.scene->component_masks[entity.id] != COMPONENT_NONE);
 }
 
 
 
 
 
-
-
-// --- COMPONENT SETTERS ---
-
-void Entity_SetName(Entity entity, const char* name)
+void Entity_SetParent(Entity child, Entity parent)
 {
-    if (!entity.scene || !name) return;
+    if (!child.scene || !parent.scene) return;
+    if (child.id == parent.id) return;
 
-    // Safely copy the string into the ECS array
-    strncpy(entity.scene->names[entity.id].name, name, MAX_NAME_LENGTH - 1);
-    
-    // Guarantee it is null-terminated so printf and strcmp don't crash
-    entity.scene->names[entity.id].name[MAX_NAME_LENGTH - 1] = '\0'; 
-
-    // Tell the ECS this entity now has a name!
-    entity.scene->component_masks[entity.id] |= COMPONENT_NAME;
-}
-
-
-
-void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, Vector3 scale)
-{
-    if (!entity.scene) return;
-
-    Transform* t = &entity.scene->transforms[entity.id];
-    t->position = position;
-    t->rotation = rotation;
-    t->scale = scale;
-    t->is_dirty = true;
-
-    t->rotation_euler = (Vector3){0.0f, 0.0f, 0.0f};
-
-    // Register the component
-    entity.scene->component_masks[entity.id] |= COMPONENT_TRANSFORM;
-}
-
-
-
-void Entity_SetRotationEuler(Entity entity, Vector3 euler_angles)
-{
-    if (!entity.scene) return;
-    
-    Transform* t = &entity.scene->transforms[entity.id];
-    
-    // 1. Update the human-readable angles
-    t->rotation_euler = euler_angles;
-    
-    // 2. Automatically bake the computer-readable Quaternion
-    t->rotation = QuaternionFromEuler(euler_angles.x, euler_angles.y, euler_angles.z);
-    
-    // 3. Automatically flag for a matrix rebuild
-    t->is_dirty = true;
-}
-
-
-
-void Entity_SetPosition(Entity entity, Vector3 position)
-{
-    if (!entity.scene) return;
-    Transform* t = &entity.scene->transforms[entity.id];
-    t->position = position;
-    t->is_dirty = true;
-}
-
-
-
-void Entity_AddRenderable(Entity entity, uint32_t mesh_id, uint32_t shader_id, uint32_t texture_id)
-{
-    if (!entity.scene) return;
-
-    if (texture_id == 0)
-        texture_id = Asset_GetDefaultTexture().id;
-
-    RenderComponent* r = &entity.scene->renderables[entity.id];
-    r->mesh_id = mesh_id;
-    r->shader_id = shader_id;
-    r->texture_id = texture_id;
-
-    // Register the component
-    entity.scene->component_masks[entity.id] |= COMPONENT_RENDER;
-}
-
-
-
-void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ)
-{
-    if (!entity.scene) return;
-
-    CameraComponent* cam = &entity.scene->cameras[entity.id];
-    cam->fov = fov;
-    cam->nearZ = nearZ;
-    cam->farZ = farZ;
-    cam->is_dirty = true;
-
-    entity.scene->component_masks[entity.id] |= COMPONENT_CAMERA;
-}
-
-
-
-void Entity_AddPointLight(Entity entity, Vector3 color, float intensity, float constant, float linear, float quadratic)
-{
-    if (!entity.scene) return;
-    
-    PointLightComponent* light = &entity.scene->point_lights[entity.id];
-    light->color = color;
-    light->intensity = intensity;
-    light->constant = constant;
-    light->linear = linear;
-    light->quadratic = quadratic;
-    
-    entity.scene->component_masks[entity.id] |= COMPONENT_POINT_LIGHT;
-}
-
-
-
-void Entity_BindScript(Entity entity, void* data, ScriptStartFunc start, ScriptUpdateFunc update, ScriptDestroyFunc destroy)
-{
-    if (!entity.scene) return;
-    
-    ScriptComponent* script_comp = &entity.scene->scripts[entity.id];
-    
-    // Check if we hit the limit!
-    if (script_comp->count >= MAX_SCRIPTS_PER_ENTITY)
+    if (!Entity_IsValid(parent))
     {
-        Log_Error("WARNING: Entity %d exceeded maximum scripts (%d)!\n", entity.id, MAX_SCRIPTS_PER_ENTITY);
+        Entity_RemoveParent(child);
         return;
     }
-    
-    // Get the next available slot
-    uint32_t index = script_comp->count;
-    
-    // Slot the new script in
-    script_comp->instances[index].instance_data = data;
-    script_comp->instances[index].OnStart = start;
-    script_comp->instances[index].OnUpdate = update;
-    script_comp->instances[index].OnDestroy = destroy;
-    script_comp->instances[index].has_started = false;
-    
-    // Increment the counter
-    script_comp->count++;
-    
-    // Tell the ECS this entity has at least one script
-    entity.scene->component_masks[entity.id] |= COMPONENT_SCRIPT;
-}
 
+    Transform* child_t = &child.scene->transforms[child.id];
+    Transform* parent_t = &parent.scene->transforms[parent.id];
 
+    // --- STEP 1: DETACH FROM OLD PARENT ---
+    Entity_RemoveParent(child);
 
+    // --- STEP 2: ATTACH TO NEW PARENT ---
+    child_t->parent_id = parent.id;
+    child_t->next_sibling_id = ENTITY_NONE;
+    child_t->prev_sibling_id = ENTITY_NONE;
 
-
-
-
-// --- COMPONENT GETTERS ---
-
-Entity Scene_GetEntity(Scene* scene, const char* name)
-{
-    if (!scene || !name) return (Entity){ 0, NULL };
-
-    // Search every active entity in the scene
-    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    if (parent_t->first_child_id != ENTITY_NONE)
     {
-        // Only check entities that actually have a name component
-        if (scene->component_masks[i] & COMPONENT_NAME)
-        {       
-            // If the strings match, we found our entity!
-            if (strcmp(scene->names[i].name, name) == 0)
-            {
-                return (Entity){ i, scene };
-            }
+        // The parent has children. Let's find the youngest sibling.
+        uint32_t current_sibling_id = parent_t->first_child_id;
+        Transform* current_sibling = &child.scene->transforms[current_sibling_id];
+        
+        // Walk down the line until someone has no 'next' sibling
+        while (current_sibling->next_sibling_id != ENTITY_NONE)
+        {
+            current_sibling_id = current_sibling->next_sibling_id;
+            current_sibling = &child.scene->transforms[current_sibling_id];
         }
+        
+        // Stand at the end of the line!
+        current_sibling->next_sibling_id = child.id;
+        child_t->prev_sibling_id = current_sibling_id;
+        
     }
-
-    // If we didn't find it, return a null entity
-    return (Entity){ 0, NULL }; 
-}
-
-
-
-Transform* Entity_GetTransform(Entity entity)
-{
-    if (!entity.scene) return NULL;
-    
-    // Ensure the entity actually HAS a transform before returning a pointer to it
-    if ((entity.scene->component_masks[entity.id] & COMPONENT_TRANSFORM) == COMPONENT_TRANSFORM)
+    else
     {
-        return &entity.scene->transforms[entity.id];
+        // The parent has no children.
+        parent_t->first_child_id = child.id;
     }
-    
-    return NULL; // Component doesn't exist on this entity
+
+    // Flag for a matrix rebuild since our space just changed!
+    child_t->is_dirty = true; 
 }
 
 
 
-RenderComponent* Entity_GetRenderable(Entity entity)
+
+
+void Entity_RemoveParent(Entity child)
 {
-    if (!entity.scene) return NULL;
-
-    if ((entity.scene->component_masks[entity.id] & COMPONENT_RENDER) == COMPONENT_RENDER)
-    {
-        return &entity.scene->renderables[entity.id];
-    }
+    if (!child.scene) return;
     
-    return NULL;
+    Transform* child_t = &child.scene->transforms[child.id];
+    
+    // If it already has no parent, do nothing!
+    if (child_t->parent_id == ENTITY_NONE) return; 
+
+    // --- AAA FEATURE: Keep the object where it is in the world! ---
+    // Because it is becoming a root object, its Local position should equal its current Global position.
+    child_t->local_position = Transform_GetGlobalPosition(child_t);
+    // (Note: To be perfectly accurate, you would also extract and set the global rotation/scale here)
+
+    Transform* old_parent_t = &child.scene->transforms[child_t->parent_id];
+    
+    // 1. Pass the torch if it was the oldest child
+    if (old_parent_t->first_child_id == child.id)
+        old_parent_t->first_child_id = child_t->next_sibling_id;
+    
+    // 2. Stitch the siblings together to close the gap
+    if (child_t->prev_sibling_id != ENTITY_NONE)
+        child.scene->transforms[child_t->prev_sibling_id].next_sibling_id = child_t->next_sibling_id;
+    if (child_t->next_sibling_id != ENTITY_NONE)
+        child.scene->transforms[child_t->next_sibling_id].prev_sibling_id = child_t->prev_sibling_id;
+
+    // 3. Sever the child's ties
+    child_t->parent_id = ENTITY_NONE;
+    child_t->next_sibling_id = ENTITY_NONE;
+    child_t->prev_sibling_id = ENTITY_NONE;
+
+    child_t->is_dirty = true;
 }
 
 
 
-CameraComponent* Entity_GetCamera(Entity entity)
+
+
+void Entity_SetActive(Entity entity, bool active)
 {
-    if (!entity.scene) return NULL;
+    if (!entity.scene) return;
+    
+    // Don't do anything if they aren't actually changing the state
+    if (entity.scene->is_active_self[entity.id] == active) return; 
 
-    if ((entity.scene->component_masks[entity.id] & COMPONENT_CAMERA) == COMPONENT_CAMERA)
-    {
-        return &entity.scene->cameras[entity.id];
-    }
-    return NULL;
+    entity.scene->is_active_self[entity.id] = active;
+    
+    // Flag the transform as dirty! This forces the Scene Graph to re-evaluate 
+    // this entity AND all of its children during the next bake.
+    Transform* t = Entity_GetTransform(entity);
+    if (t) t->is_dirty = true;
 }
+
+
+
 
 
 
@@ -400,8 +461,6 @@ void Entity_UnbindScript(Entity entity, void* target_instance_data)
                 free(target_instance_data); 
             }
 
-
-            // --- SWAP AND POP ---
             // 1. Overwrite this slot with the data from the LAST slot in the array
             script_comp->instances[i] = script_comp->instances[script_comp->count - 1];
             
@@ -410,54 +469,9 @@ void Entity_UnbindScript(Entity entity, void* target_instance_data)
 
             // 3. If that was the very last script, turn off the script mask entirely!
             if (script_comp->count == 0)
-            {
                 entity.scene->component_masks[entity.id] &= ~COMPONENT_SCRIPT;
-            }
 
             return;
         }
     }
-}
-
-
-
-
-
-
-
-// Other functions
-
-void Scene_SetMainCamera(Scene* scene, Entity camera_entity)
-{
-    if (scene && Entity_IsValid(camera_entity))
-    {
-        scene->main_camera_id = camera_entity.id;
-    }
-}
-
-
-
-void Entity_Translate(Entity entity, Vector3 translation)
-{
-    Transform* t = Entity_GetTransform(entity);
-    t->position.x += translation.x;
-    t->position.y += translation.y;
-    t->position.z += translation.z;
-}
-
-
-
-void Entity_RotateEuler(Entity entity, Vector3 euler_addition)
-{
-    if (!entity.scene) return;
-    Transform* t = &entity.scene->transforms[entity.id];
-    
-    Vector3 new_euler = {
-        t->rotation_euler.x + euler_addition.x,
-        t->rotation_euler.y + euler_addition.y,
-        t->rotation_euler.z + euler_addition.z
-    };
-    
-    // Re-use the setter!
-    Entity_SetRotationEuler(entity, new_euler);
 }
