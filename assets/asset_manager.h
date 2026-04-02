@@ -48,6 +48,9 @@ TextureHandle Asset_GetDefaultTexture();
 // Function to get the default shader
 ShaderHandle Asset_GetDefaultShader();
 
+// Get the meshdata from a cached mesh
+MeshData* Asset_GetMeshData(MeshHandle handle);
+
 
 
 // In the future, you'll add things like:

@@ -173,6 +173,22 @@ RenderComponent* Entity_GetRenderable(Entity entity)
 
 
 
+MeshHandle Entity_GetMesh(Entity entity)
+{
+    if (!Entity_IsValid(entity)) return (MeshHandle){0};
+    
+    // Check if the entity actually has a render component
+    if (entity.scene->component_masks[entity.id] & COMPONENT_RENDER) {
+        return (MeshHandle){ entity.scene->renderables[entity.id].mesh_id };
+    }
+    
+    return (MeshHandle){0};
+}
+
+
+
+
+
 CameraComponent* Entity_GetCamera(Entity entity)
 {
     if (!entity.scene) return NULL;

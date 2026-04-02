@@ -42,6 +42,7 @@ typedef struct CachedMesh
 {
     char name[64];
     MeshHandle handle;
+    MeshData mesh_data;
 } CachedMesh;
 
 
@@ -119,8 +120,10 @@ MeshHandle Asset_LoadMesh(const char* name, const char* filepath)
     }
     
     uint32_t vertex_count = total_triangles * 3;
+    uint32_t index_count = vertex_count;
+
     Vertex3D* final_vertices = malloc(sizeof(Vertex3D) * vertex_count);
-    uint32_t* final_indices  = malloc(sizeof(uint32_t) * vertex_count);
+    uint32_t* final_indices  = malloc(sizeof(uint32_t) * index_count);
 
     // --- The Triangulation Loop ---
     uint32_t vertex_offset = 0;
@@ -181,19 +184,29 @@ MeshHandle Asset_LoadMesh(const char* name, const char* filepath)
     }
 
     // 5. Send to GPU
-    MeshHandle handle = Render_CreateMesh(final_vertices, vertex_count, final_indices, vertex_count);
+    MeshHandle handle = Render_CreateMesh(final_vertices, vertex_count, final_indices, index_count);
 
-    // 6. Clean up CPU RAM
-    free(final_vertices);
-    free(final_indices);
-    fast_obj_destroy(mesh);
 
     // 7. Cache it
     if (mesh_count < MAX_CACHED_MESHES) {
         strcpy(mesh_cache[mesh_count].name, name);
         mesh_cache[mesh_count].handle = handle;
+
+        mesh_cache[mesh_count].mesh_data.vertices = final_vertices;
+        mesh_cache[mesh_count].mesh_data.indices = final_indices;
+        mesh_cache[mesh_count].mesh_data.vertex_count = vertex_count;
+        mesh_cache[mesh_count].mesh_data.index_count = index_count;
+
         mesh_count++;
     }
+    else
+    {
+        free(final_vertices);
+        free(final_indices);
+    }
+
+    fast_obj_destroy(mesh);
+
 
     return handle;
 }
@@ -424,14 +437,32 @@ MeshHandle Asset_GetBuiltinCube(void)
         20, 21, 22, 22, 23, 20  // Bottom
     };
 
-    builtin_cube_handle = Render_CreateMesh(vertices, 24, indices, 36);
+    // Copy vertices and indices to the heap for caching
+    Vertex3D* heap_vertices = malloc(sizeof(vertices));
+    memcpy(heap_vertices, vertices, sizeof(vertices));
+    uint32_t* heap_indices = malloc(sizeof(indices));
+    memcpy(heap_indices, indices, sizeof(indices));
+
+
+    builtin_cube_handle = Render_CreateMesh(heap_vertices, 24, heap_indices, 36);
     is_cube_loaded = true;
     
     // Cache it so it can be looked up by name if needed
     if (mesh_count < MAX_CACHED_MESHES) {
         strcpy(mesh_cache[mesh_count].name, "Cube");
         mesh_cache[mesh_count].handle = builtin_cube_handle;
+
+        mesh_cache[mesh_count].mesh_data.vertices = heap_vertices;
+        mesh_cache[mesh_count].mesh_data.indices = heap_indices;
+        mesh_cache[mesh_count].mesh_data.vertex_count = 24;
+        mesh_cache[mesh_count].mesh_data.index_count = 36;
+
         mesh_count++;
+    }
+    else
+    {
+        free(heap_vertices);
+        free(heap_indices);
     }
 
     return builtin_cube_handle;
@@ -497,17 +528,24 @@ MeshHandle Asset_GetBuiltinSphere(void)
     }
 
     builtin_sphere_handle = Render_CreateMesh(vertices, vertex_count, indices, index_count);
-    
-    // Clean up our temporary CPU memory
-    free(vertices);
-    free(indices);
 
     is_sphere_loaded = true;
 
     if (mesh_count < MAX_CACHED_MESHES) {
         strcpy(mesh_cache[mesh_count].name, "Sphere");
         mesh_cache[mesh_count].handle = builtin_sphere_handle;
+
+        mesh_cache[mesh_count].mesh_data.vertices = vertices;
+        mesh_cache[mesh_count].mesh_data.indices = indices;
+        mesh_cache[mesh_count].mesh_data.vertex_count = vertex_count;
+        mesh_cache[mesh_count].mesh_data.index_count = index_count;
+
         mesh_count++;
+    }
+    else
+    {
+        free(vertices);
+        free(indices);
     }
 
     return builtin_sphere_handle;
@@ -554,4 +592,19 @@ ShaderHandle Asset_GetDefaultShader()
     is_default_shader_loaded = true;
 
     return default_shader_handle;
+}
+
+
+
+
+
+MeshData* Asset_GetMeshData(MeshHandle handle)
+{
+    // Search the cache for the matching handle
+    for (uint32_t i = 0; i < mesh_count; i++) {
+        if (mesh_cache[i].handle.id == handle.id) {
+            return &mesh_cache[i].mesh_data;
+        }
+    }
+    return NULL; // Not found
 }

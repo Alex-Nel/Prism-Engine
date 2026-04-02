@@ -204,6 +204,7 @@ void Entity_BindScript(Entity entity, void* data, ScriptStartFunc start, ScriptU
 // Component Getters
 Transform* Entity_GetTransform(Entity entity);
 RenderComponent* Entity_GetRenderable(Entity entity);
+MeshHandle Entity_GetMesh(Entity entity);
 CameraComponent* Entity_GetCamera(Entity entity);
 PointLightComponent* Entity_GetPointLight(Entity entity);
 

@@ -23,6 +23,7 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
 
     // 1. Core Init
     Input_Init();
+    Asset_Init();
     Time_Init(engine.target_fps, Platform_GetTime, Platform_Delay);
 
     // 2. Platform Init
