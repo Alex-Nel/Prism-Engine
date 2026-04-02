@@ -22,26 +22,25 @@ typedef struct PrismEngine
 // Initializes Platform, Core, and Render systems
 bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t window_height, uint32_t target_fps, GraphicsAPI api);
 
-// The Front Bookend: Ticks time, polls OS events, routes structural events, feeds Input
-bool Engine_IsRunning();
 
-// Main render function for a scene
-void Engine_RenderScene(Scene* scene);
+bool Engine_IsRunning();               // The Front Bookend: Ticks time, polls OS events, routes structural events, feeds Input
+void Engine_RenderScene(Scene* scene); // Main render function for a scene
+void Engine_EndFrame();                // The Back Bookend: Executes render queue, swaps buffers, cycles Input state
 
-// The Back Bookend: Executes render queue, swaps buffers, cycles Input state
-void Engine_EndFrame();
-
-// Shuts down all systems safely
+// Shuts down all systems
 void Engine_Shutdown();
 
 
-
-
+// ----- Mouse related functions ---- //
 // Sets the Relative Mouse mode
 void Engine_CaptureMouse();
 void Engine_ReleaseMouse();
-
-// Returns if the mouse is captured
 bool Engine_IsMouseCaptured();
+
+
+// ----- FPS related functions ---- //
+void Engine_SetTargetFPS(uint32_t fps);
+uint32_t Engine_GetTargetFPS();
+
 
 #endif // ENGINE_H

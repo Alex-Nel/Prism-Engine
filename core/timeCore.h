@@ -18,4 +18,10 @@ void Time_Tick();
 // Returns the time elapsed between the current and previous frame in seconds.
 float Time_DeltaTime();
 
+
+// Functions for getting and setting the target FPS
+void Time_SetTargetFPS(uint32_t target_fps);
+uint32_t Time_GetTargetFPS();
+
+
 #endif

@@ -8,6 +8,7 @@ static Time_GetTime get_time_func = NULL;
 static Time_Delay delay_func = NULL;
 
 
+static uint32_t current_target_fps = 0;
 static double last_time = 0.0;
 static float delta_time = 0.0f;
 static double target_frame_time = 0.0;
@@ -34,6 +35,8 @@ void Time_Init(uint32_t target_fps, Time_GetTime get_time_cb, Time_Delay delay_c
     {
         target_frame_time = 0.0; // Uncapped
     }
+
+    current_target_fps = target_fps;
 }
 
 
@@ -85,4 +88,27 @@ void Time_Tick()
 float Time_DeltaTime()
 {
     return delta_time;
+}
+
+
+
+
+
+void Time_SetTargetFPS(uint32_t target_fps)
+{
+    current_target_fps = target_fps;
+    
+    if (target_fps > 0)
+        target_frame_time = 1.0 / (double)target_fps;
+    else
+        target_frame_time = 0.0;   // 0 means Unlimited FPS
+}
+
+
+
+
+
+uint32_t Time_GetTargetFPS()
+{
+    return current_target_fps;
 }

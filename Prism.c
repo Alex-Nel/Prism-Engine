@@ -244,6 +244,11 @@ void Engine_Shutdown()
 
 
 
+
+
+
+
+
 void Engine_CaptureMouse()
 {
     mouse_captured = true;
@@ -273,4 +278,24 @@ void Engine_ReleaseMouse()
 bool Engine_IsMouseCaptured()
 {
     return mouse_captured;
+}
+
+
+
+
+
+
+
+
+
+void Engine_SetTargetFPS(uint32_t fps)
+{
+    engine.target_fps = fps;
+    Time_SetTargetFPS(fps);
+}
+
+
+uint32_t Engine_GetTargetFPS()
+{
+    return Time_GetTargetFPS();
 }
