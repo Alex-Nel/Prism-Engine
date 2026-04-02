@@ -33,12 +33,14 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
         return false;
     }
 
-    void* proc_addr = NULL;
+    void* proc_addr;
     if (api == GRAPHICS_API_OPENGL)
         proc_addr = Platform_GetProcAddress;
+    else
+        proc_addr = NULL;
     
     // 3. Render Init (Injecting the OS loader)
-    if (!Render_Init(api, Platform_GetProcAddress))
+    if (!Render_Init(api, proc_addr))
     {
         Platform_Shutdown(main_window);
         Log_Error("Renderer failed to initialize.\n");

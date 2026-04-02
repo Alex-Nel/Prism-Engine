@@ -1,5 +1,10 @@
 build/
+SampleObjects/
 
 *.png
 *.jpg
 *.jpeg
+
+*.exe
+*.dll
+main.c

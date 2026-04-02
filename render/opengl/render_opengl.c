@@ -109,6 +109,7 @@ bool Render_Init(GraphicsAPI api, Render_LoadProcFn load_proc)
         glDepthFunc(GL_LESS);
         glEnable(GL_CULL_FACE); // Disables drawing the inside of a mesh
         // glDisable(GL_CULL_FACE);
+        
         return true;
     }
     else if (api == GRAPHICS_API_VULKAN)

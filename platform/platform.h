@@ -6,16 +6,17 @@
 #include "../core/event.h"
 #include "../core/input.h"
 #include "../core/timeCore.h"
+#include "../render/render.h"
 
 
 // Enum for different graphics API's
-typedef enum GraphicsAPI
-{
-    GRAPHICS_API_OPENGL,
-    GRAPHICS_API_VULKAN,
-    GRAPHICS_API_DIRECTX,
-    GRAPHICS_API_NONE     // Useful for headless dedicated servers
-} GraphicsAPI;
+// typedef enum GraphicsAPI
+// {
+//     GRAPHICS_API_OPENGL,
+//     GRAPHICS_API_VULKAN,
+//     GRAPHICS_API_DIRECTX,
+//     GRAPHICS_API_NONE     // Useful for headless dedicated servers
+// } GraphicsAPI;
 
 
 // Definition of window, implemented by each platform
