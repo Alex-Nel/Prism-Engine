@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <float.h>
 
 #define FAST_OBJ_IMPLEMENTATION
 #include "fast_obj.h"
@@ -87,6 +88,34 @@ void Asset_Init(void)
 {
     shader_count = 0;
     is_quad_loaded = false;
+}
+
+
+
+
+
+static AABB CalculateAABB(const Vertex3D* vertices, uint32_t vertex_count)
+{
+    // Start min at the highest possible number, and max at the lowest possible number
+    AABB bounds = {
+        (Vector3){ FLT_MAX,  FLT_MAX,  FLT_MAX},
+        (Vector3){-FLT_MAX, -FLT_MAX, -FLT_MAX}
+    };
+
+    for (uint32_t i = 0; i < vertex_count; i++)
+    {
+        Vector3 p = vertices[i].position;
+
+        if (p.x < bounds.min.x) bounds.min.x = p.x;
+        if (p.y < bounds.min.y) bounds.min.y = p.y;
+        if (p.z < bounds.min.z) bounds.min.z = p.z;
+
+        if (p.x > bounds.max.x) bounds.max.x = p.x;
+        if (p.y > bounds.max.y) bounds.max.y = p.y;
+        if (p.z > bounds.max.z) bounds.max.z = p.z;
+    }
+
+    return bounds;
 }
 
 
@@ -196,6 +225,8 @@ MeshHandle Asset_LoadMesh(const char* name, const char* filepath)
         mesh_cache[mesh_count].mesh_data.indices = final_indices;
         mesh_cache[mesh_count].mesh_data.vertex_count = vertex_count;
         mesh_cache[mesh_count].mesh_data.index_count = index_count;
+
+        mesh_cache[mesh_count].mesh_data.local_bounds = CalculateAABB(final_vertices, vertex_count);
 
         mesh_count++;
     }
@@ -457,6 +488,8 @@ MeshHandle Asset_GetBuiltinCube(void)
         mesh_cache[mesh_count].mesh_data.vertex_count = 24;
         mesh_cache[mesh_count].mesh_data.index_count = 36;
 
+        mesh_cache[mesh_count].mesh_data.local_bounds = CalculateAABB(heap_vertices, 24);
+
         mesh_count++;
     }
     else
@@ -539,6 +572,8 @@ MeshHandle Asset_GetBuiltinSphere(void)
         mesh_cache[mesh_count].mesh_data.indices = indices;
         mesh_cache[mesh_count].mesh_data.vertex_count = vertex_count;
         mesh_cache[mesh_count].mesh_data.index_count = index_count;
+
+        mesh_cache[mesh_count].mesh_data.local_bounds = CalculateAABB(vertices, vertex_count);
 
         mesh_count++;
     }

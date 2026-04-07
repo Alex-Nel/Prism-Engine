@@ -9,6 +9,7 @@
 #include "../core/timeCore.h"
 #include "../core/log.h"
 #include "../assets/asset_manager.h"
+#include "physicsBridge.h"
 
 #define MAX_ENTITIES 4096
 #define MAX_NAME_LENGTH 64
@@ -40,7 +41,9 @@ typedef enum
     COMPONENT_RENDER      = 1 << 2,
     COMPONENT_CAMERA      = 1 << 3,
     COMPONENT_POINT_LIGHT = 1 << 4,
-    COMPONENT_SCRIPT      = 1 << 5
+    COMPONENT_COLLIDER    = 1 << 5,
+    COMPONENT_RIGIDBODY   = 1 << 6,
+    COMPONENT_SCRIPT      = 1 << 7
 } ComponentMask;
 
 
@@ -116,6 +119,41 @@ typedef struct PointLightComponent
 } PointLightComponent;
 
 
+// Collider Types
+typedef enum ColliderType
+{
+    COLLIDER_BOX,
+    COLLIDER_SPHERE,
+    COLLIDER_MESH
+} ColliderType;
+
+// The Collider Unified Component
+typedef struct ColliderComponent
+{
+    ColliderType type;
+    bool is_trigger;
+    
+    void* physics_handle;
+    
+} ColliderComponent;
+
+// Rigidbody component
+typedef struct RigidbodyComponent
+{
+    float mass;
+    float linear_drag;
+    float angular_drag;
+    bool use_gravity;
+    bool is_kinematic;
+
+    bool freeze_rot_x;
+    bool freeze_rot_y;
+    bool freeze_rot_z;
+} RigidbodyComponent;
+
+
+
+
 // Instance of a script
 typedef struct ScriptInstance
 {
@@ -151,11 +189,15 @@ typedef struct Scene
     RenderComponent renderables[MAX_ENTITIES];
     CameraComponent cameras[MAX_ENTITIES];
     PointLightComponent point_lights[MAX_ENTITIES];
+    ColliderComponent colliders[MAX_ENTITIES];
+    RigidbodyComponent rigidbodies[MAX_ENTITIES];
     ScriptComponent scripts[MAX_ENTITIES];
 
     uint32_t main_camera_id;
 
     DirectionalLight global_light;
+
+    PhysicsWorldHandle physics_world;
 } Scene;
 
 
@@ -168,6 +210,7 @@ void Scene_Update(Scene* scene);
 void Scene_UpdateTransforms(Scene* scene);
 Entity Scene_GetEntity(Scene* scene, const char* name);
 void Scene_SetMainCamera(Scene* scene, Entity camera_entity);
+void Scene_ShutdownPhysics(Scene* scene);
 
 // --- Entity Lifecycle API ---
 Entity Entity_Create(Scene* scene, const char* name);
@@ -175,8 +218,10 @@ void Entity_Destroy(Entity entity);
 bool Entity_IsValid(Entity entity);
 void Entity_SetParent(Entity child, Entity parent);
 void Entity_RemoveParent(Entity child);
-
 void Entity_SetActive(Entity entity, bool active);
+void Entity_RemovePhysics(Entity entity);
+void Entity_RemoveRigidbody(Entity entity);
+
 
 
 
@@ -195,6 +240,11 @@ void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, V
 void Entity_AddRenderable(Entity entity, uint32_t mesh_id, uint32_t material_id);
 void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ);
 void Entity_AddPointLight(Entity entity, Vector3 color, float intensity, float constant, float linear, float quadratic);
+void Entity_AddColliderBox(Entity entity, Vector3 extents, bool is_trigger);
+void Entity_AddColliderBoxAuto(Entity entity, bool is_trigger);
+void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger);
+void Entity_AddColliderMesh(Entity entity, MeshHandle mesh, bool is_trigger);
+void Entity_AddRigidbody(Entity entity, float mass);
 void Entity_BindScript(Entity entity, void* data, ScriptStartFunc start, ScriptUpdateFunc update, ScriptDestroyFunc destroy);
 
 
@@ -207,6 +257,8 @@ RenderComponent* Entity_GetRenderable(Entity entity);
 MeshHandle Entity_GetMesh(Entity entity);
 CameraComponent* Entity_GetCamera(Entity entity);
 PointLightComponent* Entity_GetPointLight(Entity entity);
+ColliderComponent* Entity_GetCollider(Entity entity);
+RigidbodyComponent* Entity_GetRigidbody(Entity entity);
 
 
 
@@ -223,5 +275,8 @@ void Transform_RotateEuler(Transform* t, Vector3 euler_addition);
 
 Vector3 Transform_GetLocalPosition(Transform* t);
 Vector3 Transform_GetGlobalPosition(Transform* t);
+
+void Rigidbody_SetGravity(Entity entity, bool use_gravity);
+void Rigidbody_SetKinematic(Entity entity, bool is_kinematic);
 
 #endif

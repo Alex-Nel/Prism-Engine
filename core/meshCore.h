@@ -2,6 +2,7 @@
 #define MESH_CORE_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "mathCore.h"
 
@@ -15,6 +16,21 @@ typedef struct Vertex3D
     Vector2 uv;
 } Vertex3D;
 
+// struct for a global scene light
+typedef struct DirectionalLight
+{
+    Vector3 direction;
+    Vector3 color;
+    float ambient_strength;
+} DirectionalLight;
+
+// Struct for an AABB
+typedef struct AABB
+{
+    Vector3 min;
+    Vector3 max;
+} AABB;
+
 // The CPU-side container
 typedef struct MeshData
 {
@@ -23,15 +39,9 @@ typedef struct MeshData
     
     uint32_t* indices;
     uint32_t index_count;
-} MeshData;
 
-// struct for a global scene light
-typedef struct DirectionalLight
-{
-    Vector3 direction;
-    Vector3 color;
-    float ambient_strength;
-} DirectionalLight;
+    AABB local_bounds;
+} MeshData;
 
 
 

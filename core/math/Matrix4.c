@@ -299,6 +299,22 @@ Matrix4 Matrix4RotateX(float r)
 
 
 //
+// Multiplies a matrix by a vector3 to return a vector3
+//
+Vector3 Matrix4MultiplyVector3(Matrix4 m, Vector3 v)
+{
+    Vector3 out;
+
+    out.x = m.m0 * v.x + m.m4 * v.y + m.m8  * v.z + m.m12;
+    out.y = m.m1 * v.x + m.m5 * v.y + m.m9  * v.z + m.m13;
+    out.z = m.m2 * v.x + m.m6 * v.y + m.m10 * v.z + m.m14;
+
+    return out;
+}
+
+
+
+//
 // Get the array representation of a matrix.
 //
 void Matrix4ToArray(Matrix4 m, float out[16])

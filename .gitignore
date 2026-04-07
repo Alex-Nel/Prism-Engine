@@ -7,4 +7,5 @@ SampleObjects/
 
 *.exe
 *.dll
+*.a
 main.c

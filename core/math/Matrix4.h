@@ -31,6 +31,7 @@ Matrix4 Matrix4Inverse(Matrix4 m);
 Matrix4 Matrix4Translate(Vector3 t);
 Matrix4 Matrix4Scale(Vector3 s);
 Matrix4 Matrix4RotateX(float r);
+Vector3 Matrix4MultiplyVector3(Matrix4 m, Vector3 v);
 void Matrix4ToArray(Matrix4 m, float out[16]);
 
 

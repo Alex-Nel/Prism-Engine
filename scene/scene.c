@@ -1,4 +1,4 @@
-#include "scene/scene.h"
+#include "scene.h"
 #include <string.h> // For memset
 #include <stddef.h> // For NULL
 
@@ -19,8 +19,9 @@ void Scene_Init(Scene* scene)
     scene->global_light.direction = (Vector3){1.0f, 2.0f, 1.0f};
     scene->global_light.color = (Vector3){1.0f, 1.0f, 1.0f}; // Pure white
     scene->global_light.ambient_strength = 0.2f;
-}
 
+    scene->physics_world = Physics_InitWorld();
+}
 
 
 
@@ -32,7 +33,7 @@ void Scene_Update(Scene* scene)
 
     float dt = Time_DeltaTime();
 
-    // 1. EXECUTE SCRIPTS
+    // Execute any custom scripts
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
     {
         if (!scene->is_active_in_hierarchy[i]) continue;
@@ -63,6 +64,54 @@ void Scene_Update(Scene* scene)
                 {
                     script->OnUpdate(e, dt, script->instance_data);
                 }
+            }
+        }
+    }
+
+    // Sync engine positions with physics engine
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i]) continue;
+
+        bool is_static_collider = (scene->component_masks[i] & COMPONENT_COLLIDER) && !(scene->component_masks[i] & COMPONENT_RIGIDBODY);
+        
+        bool is_kinematic_body = (scene->component_masks[i] & COMPONENT_RIGIDBODY) && scene->rigidbodies[i].is_kinematic;
+        
+        if (is_static_collider || is_kinematic_body)
+        {
+            ColliderComponent* c = &scene->colliders[i];
+            if (c->physics_handle)
+            {
+                Transform* t = &scene->transforms[i];
+                Physics_SetBodyPosition(c->physics_handle, t->local_position);
+                Physics_SetBodyRotation(c->physics_handle, t->local_rotation);
+            }
+        }
+    }
+
+
+    // Step through physics simulation
+    if (scene->physics_world)
+        Physics_StepSimulation(scene->physics_world, dt);
+
+
+    // Sync physics positions/rotations with the engine
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i]) continue;
+        
+        // If it has a Rigidbody, Bullet owns the position!
+        // if (scene->component_masks[i] & COMPONENT_RIGIDBODY)
+        if ((scene->component_masks[i] & COMPONENT_RIGIDBODY) && !scene->rigidbodies[i].is_kinematic)
+        {
+            ColliderComponent* c = &scene->colliders[i];
+            if (c->physics_handle) {
+                Transform* t = &scene->transforms[i];
+                Vector3 new_pos = Physics_GetBodyPosition(c->physics_handle);
+                Quaternion new_rot = Physics_GetBodyRotation(c->physics_handle);
+                
+                Transform_SetLocalPosition(t, new_pos);
+                Transform_SetLocalRotation(t, new_rot);
             }
         }
     }
@@ -208,6 +257,29 @@ void Scene_SetMainCamera(Scene* scene, Entity camera_entity)
     {
         scene->main_camera_id = camera_entity.id;
     }
+}
+
+
+
+
+
+void Scene_ShutdownPhysics(Scene* scene)
+{
+    if (!scene || !scene->physics_world) return;
+
+    // Destroy all rigidbodies before destroying the world
+    // Bullet will crash if world gets deleted with rigidbodies still active
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (scene->component_masks[i] & COMPONENT_COLLIDER)
+        {
+            Entity e = { i, scene };
+            Entity_RemovePhysics(e);
+        }
+    }
+
+    Physics_ShutdownWorld(scene->physics_world);
+    scene->physics_world = NULL;
 }
 
 
@@ -404,10 +476,65 @@ void Entity_SetActive(Entity entity, bool active)
 
     entity.scene->is_active_self[entity.id] = active;
     
-    // Flag the transform as dirty! This forces the Scene Graph to re-evaluate 
-    // this entity AND all of its children during the next bake.
+    // Flag the transform as dirty to make the Scene Graph re-evaluate its transform + children
     Transform* t = Entity_GetTransform(entity);
     if (t) t->is_dirty = true;
+
+    // Update the physics state if it has a collider
+    if (entity.scene->component_masks[entity.id] & COMPONENT_COLLIDER)
+    {
+        ColliderComponent* c = &entity.scene->colliders[entity.id];
+        if (c->physics_handle)
+        {
+            Physics_SetBodySimulationState(entity.scene->physics_world, c->physics_handle, active);
+        }
+    }
+}
+
+
+
+
+
+void Entity_RemovePhysics(Entity entity)
+{
+    if (!Entity_IsValid(entity)) return;
+
+    // Check if the entity actually has physics attached
+    if (entity.scene->component_masks[entity.id] & COMPONENT_COLLIDER)
+    {
+        ColliderComponent* c = &entity.scene->colliders[entity.id];
+        
+        if (c->physics_handle)
+        {
+            // Pass it to the bridge to permanently delete the C++ memory
+            Physics_DestroyBody(entity.scene->physics_world, c->physics_handle);
+            c->physics_handle = NULL;
+        }
+        
+        // Strip the flags off the entity so the engine stops trying to sync it
+        entity.scene->component_masks[entity.id] &= ~COMPONENT_COLLIDER;
+        entity.scene->component_masks[entity.id] &= ~COMPONENT_RIGIDBODY;
+    }
+}
+
+
+
+
+
+void Entity_RemoveRigidbody(Entity entity)
+{
+    if (!Entity_IsValid(entity)) return;
+    
+    if (entity.scene->component_masks[entity.id] & COMPONENT_RIGIDBODY)
+    {
+        ColliderComponent* c = &entity.scene->colliders[entity.id];
+        
+        // Don't destroy it! Just tell Bullet to make it a Static wall (Mass = 0)
+        Physics_AddRigidbody(entity.scene->physics_world, c->physics_handle, 0.0f);
+        
+        // Remove the Rigidbody bit, but KEEP the Collider bit!
+        entity.scene->component_masks[entity.id] &= ~COMPONENT_RIGIDBODY;
+    }
 }
 
 
@@ -423,6 +550,21 @@ void Entity_SetActive(Entity entity, bool active)
 void Entity_RemoveComponent(Entity entity, ComponentMask component)
 {
     if (!entity.scene) return;
+
+    // Call respective functions depending on whether a rigidbody or collider is removed
+    if (component & COMPONENT_COLLIDER)
+    {
+        Entity_RemovePhysics(entity); 
+        
+        component &= ~COMPONENT_COLLIDER;
+        component &= ~COMPONENT_RIGIDBODY; 
+    }
+    else if (component & COMPONENT_RIGIDBODY)
+    {
+        Entity_RemoveRigidbody(entity);
+        
+        component &= ~COMPONENT_RIGIDBODY;
+    }
     
     // The bitwise magic:
     // If the mask is 1111 (Has everything) and we want to remove 0010 (Transform):
