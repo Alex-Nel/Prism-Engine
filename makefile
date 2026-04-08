@@ -29,6 +29,7 @@ OBJS = $(C_OBJS) $(CPP_OBJS)
 
 # Name of your final executable
 TARGET = $(BUILD_DIR)/../PrismEngine
+# TARGET = $(BUILD_DIR)/PrismEngine
 
 # --- Rules ---
 
@@ -56,6 +57,7 @@ $(BUILD_DIR)/%.o: %.cpp
 # Cleans up the build directory
 clean:
 	@echo "Cleaning build directory..."
-	@rm -rf $(BUILD_DIR)
+	@find $(BUILD_DIR) -type f -name "*.o" -delete
+# @rm -rf $(BUILD_DIR)
 
 .PHONY: all clean
