@@ -1,5 +1,8 @@
 build/
 SampleObjects/
+lib/*.a
+lib/*.dll
+lib/*.so
 
 *.png
 *.jpg
