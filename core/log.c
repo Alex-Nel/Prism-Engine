@@ -2,7 +2,10 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-void Log_Message(LogLevel level, const char* file, int line, const char* format, ...) {
+
+
+void Log_Message(LogLevel level, const char* file, int line, const char* format, ...)
+{
     const char* level_strings[] = {"INFO", "WARN", "ERROR", "DEBUG"};
     
     // Print the header
@@ -15,7 +18,6 @@ void Log_Message(LogLevel level, const char* file, int line, const char* format,
     va_end(args);
     
     printf("\n");
-    
-    // NOTE: If you compile for Android later, you can use #ifdef __ANDROID__ 
-    // here to route the vprintf output to __android_log_vprint.
+
+    // NOTE: For other platforms, more will need to be added to route output to correct function
 }

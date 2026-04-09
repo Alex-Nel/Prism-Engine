@@ -7,21 +7,22 @@ extern "C"
 {
 
 
+// Initializes the physics world
 PhysicsWorldHandle Physics_InitWorld(void)
 {
-    // 1. Allocate Bullet's core C++ systems
+    // Allocate Bullet's core C++ systems
     btDefaultCollisionConfiguration* config = new btDefaultCollisionConfiguration();
     btCollisionDispatcher* dispatcher = new btCollisionDispatcher(config);
     btBroadphaseInterface* broadphase = new btDbvtBroadphase();
     btSequentialImpulseConstraintSolver* solver = new btSequentialImpulseConstraintSolver();
 
-    // 2. Create the world!
+    // Create the world
     btDiscreteDynamicsWorld* world = new btDiscreteDynamicsWorld(dispatcher, broadphase, solver, config);
 
-    // 3. Set Gravity (Standard Earth Gravity pointing down on the Y axis)
+    // Set Gravity (Standard Earth Gravity pointing down on the Y axis)
     world->setGravity(btVector3(0, -9.81f, 0));
 
-    // 4. Return it as an opaque C-pointer!
+    // Return it as an opaque C-pointer
     return (PhysicsWorldHandle)world;
 }
 
@@ -29,14 +30,15 @@ PhysicsWorldHandle Physics_InitWorld(void)
 
 
 
+// Step through the physics simulation in a specified delta time
 void Physics_StepSimulation(PhysicsWorldHandle world, float delta_time)
 {
     if (!world) return;
     
-    // Cast the void* back into a Bullet C++ object
+    // Cast the void* back into a Bullet object
     btDiscreteDynamicsWorld* dynWorld = (btDiscreteDynamicsWorld*)world;
     
-    // Tell Bullet to step forward in time
+    // step forward in time
     dynWorld->stepSimulation(delta_time, 10);
 }
 
@@ -44,11 +46,13 @@ void Physics_StepSimulation(PhysicsWorldHandle world, float delta_time)
 
 
 
+// Creates a Box Collider in the physics world
 PhysicsBodyHandle Physics_CreateBoxCollider(PhysicsWorldHandle world, Vector3 position, Vector3 extents, bool is_trigger)
 {
     if (!world) return nullptr;
     btDiscreteDynamicsWorld* dynWorld = (btDiscreteDynamicsWorld*)world;
 
+    // Make the colliders shape using the extents
     btCollisionShape* shape = new btBoxShape(btVector3(extents.x, extents.y, extents.z));
     btTransform trans;
     trans.setIdentity();
@@ -59,8 +63,10 @@ PhysicsBodyHandle Physics_CreateBoxCollider(PhysicsWorldHandle world, Vector3 po
     btRigidBody::btRigidBodyConstructionInfo rbInfo(0.0f, motionState, shape, btVector3(0,0,0));
     btRigidBody* body = new btRigidBody(rbInfo);
 
+    // Sets collision flags
     if (is_trigger) body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
     dynWorld->addRigidBody(body);
+
     return (PhysicsBodyHandle)body;
 }
 
@@ -68,6 +74,7 @@ PhysicsBodyHandle Physics_CreateBoxCollider(PhysicsWorldHandle world, Vector3 po
 
 
 
+// Creates a Sphere Collider in the physics world
 PhysicsBodyHandle Physics_CreateSphereCollider(PhysicsWorldHandle world, Vector3 position, float radius, bool is_trigger)
 {
     if (!world) return nullptr;
@@ -82,8 +89,10 @@ PhysicsBodyHandle Physics_CreateSphereCollider(PhysicsWorldHandle world, Vector3
     btRigidBody::btRigidBodyConstructionInfo rbInfo(0.0f, motionState, shape, btVector3(0,0,0));
     btRigidBody* body = new btRigidBody(rbInfo);
 
+    // Sets collision flags
     if (is_trigger) body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
     dynWorld->addRigidBody(body);
+
     return (PhysicsBodyHandle)body;
 }
 
@@ -91,31 +100,35 @@ PhysicsBodyHandle Physics_CreateSphereCollider(PhysicsWorldHandle world, Vector3
 
 
 
+// Creates a mesh collider in the physics world
 PhysicsBodyHandle Physics_CreateMeshCollider(PhysicsWorldHandle world, Vector3 position, const void* vertices, int vertex_stride, int vertex_count, const uint32_t* indices, int index_count, bool is_trigger)
 {
     if (!world) return nullptr;
     btDiscreteDynamicsWorld* dynWorld = (btDiscreteDynamicsWorld*)world;
 
-    // 1. Tell Bullet how to read our C structs!
+    // Tell Bullet how to read the C structs
     btTriangleIndexVertexArray* meshInterface = new btTriangleIndexVertexArray(
         index_count / 3, (int*)indices, 3 * sizeof(uint32_t),
         vertex_count, (btScalar*)vertices, vertex_stride
     );
 
-    // 2. Create the highly-optimized BVH Tree Shape
+    // Create the BVH Tree Shape
     btBvhTriangleMeshShape* shape = new btBvhTriangleMeshShape(meshInterface, true);
 
+    // Create physics transform
     btTransform trans;
     trans.setIdentity();
     trans.setOrigin(btVector3(position.x, position.y, position.z));
 
-    // MESHES MUST BE STATIC (Mass = 0)
+    // Meshes need to be static
     btDefaultMotionState* motionState = new btDefaultMotionState(trans);
     btRigidBody::btRigidBodyConstructionInfo rbInfo(0.0f, motionState, shape, btVector3(0,0,0));
     btRigidBody* body = new btRigidBody(rbInfo);
 
+    // Sets collision flags
     if (is_trigger) body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
     dynWorld->addRigidBody(body);
+
     return (PhysicsBodyHandle)body;
 }
 
@@ -123,6 +136,7 @@ PhysicsBodyHandle Physics_CreateMeshCollider(PhysicsWorldHandle world, Vector3 p
 
 
 
+// Adds a rigibody to the physics world
 void Physics_AddRigidbody(PhysicsWorldHandle world, PhysicsBodyHandle body, float mass)
 {
     if (!world || !body) return;
@@ -138,6 +152,7 @@ void Physics_AddRigidbody(PhysicsWorldHandle world, PhysicsBodyHandle body, floa
     if (mass > 0.0f)
         rb->getCollisionShape()->calculateLocalInertia(mass, inertia);
 
+    // Reset collision flags
     rb->setCollisionFlags(rb->getCollisionFlags() & ~btCollisionObject::CF_STATIC_OBJECT);
     
     rb->setMassProps(mass, inertia);
@@ -145,6 +160,7 @@ void Physics_AddRigidbody(PhysicsWorldHandle world, PhysicsBodyHandle body, floa
 
     dynWorld->addRigidBody(rb);
 
+    // If mass is over 0, activate rigidbody
     if (mass > 0.0f)
         rb->activate(true);
 }
@@ -153,9 +169,11 @@ void Physics_AddRigidbody(PhysicsWorldHandle world, PhysicsBodyHandle body, floa
 
 
 
+// Get an objects position in the physics world
 Vector3 Physics_GetBodyPosition(PhysicsBodyHandle body)
 {
-    if (!body) return (Vector3){0, 0, 0};
+    if (body == nullptr)
+        return Vector3{0, 0, 0};
     
     btRigidBody* rb = (btRigidBody*)body;
     btTransform trans;
@@ -166,17 +184,18 @@ Vector3 Physics_GetBodyPosition(PhysicsBodyHandle body)
     else
         trans = rb->getWorldTransform();
 
-    return (Vector3){trans.getOrigin().getX(), trans.getOrigin().getY(), trans.getOrigin().getZ()};
+    return Vector3{trans.getOrigin().getX(), trans.getOrigin().getY(), trans.getOrigin().getZ()};
 }
 
 
 
 
 
+// Get an objects rotation in the physics world
 Quaternion Physics_GetBodyRotation(PhysicsBodyHandle body)
 {
     if (!body)
-        return (Quaternion){0.0f, 0.0f, 0.0f, 1.0f}; // Assuming you have an identity quaternion fallback
+        return Quaternion{0.0f, 0.0f, 0.0f, 1.0f}; // Assuming you have an identity quaternion fallback
     
     btRigidBody* rb = (btRigidBody*)body;
     btTransform trans;
@@ -186,22 +205,23 @@ Quaternion Physics_GetBodyRotation(PhysicsBodyHandle body)
     else
         trans = rb->getWorldTransform();
 
-    // Extract the rotation!
+    // Extract the rotation
     btQuaternion q = trans.getRotation();
     
-    return (Quaternion){q.getX(), q.getY(), q.getZ(), q.getW()};
+    return Quaternion{q.getX(), q.getY(), q.getZ(), q.getW()};
 }
 
 
 
 
 
+// Set an objects scale in the physics world
 void Physics_SetBodyScale(PhysicsBodyHandle body, Vector3 scale)
 {
     if (!body) return;
     btRigidBody* rb = (btRigidBody*)body;
     
-    // Make the Bullet shape stretch to match the entities scale!
+    // Make the Bullet shape stretch to match the entities scale
     rb->getCollisionShape()->setLocalScaling(btVector3(scale.x, scale.y, scale.z));
 }
 
@@ -209,12 +229,13 @@ void Physics_SetBodyScale(PhysicsBodyHandle body, Vector3 scale)
 
 
 
+// Set an objects position in the physics world
 void Physics_SetBodyPosition(PhysicsBodyHandle body, Vector3 position)
 {
     if (!body) return;
     btRigidBody* rb = (btRigidBody*)body;
     
-    // 1. Grab the current transform so it doesn't get overwritten
+    // Grab the current transform so it doesn't get overwritten
     btTransform trans = rb->getWorldTransform();
     
     // Update the position
@@ -233,6 +254,7 @@ void Physics_SetBodyPosition(PhysicsBodyHandle body, Vector3 position)
 
 
 
+// Set an objects rotation in the physics world
 void Physics_SetBodyRotation(PhysicsBodyHandle body, Quaternion rotation)
 {
     if (!body) return;
@@ -242,10 +264,10 @@ void Physics_SetBodyRotation(PhysicsBodyHandle body, Quaternion rotation)
     
     btRigidBody* rb = (btRigidBody*)body;
     
-    // 1. Grab the current transform so it doesn't get overwritten
+    // Grab the current transform so it doesn't get overwritten
     btTransform trans = rb->getWorldTransform();
     
-    // Update the position
+    // Update the rotation
     trans.setRotation(btQuaternion(rotation.x, rotation.y, rotation.z, rotation.w));
     
     // Apply it back to the body and its motion state
@@ -261,6 +283,7 @@ void Physics_SetBodyRotation(PhysicsBodyHandle body, Quaternion rotation)
 
 
 
+// Set the linear velocity of a physics body
 void Physics_SetLinearVelocity(PhysicsBodyHandle body, Vector3 velocity)
 {
     if (!body) return;
@@ -278,6 +301,7 @@ void Physics_SetLinearVelocity(PhysicsBodyHandle body, Vector3 velocity)
 
 
 
+// Set the damping of a physics obdy
 void Physics_SetDamping(PhysicsBodyHandle body, float linear_drag, float angular_drag)
 {
     if (!body) return;
@@ -291,43 +315,30 @@ void Physics_SetDamping(PhysicsBodyHandle body, float linear_drag, float angular
 
 
 
-// void Physics_SetGravityState(PhysicsBodyHandle body, bool use_gravity)
-// {
-//     if (!body) return;
-
-//     btRigidBody* rb = (btRigidBody*)body;
-    
-//     if (use_gravity)
-//     {
-//         rb->setFlags(rb->getFlags() & ~BT_DISABLE_WORLD_GRAVITY); // Remove the zero-gravity flag so the world gravity takes over again
-//     }
-//     else
-//     {
-//         // Tell Bullet this specific object ignores the world's gravity
-//         rb->setFlags(rb->getFlags() | BT_DISABLE_WORLD_GRAVITY);
-//         rb->setGravity(btVector3(0, 0, 0));
-//     }
-//     rb->activate(true);
-// }
+// Enabled or disabled the use of gravity on a physics body
 void Physics_SetGravityState(PhysicsWorldHandle world, PhysicsBodyHandle body, bool use_gravity)
 {
     if (!world || !body) return;
     btDiscreteDynamicsWorld* dynWorld = (btDiscreteDynamicsWorld*)world;
     btRigidBody* rb = (btRigidBody*)body;
     
-    if (use_gravity) {
-        // 1. Remove the disable flag
+    if (use_gravity)
+    {
+        // Remove the disable flag
         rb->setFlags(rb->getFlags() & ~BT_DISABLE_WORLD_GRAVITY);
         
-        // 2. Give it the World's gravity vector back!
+        // Give it the worlds gravity vector
         rb->setGravity(dynWorld->getGravity()); 
-    } else {
-        // 1. Add the disable flag
+    }
+    else
+    {
+        // Add the disable flag
         rb->setFlags(rb->getFlags() | BT_DISABLE_WORLD_GRAVITY);
         
-        // 2. Zero it out
+        // Zero it out
         rb->setGravity(btVector3(0, 0, 0));
     }
+
     rb->activate(true);
 }
 
@@ -335,6 +346,7 @@ void Physics_SetGravityState(PhysicsWorldHandle world, PhysicsBodyHandle body, b
 
 
 
+// Set the rotation constraints of a rigidbody
 void Physics_SetRotationConstraints(PhysicsBodyHandle body, bool freeze_x, bool freeze_y, bool freeze_z)
 {
     if (!body) return;
@@ -353,6 +365,7 @@ void Physics_SetRotationConstraints(PhysicsBodyHandle body, bool freeze_x, bool 
 
 
 
+// Sets a rigidbodies kinematic state to true or false 
 void Physics_SetKinematicState(PhysicsBodyHandle body, bool is_kinematic)
 {
     if (!body) return;
@@ -387,6 +400,7 @@ void Physics_SetKinematicState(PhysicsBodyHandle body, bool is_kinematic)
 
 
 
+// Enable or disable a rigidbodies simulation state
 void Physics_SetBodySimulationState(PhysicsWorldHandle world, PhysicsBodyHandle body, bool enable_simulation)
 {
     if (!world || !body) return;
@@ -415,39 +429,38 @@ void Physics_SetBodySimulationState(PhysicsWorldHandle world, PhysicsBodyHandle 
 
 
 
+// Remove a rigidbody from the physics world
 void Physics_DestroyBody(PhysicsWorldHandle world, PhysicsBodyHandle body)
 {
     if (!world || !body) return;
+
     btDiscreteDynamicsWorld* dynWorld = (btDiscreteDynamicsWorld*)world;
     btRigidBody* rb = (btRigidBody*)body;
 
-    // 1. Remove it from the active physics simulation
-    if (rb->isInWorld()) {
+    // Remove it from the active physics simulation
+    if (rb->isInWorld())
         dynWorld->removeRigidBody(rb);
-    }
 
-    // 2. Delete the Motion State (The thing that interpolates movement)
-    if (rb->getMotionState()) {
+    // Delete the Motion State (what interpolates movement)
+    if (rb->getMotionState())
         delete rb->getMotionState();
-    }
 
-    // 3. Delete the Collision Shape
+    // Delete the Collision Shape
     btCollisionShape* shape = rb->getCollisionShape();
-    if (shape) {
-        // SAFETY CATCH: The Mesh Collider Trap
-        // If this is a complex mesh, we must also delete the Vertex Array we gave it!
-        if (shape->getShapeType() == TRIANGLE_MESH_SHAPE_PROXYTYPE) {
+    if (shape)
+    {
+        // If this is a complex mesh, we must also delete the Vertex Array
+        if (shape->getShapeType() == TRIANGLE_MESH_SHAPE_PROXYTYPE)
+        {
             btBvhTriangleMeshShape* meshShape = (btBvhTriangleMeshShape*)shape;
-            if (meshShape->getMeshInterface()) {
+            if (meshShape->getMeshInterface())
                 delete meshShape->getMeshInterface();
-            }
         }
         
-        // Now it is safe to delete the shape itself
         delete shape;
     }
 
-    // 4. Finally, delete the RigidBody itself
+    // Delete the RigidBody itself
     delete rb;
 }
 
@@ -455,23 +468,23 @@ void Physics_DestroyBody(PhysicsWorldHandle world, PhysicsBodyHandle body)
 
 
 
+// Shuts down the physics world
 void Physics_ShutdownWorld(PhysicsWorldHandle world)
 {
     if (!world) return;
     btDiscreteDynamicsWorld* dynWorld = (btDiscreteDynamicsWorld*)world;
 
-    // In C++, you must delete things in the reverse order you created them.
-    // We grab the pointers directly from the world before we destroy it.
+    // Delete things in the reverse order that they were created
     btConstraintSolver* solver = dynWorld->getConstraintSolver();
     btBroadphaseInterface* broadphase = dynWorld->getBroadphase();
     btDispatcher* dispatcher = dynWorld->getDispatcher();
     btCollisionDispatcher* collDispatcher = (btCollisionDispatcher*)dispatcher;
     btCollisionConfiguration* collisionConfig = collDispatcher ? collDispatcher->getCollisionConfiguration() : nullptr;
 
-    // 1. Delete the World
+    // Delete the World
     delete dynWorld;
     
-    // 2. Delete the sub-systems
+    // Delete the sub-systems
     delete solver;
     delete broadphase;
     delete dispatcher;

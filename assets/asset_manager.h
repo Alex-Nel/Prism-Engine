@@ -31,10 +31,8 @@ MeshHandle Asset_LoadMesh(const char* name, const char* filepath);
 MaterialHandle Asset_CreateMaterial(ShaderHandle shader, TextureHandle diffuse);
 Material* Asset_GetMaterial(MaterialHandle handle);
 
-// Loads a shader from disk, compiles it, and caches it. 
+// Loads shaders and textures and caches them
 ShaderHandle Asset_LoadShader(const char* name, const char* vert_path, const char* frag_path);
-
-// Loads a textures from disk and caches it
 TextureHandle Asset_LoadTexture(const char* name, const char* filepath);
 
 // A helper to quickly grab a standard Quad without copy-pasting code
@@ -42,19 +40,13 @@ MeshHandle Asset_GetBuiltinQuad();
 MeshHandle Asset_GetBuiltinCube();
 MeshHandle Asset_GetBuiltinSphere();
 
-// Function to get a default texture
+// Function to get a default texture and shader
 TextureHandle Asset_GetDefaultTexture();
-
-// Function to get the default shader
 ShaderHandle Asset_GetDefaultShader();
 
 // Get the meshdata from a cached mesh
 MeshData* Asset_GetMeshData(MeshHandle handle);
 
 
-
-// In the future, you'll add things like:
-// TextureHandle Asset_LoadTexture(const char* filepath);
-// MeshHandle Asset_LoadOBJ(const char* filepath);
 
 #endif

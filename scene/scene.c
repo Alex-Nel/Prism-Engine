@@ -1,17 +1,16 @@
+#include <string.h>
+#include <stddef.h>
 #include "scene.h"
-#include <string.h> // For memset
-#include <stddef.h> // For NULL
 
-// --- SCENE SYSTEM ---
 
+
+// Initializes empty scene with default global light and physics
 void Scene_Init(Scene* scene)
 {
     if (!scene) return;
 
-    // scene = malloc(sizeof(Scene));
 
     // Mark all slots as empty
-    // memset(scene->component_masks, COMPONENT_NONE, sizeof(scene->component_masks));
     memset(scene, COMPONENT_NONE, sizeof(Scene));
 
     scene->main_camera_id = 0;
@@ -27,6 +26,8 @@ void Scene_Init(Scene* scene)
 
 
 
+// Updates the scene
+// Runs custom scripts and runs the physics engine for a frame
 void Scene_Update(Scene* scene)
 {
     if (!scene) return;
@@ -43,7 +44,7 @@ void Scene_Update(Scene* scene)
             ScriptComponent* script_comp = &scene->scripts[i];
             Entity e = { i, scene };
 
-            // --- Loop through every script attached to THIS entity ---
+            // Loop through every script attached to this entity
             for (uint32_t s = 0; s < script_comp->count; s++)
             {
                 ScriptInstance* script = &script_comp->instances[s];
@@ -68,13 +69,13 @@ void Scene_Update(Scene* scene)
         }
     }
 
-    // Sync engine positions with physics engine
+
+    // Sync engine positions/rotations with physics engine
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
     {
         if (!scene->is_active_in_hierarchy[i]) continue;
 
         bool is_static_collider = (scene->component_masks[i] & COMPONENT_COLLIDER) && !(scene->component_masks[i] & COMPONENT_RIGIDBODY);
-        
         bool is_kinematic_body = (scene->component_masks[i] & COMPONENT_RIGIDBODY) && scene->rigidbodies[i].is_kinematic;
         
         if (is_static_collider || is_kinematic_body)
@@ -100,8 +101,7 @@ void Scene_Update(Scene* scene)
     {
         if (!scene->is_active_in_hierarchy[i]) continue;
         
-        // If it has a Rigidbody, Bullet owns the position!
-        // if (scene->component_masks[i] & COMPONENT_RIGIDBODY)
+        // If it has a Rigidbody, physics engine controls positions/rotations
         if ((scene->component_masks[i] & COMPONENT_RIGIDBODY) && !scene->rigidbodies[i].is_kinematic)
         {
             ColliderComponent* c = &scene->colliders[i];
@@ -116,6 +116,7 @@ void Scene_Update(Scene* scene)
         }
     }
 
+    // Update all transforms in the scene
     Scene_UpdateTransforms(scene);
 }
 
@@ -123,7 +124,7 @@ void Scene_Update(Scene* scene)
 
 
 
-// Private helper to trigger enable/disable events
+// Helper function to trigger enable/disable events
 static void TriggerScriptStateChange(Scene* scene, uint32_t entity_id, bool is_enabling)
 {
     if (!(scene->component_masks[entity_id] & COMPONENT_SCRIPT)) return;
@@ -146,7 +147,7 @@ static void TriggerScriptStateChange(Scene* scene, uint32_t entity_id, bool is_e
 
 
 
-// A private helper function for the Scene
+// Helper function to update the scene tree
 static void UpdateTransformTree(Scene* scene, uint32_t entity_id, Matrix4* parent_world, bool force_update)
 {
     if (entity_id == ENTITY_NONE) return;
@@ -175,7 +176,7 @@ static void UpdateTransformTree(Scene* scene, uint32_t entity_id, Matrix4* paren
     {
         Matrix4 local = Matrix4CreateTransform(t->local_position, t->local_rotation, t->local_scale);
 
-        // 2. Build the World Matrix
+        // Build the World Matrix
         if (parent_world != NULL)
             t->world_matrix = Matrix4Multiply(*parent_world, local);
         else
@@ -187,11 +188,11 @@ static void UpdateTransformTree(Scene* scene, uint32_t entity_id, Matrix4* paren
 
 
     // --- LEFT-CHILD, RIGHT-SIBLING TRAVERSAL ---
-    // 3. Process the oldest child. We pass OUR new world_matrix down to them!
+    // Process the oldest child. Pass the parents world_matrix to them
     if (t->first_child_id != ENTITY_NONE)
         UpdateTransformTree(scene, t->first_child_id, &t->world_matrix, needs_update);
 
-    // 4. Process our next sibling. Siblings share the same parent, 
+    // Process our next sibling. Siblings share the same parent, 
     if (t->next_sibling_id != ENTITY_NONE)
         UpdateTransformTree(scene, t->next_sibling_id, parent_world, force_update);
 }
@@ -200,6 +201,7 @@ static void UpdateTransformTree(Scene* scene, uint32_t entity_id, Matrix4* paren
 
 
 
+// Updates all transforms in a scene graph
 void Scene_UpdateTransforms(Scene* scene)
 {
     if (!scene) return;
@@ -210,8 +212,7 @@ void Scene_UpdateTransforms(Scene* scene)
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
     {
         if ((scene->component_masks[i] & mask) == mask)
-        {    
-            // Is this a Root entity?
+        {
             if (scene->transforms[i].parent_id == ENTITY_NONE)
             {
                 // Start recursion
@@ -225,6 +226,7 @@ void Scene_UpdateTransforms(Scene* scene)
 
 
 
+// Returns the entity from searching by name (slow)
 Entity Scene_GetEntity(Scene* scene, const char* name)
 {
     if (!scene || !name) return (Entity){ 0, NULL };
@@ -232,10 +234,10 @@ Entity Scene_GetEntity(Scene* scene, const char* name)
     // Search every active entity in the scene
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
     {
-        // Only check entities that actually have a name component
+        // Only check entities that actually have a name component (all entities should, but just in case)
         if (scene->component_masks[i] & COMPONENT_NAME)
         {       
-            // If the strings match, we found our entity!
+            // If the strings match, return entity
             if (strcmp(scene->names[i].name, name) == 0)
             {
                 return (Entity){ i, scene };
@@ -243,7 +245,7 @@ Entity Scene_GetEntity(Scene* scene, const char* name)
         }
     }
 
-    // If we didn't find it, return a null entity
+    // If no match, return NULL entity
     return (Entity){ 0, NULL }; 
 }
 
@@ -251,6 +253,7 @@ Entity Scene_GetEntity(Scene* scene, const char* name)
 
 
 
+// Sets the main camera of a scene
 void Scene_SetMainCamera(Scene* scene, Entity camera_entity)
 {
     if (scene && Entity_IsValid(camera_entity))
@@ -263,6 +266,7 @@ void Scene_SetMainCamera(Scene* scene, Entity camera_entity)
 
 
 
+// Shuts down the physics engine of the scene
 void Scene_ShutdownPhysics(Scene* scene)
 {
     if (!scene || !scene->physics_world) return;
@@ -290,12 +294,13 @@ void Scene_ShutdownPhysics(Scene* scene)
 
 
 
-// --- ENTITY LIFECYCLE ---
 
+// Creates an entity with a name
 Entity Entity_Create(Scene* scene, const char* name)
 {
     if (!scene) return (Entity){0, NULL};
 
+    // Finds the first available spot in the entity pool
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
     {
         if (scene->component_masks[i] == COMPONENT_NONE)
@@ -308,6 +313,7 @@ Entity Entity_Create(Scene* scene, const char* name)
                 Entity_SetName(new_entity, "New Entity");
             
 
+            // Adds the default transform
             Entity_AddTransform(
                 new_entity,
                 (Vector3){0.0f, 0.0f, 0.0f},
@@ -315,6 +321,7 @@ Entity Entity_Create(Scene* scene, const char* name)
                 (Vector3){1.0f, 1.0f, 1.0f}
             );
 
+            // Set the entity active in the scene
             scene->is_active_self[new_entity.id] = true;
             scene->is_active_in_hierarchy[new_entity.id] = true;
 
@@ -322,7 +329,7 @@ Entity Entity_Create(Scene* scene, const char* name)
         }
     }
     
-    // Scene is full
+    // Scene is full, return NULL entity
     return (Entity){0, NULL}; 
 }
 
@@ -330,34 +337,35 @@ Entity Entity_Create(Scene* scene, const char* name)
 
 
 
+// Deletes an entity from the scene
 void Entity_Destroy(Entity entity)
 {
     if (!Entity_IsValid(entity)) return;
 
-    // 1. SCENE GRAPH CLEANUP
+    // Cleans the entity from the scene graph
     if (entity.scene->component_masks[entity.id] & COMPONENT_TRANSFORM) 
     {
         Transform* t = &entity.scene->transforms[entity.id];
 
-        // A. Recursively destroy all children!
+        // Recursively delete the entities children
         uint32_t current_child_id = t->first_child_id;
         while (current_child_id != ENTITY_NONE) 
         {
-            // CRITICAL: Save the next sibling's ID *before* we destroy the current child!
+            // Save the next sibling's ID before we destroy the current child!
             // If we destroy the child first, its data is wiped and we lose the sibling chain.
             uint32_t next_id = entity.scene->transforms[current_child_id].next_sibling_id;
             
             Entity child_entity = { current_child_id, entity.scene };
-            Entity_Destroy(child_entity); // Boom. Recursive destruction.
+            Entity_Destroy(child_entity);
             
             current_child_id = next_id;
         }
 
-        // B. Detach OURSELVES from our parent so we don't leave a dead pointer in their sibling list!
+        // Detach entity from its parent so we don't leave a dead pointer in their sibling list
         Entity_RemoveParent(entity);
     }
 
-    // 2. Finally, erase ourselves from the ECS
+    // Erase entity from the ECS
     entity.scene->component_masks[entity.id] = COMPONENT_NONE;
 }
 
@@ -365,6 +373,7 @@ void Entity_Destroy(Entity entity)
 
 
 
+// Returns if the entity is valid 
 bool Entity_IsValid(Entity entity)
 {
     // It is valid if the scene pointer is not null AND the mask is not NONE
@@ -375,11 +384,14 @@ bool Entity_IsValid(Entity entity)
 
 
 
+// Sets the parent of one entity to a specified entity
 void Entity_SetParent(Entity child, Entity parent)
 {
+    // Make sure both entities are in the scene and are not the same
     if (!child.scene || !parent.scene) return;
     if (child.id == parent.id) return;
 
+    // If the parent is valid, remove the child from its previous parent
     if (!Entity_IsValid(parent))
     {
         Entity_RemoveParent(child);
@@ -389,28 +401,28 @@ void Entity_SetParent(Entity child, Entity parent)
     Transform* child_t = &child.scene->transforms[child.id];
     Transform* parent_t = &parent.scene->transforms[parent.id];
 
-    // --- STEP 1: DETACH FROM OLD PARENT ---
+    // Detach from old parent
     Entity_RemoveParent(child);
 
-    // --- STEP 2: ATTACH TO NEW PARENT ---
+    // Attach to new parent
     child_t->parent_id = parent.id;
     child_t->next_sibling_id = ENTITY_NONE;
     child_t->prev_sibling_id = ENTITY_NONE;
 
     if (parent_t->first_child_id != ENTITY_NONE)
     {
-        // The parent has children. Let's find the youngest sibling.
+        // If the parent already has children, find it's youngest sibling
         uint32_t current_sibling_id = parent_t->first_child_id;
         Transform* current_sibling = &child.scene->transforms[current_sibling_id];
         
-        // Walk down the line until someone has no 'next' sibling
+        // Continue until one entity has no "next" sibling
         while (current_sibling->next_sibling_id != ENTITY_NONE)
         {
             current_sibling_id = current_sibling->next_sibling_id;
             current_sibling = &child.scene->transforms[current_sibling_id];
         }
         
-        // Stand at the end of the line!
+        // Place child at the end of the line
         current_sibling->next_sibling_id = child.id;
         child_t->prev_sibling_id = current_sibling_id;
         
@@ -421,7 +433,7 @@ void Entity_SetParent(Entity child, Entity parent)
         parent_t->first_child_id = child.id;
     }
 
-    // Flag for a matrix rebuild since our space just changed!
+    // Make sure to rebuild the matrix since the space just changed
     child_t->is_dirty = true; 
 }
 
@@ -429,37 +441,38 @@ void Entity_SetParent(Entity child, Entity parent)
 
 
 
+// Remove the parent from an entity
 void Entity_RemoveParent(Entity child)
 {
     if (!child.scene) return;
     
     Transform* child_t = &child.scene->transforms[child.id];
     
-    // If it already has no parent, do nothing!
+    // If it already has no parent, return
     if (child_t->parent_id == ENTITY_NONE) return; 
 
-    // --- AAA FEATURE: Keep the object where it is in the world! ---
-    // Because it is becoming a root object, its Local position should equal its current Global position.
+    // Keep the entity at the same global position
     child_t->local_position = Transform_GetGlobalPosition(child_t);
-    // (Note: To be perfectly accurate, you would also extract and set the global rotation/scale here)
+    // TODO: Set global rotation and scale too
 
     Transform* old_parent_t = &child.scene->transforms[child_t->parent_id];
     
-    // 1. Pass the torch if it was the oldest child
+    // Change the parents oldest child
     if (old_parent_t->first_child_id == child.id)
         old_parent_t->first_child_id = child_t->next_sibling_id;
     
-    // 2. Stitch the siblings together to close the gap
+    // Stitch the siblings together to close the gap
     if (child_t->prev_sibling_id != ENTITY_NONE)
         child.scene->transforms[child_t->prev_sibling_id].next_sibling_id = child_t->next_sibling_id;
     if (child_t->next_sibling_id != ENTITY_NONE)
         child.scene->transforms[child_t->next_sibling_id].prev_sibling_id = child_t->prev_sibling_id;
 
-    // 3. Sever the child's ties
+    // Remove parent and sibling IDs from the entity
     child_t->parent_id = ENTITY_NONE;
     child_t->next_sibling_id = ENTITY_NONE;
     child_t->prev_sibling_id = ENTITY_NONE;
 
+    // Rebuild world matrix
     child_t->is_dirty = true;
 }
 
@@ -467,11 +480,12 @@ void Entity_RemoveParent(Entity child)
 
 
 
+// Set an entity to active or inactive
 void Entity_SetActive(Entity entity, bool active)
 {
     if (!entity.scene) return;
     
-    // Don't do anything if they aren't actually changing the state
+    // Don't do anything if the new state is the same as the old
     if (entity.scene->is_active_self[entity.id] == active) return; 
 
     entity.scene->is_active_self[entity.id] = active;
@@ -495,6 +509,7 @@ void Entity_SetActive(Entity entity, bool active)
 
 
 
+// Remove physics properties from an entity
 void Entity_RemovePhysics(Entity entity)
 {
     if (!Entity_IsValid(entity)) return;
@@ -521,6 +536,7 @@ void Entity_RemovePhysics(Entity entity)
 
 
 
+// Remove an entities rigidbody
 void Entity_RemoveRigidbody(Entity entity)
 {
     if (!Entity_IsValid(entity)) return;
@@ -529,10 +545,10 @@ void Entity_RemoveRigidbody(Entity entity)
     {
         ColliderComponent* c = &entity.scene->colliders[entity.id];
         
-        // Don't destroy it! Just tell Bullet to make it a Static wall (Mass = 0)
+        // Makes bullet turn it into a static mesh
         Physics_AddRigidbody(entity.scene->physics_world, c->physics_handle, 0.0f);
         
-        // Remove the Rigidbody bit, but KEEP the Collider bit!
+        // Remove the Rigidbody bit, but keep the Collider bit
         entity.scene->component_masks[entity.id] &= ~COMPONENT_RIGIDBODY;
     }
 }
@@ -546,7 +562,7 @@ void Entity_RemoveRigidbody(Entity entity)
 
 
 
-// Remove components
+// Remove a specified component from an entity
 void Entity_RemoveComponent(Entity entity, ComponentMask component)
 {
     if (!entity.scene) return;
@@ -575,23 +591,22 @@ void Entity_RemoveComponent(Entity entity, ComponentMask component)
 
 
 
-// Remove custom scripts
+// Removes a custom script
 void Entity_UnbindScript(Entity entity, void* target_instance_data)
 {
     if (!entity.scene) return;
     
-    // Check if the entity even has scripts
+    // Check if the entity has any scripts
     if (!(entity.scene->component_masks[entity.id] & COMPONENT_SCRIPT)) return;
 
     ScriptComponent* script_comp = &entity.scene->scripts[entity.id];
 
     // Search for the specific script we want to remove
     for (uint32_t i = 0; i < script_comp->count; i++)
-    {    
-        // We identify the script by checking its unique memory pointer
+    {
         if (script_comp->instances[i].instance_data == target_instance_data)
         {
-            // --- THE FALLBACK CLEANUP LOGIC ---
+            // If the script has an "OnDestroy function", call it
             if (script_comp->instances[i].OnDestroy != NULL)
             {
                 // 1. The user provided custom cleanup! Run it!
@@ -599,17 +614,17 @@ void Entity_UnbindScript(Entity entity, void* target_instance_data)
             }
             else
             {
-                // 2. The user was lazy (passed NULL). We do a default free
+                // No OnDestroy function provided, free the script memory
                 free(target_instance_data); 
             }
 
-            // 1. Overwrite this slot with the data from the LAST slot in the array
+            // Overwrite this slot with the data from the LAST slot in the array
             script_comp->instances[i] = script_comp->instances[script_comp->count - 1];
             
-            // 2. Shrink the array size
+            // Shrink the array size
             script_comp->count--;
 
-            // 3. If that was the very last script, turn off the script mask entirely!
+            // If that was the very last script, turn off the script mask entirely
             if (script_comp->count == 0)
                 entity.scene->component_masks[entity.id] &= ~COMPONENT_SCRIPT;
 

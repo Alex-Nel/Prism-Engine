@@ -5,21 +5,27 @@
 #include <stdint.h>
 #include "../core/event.h"
 #include "../core/input.h"
+#include "../core/log.h"
 #include "../core/timeCore.h"
 #include "../render/render.h"
 
 
-// Definition of window, implemented by each platform
+// Definition of a "window", implemented by each platform
 typedef struct Window Window;
 
 
+
 // Functions for initializing and shuting down platform
+
+// Initializes a window with a title, width, height, and specified graphics API
 Window* Platform_Init(const char* title, uint32_t width, uint32_t height, GraphicsAPI api);
+
+// Shuts down the window
 void Platform_Shutdown(Window* window);
 
 
 
-// Gets the OS-specific graphics function pointer (hides SDL_GL_GetProcAddress)
+// Gets the OS-specific graphics function pointer (for openGL)
 void* Platform_GetProcAddress(const char* name);
 
 // Platform specific function to poll events

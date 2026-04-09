@@ -5,32 +5,32 @@
 
 
 
+// Creates a mesh from a list of vertices and indices
 MeshData Mesh_Create(const Vertex3D* vertices, uint32_t v_count, const uint32_t* indices,  uint32_t i_count)
 {
-    
     MeshData data = {0};
     
+    // Returns empty struct if any of the args are invalid
     if (!vertices || !indices || v_count == 0 || i_count == 0)
     {
-        return data; // Return empty data if inputs are invalid
+        return data;
     }
 
     data.vertex_count = v_count;
     data.index_count = i_count;
 
-    // Allocate memory inside the Core
+    // Allocate memory
     data.vertices = (Vertex3D*)malloc(sizeof(Vertex3D) * v_count);
     data.indices  = (uint32_t*)malloc(sizeof(uint32_t) * i_count);
 
     if (data.vertices && data.indices)
     {
-        // Copy the user's data into our safe engine memory
         memcpy(data.vertices, vertices, sizeof(Vertex3D) * v_count);
         memcpy(data.indices,  indices,  sizeof(uint32_t) * i_count);
     }
     else
     {
-        Mesh_FreeData(&data); // Cleanup if malloc failed
+        Mesh_FreeData(&data);
     }
 
     return data;
@@ -40,6 +40,7 @@ MeshData Mesh_Create(const Vertex3D* vertices, uint32_t v_count, const uint32_t*
 
 
 
+// Free a meshes data
 void Mesh_FreeData(MeshData* mesh_data)
 {
     if (!mesh_data) return;

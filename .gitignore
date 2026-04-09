@@ -3,6 +3,8 @@ SampleObjects/
 lib/*.a
 lib/*.dll
 lib/*.so
+include/bullet
+include/SDL3
 
 *.png
 *.jpg

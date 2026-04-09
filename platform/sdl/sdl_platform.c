@@ -5,10 +5,7 @@
 
 
 
-// Internal state
-// static SDL_Window* window = NULL;
-// static SDL_GLContext gl_context = NULL;
-
+// Struct for a SDL3 window
 struct Window
 {
     SDL_Window* sdl_window;
@@ -21,7 +18,7 @@ struct Window
 
 
 
-// --- Helper: Translate SDL Keys to Engine Keys ---
+// Translate SDL Keys to Engine Key enums
 static KeyCode TranslateKey(SDL_Keycode sdl_key)
 {
     switch (sdl_key)
@@ -83,7 +80,7 @@ static KeyCode TranslateKey(SDL_Keycode sdl_key)
 
 
 
-// --- Helper: Translate SDL Mouse Buttons ---
+// Translate SDL Mouse Buttons to Engine Button enums
 static MouseButton TranslateMouseButton(Uint8 sdl_button)
 {
     switch (sdl_button)
@@ -101,14 +98,12 @@ static MouseButton TranslateMouseButton(Uint8 sdl_button)
 
 
 
-// --- Platform API Implementation ---
-
+// Initializes a window with a title, width, height, and specified graphics API
 Window* Platform_Init(const char* title, uint32_t width, uint32_t height, GraphicsAPI api)
 {
     if (!SDL_Init(SDL_INIT_VIDEO))
     {
-        // In a real engine, route this to your Log system
-        printf("SDL_Init Error: %s\n", SDL_GetError());
+        Log_Error("SDL_Init Error: %s\n", SDL_GetError());
         return false;
     }
 
@@ -118,8 +113,10 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
     win->current_api = api;
     win->gl_context = NULL;
 
+    // Specify SDL window flags
     SDL_WindowFlags window_flags = SDL_WINDOW_RESIZABLE;
 
+    // Add API specific flags
     if (api == GRAPHICS_API_OPENGL)
     {
         // Set openGL attributes if using openGL
@@ -139,21 +136,23 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
     win->sdl_window = SDL_CreateWindow(title, width, height, window_flags);
     if (!win->sdl_window)
     {
-        printf("SDL_CreateWindow Error: %s\n", SDL_GetError());
+        Log_Error("SDL_CreateWindow Error: %s\n", SDL_GetError());
         return false;
     }
 
+    // Create openGL context if openGL was selected
     if (api == GRAPHICS_API_OPENGL)
     {
         win->gl_context = SDL_GL_CreateContext(win->sdl_window);
         if (!win->gl_context)
         {
-            printf("SDL_GL_CreateContext Error: %s\n", SDL_GetError());
+            Log_Error("SDL_GL_CreateContext Error: %s\n", SDL_GetError());
             return false;
         }
     }
     
 
+    // Set window parameters
     win->width = width;
     win->height = height;
     win->should_close = false;
@@ -163,9 +162,9 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
 
 
 
+// Get the ProcAddress for OpenGL
 void* Platform_GetProcAddress(const char* name)
 {
-    // SDL3 changed this slightly, but it acts exactly the same
     return (void*)SDL_GL_GetProcAddress(name); 
 }
 
@@ -173,23 +172,20 @@ void* Platform_GetProcAddress(const char* name)
 
 
 
-// bool platform_pollEvents(Event* out_event)
-// void platform_pollEvents(Window* window)
+// Polls all SDL platform events and turns them into and engine specific event
+// Returns true if an event happened
 bool Platform_PollEvents(Event* e)
 {
     SDL_Event sdl_event;
     
-    // Loop until we find an event we care about, or the queue is empty.
+    // Loop until we find a relevant event, or the queue is empty.
     while (SDL_PollEvent(&sdl_event))
     {
-        // Event e = {0};
-        // Zero-init our custom event to prevent union garbage
         e->type = EVENT_NONE;
 
         switch (sdl_event.type)
         {
             case SDL_EVENT_QUIT:
-                // window->should_close = true;
                 e->type = EVENT_WINDOW_CLOSE;
                 break;
 
@@ -209,7 +205,6 @@ bool Platform_PollEvents(Event* e)
 
             case SDL_EVENT_KEY_DOWN:
             case SDL_EVENT_KEY_UP:
-                // We let our Input Manager handle repeats, so we can ignore SDL's repeat flag
                 if (sdl_event.type == SDL_EVENT_KEY_DOWN)
                 {
                     e->type = EVENT_KEY_PRESSED;
@@ -220,7 +215,7 @@ bool Platform_PollEvents(Event* e)
                 }
                 e->key.key = TranslateKey(sdl_event.key.key);
                 
-                // Only yield if it's a key we actually track
+                // If it's an unsupported key, ignore it
                 if (e->key.key == KEYCODE_UNKNOWN)
                     e->type = EVENT_NONE;
                 
@@ -228,7 +223,6 @@ bool Platform_PollEvents(Event* e)
 
             case SDL_EVENT_MOUSE_MOTION:
                 e->type = EVENT_MOUSE_MOVED;
-                // SDL3 motion is float, our struct expects int32_t
                 e->mouse_state.x = (int32_t)sdl_event.motion.x;
                 e->mouse_state.y = (int32_t)sdl_event.motion.y;
                 e->mouse_state.dx = (int32_t)sdl_event.motion.xrel;
@@ -237,8 +231,11 @@ bool Platform_PollEvents(Event* e)
 
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
             case SDL_EVENT_MOUSE_BUTTON_UP:
-                e->type = (sdl_event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) ? 
-                                  EVENT_MOUSE_BUTTON_PRESSED : EVENT_MOUSE_BUTTON_RELEASED;
+                if (sdl_event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
+                    e->type = EVENT_MOUSE_BUTTON_PRESSED;
+                else
+                    e->type = EVENT_MOUSE_BUTTON_RELEASED;
+
                 e->mouse_button.button = TranslateMouseButton(sdl_event.button.button);
                 
                 if (e->mouse_button.button == MOUSE_BUTTON_MAX)
@@ -253,14 +250,13 @@ bool Platform_PollEvents(Event* e)
                 break;
 
             default:
-                // It's an SDL event we don't care about (e.g., joystick, text input).
-                // Do NOT return false here! Just let the while loop grab the next event.
+                // An SDL event that isn't relevant happened, ignore
                 break;
         }
 
+        // return true if an event happened, otherwise false
         if (e->type != EVENT_NONE)
         {
-            // Input_ProcessEvent(&e);
             return true;
         }
     }
@@ -272,14 +268,16 @@ bool Platform_PollEvents(Event* e)
 
 
 
+// Swaps buffers for the specific platform
 void Platform_SwapBuffers(Window* window)
 {
     if (!window || !window->sdl_window) return;
 
-    // Only swap buffers if using openGL
+    // Call specific GL swap buffers functions if OpenGL is being used
     if (window->current_api == GRAPHICS_API_OPENGL)
         SDL_GL_SwapWindow(window->sdl_window);
 
+    // update input
     Input_Update();
 }
 
@@ -287,6 +285,8 @@ void Platform_SwapBuffers(Window* window)
 
 
 
+// Shutdowns platform window
+// Gets rid of OpenGL context
 void Platform_Shutdown(Window* window)
 {
     if (window)
@@ -303,11 +303,12 @@ void Platform_Shutdown(Window* window)
 
 
 
+// Uses SDL_GetPerformanceCounter, a high-resolution timer
 double Platform_GetTime(void)
 {
-    // SDL_GetPerformanceCounter is the high-resolution timer in SDL
     uint64_t counter = SDL_GetPerformanceCounter();
     uint64_t frequency = SDL_GetPerformanceFrequency();
+
     return (double)counter / (double)frequency;
 }
 
@@ -315,6 +316,7 @@ double Platform_GetTime(void)
 
 
 
+// Delays an SDL window for a specified number of milliseconds
 void Platform_Delay(uint32_t ms)
 {
     SDL_Delay(ms);
@@ -324,10 +326,10 @@ void Platform_Delay(uint32_t ms)
 
 
 
+// Sets the relative mouse mode of the window
 void Platform_SetRelativeMouseMode(Window* window, bool enabled)
 {
     if (!window || !window->sdl_window) return;
-    // In SDL3, this traps the cursor and reports relative motion
     SDL_SetWindowRelativeMouseMode(window->sdl_window, enabled);
 }
 
@@ -335,6 +337,7 @@ void Platform_SetRelativeMouseMode(Window* window, bool enabled)
 
 
 
+// Moves mouse to the middle of the screen
 void Platform_WarpMouse(Window* window)
 {
     SDL_WarpMouseInWindow(window->sdl_window, window->width/2, window->height/2);

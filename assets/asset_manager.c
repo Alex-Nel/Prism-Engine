@@ -94,6 +94,7 @@ void Asset_Init(void)
 
 
 
+// Calculates the AABB box for a specified mesh (set of vertices)
 static AABB CalculateAABB(const Vertex3D* vertices, uint32_t vertex_count)
 {
     // Start min at the highest possible number, and max at the lowest possible number
@@ -122,21 +123,21 @@ static AABB CalculateAABB(const Vertex3D* vertices, uint32_t vertex_count)
 
 
 
+// Loads a mesh from a filepath (uses fastobj for obj files)
 MeshHandle Asset_LoadMesh(const char* name, const char* filepath)
 {
-    // 1. Check cache
+    // Check if mesh limit has been reached
     for (uint32_t i = 0; i < mesh_count; i++)
     {
         if (strcmp(mesh_cache[i].name, name) == 0)
             return mesh_cache[i].handle;
     }
 
-    // 2. Let fast_obj read the file
-    // Note: fast_obj automatically triangulates quads for us!
+    // Use fast_obj to read file (fast_obj automatically triangulates quads)
     fastObjMesh* mesh = fast_obj_read(filepath);
     if (!mesh)
     {
-        printf("CRITICAL: Failed to load OBJ: %s\n", filepath);
+        Log_Warning("CRITICAL: Failed to load OBJ: %s\n", filepath);
         return (MeshHandle){0};
     }
 
@@ -154,7 +155,7 @@ MeshHandle Asset_LoadMesh(const char* name, const char* filepath)
     Vertex3D* final_vertices = malloc(sizeof(Vertex3D) * vertex_count);
     uint32_t* final_indices  = malloc(sizeof(uint32_t) * index_count);
 
-    // --- The Triangulation Loop ---
+    // --- Triangulation Loop ---
     uint32_t vertex_offset = 0;
     uint32_t index_offset = 0; // Where we are in the fast_obj index array
 
@@ -208,15 +209,16 @@ MeshHandle Asset_LoadMesh(const char* name, const char* filepath)
                 vertex_offset++;
             }
         }
-        // Jump forward in the fast_obj array by the number of vertices we just processed
+        
         index_offset += fv; 
     }
 
-    // 5. Send to GPU
+
+    // Create GPU mesh
     MeshHandle handle = Render_CreateMesh(final_vertices, vertex_count, final_indices, index_count);
 
 
-    // 7. Cache it
+    // Cache mesh
     if (mesh_count < MAX_CACHED_MESHES) {
         strcpy(mesh_cache[mesh_count].name, name);
         mesh_cache[mesh_count].handle = handle;
@@ -246,6 +248,7 @@ MeshHandle Asset_LoadMesh(const char* name, const char* filepath)
 
 
 
+// Creates a material from a given shader and texture (diffuse)
 MaterialHandle Asset_CreateMaterial(ShaderHandle shader, TextureHandle diffuse)
 {
     if (material_count >= MAX_MATERIALS)
@@ -270,11 +273,11 @@ MaterialHandle Asset_CreateMaterial(ShaderHandle shader, TextureHandle diffuse)
     else
         mat->diffuse_texture_id = diffuse.id;
     
+    
     // Default physical properties
     mat->properties.tint_color = (Vector3){1.0f, 1.0f, 1.0f}; // Pure white
     mat->properties.shininess = 32.0f;                        // Standard plastic
     mat->properties.specular_strength = 0.5f;                 // Medium reflection
-
     
     
     return (MaterialHandle){id};
@@ -284,6 +287,7 @@ MaterialHandle Asset_CreateMaterial(ShaderHandle shader, TextureHandle diffuse)
 
 
 
+// Get a pointer to a material from a material handle
 Material* Asset_GetMaterial(MaterialHandle handle)
 {
     if (handle.id < MAX_MATERIALS && material_pool[handle.id].active)
@@ -296,48 +300,47 @@ Material* Asset_GetMaterial(MaterialHandle handle)
 
 
 
+// Loads a vertex and fragment shader from a file path and compiles it to a full shader
 ShaderHandle Asset_LoadShader(const char* name, const char* vert_path, const char* frag_path)
 {
-    // 1. Check if we already loaded this exact shader
+    // Check if we already loaded this exact shader
     for (uint32_t i = 0; i < shader_count; i++)
     {
         if (strcmp(shader_cache[i].name, name) == 0)
         {
-            return shader_cache[i].handle; // Found it! Return the existing GPU ID.
+            return shader_cache[i].handle;
         }
     }
 
-    // 2. Not found. We must load it from disk.
+    // Check if max shader count has been reached
     if (shader_count >= MAX_CACHED_SHADERS)
     {
-        printf("CRITICAL: Asset Manager out of shader cache space!\n");
+        Log_Error("CRITICAL: Asset Manager out of shader cache space!\n");
         return (ShaderHandle){0};
     }
 
 
+    // Read shaders from file
     char* v_src = IO_ReadTextFile(vert_path);
     char* f_src = IO_ReadTextFile(frag_path);
 
 
     if (!v_src || !f_src)
     {
-        printf("CRITICAL: Failed to read shader files for '%s'\n", name);
+        Log_Error("CRITICAL: Failed to read shader files for '%s'\n", name);
         if (v_src) free(v_src);
         if (f_src) free(f_src);
         return (ShaderHandle){0};
     }
 
-
-    // 3. Compile on GPU
+    // Compile on GPU
     ShaderHandle new_handle = Render_CreateShader(v_src, f_src);
 
-
-    // 4. Free CPU RAM
+    // Free shaders from memory
     free(v_src);
     free(f_src);
 
-
-    // 5. Save to our cache so we never have to read those files again
+    // Save shader to cacje
     strcpy(shader_cache[shader_count].name, name);
     shader_cache[shader_count].handle = new_handle;
     shader_count++;
@@ -349,10 +352,10 @@ ShaderHandle Asset_LoadShader(const char* name, const char* vert_path, const cha
 
 
 
-// Add this declaration to asset_manager.h too!
+// Loads a texture from a filepath
 TextureHandle Asset_LoadTexture(const char* name, const char* filepath)
 {
-    // 1. Check if we already loaded it
+    // Check if the texture is already loaded
     for (uint32_t i = 0; i < texture_count; i++)
     {
         if (strcmp(texture_cache[i].name, name) == 0)
@@ -361,21 +364,21 @@ TextureHandle Asset_LoadTexture(const char* name, const char* filepath)
         }
     }
 
-    // 2. Load pixels to CPU RAM
+    // Load pixels
     ImageData img = Image_Load(filepath);
     if (!img.pixels)
     {
-        printf("CRITICAL: Failed to load texture: %s\n", filepath);
+        Log_Error("CRITICAL: Failed to load texture: %s\n", filepath);
         return (TextureHandle){0};
     }
 
-    // 3. Upload to GPU VRAM
+    // Create mesh on GPU
     TextureHandle handle = Render_CreateTexture(img.pixels, img.width, img.height, img.channels);
 
-    // 4. Free CPU RAM immediately! The GPU has the data now.
+    // Free image from memory
     Image_Free(&img);
 
-    // 5. Save to cache
+    // Save image to cache
     if (texture_count < MAX_CACHED_TEXTURES)
     {
         strcpy(texture_cache[texture_count].name, name);
@@ -394,16 +397,16 @@ TextureHandle Asset_LoadTexture(const char* name, const char* filepath)
 
 
 
-
+// Generate built in quad mesh (basic square)
 MeshHandle Asset_GetBuiltinQuad()
 {
-    // If we already made the quad, just hand back the ID!
+    // If we already made the quad, return the ID
     if (is_quad_loaded)
     {
         return builtin_quad_handle;
     }
 
-    // Otherwise, generate it, send to GPU, and cache it.
+    // Generate and make mesh
     MeshData quad_cpu = Mesh_CreateQuad();
     
     builtin_quad_handle = Render_CreateMesh(
@@ -421,6 +424,7 @@ MeshHandle Asset_GetBuiltinQuad()
 
 
 
+// Generate a standard cube mesh
 MeshHandle Asset_GetBuiltinCube(void)
 {
     if (is_cube_loaded) return builtin_cube_handle;
@@ -478,7 +482,7 @@ MeshHandle Asset_GetBuiltinCube(void)
     builtin_cube_handle = Render_CreateMesh(heap_vertices, 24, heap_indices, 36);
     is_cube_loaded = true;
     
-    // Cache it so it can be looked up by name if needed
+    // Cache the mesh
     if (mesh_count < MAX_CACHED_MESHES) {
         strcpy(mesh_cache[mesh_count].name, "Cube");
         mesh_cache[mesh_count].handle = builtin_cube_handle;
@@ -505,6 +509,7 @@ MeshHandle Asset_GetBuiltinCube(void)
 
 
 
+// Create a standard sphere
 MeshHandle Asset_GetBuiltinSphere(void)
 {
     if (is_sphere_loaded) return builtin_sphere_handle;
@@ -520,10 +525,13 @@ MeshHandle Asset_GetBuiltinSphere(void)
     Vertex3D* vertices = malloc(vertex_count * sizeof(Vertex3D));
     uint32_t* indices = malloc(index_count * sizeof(uint32_t));
 
-    // --- 1. Generate Vertices ---
+
+    // Generate vertices
     uint32_t v_idx = 0;
-    for (int y = 0; y <= Y_SEGMENTS; ++y) {
-        for (int x = 0; x <= X_SEGMENTS; ++x) {
+    for (int y = 0; y <= Y_SEGMENTS; ++y)
+    {
+        for (int x = 0; x <= X_SEGMENTS; ++x)
+        {
             float xSegment = (float)x / (float)X_SEGMENTS;
             float ySegment = (float)y / (float)Y_SEGMENTS;
             
@@ -534,17 +542,20 @@ MeshHandle Asset_GetBuiltinSphere(void)
 
             Vertex3D v;
             v.position = (Vector3){xPos * 0.5f, yPos * 0.5f, zPos * 0.5f}; // Radius 0.5
-            v.normal = (Vector3){xPos, yPos, zPos}; // Normal is just the normalized position!
+            v.normal = (Vector3){xPos, yPos, zPos}; // Normal is just the normalized position
             v.uv = (Vector2){xSegment, ySegment};
 
             vertices[v_idx++] = v;
         }
     }
 
-    // --- 2. Generate Indices ---
+
+    // Generate indices
     uint32_t i_idx = 0;
-    for (int y = 0; y < Y_SEGMENTS; ++y) {
-        for (int x = 0; x < X_SEGMENTS; ++x) {
+    for (int y = 0; y < Y_SEGMENTS; ++y)
+    {
+        for (int x = 0; x < X_SEGMENTS; ++x)
+        {
             uint32_t current = y * (X_SEGMENTS + 1) + x;
             uint32_t next = current + X_SEGMENTS + 1;
 
@@ -560,8 +571,9 @@ MeshHandle Asset_GetBuiltinSphere(void)
         }
     }
 
-    builtin_sphere_handle = Render_CreateMesh(vertices, vertex_count, indices, index_count);
 
+    // Create mesh and cache it if possible
+    builtin_sphere_handle = Render_CreateMesh(vertices, vertex_count, indices, index_count);
     is_sphere_loaded = true;
 
     if (mesh_count < MAX_CACHED_MESHES) {
@@ -596,15 +608,16 @@ MeshHandle Asset_GetBuiltinSphere(void)
 
 
 
+// Create the default texture (all white)
 TextureHandle Asset_GetDefaultTexture()
 {
+    // If already made, return the handle
     if (is_default_texture_loaded)
         return default_white_texture;
     
     unsigned char white_pixel[4] = {255, 255, 255, 255};
 
     default_white_texture = Render_CreateTexture(white_pixel, 1, 1, 4);
-
     is_default_texture_loaded = true;
 
     return default_white_texture;
@@ -614,16 +627,14 @@ TextureHandle Asset_GetDefaultTexture()
 
 
 
+// Greate the standard shader
 ShaderHandle Asset_GetDefaultShader()
 {
-    // If we already compiled it, just hand back the ID!
+    // If already made return the handle
     if (is_default_shader_loaded)
         return default_shader_handle;
 
-    // Otherwise, compile it straight from the hardcoded C-strings
-    // default_shader_handle = Render_CreateShader(standard_vert_src, standard_frag_src);
-    default_shader_handle = Asset_LoadShader("Default", "assets/shaders/default.vert", "assets/shaders/default.frag");
-    
+    default_shader_handle = Asset_LoadShader("Default", "assets/shaders/default.vert", "assets/shaders/default.frag");    
     is_default_shader_loaded = true;
 
     return default_shader_handle;
@@ -635,11 +646,13 @@ ShaderHandle Asset_GetDefaultShader()
 
 MeshData* Asset_GetMeshData(MeshHandle handle)
 {
-    // Search the cache for the matching handle
-    for (uint32_t i = 0; i < mesh_count; i++) {
-        if (mesh_cache[i].handle.id == handle.id) {
+    // Search the cache for the matching handle and return the pointer
+    for (uint32_t i = 0; i < mesh_count; i++)
+    {
+        if (mesh_cache[i].handle.id == handle.id)
+        {
             return &mesh_cache[i].mesh_data;
         }
     }
-    return NULL; // Not found
+    return NULL; // return NULL if not found
 }

@@ -8,11 +8,11 @@ char* IO_ReadTextFile(const char* filepath)
     FILE* file = fopen(filepath, "rb");
     if (!file)
     {
-        printf("Failed to open file: %s\n", filepath);
+        Log_Error("Failed to open file: %s\n", filepath);
         return NULL;
     }
 
-    // Seek to the end to find out how big the file is
+    // Go to the end to get the length of the file
     fseek(file, 0, SEEK_END);
     long length = ftell(file);
     fseek(file, 0, SEEK_SET); // Rewind back to the start
@@ -27,8 +27,9 @@ char* IO_ReadTextFile(const char* filepath)
 
     // Read the data into the buffer
     size_t read_length = fread(buffer, 1, length, file);
-    buffer[read_length] = '\0'; // Add the null terminator so OpenGL knows where the string ends
+    buffer[read_length] = '\0'; // Add the null terminator
 
     fclose(file);
+    
     return buffer;
 }

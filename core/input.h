@@ -3,28 +3,34 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "event.h" // Needs the KeyCode and MouseButton enums
+#include "event.h"
 
-// --- Initialization & Updating ---
-void Input_Init(void);
+// Initialization function
+void Input_Init();
 
 // Called when an input event is pulled from the event queue
 void Input_ProcessEvent(const Event* event);
 
-// Called at the VERY END of your main game loop frame
-void Input_Update(void); 
+// Called at the end of the main loop
+void Input_Update(); 
 
-// --- Keyboard State ---
-bool Input_IsKeyDown(KeyCode key);       // Is it held down right now?
-bool Input_IsKeyPressed(KeyCode key);    // Was it pressed THIS frame?
-bool Input_IsKeyReleased(KeyCode key);   // Was it released THIS frame?
 
-// --- Mouse State ---
+// Keyboard State functions
+
+bool Input_IsKeyDown(KeyCode key);
+bool Input_IsKeyPressed(KeyCode key);
+bool Input_IsKeyReleased(KeyCode key);
+
+
+// Mouse State functions
+
 bool Input_IsMouseButtonDown(MouseButton button);
 bool Input_IsMouseButtonPressed(MouseButton button);
 bool Input_IsMouseButtonReleased(MouseButton button);
 
-// Mouse Position
+
+// Mouse Position and Button functions
+
 void Input_GetMousePosition(int32_t* x, int32_t* y);
 void Input_GetMouseDelta(int32_t* dx, int32_t* dy);
 float Input_GetMouseDeltaX();

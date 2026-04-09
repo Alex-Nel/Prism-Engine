@@ -18,21 +18,22 @@
 
 typedef struct Scene Scene;
 
-// --- The Entity Handle ---
-// Passed by value because it is incredibly lightweight.
+// Struct for an entity
+// Contains it's ID and pointer to the scene it's in
 typedef struct Entity
 {
     uint32_t id;
     Scene* scene;
 } Entity;
 
+// ID for an invalid entity
 #define ENTITY_NONE (uint32_t) 0xFFFFFFFF
 
 
 
 
 
-// --- Component Masks ---
+// Enum for all Component Masks
 typedef enum
 {
     COMPONENT_NONE        = 0,
@@ -48,12 +49,23 @@ typedef enum
 
 
 
-// Function pointers for custom scripts
+
+
+// --- Function pointers for custom scripts ---
+
+// On Update function
 typedef void (*ScriptUpdateFunc)(Entity entity, float dt, void* instance_data);
+// On Start function
 typedef void (*ScriptStartFunc)(Entity entity, void* instance_data);
+// On Destroy function
 typedef void (*ScriptDestroyFunc)(Entity entity, void* instance_data);
+// On Enable function
 typedef void (*ScriptEnableFunc)(Entity entity, void* instance_data);
+// On Disable function
 typedef void (*ScriptDisableFunc)(Entity entity, void* instance_data);
+
+
+
 
 
 // -------------------------------- //
@@ -66,7 +78,8 @@ typedef struct NameComponent
     char name[MAX_NAME_LENGTH];
 } NameComponent;
 
-// Transform: an entities positional parts
+
+// Transform: an entities positional parts within the scene
 typedef struct Transform
 {
     Vector3 local_position;
@@ -89,19 +102,17 @@ typedef struct Transform
 typedef struct RenderComponent
 {
     uint32_t mesh_id;
-    // uint32_t shader_id;
-    // uint32_t texture_id;
     uint32_t material_id;
 } RenderComponent;
 
 
-// --- The Camera Component ---
+// Camera component for rendering
 typedef struct CameraComponent
 {
     float fov;
     float nearZ;
     float farZ;
-    Matrix4 projection_matrix; // We can cache the projection matrix here so we don't recalculate it every frame!
+    Matrix4 projection_matrix; // Projection matrix is cached to prevent recalculations
     bool is_dirty; 
 } CameraComponent;
 
@@ -127,6 +138,7 @@ typedef enum ColliderType
     COLLIDER_MESH
 } ColliderType;
 
+
 // The Collider Unified Component
 typedef struct ColliderComponent
 {
@@ -134,10 +146,10 @@ typedef struct ColliderComponent
     bool is_trigger;
     
     void* physics_handle;
-    
 } ColliderComponent;
 
-// Rigidbody component
+
+// Rigidbody component and variables
 typedef struct RigidbodyComponent
 {
     float mass;
@@ -154,7 +166,8 @@ typedef struct RigidbodyComponent
 
 
 
-// Instance of a script
+
+// Instance of a custom script and all special functions
 typedef struct ScriptInstance
 {
     void* instance_data;
@@ -175,7 +188,7 @@ typedef struct ScriptComponent
 } ScriptComponent;
 
 
-// --- The Scene (The Data Container) ---
+// --- The Scene Struct ---
 typedef struct Scene
 {
     uint32_t component_masks[MAX_ENTITIES];
@@ -212,6 +225,8 @@ Entity Scene_GetEntity(Scene* scene, const char* name);
 void Scene_SetMainCamera(Scene* scene, Entity camera_entity);
 void Scene_ShutdownPhysics(Scene* scene);
 
+
+
 // --- Entity Lifecycle API ---
 Entity Entity_Create(Scene* scene, const char* name);
 void Entity_Destroy(Entity entity);
@@ -224,19 +239,15 @@ void Entity_RemoveRigidbody(Entity entity);
 
 
 
-
 // Removing components
 void Entity_RemoveComponent(Entity entity, ComponentMask component);
 void Entity_UnbindScript(Entity entity, void* target_instance_data);
 
 
 
-
-
 // Component Setters
 void Entity_SetName(Entity entity, const char* name);
 void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, Vector3 scale);
-// void Entity_AddRenderable(Entity entity, uint32_t mesh_id, uint32_t shader_id, uint32_t texture_id);
 void Entity_AddRenderable(Entity entity, uint32_t mesh_id, uint32_t material_id);
 void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ);
 void Entity_AddPointLight(Entity entity, Vector3 color, float intensity, float constant, float linear, float quadratic);
@@ -249,8 +260,6 @@ void Entity_BindScript(Entity entity, void* data, ScriptStartFunc start, ScriptU
 
 
 
-
-
 // Component Getters
 Transform* Entity_GetTransform(Entity entity);
 RenderComponent* Entity_GetRenderable(Entity entity);
@@ -259,8 +268,6 @@ CameraComponent* Entity_GetCamera(Entity entity);
 PointLightComponent* Entity_GetPointLight(Entity entity);
 ColliderComponent* Entity_GetCollider(Entity entity);
 RigidbodyComponent* Entity_GetRigidbody(Entity entity);
-
-
 
 
 
@@ -276,7 +283,12 @@ void Transform_RotateEuler(Transform* t, Vector3 euler_addition);
 Vector3 Transform_GetLocalPosition(Transform* t);
 Vector3 Transform_GetGlobalPosition(Transform* t);
 
+
+
+// Rigidbody setters
 void Rigidbody_SetGravity(Entity entity, bool use_gravity);
 void Rigidbody_SetKinematic(Entity entity, bool is_kinematic);
+
+
 
 #endif

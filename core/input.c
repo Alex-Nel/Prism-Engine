@@ -18,7 +18,9 @@ static float mouse_scroll_delta;
 
 
 
-void Input_Init(void) {
+// Initializes all input arrays and values
+void Input_Init()
+{
     memset(current_keys, 0, sizeof(current_keys));
     memset(previous_keys, 0, sizeof(previous_keys));
     memset(current_mouse_buttons, 0, sizeof(current_mouse_buttons));
@@ -31,8 +33,11 @@ void Input_Init(void) {
 
 
 
-void Input_ProcessEvent(const Event* event) {
-    switch (event->type) {
+// Processes input from a platform event
+void Input_ProcessEvent(const Event* event)
+{
+    switch (event->type)
+    {
         case EVENT_KEY_PRESSED:
             current_keys[event->key.key] = true;
             break;
@@ -50,14 +55,11 @@ void Input_ProcessEvent(const Event* event) {
             break;
             
         case EVENT_MOUSE_MOVED:
-            // mouse_delta_x += (event->mouse_state.x - mouse_x);
-            // mouse_delta_y += (event->mouse_state.y - mouse_y);
             mouse_delta_x += event->mouse_state.dx;
             mouse_delta_y += event->mouse_state.dy;
 
             mouse_x = event->mouse_state.x;
             mouse_y = event->mouse_state.y;
-            
             break;
             
         case EVENT_MOUSEWHEEL_SCROLLED:
@@ -65,31 +67,45 @@ void Input_ProcessEvent(const Event* event) {
             break;
             
         default:
-            break; // Not an input event, ignore
+            break; // Not an input event
     }
 }
 
-void Input_Update(void) {
-    // 1. Copy current state to previous state for the NEXT frame
+
+
+// Update all input arrays
+void Input_Update()
+{
+    // Copy current state to previous state for the next frame
     memcpy(previous_keys, current_keys, sizeof(current_keys));
     memcpy(previous_mouse_buttons, current_mouse_buttons, sizeof(current_mouse_buttons));
     
-    // 2. Reset deltas (they only persist for a single frame)
+    // Reset deltas
     mouse_delta_x = 0;
     mouse_delta_y = 0;
     mouse_scroll_delta = 0.0f;
 }
 
-// --- Query Functions ---
 
+
+
+
+
+
+
+
+
+// Returns true if a key is held down at all
 bool Input_IsKeyDown(KeyCode key) {
     return current_keys[key];
 }
 
+// Returns true if a key is pressed for a single frame (not held down)
 bool Input_IsKeyPressed(KeyCode key) {
     return current_keys[key] && !previous_keys[key];
 }
 
+// Returns true if a key is released at all
 bool Input_IsKeyReleased(KeyCode key) {
     return !current_keys[key] && previous_keys[key];
 }
@@ -98,51 +114,55 @@ bool Input_IsKeyReleased(KeyCode key) {
 
 
 
-// --- Mouse State ---
+// Returns whether a mouse button is held down at all
 bool Input_IsMouseButtonDown(MouseButton button)
 {
     return current_mouse_buttons[button];
 }
 
-
+// Returns wheter a mouse buttons is pressed for a single frame (not held down)
 bool Input_IsMouseButtonPressed(MouseButton button)
 {
     return current_mouse_buttons[button] && !previous_mouse_buttons[button];
 }
 
-
+// Returns if a mouse button is released at all
 bool Input_IsMouseButtonReleased(MouseButton button)
 {
     return !current_mouse_buttons[button] && previous_mouse_buttons[button];
 }
 
-// Mouse Position
+
+
+
+
+// Returns X and Y position of the mouse
 void Input_GetMousePosition(int32_t* x, int32_t* y)
 {
     if (x) *x = mouse_x;
     if (y) *y = mouse_y;
 }
 
-
+// Returns the change in distance of the mouse state from the last frame
 void Input_GetMouseDelta(int32_t* dx, int32_t* dy)
 {
     if (dx) *dx = mouse_delta_x;
     if (dy) *dy = mouse_delta_y;
 }
 
-
+// Returns only the change of the mouse's X value change
 float Input_GetMouseDeltaX()
 {
     return mouse_delta_x;
 }
 
-
+// Returns only the change of the mouse's Y value change
 float Input_GetMouseDeltaY()
 {
     return mouse_delta_y;
 }
 
-
+// Returns only the change of the mouse scroll wheel change
 float Input_GetMouseScrollDelta()
 {
     return mouse_scroll_delta;
