@@ -28,7 +28,7 @@ void Transform_SetLocalRotation(Transform* t, Quaternion rotation)
 {
     if (!t) return;
     t->local_rotation = rotation;
-    // t->local_rotation_euler = QuaternionToEuler(rotation);
+    t->local_rotation_euler = QuaternionToEuler(rotation);
     t->is_dirty = true;
 }
 

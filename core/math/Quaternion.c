@@ -126,6 +126,35 @@ float GetRollFromQuaternion(Quaternion q)
 }
 
 
+//
+// Gets the euler angles from a quaternion
+//
+Vector3 QuaternionToEuler(Quaternion q)
+{
+    Vector3 euler;
+
+    // Pitch (x-axis rotation)
+    float sinp = 2.0f * (q.w * q.y - q.z * q.x);
+    
+    // Clamp to handle numerical errors near gimbal lock (90 degrees)
+    if (sinp > 1.0f) sinp = 1.0f;
+    if (sinp < -1.0f) sinp = -1.0f;
+    euler.x = asinf(sinp);
+
+    // Yaw (y-axis rotation)
+    float siny_cosp = 2.0f * (q.w * q.z + q.x * q.y);
+    float cosy_cosp = 1.0f - 2.0f * (q.y * q.y + q.z * q.z);
+    euler.y = atan2f(siny_cosp, cosy_cosp);
+
+    // Roll (z-axis rotation)
+    float sinr_cosp = 2.0f * (q.w * q.x + q.y * q.z);
+    float cosr_cosp = 1.0f - 2.0f * (q.x * q.x + q.y * q.y);
+    euler.z = atan2f(sinr_cosp, cosr_cosp);
+
+    return euler;
+}
+
+
 
 //
 // Get a quaternion from a set of euler angles

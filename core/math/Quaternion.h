@@ -25,6 +25,7 @@ Vector3 RotateVectorByQuaternion(Vector3 v, Quaternion q);
 float GetPitchFromQuaternion(Quaternion q);
 float GetYawFromQuaternion(Quaternion q);
 float GetRollFromQuaternion(Quaternion q);
+Vector3 QuaternionToEuler(Quaternion q);
 Quaternion QuaternionFromEuler(float pitch, float yaw, float roll);
 Quaternion QuaternionInverse(Quaternion q);
 Quaternion QuaternionIdentity();
