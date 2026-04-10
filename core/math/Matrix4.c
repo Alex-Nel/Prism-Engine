@@ -117,7 +117,7 @@ Matrix4 Matrix4CreateTransform(Vector3 position, Quaternion rotation, Vector3 sc
     Matrix4 s = Matrix4Scale(scale);
 
     // TRS = Translate * (Rotate * Scale)
-    // We multiply Right-to-Left in column-major systems!
+    // We multiply Right-to-Left in column-major systems
     Matrix4 rot_scale = Matrix4Multiply(r, s);
     return Matrix4Multiply(t, rot_scale);
 }
@@ -128,28 +128,11 @@ Matrix4 Matrix4CreateTransform(Vector3 position, Quaternion rotation, Vector3 sc
 // Creates the View Matrix for the Camera component.
 //
 Matrix4 Matrix4CreateView(Vector3 position, Quaternion rotation)
-{
-    // A standard forward vector in OpenGL points down the -Z axis
-    // Vector3 default_forward = {0.0f, 0.0f, -1.0f};
-    // Vector3 default_up = {0.0f, 1.0f, 0.0f};
-
-    // Note: You will need a function to rotate a Vector3 by a Quaternion.
-    // If you don't have one yet, you can use the Mat4FromQuaternion matrix 
-    // to multiply the default vectors and find the camera's actual forward/up!
-    
-    // Assuming you have a Vector3RotateByQuat function:
-    // Vector3 forward = Vector3RotateByQuat(default_forward, rotation);
-    // Vector3 up = Vector3RotateByQuat(default_up, rotation);
-    // Vector3 target = Vector3Add(position, forward);
-    // return Mat4LookAt(position, target, up);
-
-    // ALTERNATIVE: The classic "Inverse TRS" method (if you don't want to use LookAt)
-    // View Matrix = Inverse(Translate * Rotate) = Inverse(Rotate) * Inverse(Translate)
-    
-    // 1. Invert the position
+{   
+    // Invert the position
     Matrix4 inv_trans = Matrix4Translate((Vector3){-position.x, -position.y, -position.z});
     
-    // 2. Invert the rotation (For a pure rotation matrix, Transpose == Inverse!)
+    // Invert the rotation
     Matrix4 rot = Matrix4FromQuaternion(rotation);
     Matrix4 inv_rot = Matrix4Transpose(rot); 
     
@@ -228,28 +211,160 @@ Matrix4 Matrix4Ortho(float left, float right, float bottom, float top, float nea
 //
 Matrix4 Matrix4Inverse(Matrix4 m)
 {
-    // Extract rotation (upper 3x3)
-    Matrix4 r = m;
+    Matrix4 inv;
+    float det;
 
-    // Transpose rotation
-    r = Matrix4Transpose(r);
+    inv.m0 = m.m5  * m.m10 * m.m15 - 
+             m.m5  * m.m11 * m.m14 - 
+             m.m9  * m.m6  * m.m15 + 
+             m.m9  * m.m7  * m.m14 +
+             m.m13 * m.m6  * m.m11 - 
+             m.m13 * m.m7  * m.m10;
 
-    // Extract translation
-    Vector3 t = {m.m12, m.m13, m.m14};
+    inv.m4 = -m.m4  * m.m10 * m.m15 + 
+              m.m4  * m.m11 * m.m14 + 
+              m.m8  * m.m6  * m.m15 - 
+              m.m8  * m.m7  * m.m14 - 
+              m.m12 * m.m6  * m.m11 + 
+              m.m12 * m.m7  * m.m10;
 
-    // New translation = -(R^T * t)
-    Vector3 nt = {
-        -(r.m0 * t.x + r.m4 * t.y + r.m8  * t.z),
-        -(r.m1 * t.x + r.m5 * t.y + r.m9  * t.z),
-        -(r.m2 * t.x + r.m6 * t.y + r.m10 * t.z)
-    };
+    inv.m8 = m.m4  * m.m9 * m.m15 - 
+             m.m4  * m.m11 * m.m13 - 
+             m.m8  * m.m5 * m.m15 + 
+             m.m8  * m.m7 * m.m13 + 
+             m.m12 * m.m5 * m.m11 - 
+             m.m12 * m.m7 * m.m9;
 
-    r.m12 = nt.x;
-    r.m13 = nt.y;
-    r.m14 = nt.z;
+    inv.m12 = -m.m4  * m.m9 * m.m14 + 
+               m.m4  * m.m10 * m.m13 +
+               m.m8  * m.m5 * m.m14 - 
+               m.m8  * m.m6 * m.m13 - 
+               m.m12 * m.m5 * m.m10 + 
+               m.m12 * m.m6 * m.m9;
 
-    return r;
+    inv.m1 = -m.m1  * m.m10 * m.m15 + 
+              m.m1  * m.m11 * m.m14 + 
+              m.m9  * m.m2 * m.m15 - 
+              m.m9  * m.m3 * m.m14 - 
+              m.m13 * m.m2 * m.m11 + 
+              m.m13 * m.m3 * m.m10;
+
+    inv.m5 = m.m0  * m.m10 * m.m15 - 
+             m.m0  * m.m11 * m.m14 - 
+             m.m8  * m.m2 * m.m15 + 
+             m.m8  * m.m3 * m.m14 + 
+             m.m12 * m.m2 * m.m11 - 
+             m.m12 * m.m3 * m.m10;
+
+    inv.m9 = -m.m0  * m.m9 * m.m15 + 
+              m.m0  * m.m11 * m.m13 + 
+              m.m8  * m.m1 * m.m15 - 
+              m.m8  * m.m3 * m.m13 - 
+              m.m12 * m.m1 * m.m11 + 
+              m.m12 * m.m3 * m.m9;
+
+    inv.m13 = m.m0  * m.m9 * m.m14 - 
+              m.m0  * m.m10 * m.m13 - 
+              m.m8  * m.m1 * m.m14 + 
+              m.m8  * m.m2 * m.m13 + 
+              m.m12 * m.m1 * m.m10 - 
+              m.m12 * m.m2 * m.m9;
+
+    inv.m2 = m.m1  * m.m6 * m.m15 - 
+             m.m1  * m.m7 * m.m14 - 
+             m.m5  * m.m2 * m.m15 + 
+             m.m5  * m.m3 * m.m14 + 
+             m.m13 * m.m2 * m.m7 - 
+             m.m13 * m.m3 * m.m6;
+
+    inv.m6 = -m.m0  * m.m6 * m.m15 + 
+              m.m0  * m.m7 * m.m14 + 
+              m.m4  * m.m2 * m.m15 - 
+              m.m4  * m.m3 * m.m14 - 
+              m.m12 * m.m2 * m.m7 + 
+              m.m12 * m.m3 * m.m6;
+
+    inv.m10 = m.m0  * m.m5 * m.m15 - 
+              m.m0  * m.m7 * m.m13 - 
+              m.m4  * m.m1 * m.m15 + 
+              m.m4  * m.m3 * m.m13 + 
+              m.m12 * m.m1 * m.m7 - 
+              m.m12 * m.m3 * m.m5;
+
+    inv.m14 = -m.m0  * m.m5 * m.m14 + 
+               m.m0  * m.m6 * m.m13 + 
+               m.m4  * m.m1 * m.m14 - 
+               m.m4  * m.m2 * m.m13 - 
+               m.m12 * m.m1 * m.m6 + 
+               m.m12 * m.m2 * m.m5;
+
+    inv.m3 = -m.m1 * m.m6 * m.m11 + 
+              m.m1 * m.m7 * m.m10 + 
+              m.m5 * m.m2 * m.m11 - 
+              m.m5 * m.m3 * m.m10 - 
+              m.m9 * m.m2 * m.m7 + 
+              m.m9 * m.m3 * m.m6;
+
+    inv.m7 = m.m0 * m.m6 * m.m11 - 
+             m.m0 * m.m7 * m.m10 - 
+             m.m4 * m.m2 * m.m11 + 
+             m.m4 * m.m3 * m.m10 + 
+             m.m8 * m.m2 * m.m7 - 
+             m.m8 * m.m3 * m.m6;
+
+    inv.m11 = -m.m0 * m.m5 * m.m11 + 
+               m.m0 * m.m7 * m.m9 + 
+               m.m4 * m.m1 * m.m11 - 
+               m.m4 * m.m3 * m.m9 - 
+               m.m8 * m.m1 * m.m7 + 
+               m.m8 * m.m3 * m.m5;
+
+    inv.m15 = m.m0 * m.m5 * m.m10 - 
+              m.m0 * m.m6 * m.m9 - 
+              m.m4 * m.m1 * m.m10 + 
+              m.m4 * m.m2 * m.m9 + 
+              m.m8 * m.m1 * m.m6 - 
+              m.m8 * m.m2 * m.m5;
+
+    det = m.m0 * inv.m0 + m.m1 * inv.m4 + m.m2 * inv.m8 + m.m3 * inv.m12;
+
+    if (det == 0) {
+        // Return identity if the matrix can't be inverted
+        return (Matrix4){ 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
+    }
+
+    det = 1.0f / det;
+
+    for (int i = 0; i < 16; i++) {
+        ((float*)&inv)[i] *= det;
+    }
+
+    return inv;
 }
+// Matrix4 Matrix4Inverse(Matrix4 m)
+// {
+//     // Extract rotation (upper 3x3)
+//     Matrix4 r = m;
+
+//     // Transpose rotation
+//     r = Matrix4Transpose(r);
+
+//     // Extract translation
+//     Vector3 t = {m.m12, m.m13, m.m14};
+
+//     // New translation = -(R^T * t)
+//     Vector3 nt = {
+//         -(r.m0 * t.x + r.m4 * t.y + r.m8  * t.z),
+//         -(r.m1 * t.x + r.m5 * t.y + r.m9  * t.z),
+//         -(r.m2 * t.x + r.m6 * t.y + r.m10 * t.z)
+//     };
+
+//     r.m12 = nt.x;
+//     r.m13 = nt.y;
+//     r.m14 = nt.z;
+
+//     return r;
+// }
 
 
 
@@ -310,6 +425,76 @@ Vector3 Matrix4MultiplyVector3(Matrix4 m, Vector3 v)
     out.z = m.m2 * v.x + m.m6 * v.y + m.m10 * v.z + m.m14;
 
     return out;
+}
+
+
+
+//
+// Get a quaternion from a given matrix
+//
+Quaternion QuaternionFromMatrix(Matrix4 m)
+{
+    Quaternion q;
+    
+    // 1. Extract the scale squared
+    float sx = m.m0 * m.m0 + m.m1 * m.m1 + m.m2 * m.m2;
+    float sy = m.m4 * m.m4 + m.m5 * m.m5 + m.m6 * m.m6;
+    float sz = m.m8 * m.m8 + m.m9 * m.m9 + m.m10 * m.m10;
+
+    // 2. Normalize the matrix axes to strip the scale out
+    // (We add a tiny epsilon to prevent dividing by zero if scale is 0)
+    float inv_sx = 1.0f / sqrtf(sx + 0.00001f);
+    float inv_sy = 1.0f / sqrtf(sy + 0.00001f);
+    float inv_sz = 1.0f / sqrtf(sz + 0.00001f);
+
+    float m00 = m.m0 * inv_sx, m01 = m.m4 * inv_sy, m02 = m.m8 * inv_sz;
+    float m10 = m.m1 * inv_sx, m11 = m.m5 * inv_sy, m12 = m.m9 * inv_sz;
+    float m20 = m.m2 * inv_sx, m21 = m.m6 * inv_sy, m22 = m.m10 * inv_sz;
+
+    // 3. The Shoemake Algorithm
+    float trace = m00 + m11 + m22;
+
+    if (trace > 0.0f) 
+    {
+        float s = 0.5f / sqrtf(trace + 1.0f);
+        q.w = 0.25f / s;
+        q.x = (m21 - m12) * s;
+        q.y = (m02 - m20) * s;
+        q.z = (m10 - m01) * s;
+    } 
+    else 
+    {
+        if (m00 > m11 && m00 > m22) 
+        {
+            float s = 2.0f * sqrtf(1.0f + m00 - m11 - m22);
+            q.w = (m21 - m12) / s;
+            q.x = 0.25f * s;
+            q.y = (m01 + m10) / s;
+            q.z = (m02 + m20) / s;
+        } 
+        else if (m11 > m22) 
+        {
+            float s = 2.0f * sqrtf(1.0f + m11 - m00 - m22);
+            q.w = (m02 - m20) / s;
+            q.x = (m01 + m10) / s;
+            q.y = 0.25f * s;
+            q.z = (m12 + m21) / s;
+        } 
+        else 
+        {
+            float s = 2.0f * sqrtf(1.0f + m22 - m00 - m11);
+            q.w = (m10 - m01) / s;
+            q.x = (m02 + m20) / s;
+            q.y = (m12 + m21) / s;
+            q.z = 0.25f * s;
+        }
+    }
+
+    // Ensure the resulting quaternion is perfectly normalized
+    float length = sqrtf(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w);
+    q.x /= length; q.y /= length; q.z /= length; q.w /= length;
+
+    return q;
 }
 
 

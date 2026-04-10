@@ -50,6 +50,99 @@ void Transform_SetLocalScale(Transform* t, Vector3 scale)
 
 
 
+// Sets the global position, calculating the necessary local offset
+void Transform_SetGlobalPosition(Transform* t, Transform* parent_t, Vector3 global_position)
+{
+    if (!t) return;
+
+    // If no parent, then local is the global
+    if (!parent_t) 
+    {
+        t->local_position = global_position;
+    }
+    else 
+    {
+        // If there's a parent, transform the desired global position by the inverse of the parent's matrix.
+        Matrix4 parent_inverse = Matrix4Inverse(parent_t->world_matrix);
+        t->local_position = Matrix4MultiplyVector3(parent_inverse, global_position);
+    }
+    
+    t->is_dirty = true;
+}
+
+
+
+
+
+// Sets the global rotation
+void Transform_SetGlobalRotation(Transform* t, Transform* parent_t, Quaternion global_rotation)
+{
+    if (!t) return;
+
+    if (!parent_t) 
+    {
+        t->local_rotation = global_rotation;
+    }
+    else 
+    {
+        // To get the local rotation we multiply the inverse of the parent's global rotation by the target global rotation
+        Quaternion parent_global_rot = Transform_GetGlobalRotation(parent_t);
+        Quaternion parent_inv_rot = QuaternionInverse(parent_global_rot);
+        
+        t->local_rotation = QuaternionMultiply(parent_inv_rot, global_rotation);
+    }
+
+    t->local_rotation_euler = QuaternionToEuler(t->local_rotation);
+    t->is_dirty = true;
+}
+
+
+
+
+
+// Sets the global rotation via Euler angles
+void Transform_SetGlobalRotationEuler(Transform* t, Transform* parent_t, Vector3 global_euler)
+{
+    Quaternion global_rot = QuaternionFromEuler(global_euler.x, global_euler.y, global_euler.z);
+    Transform_SetGlobalRotation(t, parent_t, global_rot);
+}
+
+
+
+
+
+// Sets the global scale
+void Transform_SetGlobalScale(Transform* t, Transform* parent_t, Vector3 global_scale)
+{
+    if (!t) return;
+
+    if (!parent_t) 
+    {
+        t->local_scale = global_scale;
+    }
+    else 
+    {
+        // Local scale is the target global scale divided by the parent's global scale.
+        Vector3 parent_global_scale = Transform_GetGlobalScale(parent_t);
+        
+        t->local_scale = (Vector3){
+            global_scale.x / parent_global_scale.x,
+            global_scale.y / parent_global_scale.y,
+            global_scale.z / parent_global_scale.z
+        };
+    }
+    
+    t->is_dirty = true;
+}
+
+
+
+
+
+
+
+
+
 
 // Moves a transforms position by a specified Vector3
 void Transform_Translate(Transform* t, Vector3 translation)
@@ -102,4 +195,31 @@ Vector3 Transform_GetGlobalPosition(Transform* t)
         t->world_matrix.m13,
         t->world_matrix.m14
     };
+}
+
+
+
+// Get a transforms global scale
+Vector3 Transform_GetGlobalScale(Transform* t)
+{
+    if (!t) return (Vector3){1, 1, 1};
+
+    // Scale is the magnitude (length) of the first 3 column vectors in the matrix
+    Vector3 scale;
+    scale.x = sqrtf(t->world_matrix.m0 * t->world_matrix.m0 + t->world_matrix.m1 * t->world_matrix.m1 + t->world_matrix.m2 * t->world_matrix.m2);
+    scale.y = sqrtf(t->world_matrix.m4 * t->world_matrix.m4 + t->world_matrix.m5 * t->world_matrix.m5 + t->world_matrix.m6 * t->world_matrix.m6);
+    scale.z = sqrtf(t->world_matrix.m8 * t->world_matrix.m8 + t->world_matrix.m9 * t->world_matrix.m9 + t->world_matrix.m10 * t->world_matrix.m10);
+    
+    return scale;
+}
+
+
+
+// Get a transforms global rotation
+Quaternion Transform_GetGlobalRotation(Transform* t)
+{
+    if (!t) return QuaternionIdentity();
+
+    // Convert the 3x3 rotation portion of the world matrix back into a Quaternion.
+    return QuaternionFromMatrix(t->world_matrix); 
 }

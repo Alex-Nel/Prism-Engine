@@ -277,11 +277,18 @@ void Transform_SetLocalRotationEuler(Transform* t, Vector3 euler_angles);
 void Transform_SetLocalRotation(Transform* t, Quaternion rotation);
 void Transform_SetLocalScale(Transform* t, Vector3 scale);
 
+void Transform_SetGlobalPosition(Transform* t, Transform* parent_t, Vector3 global_position);
+void Transform_SetGlobalRotation(Transform* t, Transform* parent_t, Quaternion global_rotation);
+void Transform_SetGlobalRotationEuler(Transform* t, Transform* parent_t, Vector3 global_euler);
+void Transform_SetGlobalScale(Transform* t, Transform* parent_t, Vector3 global_scale);
+
 void Transform_Translate(Transform* t, Vector3 translation);
 void Transform_RotateEuler(Transform* t, Vector3 euler_addition);
 
 Vector3 Transform_GetLocalPosition(Transform* t);
 Vector3 Transform_GetGlobalPosition(Transform* t);
+Vector3 Transform_GetGlobalScale(Transform* t);
+Quaternion Transform_GetGlobalRotation(Transform* t);
 
 
 
