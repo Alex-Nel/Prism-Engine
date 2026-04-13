@@ -615,7 +615,7 @@ TextureHandle Asset_GetDefaultTexture()
     if (is_default_texture_loaded)
         return default_white_texture;
     
-    unsigned char white_pixel[4] = {255, 255, 255, 255};
+    unsigned char white_pixel[4] = {200, 200, 200, 255};
 
     default_white_texture = Render_CreateTexture(white_pixel, 1, 1, 4);
     is_default_texture_loaded = true;

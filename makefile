@@ -28,8 +28,8 @@ CPP_OBJS = $(patsubst %.cpp, $(BUILD_DIR)/%.o, $(CPP_SRCS))
 OBJS = $(C_OBJS) $(CPP_OBJS)
 
 # Name of your final executable
-TARGET = $(BUILD_DIR)/../PrismEngine
-# TARGET = $(BUILD_DIR)/PrismEngine
+# TARGET = $(BUILD_DIR)/../PrismEngine
+TARGET = $(BUILD_DIR)/PrismEngine
 
 # --- Rules ---
 
