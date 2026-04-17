@@ -26,6 +26,67 @@ void Scene_Init(Scene* scene)
 
 
 
+// Simple array search
+static bool ArrayContains(uint32_t* array, uint32_t count, uint32_t value)
+{
+    for (uint32_t i = 0; i < count; i++)
+    {
+        if (array[i] == value) return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+// Event dispatcher enum
+typedef enum { EVENT_ENTER, EVENT_STAY, EVENT_EXIT } CollisionEventType;
+
+
+
+
+
+// Dispatches collision events to any scripts
+static void DispatchCollisionEvent(Scene* scene, uint32_t entity_id, uint32_t other_id, CollisionEventType event_type)
+{
+    // If this entity has no scripts, do nothing
+    if (!(scene->component_masks[entity_id] & COMPONENT_SCRIPT)) return;
+    
+    ScriptComponent* sc = &scene->scripts[entity_id];
+    ColliderComponent* c1 = &scene->colliders[entity_id];
+    ColliderComponent* c2 = &scene->colliders[other_id];
+    
+    // If at least one collider is a trigger, it is a Trigger Event. Otherwise, it's a Collision Event.
+    bool is_trigger = (c1->is_trigger || c2->is_trigger);
+    
+    Entity self = { entity_id, scene };
+    Entity other = { other_id, scene };
+    
+    for (uint32_t s = 0; s < sc->count; s++)
+    {
+        ScriptInstance* script = &sc->instances[s];
+        
+        if (is_trigger) 
+        {
+            if (event_type == EVENT_ENTER && script->OnTriggerEnter) script->OnTriggerEnter(self, other, script->instance_data);
+            if (event_type == EVENT_STAY  && script->OnTriggerStay)  script->OnTriggerStay(self, other, script->instance_data);
+            if (event_type == EVENT_EXIT  && script->OnTriggerExit)  script->OnTriggerExit(self, other, script->instance_data);
+        } 
+        else 
+        {
+            if (event_type == EVENT_ENTER && script->OnCollisionEnter) script->OnCollisionEnter(self, other, script->instance_data);
+            if (event_type == EVENT_STAY  && script->OnCollisionStay)  script->OnCollisionStay(self, other, script->instance_data);
+            if (event_type == EVENT_EXIT  && script->OnCollisionExit)  script->OnCollisionExit(self, other, script->instance_data);
+        }
+    }
+}
+
+
+
+
+
 // Updates the scene
 // Runs custom scripts and runs the physics engine for a frame
 void Scene_Update(Scene* scene)
@@ -93,7 +154,77 @@ void Scene_Update(Scene* scene)
 
     // Step through physics simulation
     if (scene->physics_world)
+    {
         Physics_StepSimulation(scene->physics_world, dt);
+
+        // Shift current memory to "last frame" memory
+        for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+        {
+            if (scene->component_masks[i] & COMPONENT_COLLIDER)
+            {
+                ColliderComponent* c = &scene->colliders[i];
+                memcpy(c->touching_last_frame, c->touching_entities, sizeof(uint32_t) * c->touching_count);
+                c->touching_last_count = c->touching_count;
+                c->touching_count = 0; // Reset this frame's counter
+            }
+        }
+
+        // Fetch all overlapping pairs from Bullet
+        CollisionPair pairs[1024]; 
+        int hit_count = Physics_GetCollisions(scene->physics_world, pairs, 1024);
+
+        // Process all pairs
+        for (int i = 0; i < hit_count; i++)
+        {
+            uint32_t idA = pairs[i].entity_a;
+            uint32_t idB = pairs[i].entity_b;
+
+            // Save the hit to Entity A's memory
+            ColliderComponent* colA = &scene->colliders[idA];
+            if (colA->touching_count < MAX_COLLISION_OVERLAPS)
+                colA->touching_entities[colA->touching_count++] = idB;
+
+            // Save the hit to Entity B's memory
+            ColliderComponent* colB = &scene->colliders[idB];
+            if (colB->touching_count < MAX_COLLISION_OVERLAPS)
+                colB->touching_entities[colB->touching_count++] = idA;
+        }
+
+
+        // Process all collision callbacks
+        for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+        {
+            if (!(scene->component_masks[i] & COMPONENT_COLLIDER)) continue;
+            
+            ColliderComponent* c = &scene->colliders[i];
+            
+            // Check for ENTER and STAY events
+            for (uint32_t j = 0; j < c->touching_count; j++)
+            {
+                uint32_t other_id = c->touching_entities[j];
+                
+                // If it was touching last frame, it's an EVENT_STAY, otherwise it's an EVENT_ENTER
+                bool was_touching = ArrayContains(c->touching_last_frame, c->touching_last_count, other_id);
+                
+                if (was_touching)
+                    DispatchCollisionEvent(scene, i, other_id, EVENT_STAY);
+                else
+                    DispatchCollisionEvent(scene, i, other_id, EVENT_ENTER);
+            }
+            
+            // Check for EXIT events
+            for (uint32_t j = 0; j < c->touching_last_count; j++)
+            {
+                uint32_t other_id = c->touching_last_frame[j];
+                
+                // If it's not touching this frame, it's an EVENT_EXIT
+                bool is_touching_now = ArrayContains(c->touching_entities, c->touching_count, other_id);
+                
+                if (!is_touching_now)
+                    DispatchCollisionEvent(scene, i, other_id, EVENT_EXIT);
+            }
+        }
+    }
 
 
     // Sync physics positions/rotations with the engine

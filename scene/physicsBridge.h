@@ -14,15 +14,24 @@ extern "C" {
 
 
 
+typedef struct CollisionPair
+{
+    uint32_t entity_a;
+    uint32_t entity_b;
+    bool is_trigger_event; // True if either object is a trigger
+} CollisionPair;
+
+
+
 // World Management
 PhysicsWorldHandle Physics_InitWorld(void);
 void Physics_StepSimulation(PhysicsWorldHandle world, float delta_time);
 void Physics_ShutdownWorld(PhysicsWorldHandle world);
 
 // Body Creation
-PhysicsBodyHandle Physics_CreateBoxCollider(PhysicsWorldHandle world, Vector3 position, Vector3 extents, bool is_trigger);
-PhysicsBodyHandle Physics_CreateSphereCollider(PhysicsWorldHandle world, Vector3 position, float radius, bool is_trigger);
-PhysicsBodyHandle Physics_CreateMeshCollider(PhysicsWorldHandle world, Vector3 position, const void* vertices, int vertex_stride, int vertex_count, const uint32_t* indices, int index_count, bool is_trigger);
+PhysicsBodyHandle Physics_CreateBoxCollider(PhysicsWorldHandle world, uint32_t entity_id, Vector3 position, Vector3 extents, bool is_trigger);
+PhysicsBodyHandle Physics_CreateSphereCollider(PhysicsWorldHandle world, uint32_t entity_id, Vector3 position, float radius, bool is_trigger);
+PhysicsBodyHandle Physics_CreateMeshCollider(PhysicsWorldHandle world, uint32_t entity_id, Vector3 position, const void* vertices, int vertex_stride, int vertex_count, const uint32_t* indices, int index_count, bool is_trigger);
 void Physics_AddRigidbody(PhysicsWorldHandle world, PhysicsBodyHandle body, float mass);
 
 // Data Retrieval
@@ -42,6 +51,7 @@ void Physics_SetKinematicState(PhysicsBodyHandle body, bool is_kinematic);
 
 // Used for enabling/disabling entities
 void Physics_SetBodySimulationState(PhysicsWorldHandle world, PhysicsBodyHandle body, bool enable_simulation);
+int Physics_GetCollisions(PhysicsWorldHandle world, CollisionPair* out_pairs, int max_pairs);
 
 
 // Functions to delete physics entities

@@ -47,7 +47,7 @@ void Physics_StepSimulation(PhysicsWorldHandle world, float delta_time)
 
 
 // Creates a Box Collider in the physics world
-PhysicsBodyHandle Physics_CreateBoxCollider(PhysicsWorldHandle world, Vector3 position, Vector3 extents, bool is_trigger)
+PhysicsBodyHandle Physics_CreateBoxCollider(PhysicsWorldHandle world, uint32_t entity_id, Vector3 position, Vector3 extents, bool is_trigger)
 {
     if (!world) return nullptr;
     btDiscreteDynamicsWorld* dynWorld = (btDiscreteDynamicsWorld*)world;
@@ -65,6 +65,9 @@ PhysicsBodyHandle Physics_CreateBoxCollider(PhysicsWorldHandle world, Vector3 po
 
     // Sets collision flags
     if (is_trigger) body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
+
+    body->setUserIndex((int)entity_id);
+
     dynWorld->addRigidBody(body);
 
     return (PhysicsBodyHandle)body;
@@ -75,7 +78,7 @@ PhysicsBodyHandle Physics_CreateBoxCollider(PhysicsWorldHandle world, Vector3 po
 
 
 // Creates a Sphere Collider in the physics world
-PhysicsBodyHandle Physics_CreateSphereCollider(PhysicsWorldHandle world, Vector3 position, float radius, bool is_trigger)
+PhysicsBodyHandle Physics_CreateSphereCollider(PhysicsWorldHandle world, uint32_t entity_id, Vector3 position, float radius, bool is_trigger)
 {
     if (!world) return nullptr;
     btDiscreteDynamicsWorld* dynWorld = (btDiscreteDynamicsWorld*)world;
@@ -91,6 +94,9 @@ PhysicsBodyHandle Physics_CreateSphereCollider(PhysicsWorldHandle world, Vector3
 
     // Sets collision flags
     if (is_trigger) body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
+
+    body->setUserIndex((int)entity_id);
+
     dynWorld->addRigidBody(body);
 
     return (PhysicsBodyHandle)body;
@@ -101,7 +107,7 @@ PhysicsBodyHandle Physics_CreateSphereCollider(PhysicsWorldHandle world, Vector3
 
 
 // Creates a mesh collider in the physics world
-PhysicsBodyHandle Physics_CreateMeshCollider(PhysicsWorldHandle world, Vector3 position, const void* vertices, int vertex_stride, int vertex_count, const uint32_t* indices, int index_count, bool is_trigger)
+PhysicsBodyHandle Physics_CreateMeshCollider(PhysicsWorldHandle world, uint32_t entity_id, Vector3 position, const void* vertices, int vertex_stride, int vertex_count, const uint32_t* indices, int index_count, bool is_trigger)
 {
     if (!world) return nullptr;
     btDiscreteDynamicsWorld* dynWorld = (btDiscreteDynamicsWorld*)world;
@@ -127,6 +133,9 @@ PhysicsBodyHandle Physics_CreateMeshCollider(PhysicsWorldHandle world, Vector3 p
 
     // Sets collision flags
     if (is_trigger) body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
+
+    body->setUserIndex((int)entity_id);
+
     dynWorld->addRigidBody(body);
 
     return (PhysicsBodyHandle)body;
@@ -423,6 +432,50 @@ void Physics_SetBodySimulationState(PhysicsWorldHandle world, PhysicsBodyHandle 
         if (rb->isInWorld())
             dynWorld->removeRigidBody(rb);
     }
+}
+
+
+
+
+
+// Gets all collision pairs that happened in a frame
+int Physics_GetCollisions(PhysicsWorldHandle world, CollisionPair* out_pairs, int max_pairs)
+{
+    if (!world || !out_pairs) return 0;
+    
+    btDiscreteDynamicsWorld* dynWorld = (btDiscreteDynamicsWorld*)world;
+    
+    int pair_count = 0;
+    int numManifolds = dynWorld->getDispatcher()->getNumManifolds();
+    
+    for (int i = 0; i < numManifolds; i++)
+    {
+        if (pair_count >= max_pairs) break; // Prevents overflowing
+
+        btPersistentManifold* contactManifold = dynWorld->getDispatcher()->getManifoldByIndexInternal(i);
+        
+        // If there are 0 contacts, they aren't actually touching
+        if (contactManifold->getNumContacts() > 0)
+        {
+            const btCollisionObject* obA = contactManifold->getBody0();
+            const btCollisionObject* obB = contactManifold->getBody1();
+            
+            CollisionPair pair;
+            pair.entity_a = (uint32_t)obA->getUserIndex();
+            pair.entity_b = (uint32_t)obB->getUserIndex();
+            
+            // Check if either object is flagged as a trigger (NO_CONTACT_RESPONSE)
+            bool a_is_trigger = obA->getCollisionFlags() & btCollisionObject::CF_NO_CONTACT_RESPONSE;
+            bool b_is_trigger = obB->getCollisionFlags() & btCollisionObject::CF_NO_CONTACT_RESPONSE;
+            
+            pair.is_trigger_event = (a_is_trigger || b_is_trigger);
+            
+            out_pairs[pair_count] = pair;
+            pair_count++;
+        }
+    }
+    
+    return pair_count;
 }
 
 

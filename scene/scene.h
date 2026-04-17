@@ -14,6 +14,7 @@
 #define MAX_ENTITIES 4096
 #define MAX_NAME_LENGTH 64
 #define MAX_SCRIPTS_PER_ENTITY 64
+#define MAX_COLLISION_OVERLAPS 16
 
 
 typedef struct Scene Scene;
@@ -63,6 +64,8 @@ typedef void (*ScriptDestroyFunc)(Entity entity, void* instance_data);
 typedef void (*ScriptEnableFunc)(Entity entity, void* instance_data);
 // On Disable function
 typedef void (*ScriptDisableFunc)(Entity entity, void* instance_data);
+// On Collision function (any kind)
+typedef void (*CollisionCallback)(Entity self, Entity other, void* instance_data);
 
 
 
@@ -146,6 +149,12 @@ typedef struct ColliderComponent
     bool is_trigger;
     
     void* physics_handle;
+
+    uint32_t touching_entities[MAX_COLLISION_OVERLAPS];
+    uint32_t touching_count;
+
+    uint32_t touching_last_frame[MAX_COLLISION_OVERLAPS];
+    uint32_t touching_last_count;
 } ColliderComponent;
 
 
@@ -171,11 +180,21 @@ typedef struct RigidbodyComponent
 typedef struct ScriptInstance
 {
     void* instance_data;
+
     ScriptStartFunc OnStart;
     ScriptUpdateFunc OnUpdate;
     ScriptDestroyFunc OnDestroy;
     ScriptEnableFunc OnEnable;
     ScriptDisableFunc OnDisable;
+
+    CollisionCallback OnTriggerEnter;
+    CollisionCallback OnTriggerStay;
+    CollisionCallback OnTriggerExit;
+    
+    CollisionCallback OnCollisionEnter;
+    CollisionCallback OnCollisionStay;
+    CollisionCallback OnCollisionExit;
+
     bool has_started;
 } ScriptInstance;
 
@@ -256,7 +275,7 @@ void Entity_AddColliderBoxAuto(Entity entity, bool is_trigger);
 void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger);
 void Entity_AddColliderMesh(Entity entity, MeshHandle mesh, bool is_trigger);
 void Entity_AddRigidbody(Entity entity, float mass);
-void Entity_BindScript(Entity entity, void* data, ScriptStartFunc start, ScriptUpdateFunc update, ScriptDestroyFunc destroy);
+void Entity_BindScript(Entity entity, ScriptInstance new_script);
 
 
 

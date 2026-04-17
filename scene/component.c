@@ -117,7 +117,7 @@ void Entity_AddColliderBox(Entity entity, Vector3 extents, bool is_trigger)
     Transform* t = &entity.scene->transforms[entity.id];
 
     // Creates a static box for the physics engine
-    c->physics_handle = Physics_CreateBoxCollider(entity.scene->physics_world, t->local_position, extents, is_trigger);
+    c->physics_handle = Physics_CreateBoxCollider(entity.scene->physics_world, entity.id, t->local_position, extents, is_trigger);
     Physics_SetBodyScale(c->physics_handle, t->local_scale);
     Physics_SetBodyRotation(c->physics_handle, t->local_rotation);
 
@@ -172,7 +172,7 @@ void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger)
     Transform* t = &entity.scene->transforms[entity.id];
 
     // Creates a static sphere
-    c->physics_handle = Physics_CreateSphereCollider(entity.scene->physics_world, t->local_position, radius, is_trigger);
+    c->physics_handle = Physics_CreateSphereCollider(entity.scene->physics_world, entity.id, t->local_position, radius, is_trigger);
     Physics_SetBodyScale(c->physics_handle, t->local_scale);
     Physics_SetBodyRotation(c->physics_handle, t->local_rotation);
 
@@ -202,7 +202,7 @@ void Entity_AddColliderMesh(Entity entity, MeshHandle mesh, bool is_trigger)
 
     // Pass the raw memory pointers to Bullet so it can bake the BVH Tree
     c->physics_handle = Physics_CreateMeshCollider(
-        entity.scene->physics_world, t->local_position,
+        entity.scene->physics_world, entity.id, t->local_position,
         data->vertices, sizeof(Vertex3D), data->vertex_count,
         data->indices, data->index_count, is_trigger
     );
@@ -263,7 +263,7 @@ void Entity_AddRigidbody(Entity entity, float mass)
 
 
 // Adds a custom script to an entity
-void Entity_BindScript(Entity entity, void* data, ScriptStartFunc start, ScriptUpdateFunc update, ScriptDestroyFunc destroy)
+void Entity_BindScript(Entity entity, ScriptInstance new_script)
 {
     if (!entity.scene) return;
     
@@ -278,12 +278,9 @@ void Entity_BindScript(Entity entity, void* data, ScriptStartFunc start, ScriptU
     
     // Get the next available slot
     uint32_t index = script_comp->count;
-    
+
     // Slot the new script in
-    script_comp->instances[index].instance_data = data;
-    script_comp->instances[index].OnStart = start;
-    script_comp->instances[index].OnUpdate = update;
-    script_comp->instances[index].OnDestroy = destroy;
+    script_comp->instances[index] = new_script;
     script_comp->instances[index].has_started = false;
     
     // Increment the counter
