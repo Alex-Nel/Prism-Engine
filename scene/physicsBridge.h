@@ -14,6 +14,17 @@ extern "C" {
 
 
 
+typedef struct RaycastHit
+{
+    bool has_hit;
+    uint32_t entity_id; // The ID of the entity hit
+    Vector3 point;      // The world coordinate of the impact
+    Vector3 normal;     // The direction the hit surface is facing
+    float distance;     // How far the ray traveled before hitting the object
+} RaycastHit;
+
+
+
 typedef struct CollisionPair
 {
     uint32_t entity_a;
@@ -52,6 +63,8 @@ void Physics_SetKinematicState(PhysicsBodyHandle body, bool is_kinematic);
 // Used for enabling/disabling entities
 void Physics_SetBodySimulationState(PhysicsWorldHandle world, PhysicsBodyHandle body, bool enable_simulation);
 int Physics_GetCollisions(PhysicsWorldHandle world, CollisionPair* out_pairs, int max_pairs);
+bool Physics_Raycast(PhysicsWorldHandle world, Vector3 start, Vector3 end, RaycastHit* out_hit);
+int Physics_RaycastAll(PhysicsWorldHandle world, Vector3 start, Vector3 end, RaycastHit* out_hits, int max_hits);
 
 
 // Functions to delete physics entities

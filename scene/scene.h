@@ -243,6 +243,8 @@ void Scene_UpdateTransforms(Scene* scene);
 Entity Scene_GetEntity(Scene* scene, const char* name);
 void Scene_SetMainCamera(Scene* scene, Entity camera_entity);
 void Scene_ShutdownPhysics(Scene* scene);
+bool Scene_Raycast(Scene* scene, Vector3 origin, Vector3 direction, float max_distance, RaycastHit* out_hit);
+int Scene_RaycastAll(Scene* scene, Vector3 origin, Vector3 direction, float max_distance, RaycastHit* out_hits, int max_hits);
 
 
 
@@ -308,6 +310,10 @@ Vector3 Transform_GetLocalPosition(Transform* t);
 Vector3 Transform_GetGlobalPosition(Transform* t);
 Vector3 Transform_GetGlobalScale(Transform* t);
 Quaternion Transform_GetGlobalRotation(Transform* t);
+
+Vector3 Transform_GetForwardVector(Transform* t);
+Vector3 Transform_GetRightVector(Transform* t);
+Vector3 Transform_GetUpVector(Transform* t);
 
 
 

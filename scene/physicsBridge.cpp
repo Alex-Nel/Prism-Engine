@@ -482,6 +482,153 @@ int Physics_GetCollisions(PhysicsWorldHandle world, CollisionPair* out_pairs, in
 
 
 
+// Does a raycast at a start and end point, returns first hit entity
+bool Physics_Raycast(PhysicsWorldHandle world, Vector3 start, Vector3 end, RaycastHit* out_hit)
+{
+    // zero out the hit struct first
+    if (out_hit)
+    {
+        out_hit->has_hit = false;
+        out_hit->entity_id = 0;
+        out_hit->distance = 0.0f;
+    }
+
+    if (!world || !out_hit) return false;
+    btDiscreteDynamicsWorld* dynWorld = (btDiscreteDynamicsWorld*)world;
+
+    // Convert engine Vectors to Bullet Vectors
+    btVector3 btStart(start.x, start.y, start.z);
+    btVector3 btEnd(end.x, end.y, end.z);
+
+    // Create the Bullet Raycast Callback
+    btCollisionWorld::ClosestRayResultCallback rayCallback(btStart, btEnd);
+    
+    // Perform raycast
+    dynWorld->rayTest(btStart, btEnd, rayCallback);
+
+    // If raycast hit something, save information
+    if (rayCallback.hasHit()) 
+    {
+        out_hit->has_hit = true;
+        
+        // Get the Entity ID
+        if (rayCallback.m_collisionObject)
+            out_hit->entity_id = (uint32_t)rayCallback.m_collisionObject->getUserIndex();
+
+        // Save the exact impact point
+        out_hit->point = (Vector3){
+            rayCallback.m_hitPointWorld.x(), 
+            rayCallback.m_hitPointWorld.y(), 
+            rayCallback.m_hitPointWorld.z()
+        };
+
+        // Get the surface normal
+        out_hit->normal = (Vector3){
+            rayCallback.m_hitNormalWorld.x(), 
+            rayCallback.m_hitNormalWorld.y(), 
+            rayCallback.m_hitNormalWorld.z()
+        };
+
+        // Calculate the distance traveled
+        out_hit->distance = (btStart - rayCallback.m_hitPointWorld).length();
+
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+// Performs a raycast and collects multiple entities hit
+int Physics_RaycastAll(PhysicsWorldHandle world, Vector3 start, Vector3 end, RaycastHit* out_hits, int max_hits)
+{
+    if (!world || !out_hits || max_hits <= 0) return 0;
+
+    // Zero out the array of RaycastHits
+    for (int i = 0; i < max_hits; i++)
+    {
+        out_hits[i].has_hit = false;
+        out_hits[i].entity_id = 0;
+        out_hits[i].distance = INT32_MAX; // Set very high for comparisons
+    }
+
+    btDiscreteDynamicsWorld* dynWorld = (btDiscreteDynamicsWorld*)world;
+
+    btVector3 btStart(start.x, start.y, start.z);
+    btVector3 btEnd(end.x, end.y, end.z);
+
+    // Use the "All Hits" callback instead of the "Closest" callback
+    btCollisionWorld::AllHitsRayResultCallback rayCallback(btStart, btEnd);
+    dynWorld->rayTest(btStart, btEnd, rayCallback);
+
+    int unique_hit_count = 0;
+
+    // Collect all the hits from Bullet's internal arrays
+    for (int i = 0; i < rayCallback.m_collisionObjects.size(); i++)
+    {
+        if (!rayCallback.m_collisionObjects[i]) continue;
+        
+        uint32_t current_id = (uint32_t)rayCallback.m_collisionObjects[i]->getUserIndex();
+        float current_dist = (btStart - rayCallback.m_hitPointWorld[i]).length();
+
+        // Check if we already registered a hit for this exact Entity ID
+        bool already_found = false;
+        for (int j = 0; j < unique_hit_count; j++) 
+        {
+            if (out_hits[j].entity_id == current_id) 
+            {
+                already_found = true;
+                
+                // If this specific triangle is CLOSER than the last triangle we hit on this mesh, overwrite it!
+                if (current_dist < out_hits[j].distance)
+                {
+                    out_hits[j].distance = current_dist;
+                    out_hits[j].point = (Vector3){ rayCallback.m_hitPointWorld[i].x(), rayCallback.m_hitPointWorld[i].y(), rayCallback.m_hitPointWorld[i].z() };
+                    out_hits[j].normal = (Vector3){ rayCallback.m_hitNormalWorld[i].x(), rayCallback.m_hitNormalWorld[i].y(), rayCallback.m_hitNormalWorld[i].z() };
+                }
+
+                break;
+            }
+        }
+
+        // If it's a new entity, add it to our array (if we have space)
+        if (!already_found && unique_hit_count < max_hits) 
+        {
+            out_hits[unique_hit_count].has_hit = true;
+            out_hits[unique_hit_count].entity_id = current_id;
+            out_hits[unique_hit_count].distance = current_dist;
+            out_hits[unique_hit_count].point = (Vector3){ rayCallback.m_hitPointWorld[i].x(), rayCallback.m_hitPointWorld[i].y(), rayCallback.m_hitPointWorld[i].z() };
+            out_hits[unique_hit_count].normal = (Vector3){ rayCallback.m_hitNormalWorld[i].x(), rayCallback.m_hitNormalWorld[i].y(), rayCallback.m_hitNormalWorld[i].z() };
+            
+            unique_hit_count++;
+        }
+    }
+
+
+    // Sort the unique hits from closest to furthest (Bubble sort for now)
+    for (int i = 0; i < unique_hit_count - 1; i++) 
+    {
+        for (int j = 0; j < unique_hit_count - i - 1; j++) 
+        {
+            if (out_hits[j].distance > out_hits[j + 1].distance) 
+            {
+                RaycastHit temp = out_hits[j];
+                out_hits[j] = out_hits[j + 1];
+                out_hits[j + 1] = temp;
+            }
+        }
+    }
+
+    return unique_hit_count;
+}
+
+
+
+
+
 // Remove a rigidbody from the physics world
 void Physics_DestroyBody(PhysicsWorldHandle world, PhysicsBodyHandle body)
 {

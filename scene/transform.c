@@ -223,3 +223,91 @@ Quaternion Transform_GetGlobalRotation(Transform* t)
     // Convert the 3x3 rotation portion of the world matrix back into a Quaternion.
     return QuaternionFromMatrix(t->world_matrix); 
 }
+
+
+
+
+
+
+
+
+
+
+// Returns the normalized global forward direction of a given transform
+Vector3 Transform_GetForwardVector(Transform* t)
+{
+    if (!t) return (Vector3){0, 0, -1};
+
+    // Extract the Z axis column
+    Vector3 forward = {
+        -t->world_matrix.m8, 
+        -t->world_matrix.m9, 
+        -t->world_matrix.m10
+    };
+
+    // Normalize vector
+    float length = sqrtf(forward.x*forward.x + forward.y*forward.y + forward.z*forward.z);
+
+    if (length > 0.0f)
+    {
+        forward.x /= length;
+        forward.y /= length;
+        forward.z /= length;
+    }
+
+    return forward;
+}
+
+
+
+// Returns the normalized global right direction of a given transform
+Vector3 Transform_GetRightVector(Transform* t)
+{
+    if (!t) return (Vector3){1, 0, 0};
+
+    // Extract the X axis column
+    Vector3 right = {
+        t->world_matrix.m0, 
+        t->world_matrix.m1, 
+        t->world_matrix.m2
+    };
+
+    // Normalize vector
+    float length = sqrtf(right.x*right.x + right.y*right.y + right.z*right.z);
+
+    if (length > 0.0f)
+    {
+        right.x /= length;
+        right.y /= length;
+        right.z /= length;
+    }
+
+    return right;
+}
+
+
+
+// Returns the normalized global up direction of a given transform
+Vector3 Transform_GetUpVector(Transform* t)
+{
+    if (!t) return (Vector3){0, 1, 0};
+
+    // Extract the Y axis column
+    Vector3 up = {
+        t->world_matrix.m4, 
+        t->world_matrix.m5, 
+        t->world_matrix.m6
+    };
+
+    // Normalize vector
+    float length = sqrtf(up.x*up.x + up.y*up.y + up.z*up.z);
+    
+    if (length > 0.0f)
+    {
+        up.x /= length;
+        up.y /= length;
+        up.z /= length;
+    }
+
+    return up;
+}
