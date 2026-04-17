@@ -482,8 +482,25 @@ int Physics_GetCollisions(PhysicsWorldHandle world, CollisionPair* out_pairs, in
 
 
 
+// Sets the collision filter and mask of a physics body
+void Physics_SetCollisionFilter(PhysicsWorldHandle world, PhysicsBodyHandle body, int layer, int mask)
+{
+    if (!world || !body) return;
+
+    btDiscreteDynamicsWorld* dynWorld = (btDiscreteDynamicsWorld*)world;
+    btRigidBody* rb = (btRigidBody*)body;
+
+    // Bullet requires removing the body to update its broadphase filtering
+    dynWorld->removeRigidBody(rb);
+    dynWorld->addRigidBody(rb, layer, mask);
+}
+
+
+
+
+
 // Does a raycast at a start and end point, returns first hit entity
-bool Physics_Raycast(PhysicsWorldHandle world, Vector3 start, Vector3 end, RaycastHit* out_hit)
+bool Physics_Raycast(PhysicsWorldHandle world, Vector3 start, Vector3 end, RaycastHit* out_hit, int collision_mask)
 {
     // zero out the hit struct first
     if (out_hit)
@@ -502,6 +519,9 @@ bool Physics_Raycast(PhysicsWorldHandle world, Vector3 start, Vector3 end, Rayca
 
     // Create the Bullet Raycast Callback
     btCollisionWorld::ClosestRayResultCallback rayCallback(btStart, btEnd);
+
+    rayCallback.m_collisionFilterGroup = -1;              // Ray is in "All layers"
+    rayCallback.m_collisionFilterMask = collision_mask;   // Determines what the ray is allowed to hit
     
     // Perform raycast
     dynWorld->rayTest(btStart, btEnd, rayCallback);
@@ -543,7 +563,7 @@ bool Physics_Raycast(PhysicsWorldHandle world, Vector3 start, Vector3 end, Rayca
 
 
 // Performs a raycast and collects multiple entities hit
-int Physics_RaycastAll(PhysicsWorldHandle world, Vector3 start, Vector3 end, RaycastHit* out_hits, int max_hits)
+int Physics_RaycastAll(PhysicsWorldHandle world, Vector3 start, Vector3 end, RaycastHit* out_hits, int max_hits, int collision_mask)
 {
     if (!world || !out_hits || max_hits <= 0) return 0;
 
@@ -562,6 +582,10 @@ int Physics_RaycastAll(PhysicsWorldHandle world, Vector3 start, Vector3 end, Ray
 
     // Use the "All Hits" callback instead of the "Closest" callback
     btCollisionWorld::AllHitsRayResultCallback rayCallback(btStart, btEnd);
+
+    rayCallback.m_collisionFilterGroup = -1;              // Ray is in "All layers"
+    rayCallback.m_collisionFilterMask = collision_mask;   // Determines what the ray is allowed to hit
+
     dynWorld->rayTest(btStart, btEnd, rayCallback);
 
     int unique_hit_count = 0;

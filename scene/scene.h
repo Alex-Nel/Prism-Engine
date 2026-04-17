@@ -34,6 +34,36 @@ typedef struct Entity
 
 
 
+// The collision layers and mask enum
+typedef enum CollisionLayer
+{
+    COLLISION_LAYER_NONE      = 0,
+    COLLISION_LAYER_DEFAULT   = (1 << 0),  // Standard colliders
+    COLLISION_LAYER_TRIGGER   = (1 << 1),  // Invisible triggers
+
+    // User defined layers
+    COLLISION_LAYER_USER_1    = (1 << 2),
+    COLLISION_LAYER_USER_2    = (1 << 3),
+    COLLISION_LAYER_USER_3    = (1 << 4),
+    COLLISION_LAYER_USER_4    = (1 << 5),
+    COLLISION_LAYER_USER_5    = (1 << 6),
+    COLLISION_LAYER_USER_6    = (1 << 7),
+    COLLISION_LAYER_USER_7    = (1 << 8),
+    COLLISION_LAYER_USER_8    = (1 << 9),
+    COLLISION_LAYER_USER_9    = (1 << 10),
+    COLLISION_LAYER_USER_10   = (1 << 11),
+    COLLISION_LAYER_USER_11   = (1 << 12),
+    COLLISION_LAYER_USER_12   = (1 << 13),
+    COLLISION_LAYER_USER_13   = (1 << 14),
+
+    COLLISION_MASK_NONE       = 0,
+    COLLISION_MASK_ALL        = -1
+} CollisionLayer;
+
+
+
+
+
 // Enum for all Component Masks
 typedef enum
 {
@@ -155,6 +185,9 @@ typedef struct ColliderComponent
 
     uint32_t touching_last_frame[MAX_COLLISION_OVERLAPS];
     uint32_t touching_last_count;
+
+    CollisionLayer collision_layer;
+    int collision_mask;
 } ColliderComponent;
 
 
@@ -243,8 +276,8 @@ void Scene_UpdateTransforms(Scene* scene);
 Entity Scene_GetEntity(Scene* scene, const char* name);
 void Scene_SetMainCamera(Scene* scene, Entity camera_entity);
 void Scene_ShutdownPhysics(Scene* scene);
-bool Scene_Raycast(Scene* scene, Vector3 origin, Vector3 direction, float max_distance, RaycastHit* out_hit);
-int Scene_RaycastAll(Scene* scene, Vector3 origin, Vector3 direction, float max_distance, RaycastHit* out_hits, int max_hits);
+bool Scene_Raycast(Scene* scene, Vector3 origin, Vector3 direction, float max_distance, RaycastHit* out_hit, int collision_mask);
+int Scene_RaycastAll(Scene* scene, Vector3 origin, Vector3 direction, float max_distance, RaycastHit* out_hits, int max_hits, int collision_mask);
 
 
 
@@ -320,6 +353,7 @@ Vector3 Transform_GetUpVector(Transform* t);
 // Rigidbody setters
 void Rigidbody_SetGravity(Entity entity, bool use_gravity);
 void Rigidbody_SetKinematic(Entity entity, bool is_kinematic);
+void Collider_SetLayerAndMask(Entity entity, CollisionLayer layer, int mask);
 
 
 

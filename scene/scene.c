@@ -422,7 +422,7 @@ void Scene_ShutdownPhysics(Scene* scene)
 
 
 // Performs a raycast from an origin, direction, and distance
-bool Scene_Raycast(Scene* scene, Vector3 origin, Vector3 direction, float max_distance, RaycastHit* out_hit)
+bool Scene_Raycast(Scene* scene, Vector3 origin, Vector3 direction, float max_distance, RaycastHit* out_hit, int collision_mask)
 {
     if (!scene || !scene->physics_world) return false;
 
@@ -444,7 +444,7 @@ bool Scene_Raycast(Scene* scene, Vector3 origin, Vector3 direction, float max_di
     };
 
     // Pass it to Bullet
-    return Physics_Raycast(scene->physics_world, origin, end, out_hit);
+    return Physics_Raycast(scene->physics_world, origin, end, out_hit, collision_mask);
 }
 
 
@@ -452,7 +452,7 @@ bool Scene_Raycast(Scene* scene, Vector3 origin, Vector3 direction, float max_di
 
 
 // Performs a raycast from origin to distance. Returns all hit objects up to max_hits
-int Scene_RaycastAll(Scene* scene, Vector3 origin, Vector3 direction, float max_distance, RaycastHit* out_hits, int max_hits)
+int Scene_RaycastAll(Scene* scene, Vector3 origin, Vector3 direction, float max_distance, RaycastHit* out_hits, int max_hits, int collision_mask)
 {
     if (!scene || !scene->physics_world) return 0;
 
@@ -473,7 +473,7 @@ int Scene_RaycastAll(Scene* scene, Vector3 origin, Vector3 direction, float max_
         origin.z + (direction.z * max_distance)
     };
 
-    return Physics_RaycastAll(scene->physics_world, origin, end, out_hits, max_hits);
+    return Physics_RaycastAll(scene->physics_world, origin, end, out_hits, max_hits, collision_mask);
 }
 
 

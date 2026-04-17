@@ -121,6 +121,11 @@ void Entity_AddColliderBox(Entity entity, Vector3 extents, bool is_trigger)
     Physics_SetBodyScale(c->physics_handle, t->local_scale);
     Physics_SetBodyRotation(c->physics_handle, t->local_rotation);
 
+    // Push default layers/mask to Bullet
+    c->collision_layer = COLLISION_LAYER_DEFAULT;
+    c->collision_mask = COLLISION_MASK_ALL;
+    Physics_SetCollisionFilter(entity.scene->physics_world, c->physics_handle, c->collision_layer, c->collision_mask);
+
     entity.scene->component_masks[entity.id] |= COMPONENT_COLLIDER;
 }
 
@@ -176,6 +181,11 @@ void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger)
     Physics_SetBodyScale(c->physics_handle, t->local_scale);
     Physics_SetBodyRotation(c->physics_handle, t->local_rotation);
 
+    // Push default layers/mask to Bullet
+    c->collision_layer = COLLISION_LAYER_DEFAULT;
+    c->collision_mask = COLLISION_MASK_ALL;
+    Physics_SetCollisionFilter(entity.scene->physics_world, c->physics_handle, c->collision_layer, c->collision_mask);
+
     entity.scene->component_masks[entity.id] |= COMPONENT_COLLIDER;
 }
 
@@ -210,6 +220,11 @@ void Entity_AddColliderMesh(Entity entity, MeshHandle mesh, bool is_trigger)
     // Set the physics bodies scale and rotation
     Physics_SetBodyScale(c->physics_handle, t->local_scale);
     Physics_SetBodyRotation(c->physics_handle, t->local_rotation);
+
+    // Push default layers/mask to Bullet
+    c->collision_layer = COLLISION_LAYER_DEFAULT;
+    c->collision_mask = COLLISION_MASK_ALL;
+    Physics_SetCollisionFilter(entity.scene->physics_world, c->physics_handle, c->collision_layer, c->collision_mask);
 
     entity.scene->component_masks[entity.id] |= COMPONENT_COLLIDER;
 }
@@ -449,5 +464,21 @@ void Rigidbody_SetKinematic(Entity entity, bool is_kinematic)
     {
         rb->is_kinematic = is_kinematic;
         Physics_SetKinematicState(col->physics_handle, is_kinematic);
+    }
+}
+
+
+
+
+
+// Sets an entities collider with one collision layer and mask (several layers OR'd together)
+void Collider_SetLayerAndMask(Entity entity, CollisionLayer layer, int mask)
+{
+    ColliderComponent* c = Entity_GetCollider(entity);
+    if (c && c->physics_handle)
+    {
+        c->collision_layer = layer;
+        c->collision_mask = mask;
+        Physics_SetCollisionFilter(entity.scene->physics_world, c->physics_handle, layer, mask);
     }
 }
