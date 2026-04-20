@@ -1,7 +1,11 @@
 #include <stdint.h>
 #include "physicsBridge.h"
-#include "../include/bullet/btBulletCollisionCommon.h"
-#include "../include/bullet/btBulletDynamicsCommon.h"
+// #include "../include/bullet/btBulletCollisionCommon.h"
+#include <btBulletCollisionCommon.h>
+// #include "../include/bullet/btBulletDynamicsCommon.h"
+#include <btBulletDynamicsCommon.h>
+#include <BulletCollision/CollisionDispatch/btGhostObject.h>
+
 
 extern "C"
 {
@@ -536,14 +540,14 @@ bool Physics_Raycast(PhysicsWorldHandle world, Vector3 start, Vector3 end, Rayca
             out_hit->entity_id = (uint32_t)rayCallback.m_collisionObject->getUserIndex();
 
         // Save the exact impact point
-        out_hit->point = (Vector3){
+        out_hit->point = Vector3{
             rayCallback.m_hitPointWorld.x(), 
             rayCallback.m_hitPointWorld.y(), 
             rayCallback.m_hitPointWorld.z()
         };
 
         // Get the surface normal
-        out_hit->normal = (Vector3){
+        out_hit->normal = Vector3{
             rayCallback.m_hitNormalWorld.x(), 
             rayCallback.m_hitNormalWorld.y(), 
             rayCallback.m_hitNormalWorld.z()
@@ -610,8 +614,8 @@ int Physics_RaycastAll(PhysicsWorldHandle world, Vector3 start, Vector3 end, Ray
                 if (current_dist < out_hits[j].distance)
                 {
                     out_hits[j].distance = current_dist;
-                    out_hits[j].point = (Vector3){ rayCallback.m_hitPointWorld[i].x(), rayCallback.m_hitPointWorld[i].y(), rayCallback.m_hitPointWorld[i].z() };
-                    out_hits[j].normal = (Vector3){ rayCallback.m_hitNormalWorld[i].x(), rayCallback.m_hitNormalWorld[i].y(), rayCallback.m_hitNormalWorld[i].z() };
+                    out_hits[j].point = Vector3{ rayCallback.m_hitPointWorld[i].x(), rayCallback.m_hitPointWorld[i].y(), rayCallback.m_hitPointWorld[i].z() };
+                    out_hits[j].normal = Vector3{ rayCallback.m_hitNormalWorld[i].x(), rayCallback.m_hitNormalWorld[i].y(), rayCallback.m_hitNormalWorld[i].z() };
                 }
 
                 break;
@@ -624,8 +628,8 @@ int Physics_RaycastAll(PhysicsWorldHandle world, Vector3 start, Vector3 end, Ray
             out_hits[unique_hit_count].has_hit = true;
             out_hits[unique_hit_count].entity_id = current_id;
             out_hits[unique_hit_count].distance = current_dist;
-            out_hits[unique_hit_count].point = (Vector3){ rayCallback.m_hitPointWorld[i].x(), rayCallback.m_hitPointWorld[i].y(), rayCallback.m_hitPointWorld[i].z() };
-            out_hits[unique_hit_count].normal = (Vector3){ rayCallback.m_hitNormalWorld[i].x(), rayCallback.m_hitNormalWorld[i].y(), rayCallback.m_hitNormalWorld[i].z() };
+            out_hits[unique_hit_count].point = Vector3{ rayCallback.m_hitPointWorld[i].x(), rayCallback.m_hitPointWorld[i].y(), rayCallback.m_hitPointWorld[i].z() };
+            out_hits[unique_hit_count].normal = Vector3{ rayCallback.m_hitNormalWorld[i].x(), rayCallback.m_hitNormalWorld[i].y(), rayCallback.m_hitNormalWorld[i].z() };
             
             unique_hit_count++;
         }

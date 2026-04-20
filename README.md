@@ -35,20 +35,18 @@ Prism Engine/
 
 ## Build
 
-**Toolchain:** **GNU** **GCC** (`gcc`) and **G++** (`g++`, **C++14**).
-On Windows use **MinGW-w64** (e.g. **MSYS2**) or run **`make`** from **Git Bash** / **WSL** so POSIX rules (`mkdir -p`, `find` in `clean`) work.
+**Toolchain:** **GNU** **GCC** (`gcc`), **G++** (`g++`, **C++14**), and CMake.
+On Windows use **MinGW-w64** (e.g. **MSYS2**, or **w64devkit** | MSVC has not been tested)
 
-Place **SDL3** and **Bullet** in **`lib/`** so linking matches: `-lSDL3`, `-lBulletDynamics -lBulletCollision -lLinearMath`. Makefile should include corresponding libraries for your platform
+CMake should automatically fetch SDL3 and Bullet physics if you don't have it.
 
 ```bash
-make Prism    - Compiles directly into an executable (assuming compiling with custom code)
+cmake -S . -B build          - Generates build files ( additionally add "-G MinGW Makefiles" to ensure mingw is used )
 
-make static   - Compiles into a static library
-
-make shared   - Compiles into a shared/dynamic library
+cmake --build build          - Builds engine ( static and dynamic library options are available )
 ```
 
-Output: **`build/PrismEngine`** (or **`PrismEngine.exe`** on Windows). **`make clean`** drops **`build/**/*.o`**.
+Output: **`libPrismEngine.so`** (or **`libPrismEngine.dll`** on Windows).
 
 
 ## Usage (minimal)
