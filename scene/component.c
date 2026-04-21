@@ -114,6 +114,9 @@ void Entity_AddColliderBox(Entity entity, Vector3 extents, bool is_trigger)
     ColliderComponent* c = &entity.scene->colliders[entity.id];
     c->type = COLLIDER_BOX;
     c->is_trigger = is_trigger;
+    c->mesh_id = 0;
+    c->extents = extents;
+    c->radius = 0.0f;
     Transform* t = &entity.scene->transforms[entity.id];
 
     // Creates a static box for the physics engine
@@ -174,6 +177,9 @@ void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger)
     ColliderComponent* c = &entity.scene->colliders[entity.id];
     c->type = COLLIDER_SPHERE;
     c->is_trigger = is_trigger;
+    c->mesh_id = 0;
+    c->extents = (Vector3){0, 0, 0};
+    c->radius = radius;
     Transform* t = &entity.scene->transforms[entity.id];
 
     // Creates a static sphere
@@ -208,6 +214,9 @@ void Entity_AddColliderMesh(Entity entity, MeshHandle mesh, bool is_trigger)
     ColliderComponent* c = &entity.scene->colliders[entity.id];
     c->type = COLLIDER_MESH;
     c->is_trigger = is_trigger;
+    c->mesh_id = mesh.id;
+    c->extents = (Vector3){0, 0, 0};
+    c->radius = 0.0f;
     Transform* t = &entity.scene->transforms[entity.id];
 
     // Pass the raw memory pointers to Bullet so it can bake the BVH Tree

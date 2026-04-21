@@ -26,6 +26,53 @@ void Scene_Init(Scene* scene)
 
 
 
+// Clears a scene
+void Scene_Clear(Scene* scene)
+{
+    if (!scene) return;
+
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i]) continue;
+
+        Entity e = { i, scene };
+
+        // Dismantle physics components
+        if (scene->component_masks[i] & COMPONENT_COLLIDER)
+            Entity_RemovePhysics(e); 
+
+
+        // Free any custom script memory
+        if (scene->component_masks[i] & COMPONENT_SCRIPT)
+        {
+            ScriptComponent* sc = &scene->scripts[i];
+
+            for (uint32_t s = 0; s < sc->count; s++)
+            {
+                if (sc->instances[s].OnDestroy)
+                {
+                    sc->instances[s].OnDestroy(e, sc->instances[s].instance_data);
+                }
+            }
+
+            sc->count = 0;
+        }
+
+        // Remove all ECS data
+        scene->component_masks[i] = 0;
+        scene->is_active_in_hierarchy[i] = false;
+        
+        if (scene->names)
+        {
+            scene->names[i].name[0] = '\0';
+        }
+    }
+}
+
+
+
+
+
 // Simple array search
 static bool ArrayContains(uint32_t* array, uint32_t count, uint32_t value)
 {

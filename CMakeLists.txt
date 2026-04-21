@@ -40,6 +40,20 @@ set(BUILD_OPENGL3_DEMOS OFF CACHE BOOL "" FORCE)
 set(BUILD_EXTRAS OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(bullet3)
 
+message(STATUS "Fetching cJSON from GitHub...")
+FetchContent_Declare(
+    cJSON
+    GIT_REPOSITORY https://github.com/DaveGamble/cJSON.git
+    GIT_TAG v1.7.18
+    GIT_SHALLOW TRUE
+)
+# Prevent cJSON from creating an "uninstall" target that collides with SDL3's
+set(ENABLE_CJSON_UNINSTALL OFF CACHE BOOL "" FORCE)
+# Turn off its internal tests so it builds instantly
+set(ENABLE_CJSON_TEST OFF CACHE BOOL "" FORCE)
+set(ENABLE_CUSTOM_COMPILER_FLAGS OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(cJSON)
+
 find_package(OpenGL REQUIRED)
 
 # --- SOURCE FILES ---
@@ -61,6 +75,7 @@ target_include_directories(PrismEngineLib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${bullet3_SOURCE_DIR}/src
+    ${cjson_SOURCE_DIR}
 )
 
 # PUBLIC means: "Link these to my engine, AND forward them to anyone using my engine."
@@ -70,6 +85,7 @@ target_link_libraries(PrismEngineLib PUBLIC
     BulletCollision
     LinearMath
     OpenGL::GL
+    cjson
 )
 
 # --- TARGET 2: THE TEST EXECUTABLE ---

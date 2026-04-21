@@ -87,7 +87,9 @@ static bool is_default_shader_loaded = false;
 void Asset_Init(void)
 {
     shader_count = 0;
-    is_quad_loaded = false;
+    texture_count = 0;
+    mesh_count = 0;
+    material_count = 0;
 }
 
 
@@ -219,7 +221,8 @@ MeshHandle Asset_LoadMesh(const char* name, const char* filepath)
 
 
     // Cache mesh
-    if (mesh_count < MAX_CACHED_MESHES) {
+    if (mesh_count < MAX_CACHED_MESHES)
+    {
         strcpy(mesh_cache[mesh_count].name, name);
         mesh_cache[mesh_count].handle = handle;
 

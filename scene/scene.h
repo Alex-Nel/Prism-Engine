@@ -180,6 +180,10 @@ typedef struct ColliderComponent
     
     void* physics_handle;
 
+    uint32_t mesh_id;
+    Vector3 extents;
+    float radius;
+
     uint32_t touching_entities[MAX_COLLISION_OVERLAPS];
     uint32_t touching_count;
 
@@ -271,6 +275,9 @@ typedef struct Scene
 
 // --- Scene API ---
 void Scene_Init(Scene* scene);
+void Scene_Clear(Scene* scene);
+bool Scene_Save(Scene* scene, const char* filepath);
+bool Scene_Load(Scene* scene, const char* filepath);
 void Scene_Update(Scene* scene);
 void Scene_UpdateTransforms(Scene* scene);
 Entity Scene_GetEntity(Scene* scene, const char* name);
