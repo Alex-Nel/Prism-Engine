@@ -183,6 +183,7 @@ typedef struct ColliderComponent
     uint32_t mesh_id;
     Vector3 extents;
     float radius;
+    Vector3 mesh_scale;
 
     uint32_t touching_entities[MAX_COLLISION_OVERLAPS];
     uint32_t touching_count;
@@ -274,6 +275,8 @@ typedef struct Scene
 
 
 // --- Scene API ---
+Scene* Scene_Create();
+void Scene_Destroy(Scene* scene);
 void Scene_Init(Scene* scene);
 void Scene_Clear(Scene* scene);
 bool Scene_Save(Scene* scene, const char* filepath);
@@ -361,6 +364,9 @@ Vector3 Transform_GetUpVector(Transform* t);
 void Rigidbody_SetGravity(Entity entity, bool use_gravity);
 void Rigidbody_SetKinematic(Entity entity, bool is_kinematic);
 void Collider_SetLayerAndMask(Entity entity, CollisionLayer layer, int mask);
+void Collider_SetBoxExtents(Entity entity, Vector3 new_extents);
+void Collider_SetSphereRadius(Entity entity, float new_radius);
+void Collider_SetMeshScale(Entity entity, Vector3 scale);
 
 
 

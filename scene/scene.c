@@ -4,6 +4,40 @@
 
 
 
+// Creates a scene and returns a pointer
+Scene* Scene_Create()
+{
+    // Allocate the struct on the Heap
+    Scene* scene = (Scene*)malloc(sizeof(Scene));
+    
+    if (scene)
+        Scene_Init(scene);
+    else
+        Log_Error("Failed to allocate memory for Scene!");
+    
+    return scene;
+}
+
+
+
+
+
+// Destroys a scene, removes everything
+void Scene_Destroy(Scene* scene)
+{
+    if (!scene) return;
+
+    // Shutdown physics, free any internal allocations
+    Scene_ShutdownPhysics(scene); 
+    
+    // Free the struct
+    free(scene);
+}
+
+
+
+
+
 // Initializes empty scene with default global light and physics
 void Scene_Init(Scene* scene)
 {

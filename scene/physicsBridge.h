@@ -60,6 +60,11 @@ void Physics_SetGravityState(PhysicsWorldHandle world, PhysicsBodyHandle body, b
 void Physics_SetRotationConstraints(PhysicsBodyHandle body, bool freeze_x, bool freeze_y, bool freeze_z);
 void Physics_SetKinematicState(PhysicsBodyHandle body, bool is_kinematic);
 
+void Physics_SetBoxExtents(void* physics_handle, Vector3 extents);
+void Physics_SetSphereRadius(void* physics_handle, float radius);
+void Physics_SetMeshScale(void* physics_handle, Vector3 scale);
+void Physics_RecalculateMass(void* physics_handle, float mass);
+
 // Used for enabling/disabling entities
 void Physics_SetBodySimulationState(PhysicsWorldHandle world, PhysicsBodyHandle body, bool enable_simulation);
 int Physics_GetCollisions(PhysicsWorldHandle world, CollisionPair* out_pairs, int max_pairs);

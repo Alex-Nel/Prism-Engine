@@ -57,7 +57,8 @@ PhysicsBodyHandle Physics_CreateBoxCollider(PhysicsWorldHandle world, uint32_t e
     btDiscreteDynamicsWorld* dynWorld = (btDiscreteDynamicsWorld*)world;
 
     // Make the colliders shape using the extents
-    btCollisionShape* shape = new btBoxShape(btVector3(extents.x, extents.y, extents.z));
+    btVector3 halfExtents(extents.x / 2.0f, extents.y / 2.0f, extents.z / 2.0f);
+    btCollisionShape* shape = new btBoxShape(halfExtents);
     btTransform trans;
     trans.setIdentity();
     trans.setOrigin(btVector3(position.x, position.y, position.z));
@@ -407,6 +408,100 @@ void Physics_SetKinematicState(PhysicsBodyHandle body, bool is_kinematic)
         rb->forceActivationState(ACTIVE_TAG);
         rb->activate(true);
     }
+}
+
+
+
+
+
+// Sets the extents of a box
+void Physics_SetBoxExtents(void* physics_handle, Vector3 extents)
+{
+    btRigidBody* body = static_cast<btRigidBody*>(physics_handle);
+    if (!body) return;
+
+    btCollisionShape* old_shape = body->getCollisionShape();
+    
+    // Create a brand new shape with the exact new dimensions
+    btVector3 halfExtents(extents.x / 2.0f, extents.y / 2.0f, extents.z / 2.0f);
+    btBoxShape* new_shape = new btBoxShape(halfExtents);
+    
+    // Carry over any previous scaling or margins
+    new_shape->setLocalScaling(old_shape->getLocalScaling());
+    new_shape->setMargin(old_shape->getMargin());
+
+    // Swap it out and delete the old one
+    body->setCollisionShape(new_shape);
+    delete old_shape; 
+    
+    // Activate the body to finish changes
+    body->activate(true); 
+}
+
+
+
+
+
+// Sets the radius of a sphere
+void Physics_SetSphereRadius(void* physics_handle, float radius)
+{
+    btRigidBody* body = static_cast<btRigidBody*>(physics_handle);
+    if (!body) return;
+
+    btCollisionShape* old_shape = body->getCollisionShape();
+    
+    // Replace the shape entirely for perfect stability
+    btSphereShape* new_shape = new btSphereShape(radius);
+    new_shape->setLocalScaling(old_shape->getLocalScaling());
+    new_shape->setMargin(old_shape->getMargin());
+
+    body->setCollisionShape(new_shape);
+    delete old_shape;
+
+    body->activate(true);
+}
+
+
+
+
+
+// Sets the scale of a mesh
+void Physics_SetMeshScale(void* physics_handle, Vector3 scale)
+{
+    btRigidBody* body = static_cast<btRigidBody*>(physics_handle);
+    if (!body) return;
+
+    btCollisionShape* shape = body->getCollisionShape();
+    
+    // Do not rebuild meshes, just apply local scaling
+    shape->setLocalScaling(btVector3(scale.x, scale.y, scale.z));
+    
+    body->activate(true);
+}
+
+
+
+
+
+// Recalculates the mass of a physics object
+void Physics_RecalculateMass(void* physics_handle, float mass)
+{
+    btRigidBody* body = static_cast<btRigidBody*>(physics_handle);
+    if (!body) return;
+
+    btVector3 local_inertia(0, 0, 0);
+    btCollisionShape* shape = body->getCollisionShape();
+
+    // Mass distribution gets calcualted based on the current shape's size and scale.
+    if (mass > 0.0f)
+        shape->calculateLocalInertia(mass, local_inertia);
+    
+    // Apply the new mass and inertia
+    body->setMassProps(mass, local_inertia);
+    body->updateInertiaTensor();
+    
+    // Clear any sleeping states so physics resumes correctly
+    body->activate(true);
 }
 
 

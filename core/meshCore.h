@@ -58,9 +58,6 @@ MeshData Mesh_Create(const Vertex3D* vertices, uint32_t v_count, const uint32_t*
 // Frees a mesh's memory
 void Mesh_FreeData(MeshData* mesh_data);
 
-// Generates a generic quad
-MeshData Mesh_CreateQuad(void);
-
 
 
 #endif

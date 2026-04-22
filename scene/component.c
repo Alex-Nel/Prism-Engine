@@ -118,6 +118,7 @@ void Entity_AddColliderBox(Entity entity, Vector3 extents, bool is_trigger)
     c->extents = extents;
     c->radius = 0.0f;
     Transform* t = &entity.scene->transforms[entity.id];
+    c->mesh_scale = (Vector3){1.0f, 1.0f, 1.0f};
 
     // Creates a static box for the physics engine
     c->physics_handle = Physics_CreateBoxCollider(entity.scene->physics_world, entity.id, t->local_position, extents, is_trigger);
@@ -155,9 +156,9 @@ void Entity_AddColliderBoxAuto(Entity entity, bool is_trigger)
     if (data) {
         // Calculate the extents (Half-Size) from the local bounds
         Vector3 extents = {
-            (data->local_bounds.max.x - data->local_bounds.min.x) * 0.5f,
-            (data->local_bounds.max.y - data->local_bounds.min.y) * 0.5f,
-            (data->local_bounds.max.z - data->local_bounds.min.z) * 0.5f
+            (data->local_bounds.max.x - data->local_bounds.min.x),
+            (data->local_bounds.max.y - data->local_bounds.min.y),
+            (data->local_bounds.max.z - data->local_bounds.min.z)
         };
 
         // Pass the extents to tbe manual function!
@@ -181,6 +182,7 @@ void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger)
     c->extents = (Vector3){0, 0, 0};
     c->radius = radius;
     Transform* t = &entity.scene->transforms[entity.id];
+    c->mesh_scale = (Vector3){1.0f, 1.0f, 1.0f};
 
     // Creates a static sphere
     c->physics_handle = Physics_CreateSphereCollider(entity.scene->physics_world, entity.id, t->local_position, radius, is_trigger);
@@ -218,6 +220,7 @@ void Entity_AddColliderMesh(Entity entity, MeshHandle mesh, bool is_trigger)
     c->extents = (Vector3){0, 0, 0};
     c->radius = 0.0f;
     Transform* t = &entity.scene->transforms[entity.id];
+    c->mesh_scale = t->local_scale;
 
     // Pass the raw memory pointers to Bullet so it can bake the BVH Tree
     c->physics_handle = Physics_CreateMeshCollider(
@@ -489,5 +492,93 @@ void Collider_SetLayerAndMask(Entity entity, CollisionLayer layer, int mask)
         c->collision_layer = layer;
         c->collision_mask = mask;
         Physics_SetCollisionFilter(entity.scene->physics_world, c->physics_handle, layer, mask);
+    }
+}
+
+
+
+
+
+// Sets the extents of a box collider
+void Collider_SetBoxExtents(Entity entity, Vector3 new_extents)
+{
+    ColliderComponent* c = Entity_GetCollider(entity);
+
+    if (!c) return;
+
+    if (c->type != COLLIDER_BOX)
+    {
+        Log_Warning("Attempting to set box extents for a non-box collider");
+        return;
+    }
+
+    c->extents = new_extents;
+
+    Physics_SetBoxExtents(c->physics_handle, new_extents);
+
+    // If this entity has a rigidbody, we must recalculate its mass distribution
+    RigidbodyComponent* rb = Entity_GetRigidbody(entity);
+    if (rb && !rb->is_kinematic && rb->mass > 0.0f)
+    {
+        Physics_RecalculateMass(c->physics_handle, rb->mass);
+    }
+}
+
+
+
+
+
+// Sets the radius of a sphere collider
+void Collider_SetSphereRadius(Entity entity, float new_radius)
+{
+    ColliderComponent* c = Entity_GetCollider(entity);
+
+    if (!c) return;
+
+    if (c->type != COLLIDER_SPHERE)
+    {
+        Log_Warning("Attempting to set radius for a non-sphere collider");
+        return;
+    }
+
+    c->radius = new_radius;
+
+    Physics_SetSphereRadius(c->physics_handle, new_radius);
+
+    // Fix the mass
+    RigidbodyComponent* rb = Entity_GetRigidbody(entity);
+    if (rb && !rb->is_kinematic && rb->mass > 0.0f)
+    {
+        Physics_RecalculateMass(c->physics_handle, rb->mass);
+    }
+}
+
+
+
+
+
+// Sets the scale of a mesh collider
+void Collider_SetMeshScale(Entity entity, Vector3 new_scale)
+{
+    ColliderComponent* c = Entity_GetCollider(entity);
+    if (!c) return;
+
+    if (c->type != COLLIDER_MESH)
+    {
+        Log_Warning("Attempting to set mesh scale for a non-mesh collider");
+        return;
+    }
+
+    // 1. Update the ECS state
+    c->mesh_scale = new_scale;
+
+    // 2. Tell Bullet Physics to scale the mesh
+    Physics_SetMeshScale(c->physics_handle, new_scale);
+
+    // Mesh colliders should usually be static, but update just in case (undefined bahavior)
+    RigidbodyComponent* rb = Entity_GetRigidbody(entity);
+    if (rb && !rb->is_kinematic && rb->mass > 0.0f)
+    {
+        Physics_RecalculateMass(c->physics_handle, rb->mass);
     }
 }

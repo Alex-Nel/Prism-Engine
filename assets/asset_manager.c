@@ -7,7 +7,7 @@
 #define FAST_OBJ_IMPLEMENTATION
 #include "fast_obj.h"
 #include "asset_manager.h"
-#include "core/io.h"
+#include "core/ioCore.h"
 #include "core/meshCore.h"
 #include "core/image.h"
 
@@ -409,17 +409,50 @@ MeshHandle Asset_GetBuiltinQuad()
         return builtin_quad_handle;
     }
 
-    // Generate and make mesh
-    MeshData quad_cpu = Mesh_CreateQuad();
-    
-    builtin_quad_handle = Render_CreateMesh(
-        quad_cpu.vertices, quad_cpu.vertex_count,
-        quad_cpu.indices, quad_cpu.index_count
-    );
+    // 4 corners, 2 triangles (6 indices)
+    Vertex3D vertices[] = {
+        {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}}, // Bottom-Left
+        {{ 0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}}, // Bottom-Right
+        {{ 0.5f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}}, // Top-Right
+        {{-0.5f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}}  // Top-Left
+    };
 
-    Mesh_FreeData(&quad_cpu);
-    
+    uint32_t indices[] = {
+        0, 1, 2, // Triangle 1
+        2, 3, 0  // Triangle 2
+    };
+
+
+    // Copy vertices and indices to the heap for caching
+    Vertex3D* heap_vertices = malloc(sizeof(vertices));
+    memcpy(heap_vertices, vertices, sizeof(vertices));
+    uint32_t* heap_indices = malloc(sizeof(indices));
+    memcpy(heap_indices, indices, sizeof(indices));
+
+    builtin_quad_handle = Render_CreateMesh(heap_vertices, 4, heap_indices, 6);
     is_quad_loaded = true;
+
+    // Cache the mesh
+    if (mesh_count < MAX_CACHED_MESHES)
+    {
+        strcpy(mesh_cache[mesh_count].name, "Quad");
+        mesh_cache[mesh_count].handle = builtin_quad_handle;
+
+        mesh_cache[mesh_count].mesh_data.vertices = heap_vertices;
+        mesh_cache[mesh_count].mesh_data.indices = heap_indices;
+        mesh_cache[mesh_count].mesh_data.vertex_count = 4;
+        mesh_cache[mesh_count].mesh_data.index_count = 6;
+
+        mesh_cache[mesh_count].mesh_data.local_bounds = CalculateAABB(heap_vertices, 4);
+
+        mesh_count++;
+    }
+    else
+    {
+        free(heap_vertices);
+        free(heap_indices);
+    }
+
     return builtin_quad_handle;
 }
 

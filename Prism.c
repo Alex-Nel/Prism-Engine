@@ -47,6 +47,9 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
         return false;
     }
 
+    // Set renderer clear color to pure white
+    Engine_SetClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+
     is_running = true;
 
     return true;
@@ -56,6 +59,63 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
 
 
 
+// Get a pointer to the main window
+Window* Engine_GetMainWindow(void) {
+    return main_window;
+}
+
+
+
+
+
+// Runs the engine, updates and renders the scene
+void Engine_Run(Scene* active_scene)
+{
+    if (!active_scene) {
+        Log_Error("Cannot run engine without an active scene");
+        return;
+    }
+
+    while (is_running)
+    {
+        // Advance the engine clock
+        Time_Tick();
+        
+        // Poll through events
+        Event e;
+        while (Platform_PollEvents(&e))
+        {
+            Input_ProcessEvent(&e);
+            
+            if (e.type == EVENT_WINDOW_CLOSE)
+            {
+                is_running = false;
+            }
+            else if (e.type == EVENT_WINDOW_RESIZE)
+            {
+                Render_SetViewport(0, 0, e.window_resize.width, e.window_resize.height);
+                engine.window_width = e.window_resize.width;
+                engine.window_height = e.window_resize.height;
+            }
+        }
+
+        // Update scene and physics
+        Scene_Update(active_scene);
+
+        // Render scene
+        Render_Clear();
+        Engine_RenderScene(active_scene);
+        
+        // Swap Buffers & Reset Input arrays
+        Engine_EndFrame(); 
+    }
+}
+
+
+
+
+
+// *Deprecated* - Use Engine_Run instead
 // Continues running the engine. Returns true if it's still running
 bool Engine_IsRunning()
 {
@@ -90,8 +150,17 @@ bool Engine_IsRunning()
         }
     }
 
-
     return is_running;
+}
+
+
+
+
+
+// Sets the clear color of the renderer
+void Engine_SetClearColor(float r, float g, float b, float a)
+{
+    Render_SetClearColor(r, g, b, a);
 }
 
 

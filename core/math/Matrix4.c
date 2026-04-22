@@ -341,30 +341,6 @@ Matrix4 Matrix4Inverse(Matrix4 m)
 
     return inv;
 }
-// Matrix4 Matrix4Inverse(Matrix4 m)
-// {
-//     // Extract rotation (upper 3x3)
-//     Matrix4 r = m;
-
-//     // Transpose rotation
-//     r = Matrix4Transpose(r);
-
-//     // Extract translation
-//     Vector3 t = {m.m12, m.m13, m.m14};
-
-//     // New translation = -(R^T * t)
-//     Vector3 nt = {
-//         -(r.m0 * t.x + r.m4 * t.y + r.m8  * t.z),
-//         -(r.m1 * t.x + r.m5 * t.y + r.m9  * t.z),
-//         -(r.m2 * t.x + r.m6 * t.y + r.m10 * t.z)
-//     };
-
-//     r.m12 = nt.x;
-//     r.m13 = nt.y;
-//     r.m14 = nt.z;
-
-//     return r;
-// }
 
 
 

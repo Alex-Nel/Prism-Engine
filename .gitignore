@@ -14,3 +14,4 @@ include/SDL3
 *.exe
 *.dll
 main.c
+main.cpp

@@ -130,7 +130,10 @@ bool Scene_Save(Scene* scene, const char* filepath)
             else if (c->type == COLLIDER_SPHERE)
                 cJSON_AddNumberToObject(comp_obj, "radius", c->radius);
             else if (c->type == COLLIDER_MESH)
+            {
                 cJSON_AddNumberToObject(comp_obj, "mesh_id", c->mesh_id);
+                cJSON_AddItemToObject(comp_obj, "mesh_scale", SaveVec3(c->mesh_scale));
+            }
         }
 
 
@@ -273,6 +276,7 @@ bool Scene_Load(Scene* scene, const char* filepath)
             else if (type == COLLIDER_MESH)
             {
                 MeshHandle mesh = { (uint32_t)cJSON_GetObjectItemCaseSensitive(comp_obj, "mesh_id")->valueint };
+                Vector3 mesh_scale = LoadVec3(cJSON_GetObjectItemCaseSensitive(comp_obj, "mesh_scale"));
                 Entity_AddColliderMesh(e, mesh, is_trigger);
             }
             

@@ -8,7 +8,7 @@
 #include "core/core.h"
 #include "render/render.h"
 #include "scene/scene.h"
-#include "platform/platform.h"
+#include "platform/platformCore.h"
 #include "assets/asset_manager.h"
 
 
@@ -25,8 +25,13 @@ typedef struct PrismEngine
 // Initializes Platform, Core, and Render systems
 bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t window_height, uint32_t target_fps, GraphicsAPI api);
 
+// Get the main window pointer
+Window* Engine_GetMainWindow();
 
-bool Engine_IsRunning();               // The Front Bookend: Ticks time, polls OS events, routes structural events, feeds Input
+
+void Engine_Run(Scene* active_scene);
+bool Engine_IsRunning();               // Deprecated
+void Engine_SetClearColor(float r, float g, float b, float a);
 void Engine_RenderScene(Scene* scene); // Main render function for a scene
 void Engine_EndFrame();                // The Back Bookend: Executes render queue, swaps buffers, cycles Input state
 
