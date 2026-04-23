@@ -4,8 +4,8 @@
 
 extern "C"
 {
-    #include "input.h" 
-    #include "event.h" // Needed for KeyCode and MouseButton enums
+    #include "core/input.h" 
+    #include "core/event.h" // Needed for KeyCode and MouseButton enums
 }
 
 namespace Prism

@@ -112,6 +112,7 @@ void Entity_AddColliderBox(Entity entity, Vector3 extents, bool is_trigger)
     if (!Entity_IsValid(entity)) return;
 
     ColliderComponent* c = &entity.scene->colliders[entity.id];
+    c->owner = entity;
     c->type = COLLIDER_BOX;
     c->is_trigger = is_trigger;
     c->mesh_id = 0;
@@ -176,6 +177,7 @@ void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger)
     if (!Entity_IsValid(entity)) return;
 
     ColliderComponent* c = &entity.scene->colliders[entity.id];
+    c->owner = entity;
     c->type = COLLIDER_SPHERE;
     c->is_trigger = is_trigger;
     c->mesh_id = 0;
@@ -214,6 +216,7 @@ void Entity_AddColliderMesh(Entity entity, MeshHandle mesh, bool is_trigger)
     }
 
     ColliderComponent* c = &entity.scene->colliders[entity.id];
+    c->owner = entity;
     c->type = COLLIDER_MESH;
     c->is_trigger = is_trigger;
     c->mesh_id = mesh.id;
@@ -267,6 +270,7 @@ void Entity_AddRigidbody(Entity entity, float mass)
     }
 
     RigidbodyComponent* rb = &entity.scene->rigidbodies[entity.id];
+    rb->owner = entity;
     rb->mass = mass;
     rb->linear_drag = 0.0f;
     rb->angular_drag = 0.05f; // A bit of rotational drag looks more realistic

@@ -205,7 +205,7 @@ void Scene_Update(Scene* scene)
                 // Run OnUpdate every frame
                 if (script->OnUpdate != NULL)
                 {
-                    script->OnUpdate(e, dt, script->instance_data);
+                    script->OnUpdate(e, script->instance_data);
                 }
             }
         }

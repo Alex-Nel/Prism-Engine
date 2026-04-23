@@ -1,10 +1,11 @@
 #pragma once
 
-extern "C" {
-    #include "Vector3.h"
-    #include "Vector2.h"
-    #include "Quaternion.h"
-    #include "Matrix4.h"
+extern "C"
+{
+    #include "core/math/Vector3.h"
+    #include "core/math/Vector2.h"
+    #include "core/math/Quaternion.h"
+    #include "core/math/Matrix4.h"
 }
 
 namespace Prism
@@ -20,7 +21,7 @@ namespace Prism
         Vector2(float _x, float _y) { x = _x; y = _y; }
 
         Vector2(const ::Vector2& raw) { x = raw.x; y = raw.y; }
-        operator ::Vector2() const { return ::Vector2{x, y}; }
+        // operator ::Vector2() const { return ::Vector2{x, y}; }
 
         // --- Operator overloads ---
         Vector2 operator+(const Vector2& b) const {
@@ -72,7 +73,7 @@ namespace Prism
         Vector3(float _x, float _y, float _z) { x = _x; y = _y; z = _z; }
 
         Vector3(const ::Vector3& raw) { x = raw.x; y = raw.y; z = raw.z; }
-        operator ::Vector3() const { return ::Vector3{x, y, z}; }
+        // operator ::Vector3() const { return ::Vector3{x, y, z}; }
 
 
         // --- Operator overloads ---
@@ -92,6 +93,10 @@ namespace Prism
         }
         Vector3 operator*(float s) const {
             return Vector3Scale(*this, s);
+        }
+        Vector3 operator*=(float s) {
+            *this = Vector3Scale(*this, s);
+            return *this;
         }
 
 
@@ -128,7 +133,7 @@ namespace Prism
         Quaternion(float _x, float _y, float _z, float _w) { x = _x; y = _y; z = _z; w = _w; }
         
         Quaternion(const ::Quaternion& raw) { x = raw.x; y = raw.y; z = raw.z; w = raw.w; }
-        operator ::Quaternion() const { return ::Quaternion{x, y, z, w}; }
+        // operator ::Quaternion() const { return ::Quaternion{x, y, z, w}; }
 
 
         // --- Operator overloads ---
@@ -188,7 +193,7 @@ namespace Prism
         // --- Constructors ---    
         Matrix4() { *this = Matrix4Identity(); }
         Matrix4(const ::Matrix4& raw) { *this = raw; }
-        operator ::Matrix4() const { return *this; }
+        // operator ::Matrix4() const { return *this; }
 
 
         // --- Operator overloads ---

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Components.hpp"
+// #include "Behavior.hpp"
 #include <string>
 
 namespace Prism
@@ -99,5 +100,13 @@ namespace Prism
         ::CameraComponent* GetCamera() {
             return ::Entity_GetCamera(raw);
         }
+
+
+
+
+
+        // --- AddScript Template (implemented in Behavior.hpp) ---
+        template<typename T>
+        T* AddScript();
     };
 }

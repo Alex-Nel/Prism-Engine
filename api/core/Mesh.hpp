@@ -2,7 +2,7 @@
 
 extern "C"
 {
-    #include "meshCore.h"
+    #include "core/meshCore.h"
 }
 
 #include "Math.hpp"
@@ -34,7 +34,7 @@ namespace Prism
             uv = raw.uv;
         }
 
-        operator ::Vertex3D() const { return *this; }
+        // operator ::Vertex3D() const { return *this; }
     };
 
 
@@ -58,7 +58,7 @@ namespace Prism
             max = raw.max;
         }
 
-        operator ::AABB() const { return *this; }
+        // operator ::AABB() const { return *this; }
     };
 
 
@@ -85,7 +85,7 @@ namespace Prism
             ambient_strength = raw.ambient_strength;
         }
 
-        operator ::DirectionalLight() const { return *this; }
+        // operator ::DirectionalLight() const { return *this; }
     };
 
 
@@ -111,7 +111,7 @@ namespace Prism
             local_bounds = raw.local_bounds;
         }
 
-        operator ::MeshData() const { return *this; }
+        // operator ::MeshData() const { return *this; }
 
 
         // --- Memory Management Methods ---

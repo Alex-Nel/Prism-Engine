@@ -2,7 +2,7 @@
 
 extern "C"
 {
-    #include "platformCore.h"
+    #include "platform/platformCore.h"
     
     // Note: Since the engine manages the window, the user needs a way 
     // to get the active window pointer from the core engine.

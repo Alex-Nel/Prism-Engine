@@ -4,7 +4,7 @@
 
 extern "C"
 {
-    #include "ioCore.h"
+    #include "core/ioCore.h"
     #include <stdlib.h> // Required for free()
 }
 

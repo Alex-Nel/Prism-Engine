@@ -4,7 +4,7 @@
 
 extern "C"
 {
-    #include "image.h"
+    #include "core/image.h"
 }
 
 namespace Prism
@@ -30,7 +30,7 @@ namespace Prism
             channels = raw.channels;
         }
 
-        operator ::ImageData() const { return *this; }
+        // operator ::ImageData() const { return *this; }
 
 
 

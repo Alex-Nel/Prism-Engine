@@ -85,7 +85,7 @@ typedef enum
 // --- Function pointers for custom scripts ---
 
 // On Update function
-typedef void (*ScriptUpdateFunc)(Entity entity, float dt, void* instance_data);
+typedef void (*ScriptUpdateFunc)(Entity entity, void* instance_data);
 // On Start function
 typedef void (*ScriptStartFunc)(Entity entity, void* instance_data);
 // On Destroy function
@@ -175,6 +175,7 @@ typedef enum ColliderType
 // The Collider Unified Component
 typedef struct ColliderComponent
 {
+    Entity owner;
     ColliderType type;
     bool is_trigger;
     
@@ -199,6 +200,7 @@ typedef struct ColliderComponent
 // Rigidbody component and variables
 typedef struct RigidbodyComponent
 {
+    Entity owner;
     float mass;
     float linear_drag;
     float angular_drag;

@@ -2,7 +2,7 @@
 
 extern "C"
 {
-    #include "log.h"
+    #include "core/log.h"
 }
 
 // We wrap the C macros in Prism-specific macros.

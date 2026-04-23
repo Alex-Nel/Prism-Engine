@@ -5,7 +5,7 @@
 
 extern "C"
 {
-    #include "asset_manager.h"
+    #include "assets/asset_manager.h"
 }
 
 namespace Prism
@@ -43,16 +43,6 @@ namespace Prism
         }
     };
 
-    // ==========================================
-    // Material Wrapper
-    // ==========================================
-
-    // By inheriting from ::Material, we can return C++ pointers to it 
-    // and easily add helper functions in the future (like setting properties).
-    // struct Material : public ::Material {
-    //     // Example future helper:
-    //     // void SetColor(const Prism::Vector3& color) { properties.diffuse_color = color; }
-    // };
 
 
     // ==========================================

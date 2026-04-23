@@ -6,7 +6,7 @@
 
 extern "C"
 {
-    #include "scene.h"
+    #include "scene/scene.h"
 }
 
 namespace Prism
@@ -68,12 +68,12 @@ namespace Prism
     // Note: To use Entity functions inside a component wrapper, we pass the raw ID.
     struct RigidbodyComponent : public ::RigidbodyComponent
     {    
-        void SetGravity(::Entity e, bool use_gravity) { 
-            ::Rigidbody_SetGravity(e, use_gravity); 
+        void SetGravity(bool use_gravity) { 
+            ::Rigidbody_SetGravity(this->owner, use_gravity); 
         }
         
-        void SetKinematic(::Entity e, bool kinematic) { 
-            ::Rigidbody_SetKinematic(e, kinematic); 
+        void SetKinematic(bool kinematic) { 
+            ::Rigidbody_SetKinematic(this->owner, kinematic); 
         }
     };
 
@@ -84,32 +84,32 @@ namespace Prism
     // ==========================================
     struct ColliderComponent : public ::ColliderComponent
     {    
-        void SetLayerAndMask(::Entity e, ::CollisionLayer layer, int mask) {
-            ::Collider_SetLayerAndMask(e, layer, mask);
+        void SetLayerAndMask(::CollisionLayer layer, int mask) {
+            ::Collider_SetLayerAndMask(this->owner, layer, mask);
         }
 
-        void SetBoxExtents(::Entity e, const Prism::Vector3& new_extents) {
+        void SetBoxExtents(const Prism::Vector3& new_extents) {
             if (type != COLLIDER_BOX) {
                 Debug_Warn("Attempted to set box extents on a non-box collider!");
                 return;
             }
-            ::Collider_SetBoxExtents(e, new_extents);
+            ::Collider_SetBoxExtents(this->owner, new_extents);
         }
 
-        void SetSphereRadius(::Entity e, float new_radius) {
+        void SetSphereRadius(float new_radius) {
             if (type != COLLIDER_SPHERE) {
                 Debug_Warn("Attempted to set sphere radius on a non-sphere collider!");
                 return;
             }
-            ::Collider_SetSphereRadius(e, new_radius);
+            ::Collider_SetSphereRadius(this->owner, new_radius);
         }
 
-        void SetMeshScale(::Entity e, const Prism::Vector3& new_scale) {
+        void SetMeshScale(const Prism::Vector3& new_scale) {
             if (type != COLLIDER_MESH) {
                 Debug_Warn("Attempted to set mesh scale on a non-mesh collider!");
                 return;
             }
-            ::Collider_SetMeshScale(e, new_scale);
+            ::Collider_SetMeshScale(this->owner, new_scale);
         }
     };
 

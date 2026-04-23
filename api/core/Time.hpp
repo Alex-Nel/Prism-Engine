@@ -2,7 +2,7 @@
 
 extern "C"
 {
-    #include "timeCore.h"
+    #include "core/timeCore.h"
 }
 
 namespace Prism

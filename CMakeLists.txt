@@ -92,8 +92,8 @@ target_link_libraries(PrismEngineLib PUBLIC
 # --- TARGET 2: THE TEST EXECUTABLE ---
 if(PRISM_BUILD_TEST)
     # Only try to build the test if the user actually has a main.c!
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/main.c")
-        add_executable(PrismTest main.c)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
+        add_executable(PrismTest main.cpp)
         target_link_libraries(PrismTest PRIVATE PrismEngineLib)
     else()
         message(STATUS "main.c not found. Skipping test executable build.")

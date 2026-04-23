@@ -18,7 +18,7 @@ namespace Prism
 
         // --- LIFECYCLE ---
 
-        static bool Init(const std::string& title, uint32_t width, uint32_t height, uint32_t target_fps = 60, GraphicsAPI api) {
+        static bool Init(const std::string& title, uint32_t width, uint32_t height, uint32_t target_fps = 60, GraphicsAPI api = ::GRAPHICS_API_OPENGL) {
             return ::Engine_Init(title.c_str(), width, height, target_fps, api);
         }
 
