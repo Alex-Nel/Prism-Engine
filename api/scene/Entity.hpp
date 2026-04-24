@@ -1,11 +1,15 @@
 #pragma once
 
 #include "Components.hpp"
-// #include "Behavior.hpp"
 #include <string>
 
 namespace Prism
 {
+    // Global pointer to the current active scene
+    inline ::Scene* GlobalActiveScene = nullptr;
+
+
+
     class Entity
     {
     public:
@@ -99,6 +103,20 @@ namespace Prism
 
         ::CameraComponent* GetCamera() {
             return ::Entity_GetCamera(raw);
+        }
+
+
+
+        // --- Utility functions ---
+
+        static Entity Find(const std::string& name)
+        {
+            if (!GlobalActiveScene) {
+                Debug_Warn("No active scene");
+                return Entity();
+            }
+
+            return Entity(::Scene_GetEntity(GlobalActiveScene, name.c_str()));
         }
 
 

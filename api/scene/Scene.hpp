@@ -4,6 +4,7 @@
 
 namespace Prism
 {
+
     class Scene
     {
     private:
@@ -21,7 +22,9 @@ namespace Prism
 
         // Allocates and initializes a new scene on the heap
         static Scene Create() {
-            return Scene(::Scene_Create());
+            ::Scene* newScene = ::Scene_Create();
+            GlobalActiveScene = newScene;
+            return Scene(newScene);
         }
 
         // Destroys the scene and frees the memory
@@ -29,6 +32,7 @@ namespace Prism
             if (m_RawScene) {
                 ::Scene_Destroy(m_RawScene);
                 m_RawScene = nullptr;
+                GlobalActiveScene = nullptr;
             }
         }
 
