@@ -112,6 +112,7 @@ namespace Prism
     {
         static_assert(std::is_base_of<Behavior, T>::value, "T must inherit from Prism::Behavior");
 
+        // Make a new instance of the script
         T* instance = new T();
         instance->entity = *this;
 
@@ -135,6 +136,37 @@ namespace Prism
         ::Entity_BindScript(this->raw, script);
 
         return instance;
+    }
+
+
+
+    // --- GetScript Template ---
+    template<typename T>
+    inline T* Entity::GetScript()
+    {
+        static_assert(std::is_base_of<Behavior, T>::value, "T must inherit from Prism::Behavior");
+
+        // Grab the script component array from the backend
+        ::ScriptComponent* script_comp = ::Entity_GetScripts(this->raw);
+        if (!script_comp) return nullptr;
+
+        // Loop through every script attached to this entity
+        for (uint32_t i = 0; i < script_comp->count; i++)
+        {
+            // Cast the void* back to the base class
+            Behavior* base_behavior = static_cast<Behavior*>(script_comp->instances[i].instance_data);
+            
+            // dynamic_cast checks if base_behavior is actually of type T, and returns pointer if it is
+            if (base_behavior)
+            {
+                T* target_script = dynamic_cast<T*>(base_behavior);
+                if (target_script)
+                    return target_script;
+            }
+        }
+
+        // Return nullptr if script was not found
+        return nullptr;
     }
 
 }

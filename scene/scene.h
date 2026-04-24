@@ -334,6 +334,7 @@ CameraComponent* Entity_GetCamera(Entity entity);
 PointLightComponent* Entity_GetPointLight(Entity entity);
 ColliderComponent* Entity_GetCollider(Entity entity);
 RigidbodyComponent* Entity_GetRigidbody(Entity entity);
+ScriptComponent* Entity_GetScripts(Entity entity);
 
 
 

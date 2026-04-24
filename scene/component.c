@@ -442,6 +442,21 @@ RigidbodyComponent* Entity_GetRigidbody(Entity entity)
 
 
 
+// Returns the pointer to all the entities scripts
+ScriptComponent* Entity_GetScripts(Entity entity)
+{
+    if (!Entity_IsValid(entity)) return NULL;
+    
+    // Check if the entity actually has any scripts
+    if (!(entity.scene->component_masks[entity.id] & COMPONENT_SCRIPT)) return NULL;
+
+    return &entity.scene->scripts[entity.id];
+}
+
+
+
+
+
 
 
 

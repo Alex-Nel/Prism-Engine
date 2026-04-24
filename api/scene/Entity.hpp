@@ -103,10 +103,14 @@ namespace Prism
 
 
 
+        // --- Custom script getters/setters (implemented in Behavior.hpp) ---
 
-
-        // --- AddScript Template (implemented in Behavior.hpp) ---
+        // Adds a custom script of type T to an entity and returns a pointer to the new script instance.
         template<typename T>
         T* AddScript();
+
+        // Returns the custom script of type T, or nullptr if not found.
+        template<typename T>
+        T* GetScript();
     };
 }
