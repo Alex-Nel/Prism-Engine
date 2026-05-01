@@ -7,9 +7,9 @@ namespace Prism
     class Debug
     {
     public:
-        static void Log(const char* format, ...);
-        static void Warning(const char* format, ...);
-        static void Error(const char* format, ...);
+        static void Log(const char* file, int line, const char* format, ...);
+        static void Warning(const char* file, int line, const char* format, ...);
+        static void Error(const char* file, int line, const char* format, ...);
     };
 }
 

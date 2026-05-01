@@ -93,7 +93,7 @@ namespace Prism
     void ColliderComponent::SetBoxExtents(const Prism::Vector3& new_extents) {
         if (type != COLLIDER_BOX)
         {
-            Debug::Warning("Attempted to set box extents on a non-box collider!");
+            Debug_Warning("Attempted to set box extents on a non-box collider!");
             return;
         }
         ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
@@ -103,7 +103,7 @@ namespace Prism
     void ColliderComponent::SetSphereRadius(float new_radius) {
         if (type != COLLIDER_SPHERE)
         {
-            Debug::Warning("Attempted to set sphere radius on a non-sphere collider!");
+            Debug_Warning("Attempted to set sphere radius on a non-sphere collider!");
             return;
         }
         ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
@@ -113,7 +113,7 @@ namespace Prism
     void ColliderComponent::SetMeshScale(const Prism::Vector3& new_scale) {
         if (type != COLLIDER_MESH)
         {
-            Debug::Warning("Attempted to set mesh scale on a non-mesh collider!");
+            Debug_Warning("Attempted to set mesh scale on a non-mesh collider!");
             return;
         }
         ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
