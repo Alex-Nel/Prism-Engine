@@ -26,6 +26,8 @@ set(SDL_TEST OFF CACHE BOOL "" FORCE)
 set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(SDL3)
 
+
+
 message(STATUS "Fetching Bullet3 from GitHub...")
 FetchContent_Declare(
     bullet3
@@ -40,6 +42,8 @@ set(BUILD_OPENGL3_DEMOS OFF CACHE BOOL "" FORCE)
 set(BUILD_EXTRAS OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(bullet3)
 
+
+
 message(STATUS "Fetching cJSON from GitHub...")
 FetchContent_Declare(
     cJSON
@@ -47,16 +51,18 @@ FetchContent_Declare(
     GIT_TAG v1.7.18
     GIT_SHALLOW TRUE
 )
-# Prevent cJSON from creating an "uninstall" target that collides with SDL3's
-set(ENABLE_CJSON_UNINSTALL OFF CACHE BOOL "" FORCE)
-# Turn off its internal tests so it builds instantly
-set(ENABLE_CJSON_TEST OFF CACHE BOOL "" FORCE)
+set(ENABLE_CJSON_UNINSTALL OFF CACHE BOOL "" FORCE) # Prevent cJSON from creating an "uninstall" target that collides with SDL3's
+set(ENABLE_CJSON_TEST OFF CACHE BOOL "" FORCE) # Turn off its internal tests so it builds instantly
 set(ENABLE_CUSTOM_COMPILER_FLAGS OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(cJSON)
 
 find_package(OpenGL REQUIRED)
 
+
+
 # --- SOURCE FILES ---
+
+# 1. Internal systems
 file(GLOB_RECURSE ENGINE_SRCS
     "core/*.c" "core/*.cpp"
     "platform/sdl/*.c" "platform/sdl/*.cpp"
@@ -67,20 +73,29 @@ file(GLOB_RECURSE ENGINE_SRCS
     "Prism.c"
 )
 
-# --- TARGET 1: THE ENGINE LIBRARY ---
-add_library(PrismEngineLib ${ENGINE_SRCS})
+# 2. The Public API Implementation (C++ headers)
+file(GLOB_RECURSE API_SRCS "api/src/*.cpp")
 
-# PUBLIC means: "My engine needs these folders, AND anyone who uses my engine needs them too."
+
+
+# --- Target 1: Engine Library ---
+add_library(PrismEngineLib ${ENGINE_SRCS} ${API_SRCS})
+
+# PUBLIC: The user is ONLY allowed to use the C++ headers!
 target_include_directories(PrismEngineLib PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/api
-    ${bullet3_SOURCE_DIR}/src
-    ${cjson_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/api/include
 )
 
-# PUBLIC means: "Link these to my engine, AND forward them to anyone using my engine."
-target_link_libraries(PrismEngineLib PUBLIC
+# PRIVATE: These are beeded to compile, but they're blocked from the user.
+target_include_directories(PrismEngineLib PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}         # Allows api/src/ to find "scene/scene.h"
+    ${CMAKE_CURRENT_SOURCE_DIR}/include # Internal vendor headers (glad, stb)
+    ${bullet3_SOURCE_DIR}/src           # Hidden physics library
+    ${cjson_SOURCE_DIR}                 # Hidden JSON library
+)
+
+# PRIVATE: The engine uses these libraries natively.
+target_link_libraries(PrismEngineLib PRIVATE
     SDL3::SDL3
     BulletDynamics
     BulletCollision
@@ -89,13 +104,15 @@ target_link_libraries(PrismEngineLib PUBLIC
     cjson
 )
 
-# --- TARGET 2: THE TEST EXECUTABLE ---
+# --- Target 2: Test Executable ---
 if(PRISM_BUILD_TEST)
-    # Only try to build the test if the user actually has a main.c!
+    # Only try to build the test if a main.cpp exists
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
         add_executable(PrismTest main.cpp)
+        
+        # When we link PrismEngineLib, CMake automatically gives  PUBLIC includes (api/include)
         target_link_libraries(PrismTest PRIVATE PrismEngineLib)
     else()
-        message(STATUS "main.c not found. Skipping test executable build.")
+        message(STATUS "main.cpp not found. Skipping test executable build.")
     endif()
 endif()
