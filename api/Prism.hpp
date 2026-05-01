@@ -22,6 +22,7 @@
 #include "scene/Entity.hpp"
 #include "scene/Scene.hpp"
 #include "scene/Behavior.hpp" 
+#include "scene/ScriptRegistry.hpp"
 
 // Engine Lifecycle
 #include "Engine.hpp"

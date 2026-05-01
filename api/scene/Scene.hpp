@@ -36,6 +36,15 @@ namespace Prism
             }
         }
 
+        // Returns a wrapper to the currently active scene
+        static Scene GetActive() {
+            if (!GlobalActiveScene) {
+                // Return an invalid scene wrapper safely
+                return Scene(nullptr);
+            }
+            return Scene(GlobalActiveScene);
+        }
+
 
 
         // --- Serialization ---

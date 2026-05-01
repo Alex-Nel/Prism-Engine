@@ -214,7 +214,8 @@ typedef struct RigidbodyComponent
 
 
 
-
+// Forward decleration of cJSON struct
+struct cJSON;
 
 // Instance of a custom script and all special functions
 typedef struct ScriptInstance
@@ -234,6 +235,9 @@ typedef struct ScriptInstance
     CollisionCallback OnCollisionEnter;
     CollisionCallback OnCollisionStay;
     CollisionCallback OnCollisionExit;
+
+    void (*OnSerialize)(Entity entity, void* instance_data, struct cJSON* json);
+    void (*OnDeserialize)(Entity entity, void* instance_data, struct cJSON* json);
 
     bool has_started;
 } ScriptInstance;
@@ -323,6 +327,7 @@ void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger);
 void Entity_AddColliderMesh(Entity entity, MeshHandle mesh, bool is_trigger);
 void Entity_AddRigidbody(Entity entity, float mass);
 void Entity_BindScript(Entity entity, ScriptInstance new_script);
+void Bridge_SpawnScript(Entity raw_e, const char* class_name, struct cJSON* json_data);
 
 
 

@@ -150,6 +150,25 @@ bool Scene_Save(Scene* scene, const char* filepath)
         }
 
 
+        // --- Save Scripts ---
+        if (scene->component_masks[i] & COMPONENT_SCRIPT)
+        {
+            ScriptComponent* sc = &scene->scripts[i];
+            cJSON* scripts_array = cJSON_AddArrayToObject(entity_obj, "scripts");
+            
+            for (uint32_t s = 0; s < sc->count; s++)
+            {
+                cJSON* script_json = cJSON_CreateObject();
+                
+                // Ask bridge function to write its variables into this script_json object
+                if (sc->instances[s].OnSerialize)
+                    sc->instances[s].OnSerialize((Entity){i, scene}, sc->instances[s].instance_data, script_json);
+                
+                cJSON_AddItemToArray(scripts_array, script_json);
+            }
+        }
+
+
         cJSON_AddItemToArray(entities_array, entity_obj);
     }
 
@@ -300,6 +319,25 @@ bool Scene_Load(Scene* scene, const char* filepath)
             
             rb->use_gravity = cJSON_GetObjectItemCaseSensitive(comp_obj, "use_gravity")->valueint;
             Rigidbody_SetGravity(e, rb->use_gravity);
+        }
+
+
+        // --- Load Scripts ---
+        if (mask & COMPONENT_SCRIPT)
+        {
+            cJSON* scripts_array = cJSON_GetObjectItemCaseSensitive(entity_json, "scripts");
+            cJSON* script_json = NULL;
+            
+            cJSON_ArrayForEach(script_json, scripts_array)
+            {
+                cJSON* class_node = cJSON_GetObjectItemCaseSensitive(script_json, "class_name");
+                
+                if (class_node && cJSON_IsString(class_node))
+                {
+                    // Tell Bridge function to build this class and load the variables!
+                    Bridge_SpawnScript(e, class_node->valuestring, script_json);
+                }
+            }
         }
     }
 
