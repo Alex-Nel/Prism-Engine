@@ -16,7 +16,7 @@
 typedef struct PrismEngine
 {
     Window* window;
-    // Maybe a Renderer* renderer
+    Renderer* renderer;
     bool is_running;
     uint32_t target_fps;
 } PrismEngine;

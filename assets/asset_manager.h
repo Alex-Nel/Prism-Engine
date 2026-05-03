@@ -22,7 +22,7 @@ typedef struct Material
 
 
 // Initialize the registry arrays
-void Asset_Init(void);
+void Asset_Init(Renderer* r);
 
 // Loads mesh from disk
 MeshHandle Asset_LoadMesh(const char* name, const char* filepath);

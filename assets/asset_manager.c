@@ -20,6 +20,10 @@
 
 
 
+static Renderer* renderer = NULL;
+
+
+
 // The internal cache structure
 typedef struct CachedShader
 {
@@ -84,8 +88,10 @@ static bool is_default_shader_loaded = false;
 
 
 
-void Asset_Init(void)
+void Asset_Init(Renderer* r)
 {
+    renderer = r;
+    
     shader_count = 0;
     texture_count = 0;
     mesh_count = 0;
@@ -217,7 +223,7 @@ MeshHandle Asset_LoadMesh(const char* name, const char* filepath)
 
 
     // Create GPU mesh
-    MeshHandle handle = Render_CreateMesh(final_vertices, vertex_count, final_indices, index_count);
+    MeshHandle handle = Render_CreateMesh(renderer, final_vertices, vertex_count, final_indices, index_count);
 
 
     // Cache mesh
@@ -337,7 +343,7 @@ ShaderHandle Asset_LoadShader(const char* name, const char* vert_path, const cha
     }
 
     // Compile on GPU
-    ShaderHandle new_handle = Render_CreateShader(v_src, f_src);
+    ShaderHandle new_handle = Render_CreateShader(renderer, v_src, f_src);
 
     // Free shaders from memory
     free(v_src);
@@ -376,7 +382,7 @@ TextureHandle Asset_LoadTexture(const char* name, const char* filepath)
     }
 
     // Create mesh on GPU
-    TextureHandle handle = Render_CreateTexture(img.pixels, img.width, img.height, img.channels);
+    TextureHandle handle = Render_CreateTexture(renderer, img.pixels, img.width, img.height, img.channels);
 
     // Free image from memory
     Image_Free(&img);
@@ -429,7 +435,7 @@ MeshHandle Asset_GetBuiltinQuad()
     uint32_t* heap_indices = malloc(sizeof(indices));
     memcpy(heap_indices, indices, sizeof(indices));
 
-    builtin_quad_handle = Render_CreateMesh(heap_vertices, 4, heap_indices, 6);
+    builtin_quad_handle = Render_CreateMesh(renderer, heap_vertices, 4, heap_indices, 6);
     is_quad_loaded = true;
 
     // Cache the mesh
@@ -515,7 +521,7 @@ MeshHandle Asset_GetBuiltinCube(void)
     memcpy(heap_indices, indices, sizeof(indices));
 
 
-    builtin_cube_handle = Render_CreateMesh(heap_vertices, 24, heap_indices, 36);
+    builtin_cube_handle = Render_CreateMesh(renderer, heap_vertices, 24, heap_indices, 36);
     is_cube_loaded = true;
     
     // Cache the mesh
@@ -609,7 +615,7 @@ MeshHandle Asset_GetBuiltinSphere(void)
 
 
     // Create mesh and cache it if possible
-    builtin_sphere_handle = Render_CreateMesh(vertices, vertex_count, indices, index_count);
+    builtin_sphere_handle = Render_CreateMesh(renderer, vertices, vertex_count, indices, index_count);
     is_sphere_loaded = true;
 
     if (mesh_count < MAX_CACHED_MESHES) {
@@ -653,7 +659,7 @@ TextureHandle Asset_GetDefaultTexture()
     
     unsigned char white_pixel[4] = {200, 200, 200, 255};
 
-    default_white_texture = Render_CreateTexture(white_pixel, 1, 1, 4);
+    default_white_texture = Render_CreateTexture(renderer, white_pixel, 1, 1, 4);
     is_default_texture_loaded = true;
 
     return default_white_texture;

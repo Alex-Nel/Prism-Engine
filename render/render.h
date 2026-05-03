@@ -65,7 +65,7 @@ typedef struct RenderPacket
 
 
 // -----------------------------------------------------------------------------
-// 1. OPAQUE HANDLES Opaque Handles to meshes, textures, shaders, and materials
+// Opaque Handles to meshes, textures, shaders, and materials
 // -----------------------------------------------------------------------------
 
 typedef struct { uint32_t id; } MeshHandle;
@@ -95,61 +95,158 @@ typedef enum
 
 
 
+typedef struct Renderer Renderer;
+
+typedef struct Renderer
+{
+    GraphicsAPI api;
+
+    // Lifecycle
+    void (*Shutdown)(Renderer* r);
+
+    // State
+    void (*SetViewport)(Renderer* r, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
+    void (*SetClearColor)(Renderer* renderer, float r, float g, float b, float a);
+    void (*Clear)(Renderer* r);
+
+
+    // Resource Management
+    MeshHandle    (*CreateMesh)(Renderer* r, const Vertex3D* vertices, uint32_t v_count, const uint32_t* indices, uint32_t i_count);
+    void          (*DestroyMesh)(Renderer* r, MeshHandle mesh);
+    
+    TextureHandle (*CreateTexture)(Renderer* r, const uint8_t* pixels, uint32_t w, uint32_t h, uint32_t channels);
+    void          (*DestroyTexture)(Renderer* r, TextureHandle texture);
+
+    ShaderHandle  (*CreateShader)(Renderer* r, const char* v_source, const char* f_source);
+    void          (*DestroyShader)(Renderer* r, ShaderHandle shader);
+
+    // Command Submission
+    void (*BeginFrame)(Renderer* r, const RenderPacket* packet);
+    void (*Submit)(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat, Matrix4 transform);
+    void (*EndFrame)(Renderer* r);
+
+    // Hidden implementation-specific data (e.g., SDL_GLContext or Vulkan Instance)
+    void* backend_internal_data;
+
+} Renderer;
+
+
+
+
+
 
 // Function pointer for loading graphics API procedures (Currently only OpenGL
 typedef void* (*Render_LoadProcFn)(const char* name);
 
 
 // Initializes a renderer with a specified graphics API
-bool Render_Init(GraphicsAPI api, Render_LoadProcFn load_proc);
+Renderer* Render_Init(Render_LoadProcFn load_proc);
 
 // Shuts down the renderer
-void Render_Shutdown();
+static inline void Render_Shutdown(Renderer* r)
+{
+    if (r && r->Shutdown)
+        r->Shutdown(r);
+}
 
 
 
 // Sets the size and position of the viewport
-void Render_SetViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height);
+static inline void Render_SetViewport(Renderer* r, uint32_t x, uint32_t y, uint32_t width, uint32_t height)
+{
+    if (r && r->SetViewport)
+        r->SetViewport(r, x, y, width, height);
+}
 
 // Sets the color of the renderer to clear with
-void Render_SetClearColor(float r, float g, float b, float a);
+static inline void Render_SetClearColor(Renderer* r, float red, float green, float blue, float alpha)
+{
+    if (r && r->SetClearColor)
+        r->SetClearColor(r, red, green, blue, alpha);
+}
 
 // Clears the renderer
-void Render_Clear(void);
+static inline void Render_Clear(Renderer* r)
+{
+    if (r && r->Clear)
+        r->Clear(r);
+}
 
 
 
 
 
 // Uploads vertex and index data to the GPU and returns a handle
-MeshHandle Render_CreateMesh(const Vertex3D* vertices, uint32_t vertex_count, const uint32_t* indices,  uint32_t index_count);
+static inline MeshHandle Render_CreateMesh(Renderer* r, const Vertex3D* vertices, uint32_t vertex_count, const uint32_t* indices,  uint32_t index_count)
+{
+    if (r && r->CreateMesh)
+        return r->CreateMesh(r, vertices, vertex_count, indices, index_count);\
+    else
+        return (MeshHandle){0};
+}
 // Removes a mesh from the GPU
-void Render_DestroyMesh(MeshHandle mesh);
+static inline void Render_DestroyMesh(Renderer* r, MeshHandle mesh)
+{
+    if (r && r->DestroyMesh)
+        r->DestroyMesh(r, mesh);
+}
 
 
 // Uploads pixels to the renderer to make a texture. Returns a handle
-TextureHandle Render_CreateTexture(const uint8_t* pixels, uint32_t width, uint32_t height, uint32_t channels);
+static inline TextureHandle Render_CreateTexture(Renderer* r, const uint8_t* pixels, uint32_t width, uint32_t height, uint32_t channels)
+{
+    if (r && r->CreateTexture)
+        return r->CreateTexture(r, pixels, width, height, channels);
+    else
+        return (TextureHandle){0};
+}
 // Removes a texture from the GPU
-void Render_DestroyTexture(TextureHandle texture);
+static inline void Render_DestroyTexture(Renderer* r, TextureHandle texture)
+{
+    if (r && r->DestroyTexture)
+        r->DestroyTexture(r, texture);
+}
 
 
 // Uploads vertex and fragment shaders to the GPU to make a complete shader. Returns a handle
-ShaderHandle Render_CreateShader(const char* vertex_source, const char* fragment_source);
+static inline ShaderHandle Render_CreateShader(Renderer* r, const char* vertex_source, const char* fragment_source)
+{
+    if (r && r->CreateShader)
+        return r->CreateShader(r, vertex_source, fragment_source);
+    else
+        return (ShaderHandle){0};
+}
 // Removes a shader from the GPU
-void Render_DestroyShader(ShaderHandle shader);
+static inline void Render_DestroyShader(Renderer* r, ShaderHandle shader)
+{
+    if (r && r->DestroyShader)
+        r->DestroyShader(r, shader);
+}
 
 
 
 
 
 // Sets the global camera matrices for the current frame
-void Render_BeginFrame(const RenderPacket* packet);
+static inline void Render_BeginFrame(Renderer* r, const RenderPacket* packet)
+{
+    if (r && r->BeginFrame)
+        r->BeginFrame(r, packet);
+}
 
 // Adds an object to the draw queue
-void Render_Submit(MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat_props, Matrix4 transform);
+static inline void Render_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat_props, Matrix4 transform)
+{
+    if (r && r->Submit)
+        r->Submit(r, mesh, shader, texture, mat_props, transform);
+}
 
 // Sorts the queue, binds the state, and executes the actual GPU draw calls
-void Render_EndFrame();
+static inline void Render_EndFrame(Renderer* r)
+{
+    if (r && r->EndFrame)
+        r->EndFrame(r);
+}
 
 
 

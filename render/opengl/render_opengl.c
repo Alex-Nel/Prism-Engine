@@ -3,6 +3,8 @@
 #include "../../core/log.h"
 
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 
 
@@ -19,7 +21,7 @@ typedef struct RenderState
 
 
 // Global render state to be used by OpenGL
-static RenderState state;
+// static RenderState state;
 
 
 
@@ -56,9 +58,9 @@ typedef struct GLTexture
 
 
 // Internal data pools for meshes shaders and textures
-static GLMesh mesh_pool[MAX_RESOURCES];
-static GLShader shader_pool[MAX_RESOURCES];
-static GLTexture texture_pool[MAX_RESOURCES];
+// static GLMesh mesh_pool[MAX_RESOURCES];
+// static GLShader shader_pool[MAX_RESOURCES];
+// static GLTexture texture_pool[MAX_RESOURCES];
 
 
 
@@ -77,66 +79,34 @@ typedef struct RenderCommand
 
 
 // Internal data pool for given command queues
-static RenderCommand command_queue[MAX_COMMANDS];
-static uint32_t command_count = 0;
+// static RenderCommand command_queue[MAX_COMMANDS];
+// static uint32_t command_count = 0;
 
 
 
 
-
-// OpenGL Initialization function
-bool Render_Init(GraphicsAPI api, Render_LoadProcFn load_proc)
+typedef struct OpenGL_Backend
 {
-    // Initialize data pools
-    for (int i = 0; i < MAX_RESOURCES; i++)
-    {
-        mesh_pool[i].active = false;
-        shader_pool[i].active = false;
-        texture_pool[i].active = false;
-    }
+    GLMesh mesh_pool[MAX_RESOURCES];
+    GLShader shader_pool[MAX_RESOURCES];
+    GLTexture texture_pool[MAX_RESOURCES];
 
+    RenderCommand command_queue[MAX_COMMANDS];
+    uint32_t command_count;
 
-    // Select correct graphics backend
-    if (api == GRAPHICS_API_OPENGL)
-    {
-        // Load OpenGL functions using the provided loader
-        if (!gladLoadGLLoader((GLADloadproc)load_proc))
-        {
-            Log_Error("Failed to initialize OpenGL loader!");
-            return false;
-        }
-
-        // Set global OpenGL state
-        glEnable(GL_DEPTH_TEST);
-        glDepthFunc(GL_LESS);
-        glEnable(GL_CULL_FACE); // Disables drawing the inside of a mesh
-        
-        return true;
-    }
-    else if (api == GRAPHICS_API_VULKAN)
-    {
-        Log_Error("Vulkan not implemented yet\n");
-        return false;
-    }
-    else if (api == GRAPHICS_API_DIRECTX)
-    {
-        Log_Error("DirectX not implemented yet\n");
-        return false;
-    }
-
-    Log_Error("Unkown Graphics API\n");
-    return true;
-}
+    RenderState state;
+} OpenGL_Backend;
 
 
 
 
 
 // Shutdown function for OpenGL
-void Render_Shutdown(void)
+static void OpenGL_Shutdown(Renderer* r)
 {
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
     // Clear out any pending draw commands
-    command_count = 0;
+    internal->command_count = 0;
 
     // Garbage Collector Loop. We start at 1 because index 0 is the "Invalid/Null" handle.
     for (uint32_t i = 1; i < MAX_RESOURCES; i++)
@@ -144,15 +114,18 @@ void Render_Shutdown(void)
         // Optional: You could add a LOG_WARN here to tell the user they 
         // had a memory leak during runtime!
 
-        if (mesh_pool[i].active)
-            Render_DestroyMesh((MeshHandle){i});
+        if (internal->mesh_pool[i].active)
+            Render_DestroyMesh(r, (MeshHandle){i});
         
-        if (texture_pool[i].active)
-            Render_DestroyTexture((TextureHandle){i});
+        if (internal->texture_pool[i].active)
+            Render_DestroyTexture(r, (TextureHandle){i});
         
-        if (shader_pool[i].active)
-            Render_DestroyShader((ShaderHandle){i});
+        if (internal->shader_pool[i].active)
+            Render_DestroyShader(r, (ShaderHandle){i});
     }
+
+    free(internal);
+    free(r);
 }
 
 
@@ -165,19 +138,19 @@ void Render_Shutdown(void)
 
 
 // Sets the size and position of the viewport
-void Render_SetViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
+static void OpenGL_SetViewport(Renderer* r, uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 {
     glViewport(x, y, width, height);
 }
 
 // Sets the color of the renderer to clear with
-void Render_SetClearColor(float r, float g, float b, float a)
+static void OpenGL_SetClearColor(Renderer* renderer, float r, float g, float b, float a)
 {
     glClearColor(r, g, b, a);
 }
 
 // Clears the renderer
-void Render_Clear(void)
+static void OpenGL_Clear(Renderer* r)
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
@@ -197,14 +170,16 @@ void Render_Clear(void)
 
 
 // Uploads vertex and index data to the GPU and returns a handle
-MeshHandle Render_CreateMesh(const Vertex3D* vertices, uint32_t vertex_count, const uint32_t* indices,  uint32_t index_count)
+static MeshHandle OpenGL_CreateMesh(Renderer* r, const Vertex3D* vertices, uint32_t vertex_count, const uint32_t* indices,  uint32_t index_count)
 {
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+
     // Find an empty slot
     // TODO: use a free-list for O(1) allocation
     uint32_t id = 0;
     for (uint32_t i = 1; i < MAX_RESOURCES; i++)
     {
-        if (!mesh_pool[i].active)
+        if (!internal->mesh_pool[i].active)
         {
             id = i;
             break;
@@ -214,7 +189,7 @@ MeshHandle Render_CreateMesh(const Vertex3D* vertices, uint32_t vertex_count, co
     // Return 0 if pool is full
     if (id == 0) return (MeshHandle){0};
 
-    GLMesh* mesh = &mesh_pool[id];
+    GLMesh* mesh = &internal->mesh_pool[id];
     mesh->active = true;
     mesh->index_count = index_count;
 
@@ -253,9 +228,11 @@ MeshHandle Render_CreateMesh(const Vertex3D* vertices, uint32_t vertex_count, co
 
 
 // Uploads pixels to the renderer to make a texture. Returns a handle
-TextureHandle Render_CreateTexture(const uint8_t* pixels, uint32_t width, uint32_t height, uint32_t channels)
+static TextureHandle OpenGL_CreateTexture(Renderer* r, const uint8_t* pixels, uint32_t width, uint32_t height, uint32_t channels)
 {
     if (!pixels) return (TextureHandle){0};
+
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
     GLuint texture_id;
     glGenTextures(1, &texture_id);
@@ -295,11 +272,11 @@ TextureHandle Render_CreateTexture(const uint8_t* pixels, uint32_t width, uint32
     // Add openGL ID to the texture pool
     for (uint32_t i = 1; i < MAX_RESOURCES; i++)
     {
-        if (!texture_pool[i].active)
+        if (!internal->texture_pool[i].active)
         {    
             // Store the raw OpenGL ID inside the pool
-            texture_pool[i].id = texture_id;
-            texture_pool[i].active = true;
+            internal->texture_pool[i].id = texture_id;
+            internal->texture_pool[i].active = true;
             
             // Return the pool index
             return (TextureHandle){ i }; 
@@ -317,13 +294,15 @@ TextureHandle Render_CreateTexture(const uint8_t* pixels, uint32_t width, uint32
 
 
 // Uploads vertex and fragment shaders to the GPU to make a complete shader. Returns a handle
-ShaderHandle Render_CreateShader(const char* vertex_source, const char* fragment_source)
+static ShaderHandle OpenGL_CreateShader(Renderer* r, const char* vertex_source, const char* fragment_source)
 {
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+
     // Check if another spot in the pool is available
     uint32_t id = 0;
     for (uint32_t i = 1; i < MAX_RESOURCES; i++)
     {
-        if (!shader_pool[i].active)
+        if (!internal->shader_pool[i].active)
         {
             id = i;
             break;
@@ -363,7 +342,7 @@ ShaderHandle Render_CreateShader(const char* vertex_source, const char* fragment
     }
 
     // Create complete shader
-    GLShader* shader = &shader_pool[id];
+    GLShader* shader = &internal->shader_pool[id];
     shader->active = true;
     shader->program = glCreateProgram();
     glAttachShader(shader->program, vs);
@@ -398,13 +377,15 @@ ShaderHandle Render_CreateShader(const char* vertex_source, const char* fragment
 
 
 // Removes a mesh from the GPU
-void Render_DestroyMesh(MeshHandle mesh)
+static void OpenGL_DestroyMesh(Renderer* r, MeshHandle mesh)
 {
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+
     // Validate the handle to prevent segfaults
     if (mesh.id == 0 || mesh.id >= MAX_RESOURCES)
         return;
 
-    GLMesh* gl_mesh = &mesh_pool[mesh.id];
+    GLMesh* gl_mesh = &internal->mesh_pool[mesh.id];
     
     // Only delete if the slot is actually in use
     if (gl_mesh->active)
@@ -421,13 +402,15 @@ void Render_DestroyMesh(MeshHandle mesh)
 
 
 // Removes a texture from the GPU
-void Render_DestroyTexture(TextureHandle texture)
+static void OpenGL_DestroyTexture(Renderer* r, TextureHandle texture)
 {
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+
     // Validate the handle to prevent segfaults
     if (texture.id == 0 || texture.id >= MAX_RESOURCES)
         return;
 
-    GLTexture* tex = &texture_pool[texture.id];
+    GLTexture* tex = &internal->texture_pool[texture.id];
 
     // Only delete if the slot is actually in use
     if (tex->active)
@@ -442,13 +425,15 @@ void Render_DestroyTexture(TextureHandle texture)
 
 
 // Removes a shader from the GPU
-void Render_DestroyShader(ShaderHandle shader)
+static void OpenGL_DestroyShader(Renderer* r, ShaderHandle shader)
 {
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+
     // Validate the handle to prevent segfaults
     if (shader.id == 0 || shader.id >= MAX_RESOURCES)
         return;
 
-    GLShader* gl_shader = &shader_pool[shader.id];
+    GLShader* gl_shader = &internal->shader_pool[shader.id];
 
     // Only delete if the slot is actually in use
     if (gl_shader->active)
@@ -476,30 +461,33 @@ void Render_DestroyShader(ShaderHandle shader)
 
 
 // Sets the global camera matrices for the current frame
-void Render_BeginFrame(const RenderPacket* packet)
+static void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
 {
-    state.view_matrix = packet->view_matrix;
-    state.projection_matrix = packet->projection_matrix;
-    state.camera_pos = packet->camera_pos;
-    state.global_light = packet->global_light;
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
-    state.point_light_count = packet->point_light_count;
+    internal->state.view_matrix = packet->view_matrix;
+    internal->state.projection_matrix = packet->projection_matrix;
+    internal->state.camera_pos = packet->camera_pos;
+    internal->state.global_light = packet->global_light;
+
+    internal->state.point_light_count = packet->point_light_count;
     for (uint32_t i = 0; i < packet->point_light_count; i++)
-        state.point_lights[i] = packet->point_lights[i];
+        internal->state.point_lights[i] = packet->point_lights[i];
     
     // Reset the queue for the new frame
-    command_count = 0;
+    internal->command_count = 0;
 }
 
 
 
 // Adds an object to the draw queue
-void Render_Submit(MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat_props, Matrix4 transform)
+static void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat_props, Matrix4 transform)
 {
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
     // Return if the queue is full
-    if (command_count >= MAX_COMMANDS) return;
+    if (internal->command_count >= MAX_COMMANDS) return;
     
-    command_queue[command_count++] = (RenderCommand){
+    internal->command_queue[internal->command_count++] = (RenderCommand){
         mesh,
         shader,
         texture,
@@ -510,24 +498,46 @@ void Render_Submit(MeshHandle mesh, ShaderHandle shader, TextureHandle texture, 
 
 
 
-// Sorts the queue, binds the state, and executes the actual GPU draw calls
-void Render_EndFrame()
+// Compare render commands (for sorting)
+static int CompareRenderCommands(const void* a, const void* b)
 {
-    // TODO: Sort the command_queue by ShaderHandle to minimize OpenGL state changes
-    // Iterate through command queue
-    for (uint32_t i = 0; i < command_count; i++)
+    RenderCommand* cmdA = (RenderCommand*)a;
+    RenderCommand* cmdB = (RenderCommand*)b;
+
+    // Sort primarily by shader, then by texture
+    if (cmdA->shader.id != cmdB->shader.id)
+        return (int)cmdA->shader.id - (int)cmdB->shader.id;
+    
+    return (int)cmdA->texture.id - (int)cmdB->texture.id;
+}
+
+
+
+// Sorts the queue, binds the state, and executes the actual GPU draw calls
+static void OpenGL_EndFrame(Renderer* r)
+{
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+
+    // Sort the command queue
+    qsort(internal->command_queue, internal->command_count, sizeof(RenderCommand), CompareRenderCommands);
+
+    // Track current state to avoid redundant binds
+    uint32_t current_shader = 0;
+    uint32_t current_texture = 0;
+
+    for (uint32_t i = 0; i < internal->command_count; i++)
     {
-        RenderCommand* cmd = &command_queue[i];
+        RenderCommand* cmd = &internal->command_queue[i];
 
-        if (!mesh_pool[cmd->mesh.id].active || !shader_pool[cmd->shader.id].active) continue;
+        if (!internal->mesh_pool[cmd->mesh.id].active || !internal->shader_pool[cmd->shader.id].active) continue;
 
-        GLMesh* gl_mesh = &mesh_pool[cmd->mesh.id];
-        GLShader* gl_shader = &shader_pool[cmd->shader.id];
+        GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
+        GLShader* gl_shader = &internal->shader_pool[cmd->shader.id];
 
         // Bind Shader
         glUseProgram(gl_shader->program);
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texture_pool[cmd->texture.id].id);
+        glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->texture.id].id);
 
         // Upload Matrices
         GLint model_loc = glGetUniformLocation(gl_shader->program, "u_Model");
@@ -535,8 +545,8 @@ void Render_EndFrame()
         GLint proj_loc  = glGetUniformLocation(gl_shader->program, "u_Projection");
         
         glUniformMatrix4fv(model_loc, 1, GL_FALSE, (float*)&cmd->transform);
-        glUniformMatrix4fv(view_loc, 1, GL_FALSE, (float*)&state.view_matrix);
-        glUniformMatrix4fv(proj_loc, 1, GL_FALSE, (float*)&state.projection_matrix);
+        glUniformMatrix4fv(view_loc, 1, GL_FALSE, (float*)&internal->state.view_matrix);
+        glUniformMatrix4fv(proj_loc, 1, GL_FALSE, (float*)&internal->state.projection_matrix);
 
         // Upload Lighting Data
         GLint view_pos_loc  = glGetUniformLocation(gl_shader->program, "u_ViewPos");
@@ -544,18 +554,18 @@ void Render_EndFrame()
         GLint light_col_loc = glGetUniformLocation(gl_shader->program, "u_LightColor");
         GLint ambient_loc   = glGetUniformLocation(gl_shader->program, "u_AmbientStrength");
 
-        if (view_pos_loc != -1)  glUniform3fv(view_pos_loc, 1, (float*)&state.camera_pos);
-        if (light_pos_loc != -1) glUniform3fv(light_pos_loc, 1, (float*)&state.global_light.direction);
-        if (light_col_loc != -1) glUniform3fv(light_col_loc, 1, (float*)&state.global_light.color);
-        if (ambient_loc != -1)   glUniform1f(ambient_loc, state.global_light.ambient_strength);
+        if (view_pos_loc != -1)  glUniform3fv(view_pos_loc, 1, (float*)&internal->state.camera_pos);
+        if (light_pos_loc != -1) glUniform3fv(light_pos_loc, 1, (float*)&internal->state.global_light.direction);
+        if (light_col_loc != -1) glUniform3fv(light_col_loc, 1, (float*)&internal->state.global_light.color);
+        if (ambient_loc != -1)   glUniform1f(ambient_loc, internal->state.global_light.ambient_strength);
 
 
-        glUniform1i(glGetUniformLocation(gl_shader->program, "u_PointLightCount"), state.point_light_count);
+        glUniform1i(glGetUniformLocation(gl_shader->program, "u_PointLightCount"), internal->state.point_light_count);
 
         char uniform_name[64];
-        for (uint32_t j = 0; j < state.point_light_count; j++)
+        for (uint32_t j = 0; j < internal->state.point_light_count; j++)
         {
-            PointLightData* pl = &state.point_lights[j];
+            PointLightData* pl = &internal->state.point_lights[j];
             
             sprintf(uniform_name, "u_PointLights[%d].position", j);
             glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&pl->position);
@@ -596,4 +606,66 @@ void Render_EndFrame()
     }
 
     glBindVertexArray(0);
+}
+
+
+
+
+
+// OpenGL Initialization function
+Renderer* Render_Init(Render_LoadProcFn load_proc)
+{
+    Renderer* r = malloc(sizeof(Renderer));
+    if (!r) return NULL;
+
+    OpenGL_Backend* internal = malloc(sizeof(OpenGL_Backend));
+    memset(internal, 0, sizeof(OpenGL_Backend));
+
+
+    // Initialize data pools
+    for (int i = 0; i < MAX_RESOURCES; i++)
+    {
+        internal->mesh_pool[i].active = false;
+        internal->shader_pool[i].active = false;
+        internal->texture_pool[i].active = false;
+    }
+
+    // Load OpenGL functions using the provided loader
+    if (!gladLoadGLLoader((GLADloadproc)load_proc))
+    {
+        Log_Error("Failed to initialize OpenGL loader!");
+        free(internal);
+        free(r);
+        return NULL;
+    }
+
+    // Set global OpenGL state
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+    glEnable(GL_CULL_FACE); // Disables drawing the inside of a mesh
+
+
+
+    r->backend_internal_data = internal;
+
+    r->api = GRAPHICS_API_OPENGL;
+    r->Shutdown = OpenGL_Shutdown;
+    r->SetViewport = OpenGL_SetViewport;
+    r->SetClearColor = OpenGL_SetClearColor;
+    r->Clear = OpenGL_Clear;
+
+    r->CreateMesh = OpenGL_CreateMesh;
+    r->DestroyMesh = OpenGL_DestroyMesh;
+
+    r->CreateTexture = OpenGL_CreateTexture;
+    r->DestroyTexture = OpenGL_DestroyTexture;
+
+    r->CreateShader = OpenGL_CreateShader;
+    r->DestroyShader = OpenGL_DestroyShader;
+
+    r->BeginFrame = OpenGL_BeginFrame;
+    r->Submit = OpenGL_Submit;
+    r->EndFrame = OpenGL_EndFrame;
+    
+    return r;
 }

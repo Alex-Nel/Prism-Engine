@@ -14,11 +14,6 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
 {
     engine.target_fps = target_fps;
 
-    // Core Init
-    Input_Init();
-    Asset_Init();
-    Time_Init(engine.target_fps, Platform_GetTime, Platform_Delay);
-
     // Platform Init
     engine.window = Platform_Init(window_title, window_width, window_height, api);
     if (!engine.window)
@@ -35,17 +30,24 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
         proc_addr = NULL;
     
     // Render Init
-    if (!Render_Init(api, proc_addr))
+    Renderer* renderer = Render_Init(proc_addr);
+    if (!renderer)
     {
         Platform_Shutdown(engine.window);
         Log_Error("Renderer failed to initialize.\n");
         return false;
     }
+    engine.renderer = renderer;
 
     // Set renderer clear color to pure white
     Engine_SetClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 
     engine.is_running = true;
+
+    // Core moduels init
+    Input_Init();
+    Asset_Init(renderer);
+    Time_Init(engine.target_fps, Platform_GetTime, Platform_Delay);
 
     return true;
 }
@@ -89,7 +91,7 @@ void Engine_Run(Scene* active_scene)
             }
             else if (e.type == EVENT_WINDOW_RESIZE)
             {
-                Render_SetViewport(0, 0, e.window_resize.width, e.window_resize.height);
+                Render_SetViewport(engine.renderer, 0, 0, e.window_resize.width, e.window_resize.height);
                 SetWindowSize(engine.window, e.window_resize.width, e.window_resize.height);
             }
         }
@@ -98,7 +100,7 @@ void Engine_Run(Scene* active_scene)
         Scene_Update(active_scene);
 
         // Render scene
-        Render_Clear();
+        Render_Clear(engine.renderer);
         Engine_RenderScene(active_scene);
         
         // Swap Buffers & Reset Input arrays
@@ -134,7 +136,7 @@ bool Engine_IsRunning()
                 break;
                 
             case EVENT_WINDOW_RESIZE:
-                Render_SetViewport(0, 0, e.window_resize.width, e.window_resize.height);
+                Render_SetViewport(engine.renderer, 0, 0, e.window_resize.width, e.window_resize.height);
                 SetWindowSize(engine.window, e.window_resize.width, e.window_resize.height);
                 Log_Info("Window resized to: %d, %d\n", e.window_resize.width, e.window_resize.height);
                 break;
@@ -152,9 +154,9 @@ bool Engine_IsRunning()
 
 
 // Sets the clear color of the renderer
-void Engine_SetClearColor(float r, float g, float b, float a)
+void Engine_SetClearColor(float red, float green, float blue, float alpha)
 {
-    Render_SetClearColor(r, g, b, a);
+    Render_SetClearColor(engine.renderer, red, green, blue, alpha);
 }
 
 
@@ -228,7 +230,7 @@ void Engine_RenderScene(Scene* scene)
         packet.projection_matrix = proj;
         packet.camera_pos = global_pos;
 
-        Render_BeginFrame(&packet);
+        Render_BeginFrame(engine.renderer, &packet);
     }
     else
     {
@@ -237,7 +239,7 @@ void Engine_RenderScene(Scene* scene)
         packet.projection_matrix = Matrix4Identity();
         packet.camera_pos = (Vector3){0.0f, 0.0f, 0.0f};
 
-        Render_BeginFrame(&packet);
+        Render_BeginFrame(engine.renderer, &packet);
     }
 
 
@@ -262,6 +264,7 @@ void Engine_RenderScene(Scene* scene)
 
                 // Submit all information to the renderer
                 Render_Submit(
+                    engine.renderer,
                     mesh,
                     shader,
                     texture,
@@ -283,7 +286,7 @@ void Engine_EndFrame()
     if (!engine.is_running) return;
 
     // Dispatch all queued draw calls to the GPU
-    Render_EndFrame();
+    Render_EndFrame(engine.renderer);
 
     // Swap the OS window buffers to display the new frame
     Platform_SwapBuffers(engine.window);
@@ -299,7 +302,7 @@ void Engine_EndFrame()
 // Shuts down the renderer and platform
 void Engine_Shutdown()
 {
-    Render_Shutdown();
+    Render_Shutdown(engine.renderer);
     if (engine.window)
     {
         Platform_Shutdown(engine.window);
