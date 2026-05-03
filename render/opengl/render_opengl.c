@@ -534,58 +534,68 @@ static void OpenGL_EndFrame(Renderer* r)
         GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
         GLShader* gl_shader = &internal->shader_pool[cmd->shader.id];
 
-        // Bind Shader
-        glUseProgram(gl_shader->program);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->texture.id].id);
+        if (current_shader != cmd->shader.id)
+        {
+            glUseProgram(gl_shader->program);
+            current_shader = cmd->shader.id;
+
+            // Upload Camera Matrices
+            GLint view_loc  = glGetUniformLocation(gl_shader->program, "u_View");
+            GLint proj_loc  = glGetUniformLocation(gl_shader->program, "u_Projection");
+            glUniformMatrix4fv(view_loc, 1, GL_FALSE, (float*)&internal->state.view_matrix);
+            glUniformMatrix4fv(proj_loc, 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+
+            // Upload Global Lighting Data
+            GLint view_pos_loc  = glGetUniformLocation(gl_shader->program, "u_ViewPos");
+            GLint light_pos_loc = glGetUniformLocation(gl_shader->program, "u_LightDir");
+            GLint light_col_loc = glGetUniformLocation(gl_shader->program, "u_LightColor");
+            GLint ambient_loc   = glGetUniformLocation(gl_shader->program, "u_AmbientStrength");
+
+            if (view_pos_loc != -1)  glUniform3fv(view_pos_loc, 1, (float*)&internal->state.camera_pos);
+            if (light_pos_loc != -1) glUniform3fv(light_pos_loc, 1, (float*)&internal->state.global_light.direction);
+            if (light_col_loc != -1) glUniform3fv(light_col_loc, 1, (float*)&internal->state.global_light.color);
+            if (ambient_loc != -1)   glUniform1f(ambient_loc, internal->state.global_light.ambient_strength);
+
+            // Upload Heavy Point Light Data (Only happens ONCE per shader!)
+            glUniform1i(glGetUniformLocation(gl_shader->program, "u_PointLightCount"), internal->state.point_light_count);
+
+            char uniform_name[64];
+            for (uint32_t j = 0; j < internal->state.point_light_count; j++)
+            {
+                PointLightData* pl = &internal->state.point_lights[j];
+                
+                sprintf(uniform_name, "u_PointLights[%d].position", j);
+                glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&pl->position);
+                
+                sprintf(uniform_name, "u_PointLights[%d].color", j);
+                glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&pl->color);
+                
+                sprintf(uniform_name, "u_PointLights[%d].intensity", j);
+                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), pl->intensity);
+                
+                sprintf(uniform_name, "u_PointLights[%d].constant", j);
+                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), pl->constant);
+                
+                sprintf(uniform_name, "u_PointLights[%d].linear", j);
+                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), pl->linear);
+                
+                sprintf(uniform_name, "u_PointLights[%d].quadratic", j);
+                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), pl->quadratic);
+            }
+        }
+
+
+        if (current_texture != cmd->texture.id)
+        {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->texture.id].id);
+            current_texture = cmd->texture.id;
+        }
 
         // Upload Matrices
         GLint model_loc = glGetUniformLocation(gl_shader->program, "u_Model");
-        GLint view_loc  = glGetUniformLocation(gl_shader->program, "u_View");
-        GLint proj_loc  = glGetUniformLocation(gl_shader->program, "u_Projection");
         
         glUniformMatrix4fv(model_loc, 1, GL_FALSE, (float*)&cmd->transform);
-        glUniformMatrix4fv(view_loc, 1, GL_FALSE, (float*)&internal->state.view_matrix);
-        glUniformMatrix4fv(proj_loc, 1, GL_FALSE, (float*)&internal->state.projection_matrix);
-
-        // Upload Lighting Data
-        GLint view_pos_loc  = glGetUniformLocation(gl_shader->program, "u_ViewPos");
-        GLint light_pos_loc = glGetUniformLocation(gl_shader->program, "u_LightDir");
-        GLint light_col_loc = glGetUniformLocation(gl_shader->program, "u_LightColor");
-        GLint ambient_loc   = glGetUniformLocation(gl_shader->program, "u_AmbientStrength");
-
-        if (view_pos_loc != -1)  glUniform3fv(view_pos_loc, 1, (float*)&internal->state.camera_pos);
-        if (light_pos_loc != -1) glUniform3fv(light_pos_loc, 1, (float*)&internal->state.global_light.direction);
-        if (light_col_loc != -1) glUniform3fv(light_col_loc, 1, (float*)&internal->state.global_light.color);
-        if (ambient_loc != -1)   glUniform1f(ambient_loc, internal->state.global_light.ambient_strength);
-
-
-        glUniform1i(glGetUniformLocation(gl_shader->program, "u_PointLightCount"), internal->state.point_light_count);
-
-        char uniform_name[64];
-        for (uint32_t j = 0; j < internal->state.point_light_count; j++)
-        {
-            PointLightData* pl = &internal->state.point_lights[j];
-            
-            sprintf(uniform_name, "u_PointLights[%d].position", j);
-            glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&pl->position);
-            
-            sprintf(uniform_name, "u_PointLights[%d].color", j);
-            glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&pl->color);
-            
-            sprintf(uniform_name, "u_PointLights[%d].intensity", j);
-            glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), pl->intensity);
-            
-            sprintf(uniform_name, "u_PointLights[%d].constant", j);
-            glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), pl->constant);
-            
-            sprintf(uniform_name, "u_PointLights[%d].linear", j);
-            glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), pl->linear);
-            
-            sprintf(uniform_name, "u_PointLights[%d].quadratic", j);
-            glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), pl->quadratic);
-        }
-
 
         GLint diff_loc = glGetUniformLocation(gl_shader->program, "u_Material.diffuse");
         if (diff_loc != -1) glUniform1i(diff_loc, 0);
