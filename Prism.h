@@ -15,9 +15,9 @@
 // Struct for an "engine"
 typedef struct PrismEngine
 {
-    const char* window_title;
-    uint32_t window_width;
-    uint32_t window_height;
+    Window* window;
+    // Maybe a Renderer* renderer
+    bool is_running;
     uint32_t target_fps;
 } PrismEngine;
 

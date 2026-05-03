@@ -10,8 +10,8 @@ struct Window
 {
     SDL_Window* sdl_window;
     SDL_GLContext gl_context;
-    float width;
-    float height;
+    uint32_t width;
+    uint32_t height;
     GraphicsAPI current_api;
     bool should_close;
 };
@@ -297,6 +297,37 @@ void Platform_Shutdown(Window* window)
     }
 
     SDL_Quit();
+}
+
+
+
+
+
+// Returns a windows width
+uint32_t GetWindowWidth(Window* window)
+{
+    return window->width;
+}
+
+
+
+
+
+// Returns a windows height
+uint32_t GetWindowHeight(Window* window)
+{
+    return window->height;
+}
+
+
+
+
+
+// Sets a windows width
+void SetWindowSize(Window* window, uint32_t width, uint32_t height)
+{
+    window->width = width;
+    window->height = height;
 }
 
 

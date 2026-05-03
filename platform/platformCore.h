@@ -23,6 +23,16 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
 // Shuts down the window
 void Platform_Shutdown(Window* window);
 
+// Returns the width of a window
+uint32_t GetWindowWidth(Window* window);
+
+// Returns the height of a window
+uint32_t GetWindowHeight(Window* window);
+
+// Returns the height of a window
+void SetWindowSize(Window* window, uint32_t width, uint32_t height);
+
+
 
 
 // Gets the OS-specific graphics function pointer (for openGL)
@@ -48,4 +58,4 @@ void Platform_WarpMouse(Window* window);
 
 
 
-#endif
+#endif // PLATFORM_H

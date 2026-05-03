@@ -5,8 +5,6 @@
 
 // Internal states
 static PrismEngine engine;
-static Window* main_window = NULL;
-static bool is_running = false;
 static bool mouse_captured = false;
 
 
@@ -14,9 +12,6 @@ static bool mouse_captured = false;
 // Initializes all engine systems
 bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t window_height, uint32_t target_fps, GraphicsAPI api)
 {
-    engine.window_title = window_title;
-    engine.window_width = window_width;
-    engine.window_height = window_height;
     engine.target_fps = target_fps;
 
     // Core Init
@@ -25,8 +20,8 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
     Time_Init(engine.target_fps, Platform_GetTime, Platform_Delay);
 
     // Platform Init
-    main_window = Platform_Init(engine.window_title, engine.window_width, engine.window_height, api);
-    if (!main_window)
+    engine.window = Platform_Init(window_title, window_width, window_height, api);
+    if (!engine.window)
     {
         Log_Error("Window failed to initialize.\n");
         return false;
@@ -42,7 +37,7 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
     // Render Init
     if (!Render_Init(api, proc_addr))
     {
-        Platform_Shutdown(main_window);
+        Platform_Shutdown(engine.window);
         Log_Error("Renderer failed to initialize.\n");
         return false;
     }
@@ -50,7 +45,7 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
     // Set renderer clear color to pure white
     Engine_SetClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 
-    is_running = true;
+    engine.is_running = true;
 
     return true;
 }
@@ -60,8 +55,9 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
 
 
 // Get a pointer to the main window
-Window* Engine_GetMainWindow(void) {
-    return main_window;
+Window* Engine_GetMainWindow()
+{
+    return engine.window;
 }
 
 
@@ -76,7 +72,7 @@ void Engine_Run(Scene* active_scene)
         return;
     }
 
-    while (is_running)
+    while (engine.is_running)
     {
         // Advance the engine clock
         Time_Tick();
@@ -89,13 +85,12 @@ void Engine_Run(Scene* active_scene)
             
             if (e.type == EVENT_WINDOW_CLOSE)
             {
-                is_running = false;
+                engine.is_running = false;
             }
             else if (e.type == EVENT_WINDOW_RESIZE)
             {
                 Render_SetViewport(0, 0, e.window_resize.width, e.window_resize.height);
-                engine.window_width = e.window_resize.width;
-                engine.window_height = e.window_resize.height;
+                SetWindowSize(engine.window, e.window_resize.width, e.window_resize.height);
             }
         }
 
@@ -119,7 +114,7 @@ void Engine_Run(Scene* active_scene)
 // Continues running the engine. Returns true if it's still running
 bool Engine_IsRunning()
 {
-    if (!is_running) return false;
+    if (!engine.is_running) return false;
 
     // Advance the engine clock
     Time_Tick();
@@ -135,13 +130,12 @@ bool Engine_IsRunning()
         switch (e.type)
         {
             case EVENT_WINDOW_CLOSE:
-                is_running = false;
+                engine.is_running = false;
                 break;
                 
             case EVENT_WINDOW_RESIZE:
                 Render_SetViewport(0, 0, e.window_resize.width, e.window_resize.height);
-                engine.window_width = e.window_resize.width;
-                engine.window_height = e.window_resize.height;
+                SetWindowSize(engine.window, e.window_resize.width, e.window_resize.height);
                 Log_Info("Window resized to: %d, %d\n", e.window_resize.width, e.window_resize.height);
                 break;
                 
@@ -150,7 +144,7 @@ bool Engine_IsRunning()
         }
     }
 
-    return is_running;
+    return engine.is_running;
 }
 
 
@@ -224,7 +218,8 @@ void Engine_RenderScene(Scene* scene)
         Matrix4 view = Matrix4CreateView(global_pos, cam_transform->local_rotation);
         Matrix4 proj = Matrix4Perspective(
             cam_comp->fov,
-            (float)(engine.window_width)/(float)(engine.window_height),
+            // (float)(engine.window_width)/(float)(engine.window_height),
+            (float)(GetWindowWidth(engine.window))/(float)(GetWindowHeight(engine.window)),
             cam_comp->nearZ,
             cam_comp->farZ
         );
@@ -285,13 +280,13 @@ void Engine_RenderScene(Scene* scene)
 // Renders the frame, swaps the buffers and updates the input
 void Engine_EndFrame()
 {
-    if (!is_running) return;
+    if (!engine.is_running) return;
 
     // Dispatch all queued draw calls to the GPU
     Render_EndFrame();
 
     // Swap the OS window buffers to display the new frame
-    Platform_SwapBuffers(main_window);
+    Platform_SwapBuffers(engine.window);
 
     // Cycle the input arrays for the next frame
     Input_Update();
@@ -305,9 +300,9 @@ void Engine_EndFrame()
 void Engine_Shutdown()
 {
     Render_Shutdown();
-    if (main_window)
+    if (engine.window)
     {
-        Platform_Shutdown(main_window);
+        Platform_Shutdown(engine.window);
     }
 }
 
@@ -324,9 +319,9 @@ void Engine_Shutdown()
 void Engine_CaptureMouse()
 {
     mouse_captured = true;
-    Platform_SetRelativeMouseMode(main_window, mouse_captured);
+    Platform_SetRelativeMouseMode(engine.window, mouse_captured);
     if (!mouse_captured)
-        Platform_WarpMouse(main_window);
+        Platform_WarpMouse(engine.window);
 }
 
 
@@ -337,9 +332,9 @@ void Engine_CaptureMouse()
 void Engine_ReleaseMouse()
 {
     mouse_captured = false;
-    Platform_SetRelativeMouseMode(main_window, mouse_captured);
+    Platform_SetRelativeMouseMode(engine.window, mouse_captured);
     if (!mouse_captured)
-        Platform_WarpMouse(main_window);
+        Platform_WarpMouse(engine.window);
 }
 
 
