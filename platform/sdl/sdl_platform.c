@@ -101,10 +101,24 @@ static MouseButton TranslateMouseButton(Uint8 sdl_button)
 // Initializes a window with a title, width, height, and specified graphics API
 Window* Platform_Init(const char* title, uint32_t width, uint32_t height, GraphicsAPI api)
 {
+    if (api == GRAPHICS_API_NONE)
+    {
+        if (!SDL_Init(SDL_INIT_EVENTS))
+        {
+            Log_Error("SDL Headless Init Error: %s\n", SDL_GetError());
+            return NULL;
+        }
+
+
+        Log_Info("SDL Initialized in headless mode (No Video).");
+        return NULL;
+    }
+
+
     if (!SDL_Init(SDL_INIT_VIDEO))
     {
         Log_Error("SDL_Init Error: %s\n", SDL_GetError());
-        return false;
+        return NULL;
     }
 
     Window* win = (Window*)malloc(sizeof(Window));
@@ -306,6 +320,9 @@ void Platform_Shutdown(Window* window)
 // Returns a windows width
 uint32_t GetWindowWidth(Window* window)
 {
+    if (!window)
+        return 0;
+
     return window->width;
 }
 
@@ -316,6 +333,9 @@ uint32_t GetWindowWidth(Window* window)
 // Returns a windows height
 uint32_t GetWindowHeight(Window* window)
 {
+    if (!window)
+        return 0;
+
     return window->height;
 }
 
@@ -326,6 +346,9 @@ uint32_t GetWindowHeight(Window* window)
 // Sets a windows width
 void SetWindowSize(Window* window, uint32_t width, uint32_t height)
 {
+    if (!window)
+        return;
+    
     window->width = width;
     window->height = height;
 }

@@ -66,7 +66,9 @@ find_package(OpenGL REQUIRED)
 file(GLOB_RECURSE ENGINE_SRCS
     "core/*.c" "core/*.cpp"
     "platform/sdl/*.c" "platform/sdl/*.cpp"
+    "render/*.c" "render/*.cpp"
     "render/opengl/*.c" "render/opengl/*.cpp"
+    "render/headless/*.c" "render/headless/*.cpp"
     "scene/*.c" "scene/*.cpp"
     "assets/*.c" "assets/*.cpp"
     "include/glad/*.c"

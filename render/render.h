@@ -17,7 +17,8 @@ typedef enum GraphicsAPI
     GRAPHICS_API_OPENGL,
     GRAPHICS_API_VULKAN,
     GRAPHICS_API_DIRECTX,
-    GRAPHICS_API_NONE     // Could be useful for headless dedicated servers
+    GRAPHICS_API_SOFTWARE,
+    GRAPHICS_API_NONE
 } GraphicsAPI;
 
 
@@ -135,12 +136,12 @@ typedef struct Renderer
 
 
 
-// Function pointer for loading graphics API procedures (Currently only OpenGL
+// Function pointer for loading graphics API procedures (Currently only OpenGL)
 typedef void* (*Render_LoadProcFn)(const char* name);
 
 
 // Initializes a renderer with a specified graphics API
-Renderer* Render_Init(Render_LoadProcFn load_proc);
+Renderer* Render_Init(GraphicsAPI api, Render_LoadProcFn load_proc);
 
 // Shuts down the renderer
 static inline void Render_Shutdown(Renderer* r)

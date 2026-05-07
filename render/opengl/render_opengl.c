@@ -623,7 +623,7 @@ static void OpenGL_EndFrame(Renderer* r)
 
 
 // OpenGL Initialization function
-Renderer* Render_Init(Render_LoadProcFn load_proc)
+Renderer* OpenGL_Init(Render_LoadProcFn load_proc)
 {
     Renderer* r = malloc(sizeof(Renderer));
     if (!r) return NULL;

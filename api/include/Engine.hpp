@@ -16,6 +16,7 @@ namespace Prism
         GRAPHICS_API_OPENGL,
         GRAPHICS_API_VULKAN,
         GRAPHICS_API_DIRECTX,
+        GRAPHICS_API_SOFTWARE,
         GRAPHICS_API_NONE
     };
 

@@ -16,11 +16,12 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
 
     // Platform Init
     engine.window = Platform_Init(window_title, window_width, window_height, api);
-    if (!engine.window)
+    if (!engine.window && api != GRAPHICS_API_NONE)
     {
         Log_Error("Window failed to initialize.\n");
         return false;
     }
+    Log_Info("Window Initialized");
 
     // Get the Procedure address if OpenGL is used
     void* proc_addr;
@@ -30,7 +31,7 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
         proc_addr = NULL;
     
     // Render Init
-    Renderer* renderer = Render_Init(proc_addr);
+    Renderer* renderer = Render_Init(api, proc_addr);
     if (!renderer)
     {
         Platform_Shutdown(engine.window);
@@ -38,6 +39,7 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
         return false;
     }
     engine.renderer = renderer;
+    Log_Info("Renderer Initialized");
 
     // Set renderer clear color to pure white
     Engine_SetClearColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -73,6 +75,8 @@ void Engine_Run(Scene* active_scene)
         Log_Error("Cannot run engine without an active scene");
         return;
     }
+
+    Log_Info("Running Scene");
 
     while (engine.is_running)
     {
