@@ -2,7 +2,8 @@
 
 #include "../core/Log.hpp"
 #include "../core/Math.hpp"
-#include "../AssetManager.hpp"
+// #include "../AssetManager.hpp"
+// #include "../Audio.hpp"
 #include "Entity.hpp"
 
 
@@ -137,6 +138,46 @@ namespace Prism
         void SetSphereRadius(float new_radius);
         void SetMeshScale(const Prism::Vector3& new_scale);
     };
+
+
+
+    // ==========================================
+    // Audio Listener Wrapper
+    // ==========================================
+
+    struct AudioListenerComponent 
+    {
+        bool active = true;
+    };
+
+
+
+    // ==========================================
+    // Audio Source Wrapper
+    // ==========================================
+
+    struct AudioSourceComponent 
+    {
+        Prism::AudioClip clip; // The loaded asset
+        
+        float volume = 1.0f;
+        float pitch = 1.0f;
+        
+        bool loop = false;
+        bool playOnAwake = true;
+        bool isPlaying = false;
+        
+        // 3D Settings
+        bool isSpatial = true;
+        float minDistance = 1.0f;
+        float maxDistance = 50.0f;
+
+        // Helper functions so the user doesn't have to manually toggle booleans
+        void Play() { isPlaying = true; }
+        void Stop() { isPlaying = false; }
+    };
+
+    
 
     // (Include CameraComponent, PointLightComponent, etc., if they need specific methods)
 }

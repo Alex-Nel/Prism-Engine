@@ -43,10 +43,19 @@ void Audio_DestroyClip(AudioClipHandle clip);
 // Plays a sound effect once or in a loop. Returns a unique ID for that playing instance if you need to stop it early.
 void Audio_Play(AudioClipHandle clip, float volume, bool loop);
 
-// Optional: 3D Spatial Audio (Handled by Miniaudio)
+
+// Listener
 
 void Audio_SetListenerPosition(Vector3 position, Vector3 forward, Vector3 up);
-void Audio_PlaySpatial(AudioClipHandle clip, Vector3 position, float volume);
+
+
+// Source
+
+void Audio_SetSourcePosition(AudioClipHandle clip, Vector3 position);
+void Audio_SetSourceDistances(AudioClipHandle clip, float min_dist, float max_dist);
+void Audio_SetSpatial(AudioClipHandle clip, bool is_spatial);
+
+
 
 
 

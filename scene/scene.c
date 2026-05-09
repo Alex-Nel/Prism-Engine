@@ -330,6 +330,64 @@ void Scene_Update(Scene* scene)
 
     // Update all transforms in the scene
     Scene_UpdateTransforms(scene);
+
+
+
+    // Update the main audio listener
+    uint32_t listener_mask = COMPONENT_TRANSFORM | COMPONENT_AUDIO_LISTENER;
+
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i]) continue;
+
+        if ((scene->component_masks[i] & listener_mask) == listener_mask)
+        {
+            Transform* t = &scene->transforms[i];
+            
+            // Sync the listener to this entity's transform
+            Vector3 pos = Transform_GetGlobalPosition(t);
+            Vector3 forward = Transform_GetForwardVector(t);
+            Vector3 up = Transform_GetUpVector(t);
+            
+            Audio_SetListenerPosition(pos, forward, up);
+            break; // Only 1 listener per scene, so we break
+        }
+    }
+
+
+    // Update all audio sources
+    uint32_t source_mask = COMPONENT_TRANSFORM | COMPONENT_AUDIO_SOURCE;
+    
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i]) continue;
+
+        if ((scene->component_masks[i] & source_mask) == source_mask)
+        {
+            Transform* t = &scene->transforms[i];
+            AudioSourceComponent* src = &scene->audio_sources[i];
+
+            // Setup spatial parameters
+            Audio_SetSpatial(src->clip, src->is_spatial);
+            if (src->is_spatial)
+            {
+                Vector3 pos = Transform_GetGlobalPosition(t);
+                Audio_SetSourcePosition(src->clip, pos);
+                Audio_SetSourceDistances(src->clip, src->min_distance, src->max_distance);
+            }
+
+            if (src->is_playing)
+            {
+                if (!Audio_IsPlaying(src->clip))
+                    Audio_Play(src->clip, src->volume, src->loop);
+            }
+            else
+            {
+                if (Audio_IsPlaying(src->clip))
+                    Audio_Stop(src->clip);
+            }
+        }
+    }
 }
 
 

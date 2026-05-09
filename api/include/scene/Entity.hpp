@@ -4,6 +4,7 @@
 #include <cstdint>
 #include "../core/Math.hpp"
 #include "../AssetManager.hpp"
+#include "../Audio.hpp"
 
 
 namespace Prism
@@ -14,6 +15,8 @@ namespace Prism
     struct RigidbodyComponent;
     struct ColliderComponent;
     struct CameraComponent;
+    struct AudioListenerComponent;
+    struct AudioSourceComponent;
 
 
 
@@ -56,6 +59,8 @@ namespace Prism
         void AddColliderBoxAuto(bool is_trigger = false);
         void AddColliderSphere(float radius, bool is_trigger = false);
         void AddColliderMesh(MeshHandle mesh, bool is_trigger = false);
+        void AddAudioListener();
+        void AddAudioSource();
 
 
 
@@ -65,6 +70,8 @@ namespace Prism
         Prism::RigidbodyComponent* GetRigidbody();
         Prism::ColliderComponent* GetCollider();
         Prism::CameraComponent* GetCamera();
+        Prism::AudioListenerComponent* GetAudioListener();
+        Prism::AudioSourceComponent* GetAudioSource();
 
 
 

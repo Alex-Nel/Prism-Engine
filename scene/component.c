@@ -293,6 +293,44 @@ void Entity_AddRigidbody(Entity entity, float mass)
 
 
 
+// Adds an audio listener to an entity
+void Entity_AddAudioListener(Entity entity)
+{
+    if (!Entity_IsValid(entity)) return;
+    
+    AudioListenerComponent* listener = &entity.scene->audio_listeners[entity.id];
+    listener->active = true;
+
+    entity.scene->component_masks[entity.id] |= COMPONENT_AUDIO_LISTENER;
+}
+
+
+
+
+
+// Adds an audio source to an entity
+void Entity_AddAudioSource(Entity entity)
+{
+    if (!Entity_IsValid(entity)) return;
+    
+    AudioSourceComponent* src = &entity.scene->audio_sources[entity.id];
+    src->clip = (AudioClipHandle){0};
+    src->volume = 1.0f;
+    src->pitch = 1.0f;
+    src->loop = false;
+    src->play_on_awake = false;
+    src->is_playing = false;
+    src->is_spatial = true;
+    src->min_distance = 1.0f;
+    src->max_distance = 50.0f;
+
+    entity.scene->component_masks[entity.id] |= COMPONENT_AUDIO_SOURCE;
+}
+
+
+
+
+
 // Adds a custom script to an entity
 void Entity_BindScript(Entity entity, ScriptInstance new_script)
 {
@@ -436,6 +474,40 @@ RigidbodyComponent* Entity_GetRigidbody(Entity entity)
     if (!(entity.scene->component_masks[entity.id] & COMPONENT_RIGIDBODY)) return NULL;
     
     return &entity.scene->rigidbodies[entity.id];
+}
+
+
+
+
+
+// Returns an entities audio listener
+AudioListenerComponent* Entity_GetAudioListener(Entity entity)
+{
+    if (!entity.scene) return NULL;
+
+    if ((entity.scene->component_masks[entity.id] & COMPONENT_AUDIO_LISTENER) == COMPONENT_AUDIO_LISTENER)
+    {
+        return &entity.scene->audio_listeners[entity.id];
+    }
+
+    return NULL;
+}
+
+
+
+
+
+// Returns an entities audio source
+AudioSourceComponent* Entity_GetAudioSource(Entity entity)
+{
+    if (!entity.scene) return NULL;
+
+    if ((entity.scene->component_masks[entity.id] & COMPONENT_AUDIO_SOURCE) == COMPONENT_AUDIO_SOURCE)
+    {
+        return &entity.scene->audio_sources[entity.id];
+    }
+
+    return NULL;
 }
 
 

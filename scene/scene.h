@@ -9,6 +9,7 @@
 #include "../core/timeCore.h"
 #include "../core/log.h"
 #include "../assets/asset_manager.h"
+#include "../audio/audio.h"
 #include "physicsBridge.h"
 
 #define MAX_ENTITIES 4096
@@ -67,15 +68,17 @@ typedef enum CollisionLayer
 // Enum for all Component Masks
 typedef enum
 {
-    COMPONENT_NONE        = 0,
-    COMPONENT_NAME        = 1 << 0,
-    COMPONENT_TRANSFORM   = 1 << 1,
-    COMPONENT_RENDER      = 1 << 2,
-    COMPONENT_CAMERA      = 1 << 3,
-    COMPONENT_POINT_LIGHT = 1 << 4,
-    COMPONENT_COLLIDER    = 1 << 5,
-    COMPONENT_RIGIDBODY   = 1 << 6,
-    COMPONENT_SCRIPT      = 1 << 7
+    COMPONENT_NONE            = 0,
+    COMPONENT_NAME            = 1 << 0,
+    COMPONENT_TRANSFORM       = 1 << 1,
+    COMPONENT_RENDER          = 1 << 2,
+    COMPONENT_CAMERA          = 1 << 3,
+    COMPONENT_POINT_LIGHT     = 1 << 4,
+    COMPONENT_COLLIDER        = 1 << 5,
+    COMPONENT_RIGIDBODY       = 1 << 6,
+    COMPONENT_AUDIO_LISTENER  = 1 << 7,
+    COMPONENT_AUDIO_SOURCE    = 1 << 8,
+    COMPONENT_SCRIPT          = 1 << 9
 } ComponentMask;
 
 
@@ -213,6 +216,32 @@ typedef struct RigidbodyComponent
 } RigidbodyComponent;
 
 
+// An audio listener component (plays audio)
+typedef struct AudioListenerComponent
+{
+    bool active;
+} AudioListenerComponent;
+
+
+// The speaker component
+typedef struct AudioSourceComponent
+{
+    AudioClipHandle clip;
+    float volume;
+    float pitch;
+    
+    bool loop;
+    bool play_on_awake;
+    bool is_playing;
+    
+    bool is_spatial; // True = 3D audio, False = 2D background music
+    
+    // 3D settings
+    float min_distance; // Distance where volume starts dropping
+    float max_distance; // Distance where volume becomes silent
+} AudioSourceComponent;
+
+
 
 // Forward decleration of cJSON struct
 struct cJSON;
@@ -267,6 +296,8 @@ typedef struct Scene
     PointLightComponent point_lights[MAX_ENTITIES];
     ColliderComponent colliders[MAX_ENTITIES];
     RigidbodyComponent rigidbodies[MAX_ENTITIES];
+    AudioListenerComponent audio_listeners[MAX_ENTITIES];
+    AudioSourceComponent audio_sources[MAX_ENTITIES];
     ScriptComponent scripts[MAX_ENTITIES];
 
     uint32_t main_camera_id;
@@ -326,6 +357,8 @@ void Entity_AddColliderBoxAuto(Entity entity, bool is_trigger);
 void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger);
 void Entity_AddColliderMesh(Entity entity, MeshHandle mesh, bool is_trigger);
 void Entity_AddRigidbody(Entity entity, float mass);
+void Entity_AddAudioListener(Entity entity);
+void Entity_AddAudioSource(Entity entity);
 void Entity_BindScript(Entity entity, ScriptInstance new_script);
 void Bridge_SpawnScript(Entity raw_e, const char* class_name, struct cJSON* json_data);
 
@@ -339,6 +372,8 @@ CameraComponent* Entity_GetCamera(Entity entity);
 PointLightComponent* Entity_GetPointLight(Entity entity);
 ColliderComponent* Entity_GetCollider(Entity entity);
 RigidbodyComponent* Entity_GetRigidbody(Entity entity);
+AudioListenerComponent* Entity_GetAudioListener(Entity entity);
+AudioSourceComponent* Entity_GetAudioSource(Entity entity);
 ScriptComponent* Entity_GetScripts(Entity entity);
 
 

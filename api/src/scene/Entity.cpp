@@ -82,6 +82,12 @@ namespace Prism
         ::MeshHandle handle = { mesh.id };
         ::Entity_AddColliderMesh(ToCore(*this), handle, is_trigger);
     }
+    void Entity::AddAudioListener() {
+        ::Entity_AddAudioListener(ToCore(*this));
+    }
+    void Entity::AddAudioSource() {
+        ::Entity_AddAudioSource(ToCore(*this));
+    }
 
 
 
@@ -100,6 +106,12 @@ namespace Prism
     }
     Prism::CameraComponent* Entity::GetCamera() {
         return reinterpret_cast<Prism::CameraComponent*>(::Entity_GetCamera(ToCore(*this)));
+    }
+    Prism::AudioListenerComponent* Entity::GetAudioListener() {
+        return reinterpret_cast<Prism::AudioListenerComponent*>(::Entity_GetAudioListener(ToCore(*this)));
+    }
+    Prism::AudioSourceComponent* Entity::GetAudioSource() {
+        return reinterpret_cast<Prism::AudioSourceComponent*>(::Entity_GetAudioSource(ToCore(*this)));
     }
 
 

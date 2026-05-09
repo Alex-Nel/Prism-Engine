@@ -234,3 +234,63 @@ void Audio_Play(AudioClipHandle clip, float volume, bool loop)
         ma_sound_start(&audio->sound);
     }
 }
+
+
+
+
+
+// Sets the listener to a specific position and direction
+void Audio_SetListenerPosition(Vector3 position, Vector3 forward, Vector3 up)
+{
+    if (!backend) return;
+    
+    // Miniaudio supports multiple listeners, however index 0 is the main one
+    ma_engine_listener_set_position(&backend->engine, 0, position.x, position.y, position.z);
+    ma_engine_listener_set_direction(&backend->engine, 0, forward.x, forward.y, forward.z);
+    ma_engine_listener_set_world_up(&backend->engine, 0, up.x, up.y, up.z);
+}
+
+
+
+
+
+// Sets the position of an audio source
+void Audio_SetSourcePosition(AudioClipHandle clip, Vector3 position)
+{
+    if (!backend || clip.id == 0) return;
+
+    AudioClip* audio = &backend->clip_pool[clip.id];
+    if (audio->active)
+        ma_sound_set_position(&audio->sound, position.x, position.y, position.z);
+}
+
+
+
+
+
+// Sets the min and max distance for audio sources
+void Audio_SetSourceDistances(AudioClipHandle clip, float min_dist, float max_dist)
+{
+    if (!backend || clip.id == 0) return;
+
+    AudioClip* audio = &backend->clip_pool[clip.id];
+    if (audio->active)
+    {
+        ma_sound_set_min_distance(&audio->sound, min_dist);
+        ma_sound_set_max_distance(&audio->sound, max_dist);
+    }
+}
+
+
+
+
+
+// Sets an audio source to be spatial or not
+void Audio_SetSpatial(AudioClipHandle clip, bool is_spatial)
+{
+    if (!backend || clip.id == 0) return;
+    
+    AudioClip* audio = &backend->clip_pool[clip.id];
+    if (audio->active)
+        ma_sound_set_spatialization_enabled(&audio->sound, is_spatial);
+}
