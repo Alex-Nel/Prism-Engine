@@ -48,6 +48,7 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
 
     // Core moduels init
     Input_Init();
+    Audio_Init();
     Asset_Init(renderer);
     Time_Init(engine.target_fps, Platform_GetTime, Platform_Delay);
 
@@ -306,6 +307,7 @@ void Engine_EndFrame()
 // Shuts down the renderer and platform
 void Engine_Shutdown()
 {
+    Audio_Shutdown();
     Render_Shutdown(engine.renderer);
     if (engine.window)
     {

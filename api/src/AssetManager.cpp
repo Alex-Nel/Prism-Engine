@@ -4,6 +4,7 @@
 extern "C"
 {
     #include "../../assets/asset_manager.h"
+    #include "../../audio/audio.h"
 }
 
 
@@ -44,6 +45,13 @@ namespace Prism
     TextureHandle AssetManager::LoadTexture(const std::string& name, const std::string& filepath) {
         ::TextureHandle h = ::Asset_LoadTexture(name.c_str(), filepath.c_str());
         return FromCore(h);
+    }
+
+    AudioClip AssetManager::LoadAudio(const std::string& filepath) {
+        ::AudioClipHandle raw_handle = ::Audio_LoadClip(filepath.c_str());
+        
+        // Return our safe C++ wrapper containing the ID
+        return Prism::AudioClip(raw_handle.id);
     }
 
 

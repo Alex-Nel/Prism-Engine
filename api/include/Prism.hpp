@@ -15,6 +15,7 @@
 
 // Assets & platform
 #include "AssetManager.hpp"
+#include "Audio.hpp"
 #include "Platform.hpp"
 
 // Scene & ECS

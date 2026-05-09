@@ -6,6 +6,7 @@
 
 // Include all modules
 #include "core/core.h"
+#include "audio/audio.h"
 #include "render/render.h"
 #include "scene/scene.h"
 #include "platform/platformCore.h"

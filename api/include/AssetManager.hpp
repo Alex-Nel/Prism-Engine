@@ -2,6 +2,7 @@
 
 #include <string>
 #include <cstdint>
+#include "Audio.hpp"
 #include "core/Mesh.hpp"
 
 
@@ -80,6 +81,7 @@ namespace Prism
         static MeshRef LoadMesh(const std::string& name, const std::string& filepath);
         static ShaderHandle LoadShader(const std::string& name, const std::string& vertPath, const std::string& fragPath);
         static TextureHandle LoadTexture(const std::string& name, const std::string& filepath);
+        static AudioClip LoadAudio(const std::string& filepath);
 
 
         // --- MATERIAL MANAGEMENT ---

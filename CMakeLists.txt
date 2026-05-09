@@ -65,6 +65,7 @@ find_package(OpenGL REQUIRED)
 # 1. Internal systems
 file(GLOB_RECURSE ENGINE_SRCS
     "core/*.c" "core/*.cpp"
+    "audio/*.c" "audio/*.cpp"
     "platform/sdl/*.c" "platform/sdl/*.cpp"
     "render/*.c" "render/*.cpp"
     "render/opengl/*.c" "render/opengl/*.cpp"
