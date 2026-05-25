@@ -1,10 +1,12 @@
 #pragma once
 
 #include <string>
+#include "../PrismAPI.hpp"
+
 
 namespace Prism
 {
-    class IO
+    class PRISM_API IO
     {
     public:
         // Prevent instantiation

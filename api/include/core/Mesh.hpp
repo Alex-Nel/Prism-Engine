@@ -2,6 +2,7 @@
 
 #include "Math.hpp"
 #include <cstdint>
+#include "../PrismAPI.hpp"
 
 
 
@@ -11,7 +12,7 @@ namespace Prism
     // Vertex3D Wrapper
     // ==========================================
 
-    struct Vertex3D
+    struct PRISM_API Vertex3D
     {
         Vector3 position;
         Vector3 normal;
@@ -30,7 +31,7 @@ namespace Prism
     // AABB (BOUNDING BOX) Wrapper
     // ==========================================
     
-    struct AABB
+    struct PRISM_API AABB
     {    
         Vector3 min;
         Vector3 max;
@@ -48,7 +49,7 @@ namespace Prism
     // DIRECTIONAL LIGHT WRAPPER
     // ==========================================
 
-    struct DirectionalLight
+    struct PRISM_API DirectionalLight
     {    
         Vector3 direction;
         Vector3 color;
@@ -66,7 +67,7 @@ namespace Prism
     // MESH DATA WRAPPER
     // ==========================================
 
-    struct MeshData
+    struct PRISM_API MeshData
     {    
         Vertex3D* vertices;
         uint32_t* indices;

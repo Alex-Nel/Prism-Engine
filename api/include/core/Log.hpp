@@ -1,10 +1,11 @@
 #pragma once
+#include "../PrismAPI.hpp"
 
 
 namespace Prism
 {
     // --- Class that contains debug functions ---
-    class Debug
+    class PRISM_API Debug
     {
     public:
         static void Log(const char* file, int line, const char* format, ...);

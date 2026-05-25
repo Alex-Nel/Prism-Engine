@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <string>
 #include <functional>
+#include "../PrismAPI.hpp"
 
 
 // Forward decleration
@@ -15,7 +16,7 @@ namespace Prism
 {
     // --- Class for the script registory ---
 
-    class ScriptRegistry
+    class PRISM_API ScriptRegistry
     {
     public:
         // Returns a Behavior* so it can be deserialized

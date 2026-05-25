@@ -4,6 +4,7 @@
 #include <cstdint>
 #include "scene/Scene.hpp"
 #include "core/Math.hpp"
+#include "PrismAPI.hpp"
 
 
 
@@ -22,7 +23,7 @@ namespace Prism
 
 
 
-    class Engine
+    class PRISM_API Engine
     {
     public:
         // Prevent instantiation

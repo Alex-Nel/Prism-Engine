@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <variant>
 #include <vector>
+#include "../PrismAPI.hpp"
 
 
 // Forward decleration
@@ -15,7 +16,7 @@ struct cJSON;
 namespace Prism
 {
     // --- Base class for all custom behaviors ---
-    class Behavior
+    class PRISM_API Behavior
     {
     private:
         using PropertyPtr = std::variant<int*, float*, bool*, std::string*>;
@@ -85,8 +86,8 @@ namespace Prism
     // Internal Helpers
     // ==========================================
     
-    void BindBehavior_Internal(uint32_t entity_id, void* scene_ptr, Behavior* instance);
-    std::vector<Behavior*> GetAllBehaviors_Internal(uint32_t entity_id, void* scene_ptr);
+    PRISM_API void BindBehavior_Internal(uint32_t entity_id, void* scene_ptr, Behavior* instance);
+    PRISM_API std::vector<Behavior*> GetAllBehaviors_Internal(uint32_t entity_id, void* scene_ptr);
 
 
 

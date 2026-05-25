@@ -1,10 +1,11 @@
 #pragma once
 #include <cstdint>
+#include "../PrismAPI.hpp"
 
 namespace Prism
 {
     // --- Contains time related functions (DeltaTime, TargetFPS)
-    class Time
+    class PRISM_API Time
     {
     public:
         Time() = delete;

@@ -2,6 +2,7 @@
 
 #include "Entity.hpp"
 #include "Components.hpp"
+#include "../PrismAPI.hpp"
 
 namespace Prism
 {
@@ -18,7 +19,7 @@ namespace Prism
 
 
     // --- Class containing all scene related functions ---
-    class Scene
+    class PRISM_API Scene
     {
     private:
         void* m_RawScene;

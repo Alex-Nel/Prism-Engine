@@ -1,4 +1,5 @@
 #pragma once
+#include "../PrismAPI.hpp"
 
 
 
@@ -9,7 +10,7 @@ namespace Prism
     // Vector2 Wrapper
     // ==========================================
 
-    struct Vector2
+    struct PRISM_API Vector2
     {
         float x, y;
 
@@ -45,7 +46,7 @@ namespace Prism
     // Vector3 Wrapper
     // ==========================================
 
-    struct Vector3
+    struct PRISM_API Vector3
     {
         float x, y, z;
 
@@ -82,7 +83,7 @@ namespace Prism
     // Quaternion Wrapper
     // ==========================================
 
-    struct Quaternion
+    struct PRISM_API Quaternion
     {
         float x, y, z, w;
 
@@ -118,7 +119,7 @@ namespace Prism
     // MATRIX 4 WRAPPER
     // ==========================================
 
-    struct Matrix4
+    struct PRISM_API Matrix4
     {
         // Standard column-major 4x4 matrix layout
 

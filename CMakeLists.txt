@@ -5,12 +5,18 @@ project(PrismEngine C CXX)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
 
 # --- USER OPTIONS ---
 option(PRISM_BUILD_TEST "Build the main.c test executable (if it exists)" ON)
-option(BUILD_SHARED_LIBS "Build PrismEngine as a shared library (.dll / .so)" OFF)
+option(PRISM_BUILD_SHARED_LIBS "Build PrismEngine as a shared library (.dll / .so)" ON)
+
+
+# --- DEPENDENCY PACKING ---
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE) # Force all dependencies below to build as STATIC libraries
+
 
 # --- DEPENDENCY FETCHING ---
 include(FetchContent)
@@ -22,6 +28,8 @@ FetchContent_Declare(
     GIT_TAG preview-3.1.6
     GIT_SHALLOW TRUE
 )
+set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+set(SDL_STATIC ON CACHE BOOL "" FORCE)
 set(SDL_TEST OFF CACHE BOOL "" FORCE)
 set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(SDL3)
@@ -59,6 +67,10 @@ FetchContent_MakeAvailable(cJSON)
 find_package(OpenGL REQUIRED)
 
 
+# Restore user choices from before
+set(BUILD_SHARED_LIBS ${PRISM_BUILD_SHARED_LIBS} CACHE BOOL "" FORCE)
+
+
 
 # --- SOURCE FILES ---
 
@@ -82,7 +94,14 @@ file(GLOB_RECURSE API_SRCS "api/src/*.cpp")
 
 
 # --- Target 1: Engine Library ---
-add_library(PrismEngineLib ${ENGINE_SRCS} ${API_SRCS})
+
+# If building a DLL, tell the source code so it can export the symbols
+if(PRISM_BUILD_SHARED_LIBS)
+    add_library(PrismEngineLib SHARED ${ENGINE_SRCS} ${API_SRCS})
+    target_compile_definitions(PrismEngineLib PRIVATE PRISM_BUILD_DLL)
+else()
+    add_library(PrismEngineLib STATIC ${ENGINE_SRCS} ${API_SRCS})
+endif()
 
 # PUBLIC: The user is ONLY allowed to use the C++ headers!
 target_include_directories(PrismEngineLib PUBLIC

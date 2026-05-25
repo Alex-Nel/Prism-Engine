@@ -2,6 +2,7 @@
 
 #include <string>
 #include <cstdint>
+#include "PrismAPI.hpp"
 
 
 
@@ -9,7 +10,7 @@ namespace Prism
 {
     // --- The Object Wrapper ---
 
-    class AudioClip
+    class PRISM_API AudioClip
     {
     private:
         uint32_t m_HandleID; // The backend handle

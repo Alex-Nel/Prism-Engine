@@ -1,12 +1,14 @@
 #pragma once
 
+#include "PrismAPI.hpp"
+
 
 
 namespace Prism
 {
 
     // --- Class for platform functions ---
-    class Platform
+    class PRISM_API Platform
     {
     public:
         // Prevent accidental instantiation

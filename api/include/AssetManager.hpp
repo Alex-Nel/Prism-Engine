@@ -4,6 +4,7 @@
 #include <cstdint>
 #include "Audio.hpp"
 #include "core/Mesh.hpp"
+#include "PrismAPI.hpp"
 
 
 
@@ -11,14 +12,14 @@ namespace Prism
 {
     // --- Replacements for core handles ---
 
-    struct MeshHandle { uint32_t id; };
-    struct TextureHandle { uint32_t id; };
-    struct ShaderHandle { uint32_t id; };
-    struct MaterialHandle { uint32_t id; };
+    struct PRISM_API MeshHandle { uint32_t id; };
+    struct PRISM_API TextureHandle { uint32_t id; };
+    struct PRISM_API ShaderHandle { uint32_t id; };
+    struct PRISM_API MaterialHandle { uint32_t id; };
 
 
     // Structure for material properties
-    struct MaterialProperties
+    struct PRISM_API MaterialProperties
     {
         Prism::Vector3 tint_color;
         float shininess;
@@ -27,7 +28,7 @@ namespace Prism
 
 
     // Structure for material information
-    struct Material
+    struct PRISM_API Material
     {
         uint32_t id;
         bool active;
@@ -45,7 +46,7 @@ namespace Prism
     // ==========================================
 
     // Reference to a specific Mesh
-    struct MeshRef
+    struct PRISM_API MeshRef
     {
         Prism::MeshHandle handle;
         Prism::MeshData* data;
@@ -53,7 +54,7 @@ namespace Prism
 
 
     // Reference to a specific Material
-    struct MaterialRef
+    struct PRISM_API MaterialRef
     {
         Prism::MaterialHandle handle;
         Prism::Material* data;
@@ -70,7 +71,7 @@ namespace Prism
     // Asset Manager Static Class
     // ==========================================
     
-    class AssetManager
+    class PRISM_API AssetManager
     {
     public:
         AssetManager() = delete;

@@ -1,10 +1,11 @@
 #pragma once
 #include <string>
+#include "../PrismAPI.hpp"
 
 namespace Prism
 {
     // --- Image Data Wrapper ---
-    struct ImageData
+    struct PRISM_API ImageData
     {    
         void* pixels;
         int width;

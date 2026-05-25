@@ -2,9 +2,8 @@
 
 #include "../core/Log.hpp"
 #include "../core/Math.hpp"
-// #include "../AssetManager.hpp"
-// #include "../Audio.hpp"
 #include "Entity.hpp"
+#include "../PrismAPI.hpp"
 
 
 
@@ -59,7 +58,7 @@ namespace Prism
     // Transform Wrapper
     // ==========================================
 
-    struct Transform
+    struct PRISM_API Transform
     {
     public:
         Prism::Vector3 local_position;
@@ -100,7 +99,7 @@ namespace Prism
     // Rigidbody Wrapper
     // ==========================================
     
-    struct RigidbodyComponent
+    struct PRISM_API RigidbodyComponent
     {
         Prism::Entity owner;
         float mass;
@@ -120,7 +119,7 @@ namespace Prism
     // Collider Wrapper
     // ==========================================
 
-    struct ColliderComponent
+    struct PRISM_API ColliderComponent
     {
         Prism::Entity owner;
         int type;
@@ -145,7 +144,7 @@ namespace Prism
     // Audio Listener Wrapper
     // ==========================================
 
-    struct AudioListenerComponent 
+    struct PRISM_API AudioListenerComponent 
     {
         bool active = true;
     };
@@ -156,7 +155,7 @@ namespace Prism
     // Audio Source Wrapper
     // ==========================================
 
-    struct AudioSourceComponent 
+    struct PRISM_API AudioSourceComponent 
     {
         Prism::AudioClip clip; // The loaded asset
         

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Math.hpp"
+#include "../PrismAPI.hpp"
 
 
 
@@ -34,7 +35,7 @@ namespace Prism
 
 
     // --- Contains functions that deal with user input ---
-    class Input
+    class PRISM_API Input
     {
     public:
         // Prevent accidental instantiation 

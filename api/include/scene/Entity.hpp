@@ -5,6 +5,7 @@
 #include "../core/Math.hpp"
 #include "../AssetManager.hpp"
 #include "../Audio.hpp"
+#include "../PrismAPI.hpp"
 
 
 namespace Prism
@@ -21,7 +22,7 @@ namespace Prism
 
 
     // --- Base Entity Class ---
-    class Entity
+    class PRISM_API Entity
     {
     public:
         uint32_t id;      // Entities ID in the scene
