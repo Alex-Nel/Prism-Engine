@@ -79,6 +79,7 @@ namespace Prism
 
         // --- LOADING METHODS ---
         
+        static Model LoadModel(const std::string& name, const std::string& filepath);
         static MeshRef LoadMesh(const std::string& name, const std::string& filepath);
         static ShaderHandle LoadShader(const std::string& name, const std::string& vertPath, const std::string& fragPath);
         static TextureHandle LoadTexture(const std::string& name, const std::string& filepath);

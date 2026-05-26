@@ -21,6 +21,33 @@ typedef struct Material
 } Material;
 
 
+
+// A single part of a model
+typedef struct ModelNode
+{
+    MeshHandle mesh;
+    MaterialHandle material;
+} ModelNode;
+
+
+
+// The container for an entire imported 3D file
+typedef struct Model
+{
+    char name[64];
+    
+    ModelNode* nodes;    // Dynamic array of nodes (parts)
+    uint32_t node_count; // How many parts this model has
+} Model;
+
+
+
+// The main loader function
+Model* Asset_LoadModel(const char* name, const char* filepath);
+
+
+
+
 // Initialize the registry arrays
 void Asset_Init(Renderer* r);
 

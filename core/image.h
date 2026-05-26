@@ -17,6 +17,9 @@ typedef struct ImageData
 // Loads an image from disk into CPU RAM
 ImageData Image_Load(const char* filepath);
 
+// Loads an image from a raw memory buffer (for embedded textures)
+ImageData Image_LoadFromMemory(const unsigned char* buffer, int length);
+
 // Frees the CPU RAM
 void Image_Free(ImageData* data);
 

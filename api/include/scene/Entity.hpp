@@ -13,6 +13,7 @@ namespace Prism
     // Forward declerations
 
     struct Transform;
+    struct RenderComponent;
     struct RigidbodyComponent;
     struct ColliderComponent;
     struct CameraComponent;
@@ -53,6 +54,7 @@ namespace Prism
         void SetName(const std::string& name);
         void AddTransform(const Vector3& pos, const Quaternion& rot, const Vector3& scale);
         void AddRenderable(MeshHandle mesh, MaterialHandle material);
+        void AddRenderable(Model model);
         void AddCamera(float fovDegrees);
         void AddPointLight(const Prism::Vector3& color);
         void AddRigidbody(float mass);
@@ -68,6 +70,7 @@ namespace Prism
         // --- Component Getters ---
         
         Prism::Transform* GetTransform();
+        Prism::RenderComponent* GetRenderable();
         Prism::RigidbodyComponent* GetRigidbody();
         Prism::ColliderComponent* GetCollider();
         Prism::CameraComponent* GetCamera();

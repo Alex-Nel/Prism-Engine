@@ -257,25 +257,41 @@ void Engine_RenderScene(Scene* scene)
 
         if ((scene->component_masks[i] & required_mask) == required_mask)
         {
-            // Re-wrap the raw IDs back into handles for the Renderer
-            MeshHandle mesh = { scene->renderables[i].mesh_id };
-            MaterialHandle mat_handle = { scene->renderables[i].material_id };
-            Material* mat = Asset_GetMaterial(mat_handle);
+            Transform* t = &scene->transforms[i];
+            RenderComponent* rc = &scene->renderables[i];
 
-            if (mat != NULL)
+            if (rc->model != NULL)
             {
-                ShaderHandle shader = { mat->shader_id };
-                TextureHandle texture = { mat->diffuse_texture_id };
+                for (uint32_t n = 0; n < rc->model->node_count; n++)
+                {
+                    ModelNode* node = &rc->model->nodes[n];
+                    
+                    MaterialHandle mat_handle = node->material; // Default
 
-                // Submit all information to the renderer
-                Render_Submit(
-                    engine.renderer,
-                    mesh,
-                    shader,
-                    texture,
-                    mat->properties,
-                    scene->transforms[i].world_matrix
-                );
+                    if (n < MAX_MATERIAL_SLOTS && rc->material_overrides[n].id != 0)
+                        mat_handle = rc->material_overrides[n]; // User swapped it material
+
+                    // Unpack the MaterialHandle to get the specific Shader and Texture
+                    Material* mat = Asset_GetMaterial(mat_handle);
+                    if (!mat) continue;
+
+                    ShaderHandle shd = {mat->shader_id};
+                    TextureHandle tex = {mat->diffuse_texture_id};
+
+                    Render_Submit(engine.renderer, node->mesh, shd, tex, mat->properties, t->world_matrix);
+                }
+            }
+            else if (rc->mesh_id != 0)
+            {
+                // Material* mat = Asset_GetMaterial((MaterialHandle)rc->single_material_id);
+                Material* mat = Asset_GetMaterial((MaterialHandle){ .id = rc->material_id });
+                
+                if (mat)
+                {
+                    ShaderHandle shd = {mat->shader_id};
+                    TextureHandle tex = {mat->diffuse_texture_id};
+                    Render_Submit(engine.renderer, (MeshHandle){ .id = rc->mesh_id }, shd, tex, mat->properties, t->world_matrix);
+                }
             }
         }
     }

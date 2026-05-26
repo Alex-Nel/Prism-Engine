@@ -6,6 +6,8 @@
 
 
 
+struct Model;
+
 namespace Prism
 {
     // ==========================================
@@ -85,5 +87,30 @@ namespace Prism
 
         void Free();
         static MeshData Create(const Vertex3D* v, uint32_t v_count, const uint32_t* i, uint32_t i_count);
+    };
+
+
+
+    // ==========================================
+    // MODEL WRAPPER
+    // ==========================================
+
+    class PRISM_API Model 
+    {
+    private:
+        ::Model* m_Handle;
+
+    public:
+        // Default constructor
+        Model() : m_Handle(nullptr) {}
+
+        // Constructor from C handle
+        Model(::Model* raw_model) : m_Handle(raw_model) {}
+
+        // Getter for the backend to use
+        ::Model* GetRawModel() const { return m_Handle; }
+
+        // Check if the model actually loaded
+        bool IsValid() const { return m_Handle != nullptr; }
     };
 }

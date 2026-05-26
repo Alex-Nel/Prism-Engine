@@ -16,6 +16,7 @@
 #define MAX_NAME_LENGTH 64
 #define MAX_SCRIPTS_PER_ENTITY 64
 #define MAX_COLLISION_OVERLAPS 16
+#define MAX_MATERIAL_SLOTS 128
 
 
 typedef struct Scene Scene;
@@ -137,6 +138,10 @@ typedef struct Transform
 // Component that holds rendering information
 typedef struct RenderComponent
 {
+    Model* model; // Set to NULL if drawing a single mesh
+
+    MaterialHandle material_overrides[MAX_MATERIAL_SLOTS];
+
     uint32_t mesh_id;
     uint32_t material_id;
 } RenderComponent;
@@ -349,7 +354,8 @@ void Entity_UnbindScript(Entity entity, void* target_instance_data);
 // Component Setters
 void Entity_SetName(Entity entity, const char* name);
 void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, Vector3 scale);
-void Entity_AddRenderable(Entity entity, uint32_t mesh_id, uint32_t material_id);
+void Entity_AddRenderableMesh(Entity entity, uint32_t mesh_id, uint32_t material_id);
+void Entity_AddRenderableModel(Entity entity, Model* model);
 void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ);
 void Entity_AddPointLight(Entity entity, Vector3 color, float intensity, float constant, float linear, float quadratic);
 void Entity_AddColliderBox(Entity entity, Vector3 extents, bool is_trigger);
@@ -410,6 +416,11 @@ void Collider_SetLayerAndMask(Entity entity, CollisionLayer layer, int mask);
 void Collider_SetBoxExtents(Entity entity, Vector3 new_extents);
 void Collider_SetSphereRadius(Entity entity, float new_radius);
 void Collider_SetMeshScale(Entity entity, Vector3 scale);
+
+
+
+// Renderable setters
+void Renderable_SetMaterial(RenderComponent* r, uint32_t slot_index, MaterialHandle material);
 
 
 

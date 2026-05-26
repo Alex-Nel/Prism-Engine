@@ -32,6 +32,11 @@ namespace Prism
     // LOADING METHODS
     // ==========================================
     
+    Model AssetManager::LoadModel(const std::string& name, const std::string& filepath){
+        ::Model* raw_model = ::Asset_LoadModel(name.c_str(), filepath.c_str());
+        return Prism::Model(raw_model);
+    }
+
     MeshRef AssetManager::LoadMesh(const std::string& name, const std::string& filepath) {
         ::MeshHandle h = ::Asset_LoadMesh(name.c_str(), filepath.c_str());
         return { FromCore(h), GetMeshData(FromCore(h)) };

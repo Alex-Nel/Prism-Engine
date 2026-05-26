@@ -1,8 +1,13 @@
+#include <stdbool.h>
 #include "image.h"
+#include "log.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+
+
+// Loads image from file path
 ImageData Image_Load(const char* filepath)
 {
     ImageData data = {0};
@@ -15,6 +20,27 @@ ImageData Image_Load(const char* filepath)
     data.pixels = stbi_load(filepath, &data.width, &data.height, &data.channels, 0);
 
     return data;
+}
+
+
+
+// Loads image from within memory
+ImageData Image_LoadFromMemory(const unsigned char* buffer, int length)
+{
+    ImageData img = {0};
+    
+    // Keep the image right-side up for OpenGL
+    stbi_set_flip_vertically_on_load(true); 
+    
+    // Read directly from the RAM buffer instead of the hard drive
+    img.pixels = stbi_load_from_memory(buffer, length, &img.width, &img.height, &img.channels, 4);
+    
+    if (img.pixels)
+        img.channels = 4; // Force 4 channels (RGBA)
+    else
+        Log_Error("Failed to load embedded image from memory!");
+    
+    return img;
 }
 
 

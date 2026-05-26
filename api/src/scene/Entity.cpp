@@ -56,7 +56,10 @@ namespace Prism
         ::Entity_AddTransform(ToCore(*this), {pos.x, pos.y, pos.z}, {rot.x, rot.y, rot.z, rot.w}, {scale.x, scale.y, scale.z});
     }
     void Entity::AddRenderable(MeshHandle mesh, MaterialHandle material) {
-        ::Entity_AddRenderable(ToCore(*this), mesh.id, material.id);
+        ::Entity_AddRenderableMesh(ToCore(*this), mesh.id, material.id);
+    }
+    void Entity::AddRenderable(Model model) {
+        ::Entity_AddRenderableModel(ToCore(*this), model.GetRawModel());
     }
     void Entity::AddCamera(float fovDegrees) {
         float fov_radians = fovDegrees * (3.14159265f / 180.0f);
@@ -97,6 +100,9 @@ namespace Prism
 
     Prism::Transform* Entity::GetTransform() {
         return reinterpret_cast<Prism::Transform*>(::Entity_GetTransform(ToCore(*this)));
+    }
+    Prism::RenderComponent* Entity::GetRenderable() {
+        return reinterpret_cast<Prism::RenderComponent*>(::Entity_GetRenderable(ToCore(*this)));
     }
     Prism::RigidbodyComponent* Entity::GetRigidbody() {
         return reinterpret_cast<Prism::RigidbodyComponent*>(::Entity_GetRigidbody(ToCore(*this)));

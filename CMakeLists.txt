@@ -8,6 +8,14 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
+add_compile_options(-Wno-unknown-pragmas)
+add_compile_options(-Wno-error=array-bounds)
+
+# Default to Release mode if the user didn't specify.
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type" FORCE)
+endif()
+
 
 # --- USER OPTIONS ---
 option(PRISM_BUILD_TEST "Build the main.c test executable (if it exists)" ON)
@@ -67,6 +75,22 @@ FetchContent_MakeAvailable(cJSON)
 find_package(OpenGL REQUIRED)
 
 
+
+message(STATUS "Fetching Assimp from GitHub...")
+FetchContent_Declare(
+    assimp
+    GIT_REPOSITORY https://github.com/assimp/assimp.git
+    GIT_TAG master
+    GIT_SHALLOW TRUE
+)
+set(ASSIMP_BUILD_WERROR OFF CACHE BOOL "Build with Werror" FORCE)
+set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ZLIB ON CACHE BOOL "" FORCE) # Required for FBX/GLTF
+set(INJECT_DEBUG_POSTFIX OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(assimp)
+
+
 # Restore user choices from before
 set(BUILD_SHARED_LIBS ${PRISM_BUILD_SHARED_LIBS} CACHE BOOL "" FORCE)
 
@@ -124,6 +148,7 @@ target_link_libraries(PrismEngineLib PRIVATE
     LinearMath
     OpenGL::GL
     cjson
+    assimp
 )
 
 # --- Target 2: Test Executable ---

@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <math.h>
 #include <float.h>
+#include <assimp/cimport.h>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
 
 #define FAST_OBJ_IMPLEMENTATION
 #include "fast_obj.h"
@@ -96,6 +99,255 @@ void Asset_Init(Renderer* r)
     texture_count = 0;
     mesh_count = 0;
     material_count = 0;
+}
+
+
+
+
+
+// Creates a texture from memory
+static TextureHandle Asset_CreateTextureFromMemory(const char* name, const unsigned char* buffer, int length)
+{
+    ImageData img = Image_LoadFromMemory(buffer, length);
+    if (!img.pixels) return Asset_GetDefaultTexture();
+
+    TextureHandle handle = Render_CreateTexture(renderer, img.pixels, img.width, img.height, img.channels);
+    Image_Free(&img);
+
+    // Cache it to not load the same texture twice
+    if (texture_count < MAX_CACHED_TEXTURES)
+    {
+        strcpy(texture_cache[texture_count].name, name);
+        texture_cache[texture_count].handle = handle;
+        texture_count++;
+    }
+
+    return handle;
+}
+
+
+
+
+
+// Helper to extract just the filename from a full path
+static const char* GetBaseFilename(const char* path)
+{
+    const char* last_slash = strrchr(path, '/');
+    const char* last_backslash = strrchr(path, '\\');
+    const char* split = (last_slash > last_backslash) ? last_slash : last_backslash;
+    return split ? split + 1 : path;
+}
+
+
+
+
+
+// Main model loader function
+Model* Asset_LoadModel(const char* name, const char* filepath)
+{
+    Log_Info("Loading Model");
+    // aiProcess_PreTransformVertices bakes all internal 3D offsets directly into the vertex data
+    const struct aiScene* scene = aiImportFile(filepath, 
+        aiProcess_Triangulate | 
+        aiProcess_GenSmoothNormals | 
+        aiProcess_FlipUVs |
+        aiProcess_PreTransformVertices);
+
+    if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
+    {
+        Log_Error("ASSIMP ERROR: %s\n", aiGetErrorString());
+        return NULL;
+    }
+
+    // Allocate the Model memory
+    Model* new_model = malloc(sizeof(Model));
+    strcpy(new_model->name, name);
+    new_model->node_count = scene->mNumMeshes;
+    new_model->nodes = malloc(sizeof(ModelNode) * new_model->node_count);
+
+    // Create a temporary array to map Assimp material indices to Prism MaterialHandles
+    MaterialHandle* material_map = malloc(sizeof(MaterialHandle) * scene->mNumMaterials);
+
+    Log_Info("ASSIMP: Scene has %d embedded textures.", scene->mNumTextures);
+    for (uint32_t i = 0; i < scene->mNumMaterials; i++)
+    {
+        struct aiMaterial* ai_mat = scene->mMaterials[i];
+        TextureHandle tex_handle = Asset_GetDefaultTexture(); // Fallback
+
+        // Ask Assimp if this material has a Diffuse Texture
+        struct aiString tex_path;
+        if (aiGetMaterialTexture(ai_mat, aiTextureType_DIFFUSE, 0, &tex_path, NULL, NULL, NULL, NULL, NULL, NULL) == aiReturn_SUCCESS)
+        {
+            const struct aiTexture* embedded_tex = NULL;
+
+            // glTF Style case (starts with '*')
+            if (tex_path.data[0] == '*')
+            {
+                int texture_index = atoi(&tex_path.data[1]);
+                if (texture_index >= 0 && texture_index < scene->mNumTextures)
+                {
+                    embedded_tex = scene->mTextures[texture_index];
+                }
+            }
+            // FBX Style (Match by Filename)
+            else
+            {
+                const char* target_filename = GetBaseFilename(tex_path.data);
+                
+                for (uint32_t t = 0; t < scene->mNumTextures; t++)
+                {
+                    const char* embedded_filename = GetBaseFilename(scene->mTextures[t]->mFilename.data);
+                    
+                    if (strcmp(embedded_filename, target_filename) == 0)
+                    {
+                        embedded_tex = scene->mTextures[t];
+                        break;
+                    }
+                }
+            }
+
+            // --- Load the Texture ---
+            // If we found embedded data (either from glTF or FBX)
+            if (embedded_tex != NULL)
+            {
+                Log_Info("ASSIMP: Found embedded texture. Width/Size: %d\n", embedded_tex->mWidth);
+                if (embedded_tex->mHeight == 0) 
+                {
+                    char tex_name[256];
+                    snprintf(tex_name, sizeof(tex_name), "%s_embedded_%s", name, tex_path.data);
+                    tex_handle = Asset_CreateTextureFromMemory(tex_name, (const unsigned char*)embedded_tex->pcData, embedded_tex->mWidth);
+                }
+                else 
+                {
+                    Log_Warning("Uncompressed embedded textures are not supported!");
+                }
+            }
+            // If we didn't find embedded data, it must be an external file
+            else
+            {
+                // External File Fallback
+                char model_dir[512] = {0};
+                strcpy(model_dir, filepath);
+                
+                char* last_slash = strrchr(model_dir, '/');
+                char* last_backslash = strrchr(model_dir, '\\');
+                char* split = (last_slash > last_backslash) ? last_slash : last_backslash;
+
+                if (split)
+                    *(split + 1) = '\0'; // Keep the trailing slash
+                else
+                    model_dir[0] = '\0'; // No directory found
+
+                const char* clean_filename = GetBaseFilename(tex_path.data);
+
+                // PATH STRATEGY 1: Preserve Relative Subdirectories (For glTF)
+                // e.g., "assets/SampleObjects/" + "Textures/Adam_Head_a.jpg"
+                char try_path_1[1024];
+                snprintf(try_path_1, sizeof(try_path_1), "%s%s", model_dir, tex_path.data);
+
+                // PATH STRATEGY 2: Flattened Filename (For FBX)
+                // e.g., "assets/SampleObjects/" + "Adam_Head_a.jpg"
+                char try_path_2[1024];
+                snprintf(try_path_2, sizeof(try_path_2), "%s%s", model_dir, clean_filename);
+
+                // Check which path actually exists on the hard drive
+                FILE* f1 = fopen(try_path_1, "rb");
+                if (f1) 
+                {
+                    fclose(f1);
+                    Log_Info("ASSIMP: Loading relative texture: %s", try_path_1);
+                    tex_handle = Asset_LoadTexture(clean_filename, try_path_1);
+                }
+                else 
+                {
+                    FILE* f2 = fopen(try_path_2, "rb");
+                    if (f2) 
+                    {
+                        fclose(f2);
+                        Log_Info("ASSIMP: Loading flattened texture: %s", try_path_2);
+                        tex_handle = Asset_LoadTexture(clean_filename, try_path_2);
+                    }
+                    else 
+                    {
+                        // Neither path worked. File is missing.
+                        Log_Warning("ASSIMP: Could not find texture %s", clean_filename);
+                    }
+                }
+            }
+        }
+
+        // Extract Material Color
+        struct aiColor4D diffuse_color = {1.0f, 1.0f, 1.0f, 1.0f}; // Default to white
+        aiGetMaterialColor(ai_mat, AI_MATKEY_COLOR_DIFFUSE, &diffuse_color);
+
+        // Create the material
+        MaterialHandle mat_handle = Asset_CreateMaterial(Asset_GetDefaultShader(), tex_handle);
+        
+        // Update the tint color to match the 3D file
+        Material* mat_ptr = Asset_GetMaterial(mat_handle);
+        if (mat_ptr)
+            mat_ptr->properties.tint_color = (Vector3){ diffuse_color.r, diffuse_color.g, diffuse_color.b };
+
+        material_map[i] = mat_handle;
+    }
+
+    // Loop through every piece of the 3D file
+    for (uint32_t m = 0; m < scene->mNumMeshes; m++)
+    {
+        struct aiMesh* ai_mesh = scene->mMeshes[m];
+        
+        uint32_t vertex_count = ai_mesh->mNumVertices;
+        uint32_t index_count = ai_mesh->mNumFaces * 3; 
+
+        Vertex3D* vertices = malloc(sizeof(Vertex3D) * vertex_count);
+        uint32_t* indices = malloc(sizeof(uint32_t) * index_count);
+
+        // Extract Vertices
+        for (uint32_t i = 0; i < vertex_count; i++)
+        {
+            Vertex3D v;
+            v.position = (Vector3){ ai_mesh->mVertices[i].x, ai_mesh->mVertices[i].y, ai_mesh->mVertices[i].z };
+            v.normal = (Vector3){ ai_mesh->mNormals[i].x, ai_mesh->mNormals[i].y, ai_mesh->mNormals[i].z };
+
+            if (ai_mesh->mTextureCoords[0])
+                v.uv = (Vector2){ ai_mesh->mTextureCoords[0][i].x, ai_mesh->mTextureCoords[0][i].y };
+            else
+                v.uv = (Vector2){ 0.0f, 0.0f };
+
+            vertices[i] = v;
+        }
+
+        // Extract Indices
+        uint32_t index_offset = 0;
+        for (uint32_t i = 0; i < ai_mesh->mNumFaces; i++)
+        {
+            struct aiFace face = ai_mesh->mFaces[i];
+            for (uint32_t j = 0; j < face.mNumIndices; j++)
+            {
+                indices[index_offset++] = face.mIndices[j];
+            }
+        }
+
+        // Send this piece of the model to the GPU
+        MeshHandle mesh_handle = Render_CreateMesh(renderer, vertices, vertex_count, indices, index_count);
+        
+        // Save it into the Model Node
+        new_model->nodes[m].mesh = mesh_handle;
+        
+        // Use the correct material
+        uint32_t mat_index = ai_mesh->mMaterialIndex;
+        new_model->nodes[m].material = material_map[mat_index];
+        
+        free(vertices);
+        free(indices);
+    }
+
+    free(material_map);
+
+    // Free Assimp's memory
+    aiReleaseImport(scene);
+
+    return new_model;
 }
 
 
@@ -397,6 +649,7 @@ TextureHandle Asset_LoadTexture(const char* name, const char* filepath)
 
     return handle;
 }
+
 
 
 

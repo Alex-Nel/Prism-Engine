@@ -54,13 +54,33 @@ void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, V
 
 
 // Adds a renderable component to an entity with a specified mesh and material
-void Entity_AddRenderable(Entity entity, uint32_t mesh_id, uint32_t material_id)
+void Entity_AddRenderableMesh(Entity entity, uint32_t mesh_id, uint32_t material_id)
 {
     if (!entity.scene) return;
 
     RenderComponent* r = &entity.scene->renderables[entity.id];
+    r->model = NULL;
     r->mesh_id = mesh_id;
     r->material_id = material_id;
+
+    entity.scene->component_masks[entity.id] |= COMPONENT_RENDER;
+}
+
+
+
+
+
+// Adds a renderable component to an entity with a specified mesh and material
+void Entity_AddRenderableModel(Entity entity, Model* model)
+{
+    if (!entity.scene) return;
+
+    RenderComponent* r = &entity.scene->renderables[entity.id];
+    r->model = model;
+    r->mesh_id = 0;
+
+    for (int i = 0; i < MAX_MATERIAL_SLOTS; i++)
+        r->material_overrides[i] = (MaterialHandle){0};
 
     entity.scene->component_masks[entity.id] |= COMPONENT_RENDER;
 }
@@ -358,6 +378,11 @@ void Entity_BindScript(Entity entity, ScriptInstance new_script)
     // Tell the ECS this entity has at least one script
     entity.scene->component_masks[entity.id] |= COMPONENT_SCRIPT;
 }
+
+
+
+
+
 
 
 
@@ -672,4 +697,36 @@ void Collider_SetMeshScale(Entity entity, Vector3 new_scale)
     {
         Physics_RecalculateMass(c->physics_handle, rb->mass);
     }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Sets the specific material slot with a chosen material
+void Renderable_SetMaterial(RenderComponent* r, uint32_t slot_index, MaterialHandle material)
+{
+    // if (!entity.scene) return;
+
+    // RenderComponent* r = &entity.scene->renderables[entity.id];
+    if (!r)
+    {
+        Log_Error("Renderable does not exist");
+        return;
+    }
+
+    if (slot_index >= MAX_MATERIAL_SLOTS)
+        return;
+
+    r->material_overrides[slot_index] = material;
 }

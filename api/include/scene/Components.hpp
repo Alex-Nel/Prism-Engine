@@ -6,6 +6,8 @@
 #include "../PrismAPI.hpp"
 
 
+#define MAX_MATERIAL_SLOTS 128
+
 
 namespace Prism
 {
@@ -91,6 +93,24 @@ namespace Prism
         Prism::Vector3 GetForwardVector();
         Prism::Vector3 GetRightVector();
         Prism::Vector3 GetUpVector();
+    };
+
+
+
+    // ==========================================
+    // Render Component Wrapper
+    // ==========================================
+
+    struct PRISM_API RenderComponent
+    {
+        void* raw_model_ptr; // Set to NULL if drawing a single mesh
+
+        MaterialHandle material_overrides[MAX_MATERIAL_SLOTS];
+
+        uint32_t mesh_id;
+        uint32_t material_id;
+
+        void SetMaterial(uint32_t slot_index, Prism::MaterialHandle material);
     };
 
 
