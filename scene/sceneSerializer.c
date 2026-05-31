@@ -91,13 +91,40 @@ bool Scene_Save(Scene* scene, const char* filepath)
         }
 
 
+        // --- Save Cameras ---
+        if (scene->component_masks[i] & COMPONENT_CAMERA)
+        {
+            CameraComponent* cam = &scene->cameras[i];
+            cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "camera");
+            cJSON_AddNumberToObject(comp_obj, "fov", cam->fov);
+            cJSON_AddNumberToObject(comp_obj, "nearZ", cam->nearZ);
+            cJSON_AddNumberToObject(comp_obj, "farZ", cam->farZ);
+        }
+
+
         // --- Save Renderables ---
         if (scene->component_masks[i] & COMPONENT_RENDER)
         {
             RenderComponent* r = &scene->renderables[i];
             cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "render");
-            cJSON_AddNumberToObject(comp_obj, "mesh_id", r->mesh_id);
-            cJSON_AddNumberToObject(comp_obj, "material_id", r->material_id);
+
+            if (r->model)
+            {
+                cJSON_AddStringToObject(comp_obj, "model_name", r->model->name);
+                // TODO: Update material naming system to serialize material overrides
+            }
+            else if (r->single_mesh)
+            {
+                cJSON_AddStringToObject(comp_obj, "mesh_name", r->single_mesh->name);
+
+                if (r->single_material && r->single_material->diffuse_texture)
+                {
+                    cJSON_AddStringToObject(comp_obj, "texture_name", r->single_material->diffuse_texture->name);
+                    cJSON_AddItemToObject(comp_obj, "tint", SaveVec3(r->single_material->properties.tint_color));
+                    cJSON_AddNumberToObject(comp_obj, "shininess", r->single_material->properties.shininess);
+                    cJSON_AddNumberToObject(comp_obj, "specular_strength", r->single_material->properties.specular_strength);
+                }
+            }
         }
 
 
@@ -129,9 +156,9 @@ bool Scene_Save(Scene* scene, const char* filepath)
                 cJSON_AddItemToObject(comp_obj, "extents", SaveVec3(c->extents)); 
             else if (c->type == COLLIDER_SPHERE)
                 cJSON_AddNumberToObject(comp_obj, "radius", c->radius);
-            else if (c->type == COLLIDER_MESH)
+            else if (c->type == COLLIDER_MESH && c->mesh_ptr)
             {
-                cJSON_AddNumberToObject(comp_obj, "mesh_id", c->mesh_id);
+                cJSON_AddStringToObject(comp_obj, "mesh_name", c->mesh_ptr->name);
                 cJSON_AddItemToObject(comp_obj, "mesh_scale", SaveVec3(c->mesh_scale));
             }
         }
@@ -147,6 +174,35 @@ bool Scene_Save(Scene* scene, const char* filepath)
             cJSON_AddBoolToObject(comp_obj, "use_gravity", rb->use_gravity);
             cJSON_AddNumberToObject(comp_obj, "linear_drag", rb->linear_drag);
             cJSON_AddNumberToObject(comp_obj, "angular_drag", rb->angular_drag);
+
+            cJSON_AddBoolToObject(comp_obj, "freeze_rot_x", rb->freeze_rot_x);
+            cJSON_AddBoolToObject(comp_obj, "freeze_rot_y", rb->freeze_rot_y);
+            cJSON_AddBoolToObject(comp_obj, "freeze_rot_z", rb->freeze_rot_z);
+        }
+
+
+        // --- Save Audio Listener ---
+        if (scene->component_masks[i] & COMPONENT_AUDIO_LISTENER)
+        {
+            AudioListenerComponent* al = &scene->audio_listeners[i];
+            cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "audio_listener");
+            cJSON_AddBoolToObject(comp_obj, "active", al->active);
+        }
+
+
+        // --- Save Audio Source ---
+        if (scene->component_masks[i] & COMPONENT_AUDIO_SOURCE)
+        {
+            AudioSourceComponent* as = &scene->audio_sources[i];
+            cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "audio_source");
+            cJSON_AddNumberToObject(comp_obj, "volume", as->volume);
+            cJSON_AddNumberToObject(comp_obj, "pitch", as->pitch);
+            cJSON_AddBoolToObject(comp_obj, "loop", as->loop);
+            cJSON_AddBoolToObject(comp_obj, "play_on_awake", as->play_on_awake);
+            cJSON_AddBoolToObject(comp_obj, "is_spatial", as->is_spatial);
+            cJSON_AddNumberToObject(comp_obj, "min_distance", as->min_distance);
+            cJSON_AddNumberToObject(comp_obj, "max_distance", as->max_distance);
+            // TODO: Save audio clip name instead of handle
         }
 
 
@@ -251,13 +307,47 @@ bool Scene_Load(Scene* scene, const char* filepath)
             t->is_dirty = true;
         }
 
+
+        // --- Load Cameras ---
+        if (mask & COMPONENT_CAMERA)
+        {
+            cJSON* comp_obj = cJSON_GetObjectItemCaseSensitive(entity_json, "camera");
+            CameraComponent* cam = &scene->cameras[id];
+            cam->fov = (float)cJSON_GetObjectItemCaseSensitive(comp_obj, "fov")->valuedouble;
+            cam->nearZ = (float)cJSON_GetObjectItemCaseSensitive(comp_obj, "nearZ")->valuedouble;
+            cam->farZ = (float)cJSON_GetObjectItemCaseSensitive(comp_obj, "farZ")->valuedouble;
+            cam->is_dirty = true;
+        }
+
+
         // --- Load Renderables ---
         if (mask & COMPONENT_RENDER)
         {
             cJSON* comp_obj = cJSON_GetObjectItemCaseSensitive(entity_json, "render");
-            scene->renderables[id].mesh_id = cJSON_GetObjectItemCaseSensitive(comp_obj, "mesh_id")->valueint;
-            scene->renderables[id].material_id = cJSON_GetObjectItemCaseSensitive(comp_obj, "material_id")->valueint;
+            RenderComponent* r = &scene->renderables[id];
+            
+            cJSON* model_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "model_name");
+            cJSON* mesh_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "mesh_name");
+
+            if (model_name) 
+            {
+                // TODO: Implement Asset_GetModelByName
+                // r->model = Asset_GetModelByName(model_name->valuestring);
+            } 
+            else if (mesh_name) 
+            {
+                r->single_mesh = Asset_GetMeshByName(mesh_name->valuestring);
+                
+                cJSON* tex_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "texture_name");
+                Texture* tex = tex_name ? Asset_GetTextureByName(tex_name->valuestring) : NULL;
+                
+                r->single_material = Asset_CreateMaterial(NULL, tex);
+                
+                cJSON* tint = cJSON_GetObjectItemCaseSensitive(comp_obj, "tint");
+                if (tint) r->single_material->properties.tint_color = LoadVec3(tint);
+            }
         }
+
 
         // --- Load Point Lights ---
         if (mask & COMPONENT_POINT_LIGHT)
@@ -271,6 +361,7 @@ bool Scene_Load(Scene* scene, const char* filepath)
             l->quadratic = cJSON_GetObjectItemCaseSensitive(comp_obj, "quadratic")->valuedouble;
         }
 
+
         // --- Load Colliders ---
         // Call the physics creation functions to rebuild pointers
         if (mask & COMPONENT_COLLIDER)
@@ -279,6 +370,7 @@ bool Scene_Load(Scene* scene, const char* filepath)
             
             int type = cJSON_GetObjectItemCaseSensitive(comp_obj, "type")->valueint;
             bool is_trigger = cJSON_GetObjectItemCaseSensitive(comp_obj, "is_trigger")->valueint;
+            
             int layer = cJSON_GetObjectItemCaseSensitive(comp_obj, "layer")->valueint;
             int col_mask = cJSON_GetObjectItemCaseSensitive(comp_obj, "mask")->valueint;
 
@@ -294,14 +386,18 @@ bool Scene_Load(Scene* scene, const char* filepath)
             }
             else if (type == COLLIDER_MESH)
             {
-                MeshHandle mesh = { (uint32_t)cJSON_GetObjectItemCaseSensitive(comp_obj, "mesh_id")->valueint };
-                Vector3 mesh_scale = LoadVec3(cJSON_GetObjectItemCaseSensitive(comp_obj, "mesh_scale"));
-                Entity_AddColliderMesh(e, mesh, is_trigger);
+                cJSON* mesh_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "mesh_name");
+                if (mesh_name)
+                {
+                    Mesh* mesh_ptr = Asset_GetMeshByName(mesh_name->valuestring);
+                    Entity_AddColliderMesh(e, mesh_ptr, is_trigger);
+                }
             }
             
             // Reapply layers
             Collider_SetLayerAndMask(e, layer, col_mask);
         }
+
 
         // --- Load Rigidboides ---
         // Must be done after loading colliders so it has a shape to attach to
@@ -314,11 +410,69 @@ bool Scene_Load(Scene* scene, const char* filepath)
             
             // Re-apply specific settings
             RigidbodyComponent* rb = Entity_GetRigidbody(e);
+
             rb->is_kinematic = cJSON_GetObjectItemCaseSensitive(comp_obj, "is_kinematic")->valueint;
             Rigidbody_SetKinematic(e, rb->is_kinematic);
-            
+
             rb->use_gravity = cJSON_GetObjectItemCaseSensitive(comp_obj, "use_gravity")->valueint;
             Rigidbody_SetGravity(e, rb->use_gravity);
+
+            rb->linear_drag = cJSON_GetObjectItemCaseSensitive(comp_obj, "linear_drag")->valuedouble;
+            rb->angular_drag = cJSON_GetObjectItemCaseSensitive(comp_obj, "angular_drag")->valuedouble;
+
+            // Load Freeze Variables
+            cJSON* f_x = cJSON_GetObjectItemCaseSensitive(comp_obj, "freeze_rot_x");
+            cJSON* f_y = cJSON_GetObjectItemCaseSensitive(comp_obj, "freeze_rot_y");
+            cJSON* f_z = cJSON_GetObjectItemCaseSensitive(comp_obj, "freeze_rot_z");
+            
+            if (f_x) rb->freeze_rot_x = f_x->valueint;
+            if (f_y) rb->freeze_rot_y = f_y->valueint;
+            if (f_z) rb->freeze_rot_z = f_z->valueint;
+
+            if (mask & COMPONENT_COLLIDER)
+            {
+                ColliderComponent* c = &scene->colliders[id];
+                if (c->physics_handle)
+                    Physics_SetRotationConstraints(c->physics_handle, rb->freeze_rot_x, rb->freeze_rot_y, rb->freeze_rot_z);
+            }
+        }
+
+
+        // --- Load Audio Listener ---
+        if (mask & COMPONENT_AUDIO_LISTENER)
+        {
+            cJSON* comp_obj = cJSON_GetObjectItemCaseSensitive(entity_json, "audio_listener");
+            
+            Entity_AddAudioListener(e); // Initialize standard defaults
+            
+            AudioListenerComponent* al = &scene->audio_listeners[id];
+            al->active = cJSON_GetObjectItemCaseSensitive(comp_obj, "active")->valueint;
+        }
+
+
+        // --- Load Audio Source ---
+        if (mask & COMPONENT_AUDIO_SOURCE)
+        {
+            cJSON* comp_obj = cJSON_GetObjectItemCaseSensitive(entity_json, "audio_source");
+            
+            Entity_AddAudioSource(e); // Initialize standard defaults
+            
+            AudioSourceComponent* as = &scene->audio_sources[id];
+            
+            as->volume = (float)cJSON_GetObjectItemCaseSensitive(comp_obj, "volume")->valuedouble;
+            as->pitch = (float)cJSON_GetObjectItemCaseSensitive(comp_obj, "pitch")->valuedouble;
+            as->loop = cJSON_GetObjectItemCaseSensitive(comp_obj, "loop")->valueint;
+            as->play_on_awake = cJSON_GetObjectItemCaseSensitive(comp_obj, "play_on_awake")->valueint;
+            as->is_spatial = cJSON_GetObjectItemCaseSensitive(comp_obj, "is_spatial")->valueint;
+            as->min_distance = (float)cJSON_GetObjectItemCaseSensitive(comp_obj, "min_distance")->valuedouble;
+            as->max_distance = (float)cJSON_GetObjectItemCaseSensitive(comp_obj, "max_distance")->valuedouble;
+            
+            // TODO:
+            // Re-resolve the Audio Clip via String (assuming it's saved as a string)
+            // cJSON* clip_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "clip_name");
+            // if (clip_name) {
+            //     as->clip = Asset_GetAudioClipByName(clip_name->valuestring);
+            // }
         }
 
 

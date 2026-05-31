@@ -266,31 +266,30 @@ void Engine_RenderScene(Scene* scene)
                 {
                     ModelNode* node = &rc->model->nodes[n];
                     
-                    MaterialHandle mat_handle = node->material; // Default
+                    Material* mat = node->material; // Default
 
-                    if (n < MAX_MATERIAL_SLOTS && rc->material_overrides[n].id != 0)
-                        mat_handle = rc->material_overrides[n]; // User swapped it material
+                    if (n < MAX_MATERIAL_SLOTS && rc->material_overrides[n] != NULL)
+                        mat = rc->material_overrides[n]; // User swapped it material
 
-                    // Unpack the MaterialHandle to get the specific Shader and Texture
-                    Material* mat = Asset_GetMaterial(mat_handle);
                     if (!mat) continue;
 
-                    ShaderHandle shd = {mat->shader_id};
-                    TextureHandle tex = {mat->diffuse_texture_id};
+                    ShaderHandle shd = mat->shader->gpu_handle;
+                    TextureHandle tex = mat->diffuse_texture->gpu_handle;
+                    MeshHandle msh = node->mesh->gpu_handle;
 
-                    Render_Submit(engine.renderer, node->mesh, shd, tex, mat->properties, t->world_matrix);
+                    Render_Submit(engine.renderer, msh, shd, tex, mat->properties, t->world_matrix);
                 }
             }
-            else if (rc->mesh_id != 0)
+            else if (rc->single_mesh != NULL)
             {
-                // Material* mat = Asset_GetMaterial((MaterialHandle)rc->single_material_id);
-                Material* mat = Asset_GetMaterial((MaterialHandle){ .id = rc->material_id });
+                Material* mat = rc->single_material;
                 
                 if (mat)
                 {
-                    ShaderHandle shd = {mat->shader_id};
-                    TextureHandle tex = {mat->diffuse_texture_id};
-                    Render_Submit(engine.renderer, (MeshHandle){ .id = rc->mesh_id }, shd, tex, mat->properties, t->world_matrix);
+                    ShaderHandle shd = mat->shader->gpu_handle;
+                    TextureHandle tex = mat->diffuse_texture->gpu_handle;
+                    MeshHandle msh = rc->single_mesh->gpu_handle;
+                    Render_Submit(engine.renderer, msh, shd, tex, mat->properties, t->world_matrix);
                 }
             }
         }

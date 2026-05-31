@@ -68,10 +68,10 @@ namespace Prism
     // Rigidbody Implementation
     // ==========================================
 
-    void RenderComponent::SetMaterial(uint32_t slot_index, Prism::MaterialHandle material)
+    void RenderComponent::SetMaterial(uint32_t slot_index, Prism::Material material)
     {
         if (slot_index < MAX_MATERIAL_SLOTS)
-            this->material_overrides[slot_index] = material;
+            this->material_overrides[slot_index] = material.GetRaw();
         else
             Debug_Log("Material slot index out of bounds!");
     }

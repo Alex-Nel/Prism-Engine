@@ -12,58 +12,32 @@ namespace Prism
 {
     // --- Replacements for core handles ---
 
-    struct PRISM_API MeshHandle { uint32_t id; };
-    struct PRISM_API TextureHandle { uint32_t id; };
-    struct PRISM_API ShaderHandle { uint32_t id; };
-    struct PRISM_API MaterialHandle { uint32_t id; };
+    // struct PRISM_API MeshHandle { uint32_t id; };
+    // struct PRISM_API TextureHandle { uint32_t id; };
+    // struct PRISM_API ShaderHandle { uint32_t id; };
+    // struct PRISM_API MaterialHandle { uint32_t id; };
 
 
-    // Structure for material properties
-    struct PRISM_API MaterialProperties
-    {
-        Prism::Vector3 tint_color;
-        float shininess;
-        float specular_strength;
-    };
+    // // Structure for material properties
+    // struct PRISM_API MaterialProperties
+    // {
+    //     Prism::Vector3 tint_color;
+    //     float shininess;
+    //     float specular_strength;
+    // };
 
 
-    // Structure for material information
-    struct PRISM_API Material
-    {
-        uint32_t id;
-        bool active;
+    // // Structure for material information
+    // struct PRISM_API Material
+    // {
+    //     uint32_t id;
+    //     bool active;
         
-        uint32_t shader_id;
-        uint32_t diffuse_texture_id;
+    //     uint32_t shader_id;
+    //     uint32_t diffuse_texture_id;
 
-        MaterialProperties properties;
-    };
-
-
-
-    // ==========================================
-    // Asset References
-    // ==========================================
-
-    // Reference to a specific Mesh
-    struct PRISM_API MeshRef
-    {
-        Prism::MeshHandle handle;
-        Prism::MeshData* data;
-    };
-
-
-    // Reference to a specific Material
-    struct PRISM_API MaterialRef
-    {
-        Prism::MaterialHandle handle;
-        Prism::Material* data;
-        
-        // Allows access to material properties directly
-        Prism::Material* operator->() {
-            return data;
-        }
-    };
+    //     MaterialProperties properties;
+    // };
 
 
 
@@ -80,30 +54,24 @@ namespace Prism
         // --- LOADING METHODS ---
         
         static Model LoadModel(const std::string& name, const std::string& filepath);
-        static MeshRef LoadMesh(const std::string& name, const std::string& filepath);
-        static ShaderHandle LoadShader(const std::string& name, const std::string& vertPath, const std::string& fragPath);
-        static TextureHandle LoadTexture(const std::string& name, const std::string& filepath);
+        static Mesh LoadMesh(const std::string& name, const std::string& filepath);
+        static Shader LoadShader(const std::string& name, const std::string& vertPath, const std::string& fragPath);
+        static Texture LoadTexture(const std::string& name, const std::string& filepath);
         static AudioClip LoadAudio(const std::string& filepath);
 
 
         // --- MATERIAL MANAGEMENT ---
         
-        static MaterialRef CreateMaterial(ShaderHandle shader, TextureHandle diffuse);
-        static Material* GetMaterial(MaterialHandle handle);
+        static Material CreateMaterial(Shader shader, Texture diffuse);
 
 
         // --- BUILT-IN ASSETS ---
         
-        static MeshRef GetBuiltinQuad();
-        static MeshRef GetBuiltinCube();
-        static MeshRef GetBuiltinSphere();
+        static Mesh GetBuiltinQuad();
+        static Mesh GetBuiltinCube();
+        static Mesh GetBuiltinSphere();
         
-        static TextureHandle GetDefaultTexture();
-        static ShaderHandle GetDefaultShader();
-
-        
-        // --- UTILITY ---
-        
-        static Prism::MeshData* GetMeshData(MeshHandle handle);
+        static Texture GetDefaultTexture();
+        static Shader GetDefaultShader();
     };
 }

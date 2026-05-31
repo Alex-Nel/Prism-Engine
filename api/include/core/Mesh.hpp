@@ -7,6 +7,11 @@
 
 
 struct Model;
+struct Texture;
+struct Shader;
+struct Material;
+struct Model;
+
 
 namespace Prism
 {
@@ -48,7 +53,7 @@ namespace Prism
 
 
     // ==========================================
-    // DIRECTIONAL LIGHT WRAPPER
+    // Directional Light Wrapper
     // ==========================================
 
     struct PRISM_API DirectionalLight
@@ -65,52 +70,122 @@ namespace Prism
     };
 
 
+
     // ==========================================
-    // MESH DATA WRAPPER
+    // Mesh Wrapper
     // ==========================================
 
-    struct PRISM_API MeshData
+    class PRISM_API Mesh
     {    
-        Vertex3D* vertices;
-        uint32_t* indices;
-        uint32_t vertex_count;
-        uint32_t index_count;
-        AABB local_bounds;
+    private:
+        void* m_Handle;
+        
+    public:
+        Mesh(void* raw_mesh = nullptr) : m_Handle(raw_mesh) {}
 
+        void* GetRaw() const {
+            return m_Handle;
+        }
 
-        // --- Constructors ---  
-
-        MeshData();
-
-
-        // --- Mesh Functions ---
-
-        void Free();
-        static MeshData Create(const Vertex3D* v, uint32_t v_count, const uint32_t* i, uint32_t i_count);
+        bool IsValid() const {
+            return m_Handle != nullptr;
+        }
     };
 
 
 
     // ==========================================
-    // MODEL WRAPPER
+    // Texture Wrapper
+    // ==========================================
+
+    class PRISM_API Texture 
+    {
+    private:
+        void* m_Handle;
+
+    public:
+        Texture(void* raw_tex = nullptr) : m_Handle(raw_tex) {}
+
+        void* GetRaw() const {
+            return m_Handle;
+        }
+
+        bool IsValid() const {
+            return m_Handle != nullptr;
+        }
+    };
+
+
+
+    // ==========================================
+    // Shader Wrapper
+    // ==========================================
+
+    class PRISM_API Shader 
+    {
+    private:
+        void* m_Handle;
+
+    public:
+        Shader(void* raw_shader = nullptr) : m_Handle(raw_shader) {}
+
+        void* GetRaw() const {
+            return m_Handle;
+        }
+
+        bool IsValid() const {
+            return m_Handle != nullptr;
+        }
+    };
+
+
+
+    // ==========================================
+    // Material Wrapper
+    // ==========================================
+
+    class PRISM_API Material 
+    {
+    private:
+        void* m_Handle;
+
+    public:
+        Material(void* raw_mat = nullptr) : m_Handle(raw_mat) {}
+
+        void* GetRaw() const {
+            return m_Handle;
+        }
+
+        bool IsValid() const {
+            return m_Handle != nullptr;
+        }
+
+        // --- Setters for Material Properties ---
+        void SetTintColor(const Prism::Vector3& color);
+        void SetShininess(float shininess);
+        void SetSpecularStrength(float strength);
+    };
+
+
+
+    // ==========================================
+    // Model Wrapper
     // ==========================================
 
     class PRISM_API Model 
     {
     private:
-        ::Model* m_Handle;
+        void* m_Handle;
 
     public:
-        // Default constructor
-        Model() : m_Handle(nullptr) {}
+        Model(void* raw_model = nullptr) : m_Handle(raw_model) {}
 
-        // Constructor from C handle
-        Model(::Model* raw_model) : m_Handle(raw_model) {}
+        void* GetRawModel() const {
+            return m_Handle;
+        }
 
-        // Getter for the backend to use
-        ::Model* GetRawModel() const { return m_Handle; }
-
-        // Check if the model actually loaded
-        bool IsValid() const { return m_Handle != nullptr; }
+        bool IsValid() const {
+            return m_Handle != nullptr;
+        }
     };
 }

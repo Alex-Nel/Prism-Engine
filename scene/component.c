@@ -54,14 +54,17 @@ void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, V
 
 
 // Adds a renderable component to an entity with a specified mesh and material
-void Entity_AddRenderableMesh(Entity entity, uint32_t mesh_id, uint32_t material_id)
+void Entity_AddRenderableMesh(Entity entity, Mesh* mesh, Material* material)
 {
     if (!entity.scene) return;
 
     RenderComponent* r = &entity.scene->renderables[entity.id];
     r->model = NULL;
-    r->mesh_id = mesh_id;
-    r->material_id = material_id;
+    r->single_mesh = mesh;
+    r->single_material = material;
+
+    for (int i = 0; i < MAX_MATERIAL_SLOTS; i++)
+        r->material_overrides[i] = NULL;
 
     entity.scene->component_masks[entity.id] |= COMPONENT_RENDER;
 }
@@ -77,10 +80,11 @@ void Entity_AddRenderableModel(Entity entity, Model* model)
 
     RenderComponent* r = &entity.scene->renderables[entity.id];
     r->model = model;
-    r->mesh_id = 0;
+    r->single_mesh = NULL;
+    r->single_material = NULL;
 
     for (int i = 0; i < MAX_MATERIAL_SLOTS; i++)
-        r->material_overrides[i] = (MaterialHandle){0};
+        r->material_overrides[i] = NULL;
 
     entity.scene->component_masks[entity.id] |= COMPONENT_RENDER;
 }
@@ -135,7 +139,7 @@ void Entity_AddColliderBox(Entity entity, Vector3 extents, bool is_trigger)
     c->owner = entity;
     c->type = COLLIDER_BOX;
     c->is_trigger = is_trigger;
-    c->mesh_id = 0;
+    c->mesh_ptr = NULL;
     c->extents = extents;
     c->radius = 0.0f;
     Transform* t = &entity.scene->transforms[entity.id];
@@ -170,16 +174,28 @@ void Entity_AddColliderBoxAuto(Entity entity, bool is_trigger)
         return;
     }
 
-    // Grab the mesh blueprint from the Asset Manager
-    MeshHandle mesh = { entity.scene->renderables[entity.id].mesh_id };
-    MeshData* data = Asset_GetMeshData(mesh);
+    RenderComponent* r = &entity.scene->renderables[entity.id];
+    AABB bounds = {0};
+    bool has_bounds = false;
 
-    if (data) {
+    if (r->single_mesh)
+    {
+        bounds = r->single_mesh->local_bounds;
+        has_bounds = true;
+    }
+    else if (r->model && r->model->node_count > 0)
+    {
+        bounds = r->model->nodes[0].mesh->local_bounds;
+        has_bounds = true;
+    }
+
+    if (has_bounds)
+    {
         // Calculate the extents (Half-Size) from the local bounds
         Vector3 extents = {
-            (data->local_bounds.max.x - data->local_bounds.min.x),
-            (data->local_bounds.max.y - data->local_bounds.min.y),
-            (data->local_bounds.max.z - data->local_bounds.min.z)
+            (bounds.max.x - bounds.min.x),
+            (bounds.max.y - bounds.min.y),
+            (bounds.max.z - bounds.min.z)
         };
 
         // Pass the extents to tbe manual function!
@@ -200,7 +216,7 @@ void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger)
     c->owner = entity;
     c->type = COLLIDER_SPHERE;
     c->is_trigger = is_trigger;
-    c->mesh_id = 0;
+    c->mesh_ptr = NULL;
     c->extents = (Vector3){0, 0, 0};
     c->radius = radius;
     Transform* t = &entity.scene->transforms[entity.id];
@@ -223,15 +239,15 @@ void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger)
 
 
 
+// TODO: Make colliders follow models too
 // Adds a collider to an entity that matches its mesh
-void Entity_AddColliderMesh(Entity entity, MeshHandle mesh, bool is_trigger)
+void Entity_AddColliderMesh(Entity entity, Mesh* mesh, bool is_trigger)
 {
     if (!Entity_IsValid(entity)) return;
     
-    MeshData* data = Asset_GetMeshData(mesh);
-    if (!data)
+    if (!mesh)
     {
-        Log_Error("CRITICAL: Tried to add Mesh Collider to invalid mesh handle!");
+        Log_Error("CRITICAL: Tried to add Mesh Collider to an invalid mesh.");
         return;
     }
 
@@ -239,7 +255,7 @@ void Entity_AddColliderMesh(Entity entity, MeshHandle mesh, bool is_trigger)
     c->owner = entity;
     c->type = COLLIDER_MESH;
     c->is_trigger = is_trigger;
-    c->mesh_id = mesh.id;
+    c->mesh_ptr = mesh;
     c->extents = (Vector3){0, 0, 0};
     c->radius = 0.0f;
     Transform* t = &entity.scene->transforms[entity.id];
@@ -248,8 +264,8 @@ void Entity_AddColliderMesh(Entity entity, MeshHandle mesh, bool is_trigger)
     // Pass the raw memory pointers to Bullet so it can bake the BVH Tree
     c->physics_handle = Physics_CreateMeshCollider(
         entity.scene->physics_world, entity.id, t->local_position,
-        data->vertices, sizeof(Vertex3D), data->vertex_count,
-        data->indices, data->index_count, is_trigger
+        mesh->vertices, sizeof(Vertex3D), mesh->vertex_count,
+        mesh->indices, mesh->index_count, is_trigger
     );
 
     // Set the physics bodies scale and rotation
@@ -429,16 +445,15 @@ RenderComponent* Entity_GetRenderable(Entity entity)
 
 
 // Returns an entities Mesh Handle
-MeshHandle Entity_GetMesh(Entity entity)
+Mesh* Entity_GetMesh(Entity entity)
 {
-    if (!Entity_IsValid(entity)) return (MeshHandle){0};
+    if (!Entity_IsValid(entity)) return NULL;
     
     // Check if the entity actually has a render component
-    if (entity.scene->component_masks[entity.id] & COMPONENT_RENDER) {
-        return (MeshHandle){ entity.scene->renderables[entity.id].mesh_id };
-    }
+    if (entity.scene->component_masks[entity.id] & COMPONENT_RENDER)
+        return entity.scene->renderables[entity.id].single_mesh;
     
-    return (MeshHandle){0};
+    return NULL;
 }
 
 
@@ -599,6 +614,32 @@ void Rigidbody_SetKinematic(Entity entity, bool is_kinematic)
 
 
 
+// // Applies rotation freezing to the physics backend
+// void Rigidbody_UpdateFreezeRotations(Entity entity)
+// {
+//     if (!Entity_IsValid(entity)) return;
+
+//     // We need both the Rigidbody (for the booleans) and Collider (for the Bullet physics_handle)
+//     RigidbodyComponent* rb = &entity.scene->rigidbodies[entity.id];
+//     ColliderComponent* c = &entity.scene->colliders[entity.id];
+
+//     if (!c->physics_handle) return;
+
+//     // Convert booleans into the math factor Bullet expects (1 = Free, 0 = Frozen)
+//     Vector3 angular_factor = {
+//         rb->freeze_rot_x ? 0.0f : 1.0f,
+//         rb->freeze_rot_y ? 0.0f : 1.0f,
+//         rb->freeze_rot_z ? 0.0f : 1.0f
+//     };
+
+//     // (Ensure you implement this wrapper for btRigidBody::setAngularFactor)
+//     Physics_SetAngularFactor(c->physics_handle, angular_factor); 
+// }
+
+
+
+
+
 // Sets an entities collider with one collision layer and mask (several layers OR'd together)
 void Collider_SetLayerAndMask(Entity entity, CollisionLayer layer, int mask)
 {
@@ -714,11 +755,8 @@ void Collider_SetMeshScale(Entity entity, Vector3 new_scale)
 
 
 // Sets the specific material slot with a chosen material
-void Renderable_SetMaterial(RenderComponent* r, uint32_t slot_index, MaterialHandle material)
+void Renderable_SetMaterial(RenderComponent* r, uint32_t slot_index, Material* material)
 {
-    // if (!entity.scene) return;
-
-    // RenderComponent* r = &entity.scene->renderables[entity.id];
     if (!r)
     {
         Log_Error("Renderable does not exist");

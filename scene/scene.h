@@ -140,10 +140,10 @@ typedef struct RenderComponent
 {
     Model* model; // Set to NULL if drawing a single mesh
 
-    MaterialHandle material_overrides[MAX_MATERIAL_SLOTS];
+    Material* material_overrides[MAX_MATERIAL_SLOTS];
 
-    uint32_t mesh_id;
-    uint32_t material_id;
+    Mesh* single_mesh;
+    Material* single_material;
 } RenderComponent;
 
 
@@ -189,7 +189,7 @@ typedef struct ColliderComponent
     
     void* physics_handle;
 
-    uint32_t mesh_id;
+    Mesh* mesh_ptr;
     Vector3 extents;
     float radius;
     Vector3 mesh_scale;
@@ -354,14 +354,14 @@ void Entity_UnbindScript(Entity entity, void* target_instance_data);
 // Component Setters
 void Entity_SetName(Entity entity, const char* name);
 void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, Vector3 scale);
-void Entity_AddRenderableMesh(Entity entity, uint32_t mesh_id, uint32_t material_id);
+void Entity_AddRenderableMesh(Entity entity, Mesh* mesh, Material* material);
 void Entity_AddRenderableModel(Entity entity, Model* model);
 void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ);
 void Entity_AddPointLight(Entity entity, Vector3 color, float intensity, float constant, float linear, float quadratic);
 void Entity_AddColliderBox(Entity entity, Vector3 extents, bool is_trigger);
 void Entity_AddColliderBoxAuto(Entity entity, bool is_trigger);
 void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger);
-void Entity_AddColliderMesh(Entity entity, MeshHandle mesh, bool is_trigger);
+void Entity_AddColliderMesh(Entity entity, Mesh* mesh, bool is_trigger);
 void Entity_AddRigidbody(Entity entity, float mass);
 void Entity_AddAudioListener(Entity entity);
 void Entity_AddAudioSource(Entity entity);
@@ -373,7 +373,7 @@ void Bridge_SpawnScript(Entity raw_e, const char* class_name, struct cJSON* json
 // Component Getters
 Transform* Entity_GetTransform(Entity entity);
 RenderComponent* Entity_GetRenderable(Entity entity);
-MeshHandle Entity_GetMesh(Entity entity);
+Mesh* Entity_GetMesh(Entity entity);
 CameraComponent* Entity_GetCamera(Entity entity);
 PointLightComponent* Entity_GetPointLight(Entity entity);
 ColliderComponent* Entity_GetCollider(Entity entity);
@@ -412,6 +412,7 @@ Vector3 Transform_GetUpVector(Transform* t);
 // Rigidbody setters
 void Rigidbody_SetGravity(Entity entity, bool use_gravity);
 void Rigidbody_SetKinematic(Entity entity, bool is_kinematic);
+// void Rigidbody_UpdateFreezeRotations(Entity entity);
 void Collider_SetLayerAndMask(Entity entity, CollisionLayer layer, int mask);
 void Collider_SetBoxExtents(Entity entity, Vector3 new_extents);
 void Collider_SetSphereRadius(Entity entity, float new_radius);
@@ -420,7 +421,7 @@ void Collider_SetMeshScale(Entity entity, Vector3 scale);
 
 
 // Renderable setters
-void Renderable_SetMaterial(RenderComponent* r, uint32_t slot_index, MaterialHandle material);
+void Renderable_SetMaterial(RenderComponent* r, uint32_t slot_index, Material* material);
 
 
 

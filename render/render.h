@@ -40,12 +40,12 @@ typedef struct PointLightData
 
 
 // Struct for all meterial properties
-typedef struct MaterialProperties
-{
-    Vector3 tint_color;
-    float shininess;
-    float specular_strength;
-} MaterialProperties;
+// typedef struct MaterialProperties
+// {
+//     Vector3 tint_color;
+//     float shininess;
+//     float specular_strength;
+// } MaterialProperties;
 
 
 
@@ -69,9 +69,9 @@ typedef struct RenderPacket
 // Opaque Handles to meshes, textures, shaders, and materials
 // -----------------------------------------------------------------------------
 
-typedef struct { uint32_t id; } MeshHandle;
-typedef struct { uint32_t id; } TextureHandle;
-typedef struct { uint32_t id; } ShaderHandle;
+// typedef struct { uint32_t id; } MeshHandle;
+// typedef struct { uint32_t id; } TextureHandle;
+// typedef struct { uint32_t id; } ShaderHandle;
 typedef struct { uint32_t id; } MaterialHandle;
 
 // Used for invalid handles

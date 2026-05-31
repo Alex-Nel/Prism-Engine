@@ -55,11 +55,11 @@ namespace Prism
     void Entity::AddTransform(const Vector3& pos, const Quaternion& rot, const Vector3& scale) {
         ::Entity_AddTransform(ToCore(*this), {pos.x, pos.y, pos.z}, {rot.x, rot.y, rot.z, rot.w}, {scale.x, scale.y, scale.z});
     }
-    void Entity::AddRenderable(MeshHandle mesh, MaterialHandle material) {
-        ::Entity_AddRenderableMesh(ToCore(*this), mesh.id, material.id);
+    void Entity::AddRenderable(Prism::Mesh mesh, Prism::Material material) {
+        ::Entity_AddRenderableMesh(ToCore(*this), (::Mesh*)mesh.GetRaw(), (::Material*)material.GetRaw());
     }
     void Entity::AddRenderable(Model model) {
-        ::Entity_AddRenderableModel(ToCore(*this), model.GetRawModel());
+        ::Entity_AddRenderableModel(ToCore(*this), (::Model*)model.GetRawModel());
     }
     void Entity::AddCamera(float fovDegrees) {
         float fov_radians = fovDegrees * (3.14159265f / 180.0f);
@@ -80,10 +80,8 @@ namespace Prism
     void Entity::AddColliderSphere(float radius, bool is_trigger) {
         ::Entity_AddColliderSphere(ToCore(*this), radius, is_trigger);
     }
-    void Entity::AddColliderMesh(MeshHandle mesh, bool is_trigger) {
-        // Need to reconstruct the mesh handle for the C function
-        ::MeshHandle handle = { mesh.id };
-        ::Entity_AddColliderMesh(ToCore(*this), handle, is_trigger);
+    void Entity::AddColliderMesh(Prism::Mesh mesh, bool is_trigger) {
+        ::Entity_AddColliderMesh(ToCore(*this), (::Mesh*)mesh.GetRaw(), is_trigger);
     }
     void Entity::AddAudioListener() {
         ::Entity_AddAudioListener(ToCore(*this));

@@ -98,6 +98,37 @@ namespace Prism
 
 
     // ==========================================
+    // Camera Component Wrapper
+    // ==========================================
+
+    struct PRISM_API CameraComponent
+    {
+        float fov;
+        float nearZ;
+        float farZ;
+        Prism::Matrix4 projection_matrix; 
+        bool is_dirty; 
+    };
+
+
+
+    // ==========================================
+    // Point Light Component Wrapper
+    // ==========================================
+
+    struct PRISM_API PointLightComponent
+    {
+        Prism::Vector3 color;
+        float intensity;
+        
+        float constant;  
+        float linear;    
+        float quadratic; 
+    };
+
+
+
+    // ==========================================
     // Render Component Wrapper
     // ==========================================
 
@@ -105,12 +136,12 @@ namespace Prism
     {
         void* raw_model_ptr; // Set to NULL if drawing a single mesh
 
-        MaterialHandle material_overrides[MAX_MATERIAL_SLOTS];
+        void* material_overrides[MAX_MATERIAL_SLOTS];
 
-        uint32_t mesh_id;
-        uint32_t material_id;
+        void* raw_single_mesh_ptr;
+        void* raw_single_material_ptr;
 
-        void SetMaterial(uint32_t slot_index, Prism::MaterialHandle material);
+        void SetMaterial(uint32_t slot_index, Prism::Material material);
     };
 
 
@@ -123,10 +154,14 @@ namespace Prism
     {
         Prism::Entity owner;
         float mass;
-        bool is_kinematic;
-        bool use_gravity;
         float linear_drag;
         float angular_drag;
+        bool use_gravity;
+        bool is_kinematic;
+
+        bool freeze_rot_x;
+        bool freeze_rot_y;
+        bool freeze_rot_z;
 
 
         void SetGravity(bool use_gravity);
@@ -139,17 +174,27 @@ namespace Prism
     // Collider Wrapper
     // ==========================================
 
+    #define MAX_COLLISION_OVERLAPS 16
+
     struct PRISM_API ColliderComponent
     {
         Prism::Entity owner;
         int type;
         bool is_trigger;
+        void* physics_handle;
+        void* raw_mesh_ptr;
+        Prism::Vector3 extents;
+        float radius;
+        Prism::Vector3 mesh_scale;
+
+        uint32_t touching_entities[MAX_COLLISION_OVERLAPS];
+        uint32_t touching_count;
+
+        uint32_t touching_last_frame[MAX_COLLISION_OVERLAPS];
+        uint32_t touching_last_count;
+
         CollisionLayer collision_layer;
         int collision_mask;
-        Vector3 extents;
-        float radius;
-        uint32_t mesh_id;
-        Vector3 mesh_scale;
 
 
         void SetLayerAndMask(CollisionLayer layer, int mask);
