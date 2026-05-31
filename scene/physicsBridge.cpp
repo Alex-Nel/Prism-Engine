@@ -69,7 +69,8 @@ PhysicsBodyHandle Physics_CreateBoxCollider(PhysicsWorldHandle world, uint32_t e
     btRigidBody* body = new btRigidBody(rbInfo);
 
     // Sets collision flags
-    if (is_trigger) body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
+    if (is_trigger)
+        body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
 
     body->setUserIndex((int)entity_id);
 
@@ -98,7 +99,8 @@ PhysicsBodyHandle Physics_CreateSphereCollider(PhysicsWorldHandle world, uint32_
     btRigidBody* body = new btRigidBody(rbInfo);
 
     // Sets collision flags
-    if (is_trigger) body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
+    if (is_trigger)
+        body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
 
     body->setUserIndex((int)entity_id);
 
@@ -137,13 +139,52 @@ PhysicsBodyHandle Physics_CreateMeshCollider(PhysicsWorldHandle world, uint32_t 
     btRigidBody* body = new btRigidBody(rbInfo);
 
     // Sets collision flags
-    if (is_trigger) body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
+    if (is_trigger)
+        body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
 
     body->setUserIndex((int)entity_id);
 
     dynWorld->addRigidBody(body);
 
     return (PhysicsBodyHandle)body;
+}
+
+
+
+
+
+// Creates a convex hull collider from a mesh in the physics world
+PhysicsBodyHandle Physics_CreateConvexCollider(PhysicsWorldHandle world, uint32_t entity_id, Vector3 position, const void* vertices, int vertex_stride,int vertex_count, bool is_trigger)
+{
+    btDiscreteDynamicsWorld* dynWorld = (btDiscreteDynamicsWorld*)world;
+
+    // Bullet has a built in Convex Hull shape. Pass the vertex array directly.
+    btConvexHullShape* shape = new btConvexHullShape((const btScalar*)vertices, vertex_count, vertex_stride);
+    
+    // Optimize the hull to remove useless internal vertices
+    shape->optimizeConvexHull();
+
+    btTransform transform;
+    transform.setIdentity();
+    transform.setOrigin(btVector3(position.x, position.y, position.z));
+
+    btDefaultMotionState* motionState = new btDefaultMotionState(transform);
+
+    // Convex hulls can have mass (0 mass means it's static)
+    btScalar mass = 0.0f;
+    btVector3 localInertia(0, 0, 0);
+
+    btRigidBody::btRigidBodyConstructionInfo rbInfo(mass, motionState, shape, localInertia);
+    btRigidBody* body = new btRigidBody(rbInfo);
+
+    body->setUserIndex(entity_id);
+
+    if (is_trigger)
+        body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
+
+    dynWorld->addRigidBody(body);
+
+    return body;
 }
 
 

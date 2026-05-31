@@ -77,6 +77,9 @@ Mesh* Asset_GetMeshByName(const char* name);
 Texture* Asset_GetTextureByName(const char* name);
 
 
+// TODO: Make individual meshes of a model become separate entities
+
+
 
 
 #endif

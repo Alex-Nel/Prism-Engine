@@ -43,6 +43,7 @@ void Physics_ShutdownWorld(PhysicsWorldHandle world);
 PhysicsBodyHandle Physics_CreateBoxCollider(PhysicsWorldHandle world, uint32_t entity_id, Vector3 position, Vector3 extents, bool is_trigger);
 PhysicsBodyHandle Physics_CreateSphereCollider(PhysicsWorldHandle world, uint32_t entity_id, Vector3 position, float radius, bool is_trigger);
 PhysicsBodyHandle Physics_CreateMeshCollider(PhysicsWorldHandle world, uint32_t entity_id, Vector3 position, const void* vertices, int vertex_stride, int vertex_count, const uint32_t* indices, int index_count, bool is_trigger);
+PhysicsBodyHandle Physics_CreateConvexCollider(PhysicsWorldHandle world, uint32_t entity_id, Vector3 position, const void* vertices, int vertex_stride,int vertex_count, bool is_trigger);
 void Physics_AddRigidbody(PhysicsWorldHandle world, PhysicsBodyHandle body, float mass);
 
 // Data Retrieval

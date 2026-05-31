@@ -133,4 +133,16 @@ namespace Prism
         ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
         ::Collider_SetMeshScale(raw_e, {new_scale.x, new_scale.y, new_scale.z});
     }
+
+    void ColliderComponent::SetConvex(bool is_convex)
+    {
+        if (type != COLLIDER_MESH)
+        {
+            Debug_Warning("Only mesh colliders can be convex");
+            return;
+        }
+
+        ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
+        ::Collider_SetConvex(raw_e, is_convex);
+    }
 }

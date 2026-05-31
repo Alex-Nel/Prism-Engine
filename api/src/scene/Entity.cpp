@@ -80,8 +80,8 @@ namespace Prism
     void Entity::AddColliderSphere(float radius, bool is_trigger) {
         ::Entity_AddColliderSphere(ToCore(*this), radius, is_trigger);
     }
-    void Entity::AddColliderMesh(Prism::Mesh mesh, bool is_trigger) {
-        ::Entity_AddColliderMesh(ToCore(*this), (::Mesh*)mesh.GetRaw(), is_trigger);
+    void Entity::AddColliderMesh(Prism::Mesh mesh, bool is_trigger, bool is_convex) {
+        ::Entity_AddColliderMesh(ToCore(*this), (::Mesh*)mesh.GetRaw(), is_trigger, is_convex);
     }
     void Entity::AddAudioListener() {
         ::Entity_AddAudioListener(ToCore(*this));

@@ -181,6 +181,7 @@ namespace Prism
         Prism::Entity owner;
         int type;
         bool is_trigger;
+        bool is_convex;
         void* physics_handle;
         void* raw_mesh_ptr;
         Prism::Vector3 extents;
@@ -201,6 +202,7 @@ namespace Prism
         void SetBoxExtents(const Prism::Vector3& new_extents);
         void SetSphereRadius(float new_radius);
         void SetMeshScale(const Prism::Vector3& new_scale);
+        void SetConvex(bool is_convex);
     };
 
 

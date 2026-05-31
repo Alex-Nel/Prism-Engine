@@ -241,7 +241,7 @@ void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger)
 
 // TODO: Make colliders follow models too
 // Adds a collider to an entity that matches its mesh
-void Entity_AddColliderMesh(Entity entity, Mesh* mesh, bool is_trigger)
+void Entity_AddColliderMesh(Entity entity, Mesh* mesh, bool is_trigger, bool is_convex)
 {
     if (!Entity_IsValid(entity)) return;
     
@@ -255,18 +255,29 @@ void Entity_AddColliderMesh(Entity entity, Mesh* mesh, bool is_trigger)
     c->owner = entity;
     c->type = COLLIDER_MESH;
     c->is_trigger = is_trigger;
+    c->is_convex = is_convex;
     c->mesh_ptr = mesh;
     c->extents = (Vector3){0, 0, 0};
     c->radius = 0.0f;
+
     Transform* t = &entity.scene->transforms[entity.id];
     c->mesh_scale = t->local_scale;
 
-    // Pass the raw memory pointers to Bullet so it can bake the BVH Tree
-    c->physics_handle = Physics_CreateMeshCollider(
-        entity.scene->physics_world, entity.id, t->local_position,
-        mesh->vertices, sizeof(Vertex3D), mesh->vertex_count,
-        mesh->indices, mesh->index_count, is_trigger
-    );
+    if (is_convex)
+    {
+        c->physics_handle = Physics_CreateConvexCollider(
+            entity.scene->physics_world, entity.id, t->local_position,
+            mesh->vertices, sizeof(Vertex3D), mesh->vertex_count, is_trigger
+        );
+    }
+    else
+    {
+        c->physics_handle = Physics_CreateMeshCollider(
+            entity.scene->physics_world, entity.id, t->local_position,
+            mesh->vertices, sizeof(Vertex3D), mesh->vertex_count,
+            mesh->indices, mesh->index_count, is_trigger
+        );
+    }
 
     // Set the physics bodies scale and rotation
     Physics_SetBodyScale(c->physics_handle, t->local_scale);
@@ -298,11 +309,10 @@ void Entity_AddRigidbody(Entity entity, float mass)
 
     ColliderComponent* c = &entity.scene->colliders[entity.id];
     
-    // Don't let users make Complex Meshes dynamic
-    // TODO: Add setting to make mesh colliders be convex to allow rigidbodies
-    if (c->type == COLLIDER_MESH)
+    // Don't let users make Complex Meshes (not convex) dynamic
+    if (c->type == COLLIDER_MESH && !c->is_convex)
     {
-        Log_Warning("WARNING: Mesh Colliders cannot be Rigidbodies. Ignoring.\n");
+        Log_Warning("WARNING: Non-convex Mesh Colliders cannot be Rigidbodies. Ignoring.\n");
         return;
     }
 
@@ -415,7 +425,7 @@ const char* Entity_GetName(Entity entity)
 {
     if (!entity.scene)
         return NULL;
-        
+
     return entity.scene->names[entity.id].name;
 }
 
@@ -740,10 +750,10 @@ void Collider_SetMeshScale(Entity entity, Vector3 new_scale)
         return;
     }
 
-    // 1. Update the ECS state
+    // Update the ECS state
     c->mesh_scale = new_scale;
 
-    // 2. Tell Bullet Physics to scale the mesh
+    // Tell Bullet to scale the mesh
     Physics_SetMeshScale(c->physics_handle, new_scale);
 
     // Mesh colliders should usually be static, but update just in case (undefined bahavior)
@@ -751,6 +761,73 @@ void Collider_SetMeshScale(Entity entity, Vector3 new_scale)
     if (rb && !rb->is_kinematic && rb->mass > 0.0f)
     {
         Physics_RecalculateMass(c->physics_handle, rb->mass);
+    }
+}
+
+
+
+
+
+// Safely swaps a mesh collider between Convex and Non-Convex at runtime
+void Collider_SetConvex(Entity entity, bool is_convex)
+{
+    if (!Entity_IsValid(entity)) return;
+
+    ColliderComponent* c = &entity.scene->colliders[entity.id];
+
+    // Safety checks
+    if (c->type != COLLIDER_MESH) return;
+    if (c->is_convex == is_convex) return; // No change needed
+
+    // Destroy the old physics body
+    if (c->physics_handle)
+        Physics_DestroyBody(entity.scene->physics_world, c->physics_handle);
+
+    // Update internal flag
+    c->is_convex = is_convex;
+
+    // Rebuild the physics body using the Asset Manager pointers
+    Transform* t = &entity.scene->transforms[entity.id];
+    
+    if (is_convex)
+    {
+        c->physics_handle = Physics_CreateConvexCollider(
+            entity.scene->physics_world, entity.id, t->local_position,
+            c->mesh_ptr->vertices, sizeof(Vertex3D), c->mesh_ptr->vertex_count, c->is_trigger
+        );
+    }
+    else
+    {
+        c->physics_handle = Physics_CreateMeshCollider(
+            entity.scene->physics_world, entity.id, t->local_position,
+            c->mesh_ptr->vertices, sizeof(Vertex3D), c->mesh_ptr->vertex_count,
+            c->mesh_ptr->indices, c->mesh_ptr->index_count, c->is_trigger
+        );
+    }
+
+    // Restore the base Collider properties
+    Physics_SetBodyScale(c->physics_handle, t->local_scale);
+    Physics_SetBodyRotation(c->physics_handle, t->local_rotation);
+    Physics_SetCollisionFilter(entity.scene->physics_world, c->physics_handle, c->collision_layer, c->collision_mask);
+
+    // Restore the Rigidbody properties (if the entity has one)
+    if (entity.scene->component_masks[entity.id] & COMPONENT_RIGIDBODY)
+    {
+        RigidbodyComponent* rb = &entity.scene->rigidbodies[entity.id];
+        
+        // Non-convex meshes CANNOT have mass.
+        if (!is_convex) 
+        {
+            Log_Warning("WARNING: Swapping to Non-Convex Mesh. Forcing Rigidbody mass to 0 (Static).");
+            rb->mass = 0.0f;
+        }
+
+        // Push all the saved states back into the fresh Bullet object
+        Physics_AddRigidbody(entity.scene->physics_world, c->physics_handle, rb->mass);
+        Physics_SetDamping(c->physics_handle, rb->linear_drag, rb->angular_drag);
+        Physics_SetGravityState(entity.scene->physics_world, c->physics_handle, rb->use_gravity);
+        Physics_SetRotationConstraints(c->physics_handle, rb->freeze_rot_x, rb->freeze_rot_y, rb->freeze_rot_z);
+        Physics_SetKinematicState(c->physics_handle, rb->is_kinematic);
     }
 }
 

@@ -148,6 +148,7 @@ bool Scene_Save(Scene* scene, const char* filepath)
             cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "collider");
             cJSON_AddNumberToObject(comp_obj, "type", c->type);
             cJSON_AddBoolToObject(comp_obj, "is_trigger", c->is_trigger);
+            cJSON_AddBoolToObject(comp_obj, "is_convex", c->is_convex);
             cJSON_AddNumberToObject(comp_obj, "layer", c->collision_layer);
             cJSON_AddNumberToObject(comp_obj, "mask", c->collision_mask);
             
@@ -369,6 +370,7 @@ bool Scene_Load(Scene* scene, const char* filepath)
             
             int type = cJSON_GetObjectItemCaseSensitive(comp_obj, "type")->valueint;
             bool is_trigger = cJSON_GetObjectItemCaseSensitive(comp_obj, "is_trigger")->valueint;
+            bool is_convex = cJSON_GetObjectItemCaseSensitive(comp_obj, "is_convex")->valueint;
             
             int layer = cJSON_GetObjectItemCaseSensitive(comp_obj, "layer")->valueint;
             int col_mask = cJSON_GetObjectItemCaseSensitive(comp_obj, "mask")->valueint;
@@ -389,7 +391,7 @@ bool Scene_Load(Scene* scene, const char* filepath)
                 if (mesh_name)
                 {
                     Mesh* mesh_ptr = Asset_GetMeshByName(mesh_name->valuestring);
-                    Entity_AddColliderMesh(e, mesh_ptr, is_trigger);
+                    Entity_AddColliderMesh(e, mesh_ptr, is_trigger, is_convex);
                 }
             }
             
