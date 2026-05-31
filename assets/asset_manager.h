@@ -65,6 +65,9 @@ Shader* Asset_GetDefaultShader();
 
 
 
+// Generate a texture from a solid color
+Texture* Asset_CreateSolidColorTexture(const char* name, Color color);
+
 // Material creation function
 Material* Asset_CreateMaterial(Shader* shader, Texture* diffuse);
 

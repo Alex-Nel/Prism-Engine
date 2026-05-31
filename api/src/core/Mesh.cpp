@@ -29,21 +29,21 @@ namespace Prism
     // --- DirectionalLight ---
     
     DirectionalLight::DirectionalLight() : direction(0,-1,0), color(1,1,1), ambient_strength(0.1f) {}
-    DirectionalLight::DirectionalLight(const Vector3& dir, const Vector3& col, float ambient) 
+    DirectionalLight::DirectionalLight(const Vector3& dir, const Color& col, float ambient) 
         : direction(dir), color(col), ambient_strength(ambient) {}
 
 
 
     // --- Material ---
 
-    void Material::SetTintColor(const Prism::Vector3& color)
+    void Material::SetTintColor(const Prism::Color& color)
     {
         if (m_Handle != nullptr)
         {
             ::Material* raw_mat = static_cast<::Material*>(m_Handle);
-            raw_mat->properties.tint_color.x = color.x;
-            raw_mat->properties.tint_color.y = color.y;
-            raw_mat->properties.tint_color.z = color.z;
+            raw_mat->properties.tint_color.r = color.r;
+            raw_mat->properties.tint_color.g = color.g;
+            raw_mat->properties.tint_color.b = color.b;
         }
         else
         {

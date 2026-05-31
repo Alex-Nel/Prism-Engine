@@ -23,11 +23,19 @@ typedef struct Vertex3D
 
 
 
+// Color structure (in RGBA format)
+typedef struct Color
+{
+    float r, g, b, a;
+} Color;
+
+
+
 // Struct for a global scene light
 typedef struct DirectionalLight
 {
     Vector3 direction;
-    Vector3 color;
+    Color color;
     float ambient_strength;
 } DirectionalLight;
 
@@ -87,7 +95,7 @@ typedef struct Shader
 // Properties for materials
 typedef struct MaterialProperties
 {
-    Vector3 tint_color;
+    Color tint_color;
     float shininess;
     float specular_strength;
 } MaterialProperties;
@@ -102,9 +110,6 @@ typedef struct Material
     
     Shader* shader;
     Texture* diffuse_texture;
-
-    // uint32_t shader_id;
-    // uint32_t diffuse_texture_id;
 
     MaterialProperties properties;
     

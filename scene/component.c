@@ -112,7 +112,7 @@ void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ)
 
 
 // Adds a point light component to an entity with specified light attributes
-void Entity_AddPointLight(Entity entity, Vector3 color, float intensity, float constant, float linear, float quadratic)
+void Entity_AddPointLight(Entity entity, Color color, float intensity, float constant, float linear, float quadratic)
 {
     if (!entity.scene) return;
     

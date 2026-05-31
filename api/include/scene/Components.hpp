@@ -118,7 +118,7 @@ namespace Prism
 
     struct PRISM_API PointLightComponent
     {
-        Prism::Vector3 color;
+        Prism::Color color;
         float intensity;
         
         float constant;  

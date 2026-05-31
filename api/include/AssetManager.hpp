@@ -21,7 +21,7 @@ namespace Prism
         AssetManager() = delete;
 
 
-        // --- LOADING METHODS ---
+        // --- Loading Methods ---
         
         static Model LoadModel(const std::string& name, const std::string& filepath);
         static Mesh LoadMesh(const std::string& name, const std::string& filepath);
@@ -30,12 +30,18 @@ namespace Prism
         static AudioClip LoadAudio(const std::string& filepath);
 
 
-        // --- MATERIAL MANAGEMENT ---
+        // --- Texture Creation ---
+
+        static Texture CreateSolidColorTexture(const std::string& name, Prism::Color color);
+
+
+
+        // --- Material Management ---
         
         static Material CreateMaterial(Shader shader, Texture diffuse);
 
 
-        // --- BUILT-IN ASSETS ---
+        // --- Built-In Assets ---
         
         static Mesh GetBuiltinQuad();
         static Mesh GetBuiltinCube();

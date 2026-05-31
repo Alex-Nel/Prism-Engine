@@ -50,7 +50,7 @@ void Scene_Init(Scene* scene)
     scene->main_camera_id = 0;
 
     scene->global_light.direction = (Vector3){1.0f, 2.0f, 1.0f};
-    scene->global_light.color = (Vector3){1.0f, 1.0f, 1.0f}; // Pure white
+    scene->global_light.color = (Color){1.0f, 1.0f, 1.0f, 1.0f}; // Pure white
     scene->global_light.ambient_strength = 0.2f;
 
     scene->physics_world = Physics_InitWorld();

@@ -287,7 +287,7 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
         
         // Update the tint color to match the 3D file
         if (mat_ptr)
-            mat_ptr->properties.tint_color = (Vector3){ diffuse_color.r, diffuse_color.g, diffuse_color.b };
+            mat_ptr->properties.tint_color = (Color){ diffuse_color.r, diffuse_color.g, diffuse_color.b, diffuse_color.a };
 
         material_map[i] = mat_ptr;
     }
@@ -496,6 +496,49 @@ Mesh* Asset_LoadMesh(const char* name, const char* filepath)
 
 
 
+// Creates a texture from a color
+Texture* Asset_CreateSolidColorTexture(const char* name, Color color)
+{
+    // Check if this specific color texture was already generated
+    for (uint32_t i = 0; i < texture_count; i++)
+    {
+        if (strcmp(texture_cache[i].name, name) == 0)
+            return &texture_cache[i]; 
+    }
+
+    // Convert the float (0.0 - 1.0) Color into 8-bit (0 - 255) pixel data
+    unsigned char pixel[4] = {
+        (unsigned char)(color.r * 255.0f),
+        (unsigned char)(color.g * 255.0f),
+        (unsigned char)(color.b * 255.0f),
+        (unsigned char)(color.a * 255.0f)
+    };
+
+    // Create the texture from the renderer
+    TextureHandle handle = Render_CreateTexture(renderer, pixel, 1, 1, 4);
+
+    // Cache it exactly like a normal texture
+    if (texture_count < MAX_CACHED_TEXTURES)
+    {
+        Texture* t = &texture_cache[texture_count];
+        strcpy(t->name, name);
+        t->id = texture_count;
+        t->gpu_handle = handle;
+        t->width = 1;
+        t->height = 1;
+        t->channels = 4;
+        
+        texture_count++;
+        return t;
+    }
+    
+    return Asset_GetDefaultTexture();
+}
+
+
+
+
+
 // Creates a material from a given shader and texture (diffuse)
 Material* Asset_CreateMaterial(Shader* shader, Texture* diffuse)
 {
@@ -523,7 +566,7 @@ Material* Asset_CreateMaterial(Shader* shader, Texture* diffuse)
     
     
     // Default physical properties
-    mat->properties.tint_color = (Vector3){1.0f, 1.0f, 1.0f}; // Pure white
+    mat->properties.tint_color = (Color){1.0f, 1.0f, 1.0f, 1.0f}; // Pure white
     mat->properties.shininess = 32.0f;                        // Standard plastic
     mat->properties.specular_strength = 0.5f;                 // Medium reflection
     

@@ -25,6 +25,16 @@ static cJSON* SaveQuat(Quaternion q)
     return arr;
 }
 
+static cJSON* SaveColor(Color c)
+{
+    cJSON* arr = cJSON_CreateArray();
+    cJSON_AddItemToArray(arr, cJSON_CreateNumber(c.r));
+    cJSON_AddItemToArray(arr, cJSON_CreateNumber(c.g));
+    cJSON_AddItemToArray(arr, cJSON_CreateNumber(c.b));
+    cJSON_AddItemToArray(arr, cJSON_CreateNumber(c.a));
+    return arr;
+}
+
 static Vector3 LoadVec3(cJSON* arr)
 {
     if (!arr || cJSON_GetArraySize(arr) < 3)
@@ -48,6 +58,27 @@ static Quaternion LoadQuat(cJSON* arr)
         cJSON_GetArrayItem(arr, 2)->valuedouble,
         cJSON_GetArrayItem(arr, 3)->valuedouble
     };
+}
+
+static Color LoadColor(cJSON* arr)
+{
+    Color c = {1.0f, 1.0f, 1.0f, 1.0f}; // Default to solid white
+    
+    if (arr && cJSON_IsArray(arr) && cJSON_GetArraySize(arr) >= 3)
+    {
+        c.r = (float)cJSON_GetArrayItem(arr, 0)->valuedouble;
+        c.g = (float)cJSON_GetArrayItem(arr, 1)->valuedouble;
+        c.b = (float)cJSON_GetArrayItem(arr, 2)->valuedouble;
+        
+        // If it's a new save file, it has an alpha channel
+        if (cJSON_GetArraySize(arr) >= 4)
+            c.a = (float)cJSON_GetArrayItem(arr, 3)->valuedouble;
+        // If it's an old save file that uses Vector3, default alpha to 1.0
+        else
+            c.a = 1.0f;
+    }
+
+    return c;
 }
 
 
@@ -120,7 +151,7 @@ bool Scene_Save(Scene* scene, const char* filepath)
                 if (r->single_material && r->single_material->diffuse_texture)
                 {
                     cJSON_AddStringToObject(comp_obj, "texture_name", r->single_material->diffuse_texture->name);
-                    cJSON_AddItemToObject(comp_obj, "tint", SaveVec3(r->single_material->properties.tint_color));
+                    cJSON_AddItemToObject(comp_obj, "tint", SaveColor(r->single_material->properties.tint_color));
                     cJSON_AddNumberToObject(comp_obj, "shininess", r->single_material->properties.shininess);
                     cJSON_AddNumberToObject(comp_obj, "specular_strength", r->single_material->properties.specular_strength);
                 }
@@ -133,7 +164,7 @@ bool Scene_Save(Scene* scene, const char* filepath)
         {
             PointLightComponent* l = &scene->point_lights[i];
             cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "light");
-            cJSON_AddItemToObject(comp_obj, "color", SaveVec3(l->color));
+            cJSON_AddItemToObject(comp_obj, "color", SaveColor(l->color));
             cJSON_AddNumberToObject(comp_obj, "intensity", l->intensity);
             cJSON_AddNumberToObject(comp_obj, "constant", l->constant);
             cJSON_AddNumberToObject(comp_obj, "linear", l->linear);
@@ -344,7 +375,7 @@ bool Scene_Load(Scene* scene, const char* filepath)
                 r->single_material = Asset_CreateMaterial(NULL, tex);
                 
                 cJSON* tint = cJSON_GetObjectItemCaseSensitive(comp_obj, "tint");
-                if (tint) r->single_material->properties.tint_color = LoadVec3(tint);
+                if (tint) r->single_material->properties.tint_color = LoadColor(tint);
             }
         }
 
@@ -354,7 +385,7 @@ bool Scene_Load(Scene* scene, const char* filepath)
         {
             cJSON* comp_obj = cJSON_GetObjectItemCaseSensitive(entity_json, "light");
             PointLightComponent* l = &scene->point_lights[id];
-            l->color = LoadVec3(cJSON_GetObjectItemCaseSensitive(comp_obj, "color"));
+            l->color = LoadColor(cJSON_GetObjectItemCaseSensitive(comp_obj, "color"));
             l->intensity = cJSON_GetObjectItemCaseSensitive(comp_obj, "intensity")->valuedouble;
             l->constant = cJSON_GetObjectItemCaseSensitive(comp_obj, "constant")->valuedouble;
             l->linear = cJSON_GetObjectItemCaseSensitive(comp_obj, "linear")->valuedouble;;

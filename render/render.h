@@ -24,28 +24,18 @@ typedef enum GraphicsAPI
 
 
 
+
 // Struct for point light data
 typedef struct PointLightData
 {
     Vector3 position;
-    Vector3 color;
+    Color color;
     float intensity;
     float constant;
     float linear;
     float quadratic;
 } PointLightData;
 
-
-
-
-
-// Struct for all meterial properties
-// typedef struct MaterialProperties
-// {
-//     Vector3 tint_color;
-//     float shininess;
-//     float specular_strength;
-// } MaterialProperties;
 
 
 
@@ -65,14 +55,6 @@ typedef struct RenderPacket
 
 
 
-// -----------------------------------------------------------------------------
-// Opaque Handles to meshes, textures, shaders, and materials
-// -----------------------------------------------------------------------------
-
-// typedef struct { uint32_t id; } MeshHandle;
-// typedef struct { uint32_t id; } TextureHandle;
-// typedef struct { uint32_t id; } ShaderHandle;
-typedef struct { uint32_t id; } MaterialHandle;
 
 // Used for invalid handles
 #define RENDER_INVALID_HANDLE 0
@@ -80,6 +62,7 @@ typedef struct { uint32_t id; } MaterialHandle;
 
 
 // --- Internal data pool limits ---
+
 #define MAX_RESOURCES 1024
 #define MAX_COMMANDS 4096
 

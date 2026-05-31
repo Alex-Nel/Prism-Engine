@@ -43,7 +43,19 @@ namespace Prism
 
 
     // ==========================================
-    // MATERIAL MANAGEMENT
+    // Texture Creation
+    // ==========================================
+
+    Texture AssetManager::CreateSolidColorTexture(const std::string& name, Prism::Color color) {
+        ::Color c_color = { color.r, color.g, color.b, color.a };
+        ::Texture* raw_tex = ::Asset_CreateSolidColorTexture(name.c_str(), c_color);
+        return Prism::Texture(raw_tex);
+    }
+
+
+
+    // ==========================================
+    // Material Management
     // ==========================================
     
     Material AssetManager::CreateMaterial(Shader shader, Texture diffuse) {
@@ -54,7 +66,7 @@ namespace Prism
 
 
     // ==========================================
-    // BUILT-IN ASSETS
+    // Built-In Assets
     // ==========================================
     
     Mesh AssetManager::GetBuiltinQuad() {

@@ -161,7 +161,7 @@ typedef struct CameraComponent
 // Point light component
 typedef struct PointLightComponent
 {
-    Vector3 color;
+    Color color;
     float intensity;
     
     // Attenuation (Falloff) variables:
@@ -358,7 +358,7 @@ void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, V
 void Entity_AddRenderableMesh(Entity entity, Mesh* mesh, Material* material);
 void Entity_AddRenderableModel(Entity entity, Model* model);
 void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ);
-void Entity_AddPointLight(Entity entity, Vector3 color, float intensity, float constant, float linear, float quadratic);
+void Entity_AddPointLight(Entity entity, Color color, float intensity, float constant, float linear, float quadratic);
 void Entity_AddColliderBox(Entity entity, Vector3 extents, bool is_trigger);
 void Entity_AddColliderBoxAuto(Entity entity, bool is_trigger);
 void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger);
@@ -414,12 +414,15 @@ Vector3 Transform_GetUpVector(Transform* t);
 // Rigidbody setters
 void Rigidbody_SetGravity(Entity entity, bool use_gravity);
 void Rigidbody_SetKinematic(Entity entity, bool is_kinematic);
-// TODO: Implement a similar function: // void Rigidbody_UpdateFreezeRotations(Entity entity);
+// TODO: Implement a similar function: // void Rigidbody_UpdateFreezeRotations(Entity entity); that works with the physics engine better
 void Collider_SetLayerAndMask(Entity entity, CollisionLayer layer, int mask);
 void Collider_SetBoxExtents(Entity entity, Vector3 new_extents);
 void Collider_SetSphereRadius(Entity entity, float new_radius);
 void Collider_SetMeshScale(Entity entity, Vector3 scale);
 void Collider_SetConvex(Entity entity, bool is_convex);
+
+
+// TODO: Implement camera culling masks
 
 
 

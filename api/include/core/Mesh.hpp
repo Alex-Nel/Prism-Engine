@@ -53,20 +53,46 @@ namespace Prism
 
 
     // ==========================================
+    // Color Wrapper
+    // ==========================================
+
+    struct PRISM_API Color
+    {
+        float r, g, b, a;
+
+        // --- Constructors --- 
+
+        Color() : r(1.0f), g(1.0f), b(1.0f), a(1.0f) {}
+        Color(float r, float g, float b, float a = 1.0f) : r(r), g(g), b(b), a(a) {}
+        
+
+        // --- static preset colors ---
+        
+        static Color White()   { return Color(1.0f, 1.0f, 1.0f, 1.0f); }
+        static Color Black()   { return Color(0.0f, 0.0f, 0.0f, 1.0f); }
+        static Color Red()     { return Color(1.0f, 0.0f, 0.0f, 1.0f); }
+        static Color Green()   { return Color(0.0f, 1.0f, 0.0f, 1.0f); }
+        static Color Blue()    { return Color(0.0f, 0.0f, 1.0f, 1.0f); }
+        static Color Clear()   { return Color(0.0f, 0.0f, 0.0f, 0.0f); }
+    };
+
+
+
+    // ==========================================
     // Directional Light Wrapper
     // ==========================================
 
     struct PRISM_API DirectionalLight
     {    
         Vector3 direction;
-        Vector3 color;
+        Color color;
         float ambient_strength;
 
 
         // --- Constructors ---  
 
         DirectionalLight();
-        DirectionalLight(const Vector3& dir, const Vector3& col, float ambient);
+        DirectionalLight(const Vector3& dir, const Color& col, float ambient);
     };
 
 
@@ -161,7 +187,7 @@ namespace Prism
         }
 
         // --- Setters for Material Properties ---
-        void SetTintColor(const Prism::Vector3& color);
+        void SetTintColor(const Prism::Color& color);
         void SetShininess(float shininess);
         void SetSpecularStrength(float strength);
     };
