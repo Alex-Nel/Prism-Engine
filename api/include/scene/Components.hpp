@@ -242,6 +242,5 @@ namespace Prism
     };
 
     
-
-    // (Include CameraComponent, PointLightComponent, etc., if they need specific methods)
+    
 }

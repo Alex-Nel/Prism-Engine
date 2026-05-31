@@ -10,23 +10,6 @@ extern "C"
 
 namespace Prism
 {
-    // ==========================================
-    // Internal Casting Helpers
-    // ==========================================
-
-    // static inline ::MeshHandle ToCore(const Prism::MeshHandle& h) { return { h.id }; }
-    // static inline Prism::MeshHandle FromCore(const ::MeshHandle& h) { return { h.id }; }
-
-    // static inline ::TextureHandle ToCore(const Prism::TextureHandle& h) { return { h.id }; }
-    // static inline Prism::TextureHandle FromCore(const ::TextureHandle& h) { return { h.id }; }
-
-    // static inline ::ShaderHandle ToCore(const Prism::ShaderHandle& h) { return { h.id }; }
-    // static inline Prism::ShaderHandle FromCore(const ::ShaderHandle& h) { return { h.id }; }
-
-    // static inline ::MaterialHandle ToCore(const Prism::MaterialHandle& h) { return { h.id }; }
-    // static inline Prism::MaterialHandle FromCore(const ::MaterialHandle& h) { return { h.id }; }
-
-
 
     // ==========================================
     // LOADING METHODS

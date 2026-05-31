@@ -782,7 +782,8 @@ void Entity_RemoveParent(Entity child)
 
     // Keep the entity at the same global position
     child_t->local_position = Transform_GetGlobalPosition(child_t);
-    // TODO: Set global rotation and scale too
+    child_t->local_rotation = Transform_GetGlobalRotation(child_t);
+    child_t->local_scale = Transform_GetGlobalScale(child_t);
 
     Transform* old_parent_t = &child.scene->transforms[child_t->parent_id];
     

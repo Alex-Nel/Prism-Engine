@@ -1,4 +1,5 @@
 #include "../../include/core/Mesh.hpp"
+#include "../../include/core/Log.hpp"
 
 
 extern "C"
@@ -35,15 +36,47 @@ namespace Prism
 
     // --- Material ---
 
-    void Material::SetTintColor(const Prism::Vector3& color) {
+    void Material::SetTintColor(const Prism::Vector3& color)
+    {
+        if (m_Handle != nullptr)
+        {
+            ::Material* raw_mat = static_cast<::Material*>(m_Handle);
+            raw_mat->properties.tint_color.x = color.x;
+            raw_mat->properties.tint_color.y = color.y;
+            raw_mat->properties.tint_color.z = color.z;
+        }
+        else
+        {
+            Debug_Warning("Attempted to set tint color on an invalid Material");
+        }
     }
 
-    void Material::SetShininess(float shininess) {
 
+    void Material::SetShininess(float shininess)
+    {
+        if (m_Handle != nullptr) 
+        {
+            ::Material* raw_mat = static_cast<::Material*>(m_Handle);
+            raw_mat->properties.shininess = shininess;
+        }
+        else
+        {
+            Debug_Warning("Attempted to set shininess on an invalid Material");
+        }
     }
 
-    void Material::SetSpecularStrength(float strength) {
-
+    
+    void Material::SetSpecularStrength(float strength)
+    {
+        if (m_Handle != nullptr) 
+        {
+            ::Material* raw_mat = static_cast<::Material*>(m_Handle);
+            raw_mat->properties.specular_strength = strength;
+        }
+        else
+        {
+            Debug_Warning("Attempted to set specular strength on an invalid Material");
+        }
     }
     
 }

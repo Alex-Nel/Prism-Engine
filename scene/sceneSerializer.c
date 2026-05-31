@@ -331,8 +331,7 @@ bool Scene_Load(Scene* scene, const char* filepath)
 
             if (model_name) 
             {
-                // TODO: Implement Asset_GetModelByName
-                // r->model = Asset_GetModelByName(model_name->valuestring);
+                r->model = Asset_GetModelByName(model_name->valuestring);
             } 
             else if (mesh_name) 
             {

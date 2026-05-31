@@ -10,36 +10,6 @@
 
 namespace Prism
 {
-    // --- Replacements for core handles ---
-
-    // struct PRISM_API MeshHandle { uint32_t id; };
-    // struct PRISM_API TextureHandle { uint32_t id; };
-    // struct PRISM_API ShaderHandle { uint32_t id; };
-    // struct PRISM_API MaterialHandle { uint32_t id; };
-
-
-    // // Structure for material properties
-    // struct PRISM_API MaterialProperties
-    // {
-    //     Prism::Vector3 tint_color;
-    //     float shininess;
-    //     float specular_strength;
-    // };
-
-
-    // // Structure for material information
-    // struct PRISM_API Material
-    // {
-    //     uint32_t id;
-    //     bool active;
-        
-    //     uint32_t shader_id;
-    //     uint32_t diffuse_texture_id;
-
-    //     MaterialProperties properties;
-    // };
-
-
 
     // ==========================================
     // Asset Manager Static Class
