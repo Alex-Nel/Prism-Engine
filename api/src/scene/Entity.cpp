@@ -96,6 +96,11 @@ namespace Prism
     // Component Getters
     // ==========================================
 
+    std::string Entity::GetName() {
+        // Assuming your backend has an Entity_GetName function that returns a const char*
+        const char* name = ::Entity_GetName(ToCore(*this));
+        return name ? std::string(name) : std::string("Unknown");
+    }
     Prism::Transform* Entity::GetTransform() {
         return reinterpret_cast<Prism::Transform*>(::Entity_GetTransform(ToCore(*this)));
     }
@@ -111,11 +116,42 @@ namespace Prism
     Prism::CameraComponent* Entity::GetCamera() {
         return reinterpret_cast<Prism::CameraComponent*>(::Entity_GetCamera(ToCore(*this)));
     }
+    Prism::PointLightComponent* Entity::GetPointLight() {
+        return reinterpret_cast<Prism::PointLightComponent*>(::Entity_GetPointLight(ToCore(*this)));
+    }
     Prism::AudioListenerComponent* Entity::GetAudioListener() {
         return reinterpret_cast<Prism::AudioListenerComponent*>(::Entity_GetAudioListener(ToCore(*this)));
     }
     Prism::AudioSourceComponent* Entity::GetAudioSource() {
         return reinterpret_cast<Prism::AudioSourceComponent*>(::Entity_GetAudioSource(ToCore(*this)));
+    }
+
+
+
+    // ==========================================
+    // Component Removers
+    // ==========================================
+
+    void Entity::RemoveRenderable() {
+        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_RENDER);
+    }
+    void Entity::RemoveRigidbody() {
+        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_RIGIDBODY);
+    }
+    void Entity::RemoveCollider() {
+        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_COLLIDER);
+    }
+    void Entity::RemoveCamera() {
+        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_CAMERA);
+    }
+    void Entity::RemovePointLight() {
+        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_POINT_LIGHT);
+    }
+    void Entity::RemoveAudioListener() {
+        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_AUDIO_LISTENER);
+    }
+    void Entity::RemoveAudioSource() {
+        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_AUDIO_SOURCE);
     }
 
 

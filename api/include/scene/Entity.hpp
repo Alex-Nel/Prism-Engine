@@ -17,6 +17,7 @@ namespace Prism
     struct RigidbodyComponent;
     struct ColliderComponent;
     struct CameraComponent;
+    struct PointLightComponent;
     struct AudioListenerComponent;
     struct AudioSourceComponent;
 
@@ -69,13 +70,27 @@ namespace Prism
 
         // --- Component Getters ---
         
+        std::string GetName();
         Prism::Transform* GetTransform();
         Prism::RenderComponent* GetRenderable();
         Prism::RigidbodyComponent* GetRigidbody();
         Prism::ColliderComponent* GetCollider();
         Prism::CameraComponent* GetCamera();
+        Prism::PointLightComponent* GetPointLight();
         Prism::AudioListenerComponent* GetAudioListener();
         Prism::AudioSourceComponent* GetAudioSource();
+
+
+
+        // --- Component Removers ---
+
+        void RemoveRenderable();
+        void RemoveRigidbody();
+        void RemoveCollider();
+        void RemoveCamera();
+        void RemovePointLight();
+        void RemoveAudioListener();
+        void RemoveAudioSource();
 
 
 
@@ -94,5 +109,13 @@ namespace Prism
         // Returns the custom script of type T, or nullptr if not found.
         template<typename T>
         T* GetScript();
+
+        // Removes the first instance of a script T from an entity
+        template<typename T>
+        void RemoveScript();
+
+        // NEW: Removes a specific instance of a script (if they have multiple of the same type)
+        template<typename T>
+        void RemoveScript(T* specific_instance);
     };
 }

@@ -293,7 +293,7 @@ typedef struct Scene
     bool is_active_self[MAX_ENTITIES]; // Changable by the user
     bool is_active_in_hierarchy[MAX_ENTITIES];
     
-    // The tightly packed component arrays
+    // The scenes component arrays
     NameComponent names[MAX_ENTITIES];
     Transform transforms[MAX_ENTITIES];
     RenderComponent renderables[MAX_ENTITIES];
@@ -371,6 +371,7 @@ void Bridge_SpawnScript(Entity raw_e, const char* class_name, struct cJSON* json
 
 
 // Component Getters
+const char* Entity_GetName(Entity entity);
 Transform* Entity_GetTransform(Entity entity);
 RenderComponent* Entity_GetRenderable(Entity entity);
 Mesh* Entity_GetMesh(Entity entity);

@@ -299,6 +299,7 @@ void Entity_AddRigidbody(Entity entity, float mass)
     ColliderComponent* c = &entity.scene->colliders[entity.id];
     
     // Don't let users make Complex Meshes dynamic
+    // TODO: Add setting to make mesh colliders be convex to allow rigidbodies
     if (c->type == COLLIDER_MESH)
     {
         Log_Warning("WARNING: Mesh Colliders cannot be Rigidbodies. Ignoring.\n");
@@ -404,6 +405,19 @@ void Entity_BindScript(Entity entity, ScriptInstance new_script)
 
 
 
+
+
+
+
+
+// Returns the name of an entity
+const char* Entity_GetName(Entity entity)
+{
+    if (!entity.scene)
+        return NULL;
+        
+    return entity.scene->names[entity.id].name;
+}
 
 
 

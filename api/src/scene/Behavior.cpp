@@ -168,4 +168,14 @@ namespace Prism
         
         return result;
     }
+
+
+    void UnbindBehavior_Internal(uint32_t entity_id, void* scene_ptr, void* instance)
+    {
+        // Build the C struct
+        ::Entity core_ent = { entity_id, static_cast<::Scene*>(scene_ptr) };
+        
+        // Call the backend function
+        ::Entity_UnbindScript(core_ent, instance);
+    }
 }

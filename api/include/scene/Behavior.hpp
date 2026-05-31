@@ -15,6 +15,7 @@ struct cJSON;
 
 namespace Prism
 {
+
     // --- Base class for all custom behaviors ---
     class PRISM_API Behavior
     {
@@ -88,6 +89,7 @@ namespace Prism
     
     PRISM_API void BindBehavior_Internal(uint32_t entity_id, void* scene_ptr, Behavior* instance);
     PRISM_API std::vector<Behavior*> GetAllBehaviors_Internal(uint32_t entity_id, void* scene_ptr);
+    PRISM_API void UnbindBehavior_Internal(uint32_t entity_id, void* scene_ptr, void* instance);
 
 
 
@@ -128,6 +130,38 @@ namespace Prism
         }
         
         return nullptr;
+    }
+
+
+
+    // --- Removes the first custom script of type T found on an entity ---
+    template<typename T>
+    inline void Entity::RemoveScript()
+    {
+        static_assert(std::is_base_of<Behavior, T>::value, "T must inherit from Prism::Behavior");
+
+        // Find the script
+        T* script = GetScript<T>();
+        
+        // Unbind it using the pointer
+        if (script != nullptr)
+        {
+            UnbindBehavior_Internal(this->id, this->scene_ptr, script);
+        }
+    }
+
+
+
+    // --- Removes a specific custom script instance ---
+    template<typename T>
+    inline void Entity::RemoveScript(T* specific_instance)
+    {
+        static_assert(std::is_base_of<Behavior, T>::value, "T must inherit from Prism::Behavior");
+
+        if (specific_instance != nullptr)
+        {
+            UnbindBehavior_Internal(this->id, this->scene_ptr, specific_instance);
+        }
     }
 
 }
