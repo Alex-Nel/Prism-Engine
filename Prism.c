@@ -3,9 +3,8 @@
 #include <stdlib.h>
 
 
-// Internal states
+// Internal state
 static PrismEngine engine;
-static bool mouse_captured = false;
 
 
 
@@ -342,10 +341,7 @@ void Engine_Shutdown()
 // Captures the mouse to the window
 void Engine_CaptureMouse()
 {
-    mouse_captured = true;
-    Platform_SetRelativeMouseMode(engine.window, mouse_captured);
-    if (!mouse_captured)
-        Platform_WarpMouse(engine.window);
+    Platform_SetRelativeMouseMode(engine.window, true);
 }
 
 
@@ -355,10 +351,8 @@ void Engine_CaptureMouse()
 // Releases the mouse from the window
 void Engine_ReleaseMouse()
 {
-    mouse_captured = false;
-    Platform_SetRelativeMouseMode(engine.window, mouse_captured);
-    if (!mouse_captured)
-        Platform_WarpMouse(engine.window);
+    Platform_SetRelativeMouseMode(engine.window, false);
+    Platform_WarpMouseToMiddle(engine.window);
 }
 
 
@@ -368,7 +362,7 @@ void Engine_ReleaseMouse()
 // Returns if the mouse is captured
 bool Engine_IsMouseCaptured()
 {
-    return mouse_captured;
+    return Platform_IsMouseCaptured(engine.window);
 }
 
 

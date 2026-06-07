@@ -20,8 +20,8 @@ namespace Prism
         ::Platform_SetRelativeMouseMode(static_cast<::Window*>(window), enabled);
     }
 
-    void Platform::WarpMouse(void* window) 
+    void Platform::WarpMouseToMiddle(void* window) 
     {
-        ::Platform_WarpMouse(static_cast<::Window*>(window));
+        ::Platform_WarpMouseToMiddle(static_cast<::Window*>(window));
     }
 }

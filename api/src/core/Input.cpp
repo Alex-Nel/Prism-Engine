@@ -33,9 +33,9 @@ namespace Prism
 
 
     Vector2 Input::GetMousePosition() {
-        int32_t x = 0, y = 0;
+        float x = 0, y = 0;
         ::Input_GetMousePosition(&x, &y);
-        return Vector2(static_cast<float>(x), static_cast<float>(y));
+        return Vector2(x, y);
     }
 
 

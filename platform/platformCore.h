@@ -29,7 +29,7 @@ uint32_t GetWindowWidth(Window* window);
 // Returns the height of a window
 uint32_t GetWindowHeight(Window* window);
 
-// Returns the height of a window
+// Sets the width and height of a window
 void SetWindowSize(Window* window, uint32_t width, uint32_t height);
 
 
@@ -50,11 +50,17 @@ double Platform_GetTime(void);
 // Delays a platform window for a specified ms
 void Platform_Delay(uint32_t ms);
 
+// Raises the window to the foreground
+bool Platform_RaiseWindow(Window* window);
+
+// Returns whether the mouse is captured
+bool Platform_IsMouseCaptured(Window* window);
+
 // Enabled/Disables relative mouse mode
 void Platform_SetRelativeMouseMode(Window* window, bool enabled);
 
 // Warps the mouse to the middle of the screen
-void Platform_WarpMouse(Window* window);
+void Platform_WarpMouseToMiddle(Window* window);
 
 
 

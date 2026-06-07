@@ -31,8 +31,8 @@ bool Input_IsMouseButtonReleased(MouseButton button);
 
 // Mouse Position and Button functions
 
-void Input_GetMousePosition(int32_t* x, int32_t* y);
-void Input_GetMouseDelta(int32_t* dx, int32_t* dy);
+void Input_GetMousePosition(float* x, float* y);
+void Input_GetMouseDelta(float* dx, float* dy);
 float Input_GetMouseDeltaX();
 float Input_GetMouseDeltaY();
 float Input_GetMouseScrollDelta();

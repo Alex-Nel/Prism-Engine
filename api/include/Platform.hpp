@@ -27,7 +27,7 @@ namespace Prism
         static void SetRelativeMouseMode(void* window, bool enabled);
 
         // Forces the mouse cursor to the center of the screen
-        static void WarpMouse(void* window);
+        static void WarpMouseToMiddle(void* window);
 
         // Future implementation
         // static void* GetActiveWindow();

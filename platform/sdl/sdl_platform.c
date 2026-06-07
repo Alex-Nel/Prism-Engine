@@ -1,6 +1,5 @@
 #include "../platformCore.h"
 #include "SDL3/SDL.h"
-#include <stdio.h>
 #include <stdlib.h>
 
 
@@ -13,6 +12,7 @@ struct Window
     uint32_t width;
     uint32_t height;
     GraphicsAPI current_api;
+    bool is_mouse_captured;
     bool should_close;
 };
 
@@ -169,6 +169,7 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
     // Set window parameters
     win->width = width;
     win->height = height;
+    win->is_mouse_captured = false;
     win->should_close = false;
 
     return win;
@@ -237,10 +238,10 @@ bool Platform_PollEvents(Event* e)
 
             case SDL_EVENT_MOUSE_MOTION:
                 e->type = EVENT_MOUSE_MOVED;
-                e->mouse_state.x = (int32_t)sdl_event.motion.x;
-                e->mouse_state.y = (int32_t)sdl_event.motion.y;
-                e->mouse_state.dx = (int32_t)sdl_event.motion.xrel;
-                e->mouse_state.dy = (int32_t)sdl_event.motion.yrel;
+                e->mouse_state.x = sdl_event.motion.x;
+                e->mouse_state.y = sdl_event.motion.y;
+                e->mouse_state.dx = sdl_event.motion.xrel;
+                e->mouse_state.dy = sdl_event.motion.yrel;
                 break;
 
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
@@ -380,11 +381,32 @@ void Platform_Delay(uint32_t ms)
 
 
 
+// Raises the window to the foreground
+bool Platform_RaiseWindow(Window* window)
+{
+    return SDL_RaiseWindow(window->sdl_window);
+}
+
+
+
+
+
+// Returns whether the mouse is captured
+bool Platform_IsMouseCaptured(Window* window)
+{
+    return window->is_mouse_captured;
+}
+
+
+
+
+
 // Sets the relative mouse mode of the window
 void Platform_SetRelativeMouseMode(Window* window, bool enabled)
 {
     if (!window || !window->sdl_window) return;
     SDL_SetWindowRelativeMouseMode(window->sdl_window, enabled);
+    window->is_mouse_captured = enabled;
 }
 
 
@@ -392,7 +414,7 @@ void Platform_SetRelativeMouseMode(Window* window, bool enabled)
 
 
 // Moves mouse to the middle of the screen
-void Platform_WarpMouse(Window* window)
+void Platform_WarpMouseToMiddle(Window* window)
 {
     SDL_WarpMouseInWindow(window->sdl_window, window->width/2, window->height/2);
 }

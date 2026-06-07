@@ -137,14 +137,14 @@ bool Input_IsMouseButtonReleased(MouseButton button)
 
 
 // Returns X and Y position of the mouse
-void Input_GetMousePosition(int32_t* x, int32_t* y)
+void Input_GetMousePosition(float* x, float* y)
 {
     if (x) *x = mouse_x;
     if (y) *y = mouse_y;
 }
 
 // Returns the change in distance of the mouse state from the last frame
-void Input_GetMouseDelta(int32_t* dx, int32_t* dy)
+void Input_GetMouseDelta(float* dx, float* dy)
 {
     if (dx) *dx = mouse_delta_x;
     if (dy) *dy = mouse_delta_y;
