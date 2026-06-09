@@ -30,25 +30,30 @@ namespace Prism
     }
 
 
+
     // --- UTILITY ---
 
-    void Engine::SetClearColor(const Prism::Vector3& color, float alpha) 
-    {
+    void Engine::SetClearColor(const Prism::Vector3& color, float alpha) {
         ::Engine_SetClearColor(color.x, color.y, color.z, alpha);
     }
 
-    void Engine::CaptureMouse() 
-    {
+    void Engine::CaptureMouse() {
         ::Engine_CaptureMouse();
     }
 
-    void Engine::ReleaseMouse() 
-    {
+    void Engine::ReleaseMouse() {
         ::Engine_ReleaseMouse();
     }
 
-    bool Engine::IsMouseCaptured() 
-    {
+    bool Engine::IsMouseCaptured() {
         return ::Engine_IsMouseCaptured();
+    }
+
+    void Engine::SetTargetFPS(uint32_t fps) {
+        ::Engine_SetTargetFPS(fps);
+    }
+
+    uint32_t Engine::GetTargetFPS() {
+        return ::Engine_GetTargetFPS();
     }
 }

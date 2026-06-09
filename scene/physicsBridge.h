@@ -59,7 +59,7 @@ void Physics_SetLinearVelocity(PhysicsBodyHandle body, Vector3 velocity);
 void Physics_SetDamping(PhysicsBodyHandle body, float linear_drag, float angular_drag);
 void Physics_SetGravityState(PhysicsWorldHandle world, PhysicsBodyHandle body, bool use_gravity);
 void Physics_SetRotationConstraints(PhysicsBodyHandle body, bool freeze_x, bool freeze_y, bool freeze_z);
-void Physics_SetKinematicState(PhysicsBodyHandle body, bool is_kinematic);
+void Physics_SetKinematicState(PhysicsWorldHandle world, PhysicsBodyHandle body, bool is_kinematic);
 
 void Physics_SetBoxExtents(void* physics_handle, Vector3 extents);
 void Physics_SetSphereRadius(void* physics_handle, float radius);

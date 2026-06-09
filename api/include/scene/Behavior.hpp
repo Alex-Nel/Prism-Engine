@@ -46,6 +46,9 @@ namespace Prism
         
         // Called every frame
         virtual void OnUpdate() {}
+
+        // Called every fixed time period
+        virtual void OnFixedUpdate() {}
         
         // Called when the entity or script is destroyed
         virtual void OnDestroy() {}

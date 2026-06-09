@@ -78,10 +78,14 @@ void Engine_Run(Scene* active_scene)
 
     Log_Info("Running Scene");
 
+    float accumulator = 0.0f;
+
     while (engine.is_running)
     {
         // Advance the engine clock
         Time_Tick();
+
+        accumulator += Time_DeltaTime();
         
         // Poll through events
         Event e;
@@ -98,6 +102,13 @@ void Engine_Run(Scene* active_scene)
                 Render_SetViewport(engine.renderer, 0, 0, e.window_resize.width, e.window_resize.height);
                 SetWindowSize(engine.window, e.window_resize.width, e.window_resize.height);
             }
+        }
+
+        float fixed_dt = Time_FixedDeltaTime();
+        while (accumulator >= fixed_dt)
+        {
+            Scene_FixedUpdate(active_scene);
+            accumulator -= fixed_dt;
         }
 
         // Update scene and physics

@@ -65,6 +65,10 @@ namespace Prism
         if (data)
             static_cast<Behavior*>(data)->OnUpdate();
     }
+    inline void Bridge_OnFixedUpdate(::Entity e, void* data) {
+        if (data)
+            static_cast<Behavior*>(data)->OnFixedUpdate();
+    }
     inline void Bridge_OnDestroy(::Entity e, void* data) { 
         if (data) { 
             Behavior* b = static_cast<Behavior*>(data);
@@ -129,6 +133,7 @@ namespace Prism
         
         script.OnStart = Bridge_OnStart;
         script.OnUpdate = reinterpret_cast<::ScriptUpdateFunc>(Bridge_OnUpdate);
+        script.OnFixedUpdate = reinterpret_cast<::ScriptFixedUpdateFunc>(Bridge_OnFixedUpdate);
         script.OnDestroy = Bridge_OnDestroy;
         script.OnEnable = Bridge_OnEnable;
         script.OnDisable = Bridge_OnDisable;

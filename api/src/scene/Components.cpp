@@ -93,6 +93,16 @@ namespace Prism
         ::Rigidbody_SetKinematic(raw_e, kinematic); 
     }
 
+    void RigidbodyComponent::SetLinearVelocity(Prism::Vector3& velocity) {
+        ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
+        ::Rigidbody_SetLinearVelocity(raw_e, ::Vector3{velocity.x, velocity.y, velocity.z}); 
+    }
+
+    void RigidbodyComponent::MovePosition(const Prism::Vector3& position) {
+        ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
+        ::Rigidbody_MovePosition(raw_e, ::Vector3{position.x, position.y, position.z});
+    }
+
 
 
     // ==========================================

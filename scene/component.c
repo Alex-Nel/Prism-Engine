@@ -630,7 +630,7 @@ void Rigidbody_SetKinematic(Entity entity, bool is_kinematic)
     if (rb && col && col->physics_handle) 
     {
         rb->is_kinematic = is_kinematic;
-        Physics_SetKinematicState(col->physics_handle, is_kinematic);
+        Physics_SetKinematicState(entity.scene->physics_world, col->physics_handle, is_kinematic);
     }
 }
 
@@ -638,27 +638,61 @@ void Rigidbody_SetKinematic(Entity entity, bool is_kinematic)
 
 
 
-// // Applies rotation freezing to the physics backend
-// void Rigidbody_UpdateFreezeRotations(Entity entity)
-// {
-//     if (!Entity_IsValid(entity)) return;
+// Sets the linear velocity of a rigidbody
+void Rigidbody_SetLinearVelocity(Entity entity, Vector3 velocity)
+{
+    RigidbodyComponent* rb = Entity_GetRigidbody(entity);
+    ColliderComponent* col = Entity_GetCollider(entity);
 
-//     // We need both the Rigidbody (for the booleans) and Collider (for the Bullet physics_handle)
-//     RigidbodyComponent* rb = &entity.scene->rigidbodies[entity.id];
-//     ColliderComponent* c = &entity.scene->colliders[entity.id];
+    if (rb)
+    {
+        Physics_SetLinearVelocity(col->physics_handle, velocity);
+    }
+}
 
-//     if (!c->physics_handle) return;
 
-//     // Convert booleans into the math factor Bullet expects (1 = Free, 0 = Frozen)
-//     Vector3 angular_factor = {
-//         rb->freeze_rot_x ? 0.0f : 1.0f,
-//         rb->freeze_rot_y ? 0.0f : 1.0f,
-//         rb->freeze_rot_z ? 0.0f : 1.0f
-//     };
 
-//     // (Ensure you implement this wrapper for btRigidBody::setAngularFactor)
-//     Physics_SetAngularFactor(c->physics_handle, angular_factor); 
-// }
+
+
+// Moves a rigidbody to a specific target position
+void Rigidbody_MovePosition(Entity entity, Vector3 position)
+{
+    if (!Entity_IsValid(entity))
+        return;
+    
+    RigidbodyComponent* rb = Entity_GetRigidbody(entity);
+    ColliderComponent* col = Entity_GetCollider(entity);
+    Transform* t = Entity_GetTransform(entity);
+
+    if (!rb || !col || !col->physics_handle || !t)
+        return;
+    
+    if (rb->is_kinematic)
+    {
+        // Kinematic approach: Set the position directly in the physics engine
+        Physics_SetBodyPosition(col->physics_handle, position);
+
+        // Update local transform as well
+        t->local_position = position;
+    }
+    else
+    {
+        // Dynamic approach: calculate the exact velocity needed to travel from current location to the target position in one physics step
+        float fixed_dt = Time_FixedDeltaTime();
+
+        if (fixed_dt > 0.0f)
+        {
+            Vector3 required_velocity = {
+                (position.x - t->local_position.x) / fixed_dt,
+                (position.y - t->local_position.y) / fixed_dt,
+                (position.z - t->local_position.z) / fixed_dt
+            };
+
+            // Push it using physics, it will collide naturally on the way
+            Physics_SetLinearVelocity(col->physics_handle, required_velocity);
+        }
+    }
+}
 
 
 
@@ -827,7 +861,7 @@ void Collider_SetConvex(Entity entity, bool is_convex)
         Physics_SetDamping(c->physics_handle, rb->linear_drag, rb->angular_drag);
         Physics_SetGravityState(entity.scene->physics_world, c->physics_handle, rb->use_gravity);
         Physics_SetRotationConstraints(c->physics_handle, rb->freeze_rot_x, rb->freeze_rot_y, rb->freeze_rot_z);
-        Physics_SetKinematicState(c->physics_handle, rb->is_kinematic);
+        Physics_SetKinematicState(entity.scene->physics_world, c->physics_handle, rb->is_kinematic);
     }
 }
 

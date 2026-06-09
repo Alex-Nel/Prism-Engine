@@ -166,6 +166,8 @@ namespace Prism
 
         void SetGravity(bool use_gravity);
         void SetKinematic(bool kinematic);
+        void SetLinearVelocity(Prism::Vector3& velocity);
+        void MovePosition(const Prism::Vector3& position);
     };
 
 

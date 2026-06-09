@@ -90,6 +90,8 @@ typedef enum
 
 // On Update function
 typedef void (*ScriptUpdateFunc)(Entity entity, void* instance_data);
+// On Update function
+typedef void (*ScriptFixedUpdateFunc)(Entity entity, void* instance_data);
 // On Start function
 typedef void (*ScriptStartFunc)(Entity entity, void* instance_data);
 // On Destroy function
@@ -259,6 +261,7 @@ typedef struct ScriptInstance
 
     ScriptStartFunc OnStart;
     ScriptUpdateFunc OnUpdate;
+    ScriptFixedUpdateFunc OnFixedUpdate;
     ScriptDestroyFunc OnDestroy;
     ScriptEnableFunc OnEnable;
     ScriptDisableFunc OnDisable;
@@ -318,6 +321,7 @@ typedef struct Scene
 
 
 // --- Scene API ---
+
 Scene* Scene_Create();
 void Scene_Destroy(Scene* scene);
 void Scene_Init(Scene* scene);
@@ -325,6 +329,7 @@ void Scene_Clear(Scene* scene);
 bool Scene_Save(Scene* scene, const char* filepath);
 bool Scene_Load(Scene* scene, const char* filepath);
 void Scene_Update(Scene* scene);
+void Scene_FixedUpdate(Scene* scene);
 void Scene_UpdateTransforms(Scene* scene);
 Entity Scene_GetEntity(Scene* scene, const char* name);
 void Scene_SetMainCamera(Scene* scene, Entity camera_entity);
@@ -335,6 +340,7 @@ int Scene_RaycastAll(Scene* scene, Vector3 origin, Vector3 direction, float max_
 
 
 // --- Entity Lifecycle API ---
+
 Entity Entity_Create(Scene* scene, const char* name);
 void Entity_Destroy(Entity entity);
 bool Entity_IsValid(Entity entity);
@@ -346,13 +352,15 @@ void Entity_RemoveRigidbody(Entity entity);
 
 
 
-// Removing components
+// --- Removing components ---
+
 void Entity_RemoveComponent(Entity entity, ComponentMask component);
 void Entity_UnbindScript(Entity entity, void* target_instance_data);
 
 
 
-// Component Setters
+// --- Component Setters ---
+
 void Entity_SetName(Entity entity, const char* name);
 void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, Vector3 scale);
 void Entity_AddRenderableMesh(Entity entity, Mesh* mesh, Material* material);
@@ -371,7 +379,8 @@ void Bridge_SpawnScript(Entity raw_e, const char* class_name, struct cJSON* json
 
 
 
-// Component Getters
+// --- Component Getters ---
+
 const char* Entity_GetName(Entity entity);
 Transform* Entity_GetTransform(Entity entity);
 RenderComponent* Entity_GetRenderable(Entity entity);
@@ -386,7 +395,8 @@ ScriptComponent* Entity_GetScripts(Entity entity);
 
 
 
-// Transform setters and getters
+// --- Transform setters and getters ---
+
 void Transform_SetLocalPosition(Transform* t, Vector3 position);
 void Transform_SetLocalRotationEuler(Transform* t, Vector3 euler_angles);
 void Transform_SetLocalRotation(Transform* t, Quaternion rotation);
@@ -411,10 +421,17 @@ Vector3 Transform_GetUpVector(Transform* t);
 
 
 
-// Rigidbody setters
+// --- Rigidbody setters and functions ---
+
 void Rigidbody_SetGravity(Entity entity, bool use_gravity);
 void Rigidbody_SetKinematic(Entity entity, bool is_kinematic);
-// TODO: Implement a similar function: // void Rigidbody_UpdateFreezeRotations(Entity entity); that works with the physics engine better
+void Rigidbody_SetLinearVelocity(Entity entity, Vector3 velocity);
+void Rigidbody_MovePosition(Entity entity, Vector3 position);
+
+
+
+// --- Collider setters ---
+
 void Collider_SetLayerAndMask(Entity entity, CollisionLayer layer, int mask);
 void Collider_SetBoxExtents(Entity entity, Vector3 new_extents);
 void Collider_SetSphereRadius(Entity entity, float new_radius);
@@ -422,11 +439,14 @@ void Collider_SetMeshScale(Entity entity, Vector3 scale);
 void Collider_SetConvex(Entity entity, bool is_convex);
 
 
+
+// --- Camera setters and functions ---
 // TODO: Implement camera culling masks
 
 
 
-// Renderable setters
+// --- Renderable setters ---
+
 void Renderable_SetMaterial(RenderComponent* r, uint32_t slot_index, Material* material);
 
 

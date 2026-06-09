@@ -1,24 +1,58 @@
 #include <stdint.h>
 #include "physicsBridge.h"
-// #include "../include/bullet/btBulletCollisionCommon.h"
 #include <btBulletCollisionCommon.h>
-// #include "../include/bullet/btBulletDynamicsCommon.h"
 #include <btBulletDynamicsCommon.h>
 #include <BulletCollision/CollisionDispatch/btGhostObject.h>
+
 
 
 extern "C"
 {
 
 
-// Initializes the physics world
-PhysicsWorldHandle Physics_InitWorld(void)
+
+// Custom near-phase collision callback.
+// Prevents bullet from giving a stat-static collision warning
+static void Physics_NearCallback(btBroadphasePair& pair, btCollisionDispatcher& dispatcher, const btDispatcherInfo& info)
 {
-    // Allocate Bullet's core C++ systems
+    btCollisionObject* obj0 = (btCollisionObject*)pair.m_pProxy0->m_clientObject;
+    btCollisionObject* obj1 = (btCollisionObject*)pair.m_pProxy1->m_clientObject;
+
+    if (obj0 && obj1)
+    {
+        bool both_non_dynamic = obj0->isStaticOrKinematicObject() && obj1->isStaticOrKinematicObject();
+
+        bool either_trigger =
+            (obj0->getCollisionFlags() & btCollisionObject::CF_NO_CONTACT_RESPONSE) ||
+            (obj1->getCollisionFlags() & btCollisionObject::CF_NO_CONTACT_RESPONSE);
+
+        // Skip solid pairs where neither body is dynamic (static<->static, static<->kinematic, kinematic<->kinematic)
+        if (both_non_dynamic && !either_trigger)
+            return;
+    }
+
+    dispatcher.defaultNearCallback(pair, dispatcher, info);
+}
+
+
+
+
+
+// Initializes the physics world
+PhysicsWorldHandle Physics_InitWorld()
+{
+    // Allocate Bullet's core systems
     btDefaultCollisionConfiguration* config = new btDefaultCollisionConfiguration();
     btCollisionDispatcher* dispatcher = new btCollisionDispatcher(config);
     btBroadphaseInterface* broadphase = new btDbvtBroadphase();
     btSequentialImpulseConstraintSolver* solver = new btSequentialImpulseConstraintSolver();
+
+    // Route near-phase dispatch through our callback so resting kinematic/static
+    // bodies don't generate solid contacts (and don't trip the static-static warning)
+    dispatcher->setNearCallback(Physics_NearCallback);
+
+    // Silence Bullet's one-time static-static warning for the remaining valid edge case of a kinematic body overlapping a static trigger
+    dispatcher->setDispatcherFlags(dispatcher->getDispatcherFlags() | btCollisionDispatcher::CD_STATIC_STATIC_REPORTED);
 
     // Create the world
     btDiscreteDynamicsWorld* world = new btDiscreteDynamicsWorld(dispatcher, broadphase, solver, config);
@@ -43,7 +77,7 @@ void Physics_StepSimulation(PhysicsWorldHandle world, float delta_time)
     btDiscreteDynamicsWorld* dynWorld = (btDiscreteDynamicsWorld*)world;
     
     // step forward in time
-    dynWorld->stepSimulation(delta_time, 10);
+    dynWorld->stepSimulation(delta_time, 0);
 }
 
 
@@ -421,10 +455,12 @@ void Physics_SetRotationConstraints(PhysicsBodyHandle body, bool freeze_x, bool 
 
 
 // Sets a rigidbodies kinematic state to true or false 
-void Physics_SetKinematicState(PhysicsBodyHandle body, bool is_kinematic)
+void Physics_SetKinematicState(PhysicsWorldHandle world, PhysicsBodyHandle body, bool is_kinematic)
 {
-    if (!body) return;
+    if (!world || !body)
+        return;
 
+    btDiscreteDynamicsWorld* dynWorld = (btDiscreteDynamicsWorld*)world;
     btRigidBody* rb = (btRigidBody*)body;
 
     if (is_kinematic) 
@@ -449,6 +485,11 @@ void Physics_SetKinematicState(PhysicsBodyHandle body, bool is_kinematic)
         rb->forceActivationState(ACTIVE_TAG);
         rb->activate(true);
     }
+
+    btBroadphaseProxy* proxy = rb->getBroadphaseHandle();
+
+    if (proxy)
+        dynWorld->getBroadphase()->getOverlappingPairCache()->cleanProxyFromPairs(proxy, dynWorld->getDispatcher());
 }
 
 

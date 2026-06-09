@@ -12,12 +12,36 @@ namespace Prism
     float Time::DeltaTime() {
         return ::Time_DeltaTime();
     }
-    
-    void Time::SetTargetFPS(uint32_t target_fps) {
-        ::Time_SetTargetFPS(target_fps);
+
+    float Time::FixedDeltaTime() {
+        return ::Time_FixedDeltaTime();
     }
-    
-    uint32_t Time::GetTargetFPS() {
-        return ::Time_GetTargetFPS();
+
+    float Time::UnscaledDeltaTime() {
+        return ::Time_UnscaledDeltaTime();
+    }
+
+    void Time::SetFixedDeltaTime(float fixed_dt){
+        ::Time_SetFixedDeltaTime(fixed_dt);
+    }
+
+    void Time::SetTimeScale(float scale) {
+        ::Time_SetTimeScale(scale);
+    }
+
+    float Time::GetTimeScale() {
+        return ::Time_GetTimeScale();
+    }
+
+    double Time::TimeElapsed() {
+        return ::Time_TimeElapsed();
+    }
+
+    double Time::UnscaledTimeElapsed() {
+        return ::Time_UnscaledTimeElapsed();
+    }
+
+    uint64_t Time::GetFrameCount() {
+        return ::Time_GetFrameCount();
     }
 }

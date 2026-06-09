@@ -11,7 +11,13 @@ namespace Prism
         Time() = delete;
 
         static float DeltaTime();
-        static void SetTargetFPS(uint32_t target_fps);
-        static uint32_t GetTargetFPS();
+        static float FixedDeltaTime();
+        static float UnscaledDeltaTime();
+        static void SetFixedDeltaTime(float fixed_dt);
+        static void SetTimeScale(float scale);
+        static float GetTimeScale();
+        static double TimeElapsed();
+        static double UnscaledTimeElapsed();
+        static uint64_t GetFrameCount();
     };
 }

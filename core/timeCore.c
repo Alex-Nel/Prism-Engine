@@ -2,16 +2,30 @@
 #include <stddef.h>
 
 
+
 // Platform functions for delays and getting time
+
 static Time_GetTime get_time_func = NULL;
 static Time_Delay delay_func = NULL;
 
 
+
 // Internal variables for relevant times
+
 static uint32_t current_target_fps = 0;
 static double last_time = 0.0;
-static float delta_time = 0.0f;
 static double target_frame_time = 0.0;
+
+static float delta_time = 0.0f;
+static float unscaled_delta_time = 0.0f;
+static float fixed_delta_time = 0.02f;
+static float time_scale = 1.0f;
+
+static double total_time = 0.0;
+static double total_unscaled_time = 0.0;
+static uint64_t frame_count = 0;
+
+
 
 
 
@@ -29,6 +43,9 @@ void Time_Init(uint32_t target_fps, Time_GetTime get_time_pf, Time_Delay delay_p
         last_time = 0.0;
 
     delta_time = 0.0f;
+    unscaled_delta_time = 0.0f;
+    fixed_delta_time = 0.02f;
+    time_scale = 1.0f;
     
     // Set target frame time depending on target FPS, or 0 if uncapped
     if (target_fps > 0)
@@ -45,6 +62,8 @@ void Time_Init(uint32_t target_fps, Time_GetTime get_time_pf, Time_Delay delay_p
 
 
 
+// Called once at the start of a main loop.
+// Calculates dt and pauses the engine if it's running too fast.
 void Time_Tick()
 {
     if (!get_time_func) return;
@@ -62,9 +81,7 @@ void Time_Tick()
 
         // Yield CPU to the OS
         if (sleep_time_ms > 0)
-        {
             delay_func(sleep_time_ms);
-        }
 
         // Recalculate time after waking up from sleep
         current_time = get_time_func();
@@ -72,14 +89,18 @@ void Time_Tick()
     }
 
     // --- Spiral of Death Prevention ---
-    // Cap delta time at 0.1 seconds (10 FPS) to prevent physics explosions
+    // Cap delta time at 0.1 seconds (10 FPS) to prevent physics from becoming unstable
     if (elapsed > 0.1)
-    {
         elapsed = 0.1;
-    }
 
-    // Update global state
-    delta_time = (float)elapsed;
+    // Update global states
+    unscaled_delta_time = (float)elapsed;
+    delta_time = unscaled_delta_time * time_scale;
+
+    total_unscaled_time += elapsed;
+    total_time += (elapsed * (double)time_scale);
+    frame_count++;
+
     last_time = current_time;
 }
 
@@ -87,9 +108,40 @@ void Time_Tick()
 
 
 
+// Returns the time elapsed between the current and previous frame in seconds
 float Time_DeltaTime()
 {
     return delta_time;
+}
+
+
+
+
+
+// Returns the interval of time that fixed frame updates happen
+float Time_FixedDeltaTime()
+{
+    return fixed_delta_time;
+}
+
+
+
+
+
+// Returns the real elapsed time between frames, ignoring the time scale
+float Time_UnscaledDeltaTime()
+{
+    return unscaled_delta_time;
+}
+
+
+
+
+
+// Returns the current time scale
+float Time_GetTimeScale()
+{
+    return time_scale;
 }
 
 
@@ -113,4 +165,52 @@ void Time_SetTargetFPS(uint32_t target_fps)
 uint32_t Time_GetTargetFPS()
 {
     return current_target_fps;
+}
+
+
+
+
+
+void Time_SetTimeScale(float scale)
+{
+    time_scale = scale;
+}
+
+
+
+
+
+void Time_SetFixedDeltaTime(float fixed_dt)
+{
+    fixed_delta_time = fixed_dt;
+}
+
+
+
+
+
+// Returns how long the application has been running in seconds (affected by time scale)
+double Time_TimeElapsed()
+{
+    return total_time;
+}
+
+
+
+
+
+// Returns how long the application has been open in real time
+double Time_UnscaledTimeElapsed()
+{
+    return total_unscaled_time;
+}
+
+
+
+
+
+// Returns the total number of frames rendered since the engine started
+uint64_t Time_GetFrameCount()
+{
+    return frame_count;
 }
