@@ -169,7 +169,7 @@ static void DispatchCollisionEvent(Scene* scene, uint32_t entity_id, uint32_t ot
 
 
 // Updates the scene
-// Runs custom scripts and runs the physics engine for a frame
+// Runs custom scripts (OnUpdate) and audio sources/listeners
 void Scene_Update(Scene* scene)
 {
     if (!scene) return;

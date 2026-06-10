@@ -12,11 +12,11 @@
 #include "../audio/audio.h"
 #include "physicsBridge.h"
 
-#define MAX_ENTITIES 4096
-#define MAX_NAME_LENGTH 64
+#define MAX_ENTITIES 65536
+#define MAX_NAME_LENGTH 256
 #define MAX_SCRIPTS_PER_ENTITY 64
 #define MAX_COLLISION_OVERLAPS 16
-#define MAX_MATERIAL_SLOTS 128
+#define MAX_MATERIAL_SLOTS 256
 
 
 typedef struct Scene Scene;

@@ -6,7 +6,7 @@
 #include "../PrismAPI.hpp"
 
 
-#define MAX_MATERIAL_SLOTS 128
+#define MAX_MATERIAL_SLOTS 256
 
 
 namespace Prism

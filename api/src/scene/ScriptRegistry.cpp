@@ -19,7 +19,7 @@ namespace Prism
             Behavior* new_script = Factory[className](e);
             
             if (new_script && json_data) {
-                new_script->Engine_Deserialize(json_data);
+                new_script->OnDeserialize(json_data);
             }
         }
         else

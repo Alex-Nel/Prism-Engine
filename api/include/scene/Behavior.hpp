@@ -79,8 +79,8 @@ namespace Prism
 
         // --- Automatic Serialization ---
 
-        void Engine_Serialize(struct cJSON* json);
-        void Engine_Deserialize(struct cJSON* json);
+        void OnSerialize(struct cJSON* json);
+        void OnDeserialize(struct cJSON* json);
     };
 
 

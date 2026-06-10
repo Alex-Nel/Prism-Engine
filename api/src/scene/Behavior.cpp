@@ -16,7 +16,7 @@ namespace Prism
     // Serialization Implementation
     // ==========================================
 
-    void Behavior::Engine_Serialize(cJSON* json)
+    void Behavior::OnSerialize(cJSON* json)
     {
         cJSON_AddStringToObject(json, "class_name", script_class_name.c_str());
 
@@ -33,7 +33,7 @@ namespace Prism
     }
 
     
-    void Behavior::Engine_Deserialize(cJSON* json)
+    void Behavior::OnDeserialize(cJSON* json)
     {
         for (const auto& pair : m_Properties)
         {
@@ -113,11 +113,11 @@ namespace Prism
 
     inline void Bridge_OnSerialize(::Entity e, void* data, cJSON* json) {
         if (data)
-            static_cast<Behavior*>(data)->Engine_Serialize(json);
+            static_cast<Behavior*>(data)->OnSerialize(json);
     }
     inline void Bridge_OnDeserialize(::Entity e, void* data, cJSON* json) {
         if (data)
-            static_cast<Behavior*>(data)->Engine_Deserialize(json);
+            static_cast<Behavior*>(data)->OnDeserialize(json);
     }
 
 
