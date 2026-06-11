@@ -140,12 +140,8 @@ typedef struct Transform
 // Component that holds rendering information
 typedef struct RenderComponent
 {
-    Model* model; // Set to NULL if drawing a single mesh
-
-    Material* material_overrides[MAX_MATERIAL_SLOTS];
-
-    Mesh* single_mesh;
-    Material* single_material;
+    Mesh* mesh;
+    Material* material;
 } RenderComponent;
 
 
@@ -332,6 +328,8 @@ void Scene_Update(Scene* scene);
 void Scene_FixedUpdate(Scene* scene);
 void Scene_UpdateTransforms(Scene* scene);
 Entity Scene_GetEntity(Scene* scene, const char* name);
+uint32_t Scene_GetTotalEntityCount(Scene* scene);
+uint32_t Scene_GetActiveEntityCount(Scene* scene);
 void Scene_SetMainCamera(Scene* scene, Entity camera_entity);
 void Scene_ShutdownPhysics(Scene* scene);
 bool Scene_Raycast(Scene* scene, Vector3 origin, Vector3 direction, float max_distance, RaycastHit* out_hit, int collision_mask);
@@ -347,6 +345,7 @@ bool Entity_IsValid(Entity entity);
 void Entity_SetParent(Entity child, Entity parent);
 void Entity_RemoveParent(Entity child);
 void Entity_SetActive(Entity entity, bool active);
+void Entity_AddModel(Entity parent, Model* model);
 void Entity_RemovePhysics(Entity entity);
 void Entity_RemoveRigidbody(Entity entity);
 
@@ -363,8 +362,7 @@ void Entity_UnbindScript(Entity entity, void* target_instance_data);
 
 void Entity_SetName(Entity entity, const char* name);
 void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, Vector3 scale);
-void Entity_AddRenderableMesh(Entity entity, Mesh* mesh, Material* material);
-void Entity_AddRenderableModel(Entity entity, Model* model);
+void Entity_AddRenderable(Entity entity, Mesh* mesh, Material* material);
 void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ);
 void Entity_AddPointLight(Entity entity, Color color, float intensity, float constant, float linear, float quadratic);
 void Entity_AddColliderBox(Entity entity, Vector3 extents, bool is_trigger);
@@ -447,7 +445,7 @@ void Collider_SetConvex(Entity entity, bool is_convex);
 
 // --- Renderable setters ---
 
-void Renderable_SetMaterial(RenderComponent* r, uint32_t slot_index, Material* material);
+void Renderable_SetMaterial(RenderComponent* r, Material* material);
 
 
 

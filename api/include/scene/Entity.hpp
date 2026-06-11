@@ -48,6 +48,7 @@ namespace Prism
 
         void SetParent(Entity parent);
         void RemoveParent();
+        void AddModel(Prism::Model model);
 
 
         // --- Component Setters ---
@@ -55,7 +56,6 @@ namespace Prism
         void SetName(const std::string& name);
         void AddTransform(const Vector3& pos, const Quaternion& rot, const Vector3& scale);
         void AddRenderable(Prism::Mesh mesh, Prism::Material material);
-        void AddRenderable(Prism::Model model);
         void AddCamera(float fovDegrees);
         void AddPointLight(const Prism::Vector3& color);
         void AddRigidbody(float mass);

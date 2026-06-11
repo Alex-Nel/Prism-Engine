@@ -49,6 +49,8 @@ namespace Prism
         
         Entity CreateEntity(const std::string& name);
         Entity GetEntityByName(const std::string& name);
+        uint32_t GetTotalEntityCount();
+        uint32_t GetActiveEntityCount();
         void SetMainCamera(Entity cameraEntity);
 
 

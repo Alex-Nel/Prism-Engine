@@ -59,6 +59,14 @@ namespace Prism
         return Entity(raw_e.id, raw_e.scene);
     }
 
+    uint32_t Scene::GetTotalEntityCount() {
+        return ::Scene_GetTotalEntityCount(static_cast<::Scene*>(this->m_RawScene));
+    }
+
+    uint32_t Scene::GetActiveEntityCount() {
+        return ::Scene_GetActiveEntityCount(static_cast<::Scene*>(this->m_RawScene));
+    }
+
     void Scene::SetMainCamera(Entity cameraEntity) {
         // Reconstruct the C entity to pass to the backend
         ::Entity raw_cam = { cameraEntity.id, static_cast<::Scene*>(cameraEntity.scene_ptr) };

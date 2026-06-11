@@ -138,22 +138,14 @@ bool Scene_Save(Scene* scene, const char* filepath)
             RenderComponent* r = &scene->renderables[i];
             cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "render");
 
-            if (r->model)
-            {
-                cJSON_AddStringToObject(comp_obj, "model_name", r->model->name);
-                // TODO: Update material naming system to serialize material overrides
-            }
-            else if (r->single_mesh)
-            {
-                cJSON_AddStringToObject(comp_obj, "mesh_name", r->single_mesh->name);
+            cJSON_AddStringToObject(comp_obj, "mesh_name", r->mesh->name);
 
-                if (r->single_material && r->single_material->diffuse_texture)
-                {
-                    cJSON_AddStringToObject(comp_obj, "texture_name", r->single_material->diffuse_texture->name);
-                    cJSON_AddItemToObject(comp_obj, "tint", SaveColor(r->single_material->properties.tint_color));
-                    cJSON_AddNumberToObject(comp_obj, "shininess", r->single_material->properties.shininess);
-                    cJSON_AddNumberToObject(comp_obj, "specular_strength", r->single_material->properties.specular_strength);
-                }
+            if (r->material && r->material->diffuse_texture)
+            {
+                cJSON_AddStringToObject(comp_obj, "texture_name", r->material->diffuse_texture->name);
+                cJSON_AddItemToObject(comp_obj, "tint", SaveColor(r->material->properties.tint_color));
+                cJSON_AddNumberToObject(comp_obj, "shininess", r->material->properties.shininess);
+                cJSON_AddNumberToObject(comp_obj, "specular_strength", r->material->properties.specular_strength);
             }
         }
 
@@ -357,25 +349,17 @@ bool Scene_Load(Scene* scene, const char* filepath)
             cJSON* comp_obj = cJSON_GetObjectItemCaseSensitive(entity_json, "render");
             RenderComponent* r = &scene->renderables[id];
             
-            cJSON* model_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "model_name");
             cJSON* mesh_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "mesh_name");
 
-            if (model_name) 
-            {
-                r->model = Asset_GetModelByName(model_name->valuestring);
-            } 
-            else if (mesh_name) 
-            {
-                r->single_mesh = Asset_GetMeshByName(mesh_name->valuestring);
-                
-                cJSON* tex_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "texture_name");
-                Texture* tex = tex_name ? Asset_GetTextureByName(tex_name->valuestring) : NULL;
-                
-                r->single_material = Asset_CreateMaterial(NULL, tex);
-                
-                cJSON* tint = cJSON_GetObjectItemCaseSensitive(comp_obj, "tint");
-                if (tint) r->single_material->properties.tint_color = LoadColor(tint);
-            }
+            r->mesh = Asset_GetMeshByName(mesh_name->valuestring);
+            
+            cJSON* tex_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "texture_name");
+            Texture* tex = tex_name ? Asset_GetTextureByName(tex_name->valuestring) : NULL;
+            
+            r->material = Asset_CreateMaterial(NULL, tex);
+            
+            cJSON* tint = cJSON_GetObjectItemCaseSensitive(comp_obj, "tint");
+            if (tint) r->material->properties.tint_color = LoadColor(tint);
         }
 
 

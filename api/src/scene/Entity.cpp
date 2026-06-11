@@ -43,6 +43,9 @@ namespace Prism
     void Entity::RemoveParent() {
         ::Entity_RemoveParent(ToCore(*this));
     }
+    void Entity::AddModel(Prism::Model model) {
+        ::Entity_AddModel(ToCore(*this), (::Model*)model.GetRawModel());
+    }
 
 
 
@@ -56,10 +59,7 @@ namespace Prism
         ::Entity_AddTransform(ToCore(*this), {pos.x, pos.y, pos.z}, {rot.x, rot.y, rot.z, rot.w}, {scale.x, scale.y, scale.z});
     }
     void Entity::AddRenderable(Prism::Mesh mesh, Prism::Material material) {
-        ::Entity_AddRenderableMesh(ToCore(*this), (::Mesh*)mesh.GetRaw(), (::Material*)material.GetRaw());
-    }
-    void Entity::AddRenderable(Model model) {
-        ::Entity_AddRenderableModel(ToCore(*this), (::Model*)model.GetRawModel());
+        ::Entity_AddRenderable(ToCore(*this), (::Mesh*)mesh.GetRaw(), (::Material*)material.GetRaw());
     }
     void Entity::AddCamera(float fovDegrees) {
         float fov_radians = fovDegrees * (3.14159265f / 180.0f);

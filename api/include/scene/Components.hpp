@@ -134,14 +134,10 @@ namespace Prism
 
     struct PRISM_API RenderComponent
     {
-        void* raw_model_ptr; // Set to NULL if drawing a single mesh
+        void* raw_mesh_ptr;
+        void* raw_material_ptr;
 
-        void* material_overrides[MAX_MATERIAL_SLOTS];
-
-        void* raw_single_mesh_ptr;
-        void* raw_single_material_ptr;
-
-        void SetMaterial(uint32_t slot_index, Prism::Material material);
+        void SetMaterial(Prism::Material material);
     };
 
 

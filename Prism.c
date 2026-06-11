@@ -270,37 +270,14 @@ void Engine_RenderScene(Scene* scene)
             Transform* t = &scene->transforms[i];
             RenderComponent* rc = &scene->renderables[i];
 
-            if (rc->model != NULL)
+            if (rc->mesh && rc->material)
             {
-                for (uint32_t n = 0; n < rc->model->node_count; n++)
-                {
-                    ModelNode* node = &rc->model->nodes[n];
-                    
-                    Material* mat = node->material; // Default
+                Material* mat = rc->material;
 
-                    if (n < MAX_MATERIAL_SLOTS && rc->material_overrides[n] != NULL)
-                        mat = rc->material_overrides[n]; // User swapped it material
-
-                    if (!mat) continue;
-
-                    ShaderHandle shd = mat->shader->gpu_handle;
-                    TextureHandle tex = mat->diffuse_texture->gpu_handle;
-                    MeshHandle msh = node->mesh->gpu_handle;
-
-                    Render_Submit(engine.renderer, msh, shd, tex, mat->properties, t->world_matrix);
-                }
-            }
-            else if (rc->single_mesh != NULL)
-            {
-                Material* mat = rc->single_material;
-                
-                if (mat)
-                {
-                    ShaderHandle shd = mat->shader->gpu_handle;
-                    TextureHandle tex = mat->diffuse_texture->gpu_handle;
-                    MeshHandle msh = rc->single_mesh->gpu_handle;
-                    Render_Submit(engine.renderer, msh, shd, tex, mat->properties, t->world_matrix);
-                }
+                ShaderHandle shd = mat->shader->gpu_handle;
+                TextureHandle tex = mat->diffuse_texture->gpu_handle;
+                MeshHandle msh = rc->mesh->gpu_handle;
+                Render_Submit(engine.renderer, msh, shd, tex, mat->properties, t->world_matrix);
             }
         }
     }

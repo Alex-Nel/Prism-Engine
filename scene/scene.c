@@ -309,6 +309,10 @@ void Scene_FixedUpdate(Scene* scene)
     }
 
 
+    // update transforms incase scripts moved objects
+    Scene_UpdateTransforms(scene);
+
+
     // Pre-Physics Sync: Push Manual Transforms To Physics
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
     {
@@ -324,18 +328,18 @@ void Scene_FixedUpdate(Scene* scene)
         bool is_kinematic = has_rigidbody && scene->rigidbodies[i].is_kinematic;
         bool is_dynamic = has_rigidbody && !scene->rigidbodies[i].is_kinematic;
 
-        // bool is_static_collider = (scene->component_masks[i] & COMPONENT_COLLIDER) && !(scene->component_masks[i] & COMPONENT_RIGIDBODY);
-        // bool is_kinematic_body = (scene->component_masks[i] & COMPONENT_RIGIDBODY) && scene->rigidbodies[i].is_kinematic;
-        
-        // if (is_static_collider || is_kinematic_body)
         if (is_static || is_kinematic || (is_dynamic && t->is_dirty))
         {
             ColliderComponent* c = &scene->colliders[i];
             if (c->physics_handle)
             {
-                // Transform* t = &scene->transforms[i];
-                Physics_SetBodyPosition(c->physics_handle, t->local_position);
-                Physics_SetBodyRotation(c->physics_handle, t->local_rotation);
+                Vector3 global_pos = Transform_GetGlobalPosition(t);
+                Quaternion global_rot = Transform_GetGlobalRotation(t);
+                Vector3 global_scale = Transform_GetGlobalScale(t);
+
+                Physics_SetBodyPosition(c->physics_handle, global_pos);
+                Physics_SetBodyRotation(c->physics_handle, global_rot);
+                Physics_SetBodyScale(c->physics_handle, global_scale);
 
                 if (is_dynamic)
                     Physics_SetLinearVelocity(c->physics_handle, (Vector3){0,0,0});
@@ -433,8 +437,33 @@ void Scene_FixedUpdate(Scene* scene)
             if (c->physics_handle)
             {
                 Transform* t = &scene->transforms[i];
-                Transform_SetLocalPosition(t, Physics_GetBodyPosition(c->physics_handle));
-                Transform_SetLocalRotation(t, Physics_GetBodyRotation(c->physics_handle));
+
+                Vector3 phys_global_pos = Physics_GetBodyPosition(c->physics_handle);
+                Quaternion phys_global_rot = Physics_GetBodyRotation(c->physics_handle);
+
+                if (t->parent_id == ENTITY_NONE)
+                {
+                    // If an entity has no parent, the world space is the local space
+                    Transform_SetLocalPosition(t, phys_global_pos);
+                    Transform_SetLocalRotation(t, phys_global_rot);
+                }
+                else
+                {
+                    // If an entity has a parent, convert global physics pos/rot to local space
+                    Transform* parent_t = &scene->transforms[t->parent_id];
+
+                    // Local position = Inverse(parent world matrix) * Global Position
+                    Matrix4 inv_parent_matrix = Matrix4Inverse(parent_t->world_matrix);
+                    Vector3 local_pos = Matrix4MultiplyVector3(inv_parent_matrix, phys_global_pos);
+
+                    // Local rotation = Inverse(Parent Global Rotation) * Global Rotation
+                    Quaternion parent_global_rot = Transform_GetGlobalRotation(parent_t);
+                    Quaternion inv_parent_rot = QuaternionInverse(parent_global_rot);
+                    Quaternion local_rot = QuaternionMultiply(inv_parent_rot, phys_global_rot);
+
+                    Transform_SetLocalPosition(t, local_pos);
+                    Transform_SetLocalRotation(t, local_rot);
+                }
             }
         }
     }
@@ -569,6 +598,51 @@ Entity Scene_GetEntity(Scene* scene, const char* name)
 
     // If no match, return NULL entity
     return (Entity){ 0, NULL }; 
+}
+
+
+
+
+
+// Returns the total number of entities that exist in a scene
+uint32_t Scene_GetTotalEntityCount(Scene* scene)
+{
+    if (!scene)
+        return 0;
+
+    uint32_t count = 0;
+
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        // If the mask is greater than 0, then the entity slot is in use
+        if (scene->component_masks[i] > 0)
+            count++;
+    }
+
+    return count;
+}
+
+
+
+
+
+// Returns only the number of active entities in a scene
+uint32_t Scene_GetActiveEntityCount(Scene* scene)
+{
+    if (!scene)
+        return 0;
+
+    uint32_t count = 0;
+
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        // Note: check is_active_in_hierarchy, not is_active_self.
+        // An entity might be active, but have a disabled parent, which means it's also disabled
+        if (scene->component_masks[i] > 0 && scene->is_active_in_hierarchy[i])
+            count++;
+    }
+
+    return count;
 }
 
 
@@ -884,6 +958,47 @@ void Entity_SetActive(Entity entity, bool active)
         {
             Physics_SetBodySimulationState(entity.scene->physics_world, c->physics_handle, active);
         }
+    }
+}
+
+
+
+
+
+// Instantiates a 3D model as a hierarchy of child entities
+void Entity_AddModel(Entity parent, Model* model)
+{
+    if (!Entity_IsValid(parent) || !model)
+        return;
+
+
+    // If the model is only a single mesh, just attach it to the parent
+    if (model->node_count == 1)
+    {
+        Entity_AddRenderable(parent, model->nodes[0].mesh, model->nodes[0].material);
+        return;
+    }
+
+
+    // For multi mesh models, spawn an entity for each mesh
+    for (uint32_t i = 0; i < model->node_count; i++)
+    {
+        // Create the entity
+        char child_name[MAX_NAME_LENGTH];
+        snprintf(child_name, sizeof(child_name), "%s Node %d", model->name, i);
+        Entity child = Entity_Create(parent.scene, child_name);
+
+        // Set it up in the hierarchy
+        Entity_SetParent(child, parent);
+
+        // Make it's transform default
+        Transform* child_t = Entity_GetTransform(child);
+        Transform_SetLocalPosition(child_t, (Vector3){0, 0, 0});
+        Transform_SetLocalRotation(child_t, (Quaternion){0, 0, 0, 1});
+        Transform_SetLocalScale(child_t, (Vector3){1, 1, 1});
+
+        // Give it the specific mesh and material
+        Entity_AddRenderable(child, model->nodes[i].mesh, model->nodes[i].material);
     }
 }
 

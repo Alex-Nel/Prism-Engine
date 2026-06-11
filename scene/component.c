@@ -54,37 +54,13 @@ void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, V
 
 
 // Adds a renderable component to an entity with a specified mesh and material
-void Entity_AddRenderableMesh(Entity entity, Mesh* mesh, Material* material)
+void Entity_AddRenderable(Entity entity, Mesh* mesh, Material* material)
 {
     if (!entity.scene) return;
 
     RenderComponent* r = &entity.scene->renderables[entity.id];
-    r->model = NULL;
-    r->single_mesh = mesh;
-    r->single_material = material;
-
-    for (int i = 0; i < MAX_MATERIAL_SLOTS; i++)
-        r->material_overrides[i] = NULL;
-
-    entity.scene->component_masks[entity.id] |= COMPONENT_RENDER;
-}
-
-
-
-
-
-// Adds a renderable component to an entity with a specified mesh and material
-void Entity_AddRenderableModel(Entity entity, Model* model)
-{
-    if (!entity.scene) return;
-
-    RenderComponent* r = &entity.scene->renderables[entity.id];
-    r->model = model;
-    r->single_mesh = NULL;
-    r->single_material = NULL;
-
-    for (int i = 0; i < MAX_MATERIAL_SLOTS; i++)
-        r->material_overrides[i] = NULL;
+    r->mesh = mesh;
+    r->material = material;
 
     entity.scene->component_masks[entity.id] |= COMPONENT_RENDER;
 }
@@ -175,22 +151,11 @@ void Entity_AddColliderBoxAuto(Entity entity, bool is_trigger)
     }
 
     RenderComponent* r = &entity.scene->renderables[entity.id];
-    AABB bounds = {0};
-    bool has_bounds = false;
 
-    if (r->single_mesh)
+    if (r->mesh)
     {
-        bounds = r->single_mesh->local_bounds;
-        has_bounds = true;
-    }
-    else if (r->model && r->model->node_count > 0)
-    {
-        bounds = r->model->nodes[0].mesh->local_bounds;
-        has_bounds = true;
-    }
+        AABB bounds = r->mesh->local_bounds;
 
-    if (has_bounds)
-    {
         // Calculate the extents (Half-Size) from the local bounds
         Vector3 extents = {
             (bounds.max.x - bounds.min.x),
@@ -198,7 +163,6 @@ void Entity_AddColliderBoxAuto(Entity entity, bool is_trigger)
             (bounds.max.z - bounds.min.z)
         };
 
-        // Pass the extents to tbe manual function!
         Entity_AddColliderBox(entity, extents, is_trigger);
     }
 }
@@ -475,7 +439,7 @@ Mesh* Entity_GetMesh(Entity entity)
     
     // Check if the entity actually has a render component
     if (entity.scene->component_masks[entity.id] & COMPONENT_RENDER)
-        return entity.scene->renderables[entity.id].single_mesh;
+        return entity.scene->renderables[entity.id].mesh;
     
     return NULL;
 }
@@ -880,7 +844,7 @@ void Collider_SetConvex(Entity entity, bool is_convex)
 
 
 // Sets the specific material slot with a chosen material
-void Renderable_SetMaterial(RenderComponent* r, uint32_t slot_index, Material* material)
+void Renderable_SetMaterial(RenderComponent* r, Material* material)
 {
     if (!r)
     {
@@ -888,8 +852,5 @@ void Renderable_SetMaterial(RenderComponent* r, uint32_t slot_index, Material* m
         return;
     }
 
-    if (slot_index >= MAX_MATERIAL_SLOTS)
-        return;
-
-    r->material_overrides[slot_index] = material;
+    r->material = material;
 }
