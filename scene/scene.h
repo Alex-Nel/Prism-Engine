@@ -343,9 +343,12 @@ Entity Entity_Create(Scene* scene, const char* name);
 void Entity_Destroy(Entity entity);
 bool Entity_IsValid(Entity entity);
 void Entity_SetParent(Entity child, Entity parent);
+Entity Entity_GetParent(Entity entity);
 void Entity_RemoveParent(Entity child);
 void Entity_SetActive(Entity entity, bool active);
 void Entity_AddModel(Entity parent, Model* model);
+uint32_t Entity_GetChildren(Entity entity, uint32_t* out_array, uint32_t max_count, bool recursive);
+Entity Entity_GetParentWithComponent(Entity entity, uint32_t component_mask);
 void Entity_RemovePhysics(Entity entity);
 void Entity_RemoveRigidbody(Entity entity);
 

@@ -56,4 +56,8 @@ namespace Prism
     uint32_t Engine::GetTargetFPS() {
         return ::Engine_GetTargetFPS();
     }
+
+    void Engine::SetVSync(bool enabled) {
+        ::Platform_SetVSync(enabled);
+    }
 }

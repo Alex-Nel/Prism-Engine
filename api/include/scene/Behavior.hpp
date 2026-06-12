@@ -167,4 +167,39 @@ namespace Prism
         }
     }
 
+
+
+    // Returns all scripts of type T attached to this entity's children
+    template<typename T>
+    inline std::vector<T*> Entity::GetScriptsInChildren(bool recursive)
+    {
+        std::vector<T*> result;
+        std::vector<Prism::Entity> children = GetChildren(recursive);
+
+        for (Prism::Entity& child : children)
+        {
+            T* script = child.GetScript<T>();
+            if (script != nullptr) result.push_back(script);
+        }
+        return result;
+    }
+
+
+
+    // Walks up the hierarchy and returns the first script of type T found
+    template<typename T>
+    inline T* Entity::GetScriptInParent()
+    {
+        Prism::Entity current = this->GetParent();
+
+        while (current.IsValid())
+        {
+            T* script = current.GetScript<T>();
+            if (script != nullptr) return script;
+            
+            current = current.GetParent();
+        }
+        return nullptr;
+    }
+
 }

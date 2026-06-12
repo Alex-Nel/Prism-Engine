@@ -45,5 +45,6 @@ namespace Prism
         static bool IsMouseCaptured();
         static void SetTargetFPS(uint32_t fps);
         static uint32_t GetTargetFPS();
+        static void SetVSync(bool enabled);
     };
 }

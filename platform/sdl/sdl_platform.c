@@ -381,6 +381,18 @@ void Platform_Delay(uint32_t ms)
 
 
 
+// Enables or disables vsync
+void Platform_SetVSync(bool enabled)
+{
+    int interval = enabled ? 1 : 0;
+
+    SDL_GL_SetSwapInterval(interval);
+}
+
+
+
+
+
 // Raises the window to the foreground
 bool Platform_RaiseWindow(Window* window)
 {

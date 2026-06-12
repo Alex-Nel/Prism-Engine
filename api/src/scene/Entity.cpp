@@ -40,11 +40,34 @@ namespace Prism
     void Entity::SetParent(Entity parent) {
         ::Entity_SetParent(ToCore(*this), ToCore(parent));
     }
+    Prism::Entity Entity::GetParent() {
+        ::Entity raw_e = ::Entity_GetParent(ToCore(*this));        
+        return Entity(raw_e.id, raw_e.scene);
+    }
     void Entity::RemoveParent() {
         ::Entity_RemoveParent(ToCore(*this));
     }
     void Entity::AddModel(Prism::Model model) {
         ::Entity_AddModel(ToCore(*this), (::Model*)model.GetRawModel());
+    }
+
+    std::vector<Prism::Entity> Entity::GetChildren(bool recursive) {
+        // Create a temporary buffer (Max 1024 children to prevent stack overflow)
+        const uint32_t MAX_CHILDREN = 1024;
+        uint32_t buffer[MAX_CHILDREN];
+
+        // Call the Backend
+        ::Entity raw_entity = ToCore(*this);
+        uint32_t found_count = ::Entity_GetChildren(raw_entity, buffer, MAX_CHILDREN, recursive);
+
+        // Convert the raw IDs into C++ Entity objects
+        std::vector<Prism::Entity> children;
+        children.reserve(found_count);
+
+        for (uint32_t i = 0; i < found_count; i++)
+            children.emplace_back(Prism::Entity(buffer[i], raw_entity.scene));
+
+        return children;
     }
 
 
@@ -65,8 +88,8 @@ namespace Prism
         float fov_radians = fovDegrees * (3.14159265f / 180.0f);
         ::Entity_AddCamera(ToCore(*this), fov_radians, 0.1f, 1000.0f);
     }
-    void Entity::AddPointLight(const Prism::Vector3& color) {
-        ::Entity_AddPointLight(ToCore(*this), {color.x, color.y, color.z}, 1.0f, 1.0f, 0.09f, 0.032f);
+    void Entity::AddPointLight(const Prism::Color& color) {
+        ::Entity_AddPointLight(ToCore(*this), ::Color{color.r, color.g, color.b, color.a}, 1.0f, 1.0f, 0.09f, 0.032f);
     }
     void Entity::AddRigidbody(float mass) {
         ::Entity_AddRigidbody(ToCore(*this), mass);
@@ -124,6 +147,224 @@ namespace Prism
     }
     Prism::AudioSourceComponent* Entity::GetAudioSource() {
         return reinterpret_cast<Prism::AudioSourceComponent*>(::Entity_GetAudioSource(ToCore(*this)));
+    }
+
+
+
+    // ==========================================
+    // Component Hierarchy Getters
+    // ==========================================
+
+    std::vector<Prism::Transform*> Entity::GetTransformsInChildren(bool recursive) {
+        std::vector<Prism::Transform*> result;
+        std::vector<Prism::Entity> children = GetChildren(recursive);
+
+        for (Prism::Entity& child : children)
+        {
+            Prism::Transform* comp = child.GetTransform();
+            if (comp != nullptr) result.push_back(comp);
+        }
+        return result;
+    }
+
+    std::vector<Prism::RenderComponent*> Entity::GetRenderablesInChildren(bool recursive) {
+        std::vector<Prism::RenderComponent*> result;
+        std::vector<Prism::Entity> children = GetChildren(recursive);
+
+        for (Prism::Entity& child : children)
+        {
+            Prism::RenderComponent* comp = child.GetRenderable();
+            if (comp != nullptr) result.push_back(comp);
+        }
+        return result;
+    }
+
+    std::vector<Prism::RigidbodyComponent*> Entity::GetRigidbodiesInChildren(bool recursive) {
+        std::vector<Prism::RigidbodyComponent*> result;
+        std::vector<Prism::Entity> children = GetChildren(recursive);
+
+        for (Prism::Entity& child : children)
+        {
+            Prism::RigidbodyComponent* comp = child.GetRigidbody();
+            if (comp != nullptr) result.push_back(comp);
+        }
+        return result;
+    }
+
+    std::vector<Prism::ColliderComponent*> Entity::GetCollidersInChildren(bool recursive) {
+        std::vector<Prism::ColliderComponent*> result;
+        std::vector<Prism::Entity> children = GetChildren(recursive);
+
+        for (Prism::Entity& child : children)
+        {
+            Prism::ColliderComponent* comp = child.GetCollider();
+            if (comp != nullptr) result.push_back(comp);
+        }
+        return result;
+    }
+
+    std::vector<Prism::CameraComponent*> Entity::GetCamerasInChildren(bool recursive) {
+        std::vector<Prism::CameraComponent*> result;
+        std::vector<Prism::Entity> children = GetChildren(recursive);
+
+        for (Prism::Entity& child : children)
+        {
+            Prism::CameraComponent* comp = child.GetCamera();
+            if (comp != nullptr) result.push_back(comp);
+        }
+        return result;
+    }
+
+    std::vector<Prism::PointLightComponent*> Entity::GetPointLightsInChildren(bool recursive) {
+        std::vector<Prism::PointLightComponent*> result;
+        std::vector<Prism::Entity> children = GetChildren(recursive);
+
+        for (Prism::Entity& child : children)
+        {
+            Prism::PointLightComponent* comp = child.GetPointLight();
+            if (comp != nullptr) result.push_back(comp);
+        }
+        return result;
+    }
+
+    std::vector<Prism::AudioListenerComponent*> Entity::GetAudioListenersInChildren(bool recursive) {
+        std::vector<Prism::AudioListenerComponent*> result;
+        std::vector<Prism::Entity> children = GetChildren(recursive);
+
+        for (Prism::Entity& child : children)
+        {
+            Prism::AudioListenerComponent* comp = child.GetAudioListener();
+            if (comp != nullptr) result.push_back(comp);
+        }
+        return result;
+    }
+
+    std::vector<Prism::AudioSourceComponent*> Entity::GetAudioSourcesInChildren(bool recursive) {
+        std::vector<Prism::AudioSourceComponent*> result;
+        std::vector<Prism::Entity> children = GetChildren(recursive);
+
+        for (Prism::Entity& child : children)
+        {
+            Prism::AudioSourceComponent* comp = child.GetAudioSource();
+            if (comp != nullptr) result.push_back(comp);
+        }
+        return result;
+    }
+
+
+
+
+
+    Prism::Transform* Entity::GetTransformInParent() {
+        Prism::Entity current = this->GetParent();
+
+        // Walk up the tree until we hit the root
+        while (current.IsValid())
+        {
+            Prism::Transform* comp = current.GetTransform();
+            if (comp != nullptr) return comp;
+            
+            current = current.GetParent(); // Move up one level
+        }
+        return nullptr; // Not found in any parent
+    }
+
+    Prism::RenderComponent* Entity::GetRenderableInParent() {
+        Prism::Entity current = this->GetParent();
+
+        // Walk up the tree until we hit the root
+        while (current.IsValid())
+        {
+            Prism::RenderComponent* comp = current.GetRenderable();
+            if (comp != nullptr) return comp;
+            
+            current = current.GetParent(); // Move up one level
+        }
+        return nullptr; // Not found in any parent
+    }
+
+    Prism::RigidbodyComponent* Entity::GetRigidbodyInParent() {
+        Prism::Entity current = this->GetParent();
+
+        // Walk up the tree until we hit the root
+        while (current.IsValid())
+        {
+            Prism::RigidbodyComponent* comp = current.GetRigidbody();
+            if (comp != nullptr) return comp;
+            
+            current = current.GetParent(); // Move up one level
+        }
+        return nullptr; // Not found in any parent
+    }
+
+    Prism::ColliderComponent* Entity::GetColliderInParent() {
+        Prism::Entity current = this->GetParent();
+
+        // Walk up the tree until we hit the root
+        while (current.IsValid())
+        {
+            Prism::ColliderComponent* comp = current.GetCollider();
+            if (comp != nullptr) return comp;
+            
+            current = current.GetParent(); // Move up one level
+        }
+        return nullptr; // Not found in any parent
+    }
+
+    Prism::CameraComponent* Entity::GetCameraInParent() {
+        Prism::Entity current = this->GetParent();
+
+        // Walk up the tree until we hit the root
+        while (current.IsValid())
+        {
+            Prism::CameraComponent* comp = current.GetCamera();
+            if (comp != nullptr) return comp;
+            
+            current = current.GetParent(); // Move up one level
+        }
+        return nullptr; // Not found in any parent
+    }
+
+    Prism::PointLightComponent* Entity::GetPointLightInParent() {
+        Prism::Entity current = this->GetParent();
+
+        // Walk up the tree until we hit the root
+        while (current.IsValid())
+        {
+            Prism::PointLightComponent* comp = current.GetPointLight();
+            if (comp != nullptr) return comp;
+            
+            current = current.GetParent(); // Move up one level
+        }
+        return nullptr; // Not found in any parent
+    }
+
+    Prism::AudioListenerComponent* Entity::GetAudioListenerInParent() {
+        Prism::Entity current = this->GetParent();
+
+        // Walk up the tree until we hit the root
+        while (current.IsValid())
+        {
+            Prism::AudioListenerComponent* comp = current.GetAudioListener();
+            if (comp != nullptr) return comp;
+            
+            current = current.GetParent(); // Move up one level
+        }
+        return nullptr; // Not found in any parent
+    }
+
+    Prism::AudioSourceComponent* Entity::GetAudioSourceInParent() {
+        Prism::Entity current = this->GetParent();
+
+        // Walk up the tree until we hit the root
+        while (current.IsValid())
+        {
+            Prism::AudioSourceComponent* comp = current.GetAudioSource();
+            if (comp != nullptr) return comp;
+            
+            current = current.GetParent(); // Move up one level
+        }
+        return nullptr; // Not found in any parent
     }
 
 

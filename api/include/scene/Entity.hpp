@@ -2,6 +2,7 @@
 
 #include <string>
 #include <cstdint>
+#include <vector>
 #include "../core/Math.hpp"
 #include "../AssetManager.hpp"
 #include "../Audio.hpp"
@@ -47,8 +48,11 @@ namespace Prism
         // --- Hierarchy Functions ---
 
         void SetParent(Entity parent);
+        Prism::Entity GetParent();
         void RemoveParent();
         void AddModel(Prism::Model model);
+        std::vector<Prism::Entity> GetChildren(bool recursive = true);
+
 
 
         // --- Component Setters ---
@@ -57,7 +61,7 @@ namespace Prism
         void AddTransform(const Vector3& pos, const Quaternion& rot, const Vector3& scale);
         void AddRenderable(Prism::Mesh mesh, Prism::Material material);
         void AddCamera(float fovDegrees);
-        void AddPointLight(const Prism::Vector3& color);
+        void AddPointLight(const Prism::Color& color);
         void AddRigidbody(float mass);
         void AddColliderBox(const Prism::Vector3& extents, bool is_trigger = false);
         void AddColliderBoxAuto(bool is_trigger = false);
@@ -79,6 +83,29 @@ namespace Prism
         Prism::PointLightComponent* GetPointLight();
         Prism::AudioListenerComponent* GetAudioListener();
         Prism::AudioSourceComponent* GetAudioSource();
+
+
+
+        // --- Component Hierarchy Getters ---
+
+        std::vector<Prism::Transform*> GetTransformsInChildren(bool recursive = true);
+        std::vector<Prism::RenderComponent*> GetRenderablesInChildren(bool recursive = true);
+        std::vector<Prism::RigidbodyComponent*> GetRigidbodiesInChildren(bool recursive = true);
+        std::vector<Prism::ColliderComponent*> GetCollidersInChildren(bool recursive = true);
+        std::vector<Prism::CameraComponent*> GetCamerasInChildren(bool recursive = true);
+        std::vector<Prism::PointLightComponent*> GetPointLightsInChildren(bool recursive = true);
+        std::vector<Prism::AudioListenerComponent*> GetAudioListenersInChildren(bool recursive = true);
+        std::vector<Prism::AudioSourceComponent*> GetAudioSourcesInChildren(bool recursive = true);
+        
+        
+        Prism::Transform* GetTransformInParent();
+        Prism::RenderComponent* GetRenderableInParent();
+        Prism::RigidbodyComponent* GetRigidbodyInParent();
+        Prism::ColliderComponent* GetColliderInParent();
+        Prism::CameraComponent* GetCameraInParent();
+        Prism::PointLightComponent* GetPointLightInParent();
+        Prism::AudioListenerComponent* GetAudioListenerInParent();
+        Prism::AudioSourceComponent* GetAudioSourceInParent();
 
 
 
@@ -114,8 +141,16 @@ namespace Prism
         template<typename T>
         void RemoveScript();
 
-        // NEW: Removes a specific instance of a script (if they have multiple of the same type)
+        // Removes a specific instance of a script (if they have multiple of the same type)
         template<typename T>
         void RemoveScript(T* specific_instance);
+
+        // Returns a vector of all script instances in children entities
+        template<typename T>
+        std::vector<T*> GetScriptsInChildren(bool recursive = true);
+
+        // Returns a script instance in the parent of an entity
+        template<typename T>
+        T* GetScriptInParent();
     };
 }

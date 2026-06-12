@@ -50,6 +50,9 @@ double Platform_GetTime(void);
 // Delays a platform window for a specified ms
 void Platform_Delay(uint32_t ms);
 
+// Enables or disables vsync
+void Platform_SetVSync(bool enabled);
+
 // Raises the window to the foreground
 bool Platform_RaiseWindow(Window* window);
 

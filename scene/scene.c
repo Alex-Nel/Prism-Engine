@@ -843,7 +843,7 @@ bool Entity_IsValid(Entity entity)
 void Entity_SetParent(Entity child, Entity parent)
 {
     // Make sure both entities are in the scene and are not the same
-    if (!child.scene || !parent.scene) return;
+    if (!Entity_IsValid(child) || !Entity_IsValid(parent)) return;
     if (child.id == parent.id) return;
 
     // If the parent is valid, remove the child from its previous parent
@@ -896,10 +896,28 @@ void Entity_SetParent(Entity child, Entity parent)
 
 
 
+// Returns the parent of an entity
+Entity Entity_GetParent(Entity entity)
+{
+    if (!Entity_IsValid(entity))
+        return (Entity){ ENTITY_NONE, NULL };
+    
+    Transform* t = &entity.scene->transforms[entity.id];
+
+    if (t->parent_id == ENTITY_NONE)
+        return (Entity){ ENTITY_NONE, NULL };
+    else
+        return (Entity){ t->parent_id, entity.scene };
+}
+
+
+
+
+
 // Remove the parent from an entity
 void Entity_RemoveParent(Entity child)
 {
-    if (!child.scene) return;
+    if (!Entity_IsValid(child)) return;
     
     Transform* child_t = &child.scene->transforms[child.id];
     
@@ -939,7 +957,7 @@ void Entity_RemoveParent(Entity child)
 // Set an entity to active or inactive
 void Entity_SetActive(Entity entity, bool active)
 {
-    if (!entity.scene) return;
+    if (!Entity_IsValid(entity)) return;
     
     // Don't do anything if the new state is the same as the old
     if (entity.scene->is_active_self[entity.id] == active) return; 
@@ -1006,6 +1024,77 @@ void Entity_AddModel(Entity parent, Model* model)
 
 
 
+// Recursive function to walk the Left-Child/Right-Sibling tree
+static void GatherDescendants(Scene* scene, uint32_t current_id, uint32_t* out_array, uint32_t max_count, uint32_t* current_count, bool recursive)
+{
+    if (current_id == ENTITY_NONE || *current_count >= max_count)
+        return;
+
+    // Start at the first child
+    uint32_t child_id = scene->transforms[current_id].first_child_id;
+    
+    // Loop through all siblings
+    while (child_id != ENTITY_NONE)
+    {
+        if (*current_count < max_count) 
+        {
+            out_array[*current_count] = child_id;
+            (*current_count)++;
+
+            // If recursive, dive into this child's children before moving to the next sibling
+            if (recursive)
+                GatherDescendants(scene, child_id, out_array, max_count, current_count, recursive);
+        }
+
+        child_id = scene->transforms[child_id].next_sibling_id;
+    }
+}
+
+
+
+
+
+// Fills an array with child entity IDs. Returns the number of children found.
+uint32_t Entity_GetChildren(Entity entity, uint32_t* out_array, uint32_t max_count, bool recursive)
+{
+    if (!Entity_IsValid(entity) || !out_array)
+        return 0;
+    
+    uint32_t count = 0;
+    GatherDescendants(entity.scene, entity.id, out_array, max_count, &count, recursive);
+
+    return count;
+}
+
+
+
+
+
+// Walks up the tree hierarchy to find the first parent that has a specific component
+Entity Entity_GetParentWithComponent(Entity entity, uint32_t component_mask)
+{
+    if (!Entity_IsValid(entity))
+        return (Entity){ ENTITY_NONE, NULL };
+
+    uint32_t current_parent = entity.scene->transforms[entity.id].parent_id;
+
+    while (current_parent != ENTITY_NONE)
+    {
+        // Check if this parent has the component we want
+        if ((entity.scene->component_masks[current_parent] & component_mask) == component_mask)
+            return (Entity){ current_parent, entity.scene };
+        
+        // Move up to the next parent
+        current_parent = entity.scene->transforms[current_parent].parent_id;
+    }
+
+    return (Entity){ ENTITY_NONE, NULL }; // Not found
+}
+
+
+
+
+
 // Remove physics properties from an entity
 void Entity_RemovePhysics(Entity entity)
 {
@@ -1062,7 +1151,7 @@ void Entity_RemoveRigidbody(Entity entity)
 // Remove a specified component from an entity
 void Entity_RemoveComponent(Entity entity, ComponentMask component)
 {
-    if (!entity.scene) return;
+    if (!Entity_IsValid(entity)) return;
 
     // Call respective functions depending on whether a rigidbody or collider is removed
     if (component & COMPONENT_COLLIDER)
@@ -1091,7 +1180,7 @@ void Entity_RemoveComponent(Entity entity, ComponentMask component)
 // Removes a custom script
 void Entity_UnbindScript(Entity entity, void* target_instance_data)
 {
-    if (!entity.scene) return;
+    if (!Entity_IsValid(entity)) return;
     
     // Check if the entity has any scripts
     if (!(entity.scene->component_masks[entity.id] & COMPONENT_SCRIPT)) return;
