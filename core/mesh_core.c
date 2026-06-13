@@ -1,4 +1,4 @@
-#include "meshCore.h"
+#include "mesh_core.h"
 #include <stdlib.h>
 #include <string.h>
 

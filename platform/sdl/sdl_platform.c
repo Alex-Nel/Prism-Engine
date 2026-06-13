@@ -1,4 +1,4 @@
-#include "../platformCore.h"
+#include "../platform_core.h"
 #include "SDL3/SDL.h"
 #include <stdlib.h>
 

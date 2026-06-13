@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "../core/mathCore.h"
-#include "../core/meshCore.h"
+#include "../core/math_core.h"
+#include "../core/mesh_core.h"
 #include "../core/log.h"
 
 

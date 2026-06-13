@@ -9,7 +9,7 @@
 #include "audio/audio.h"
 #include "render/render.h"
 #include "scene/scene.h"
-#include "platform/platformCore.h"
+#include "platform/platform_core.h"
 #include "assets/asset_manager.h"
 
 

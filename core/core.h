@@ -8,13 +8,13 @@ extern "C" {
 
 
 
-#include "mathCore.h"
+#include "math_core.h"
 #include "event.h"
 #include "input.h"
 #include "log.h"
-#include "timeCore.h"
-#include "meshCore.h"
-#include "ioCore.h"
+#include "time_core.h"
+#include "mesh_core.h"
+#include "io_core.h"
 
 
 

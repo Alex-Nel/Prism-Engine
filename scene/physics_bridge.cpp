@@ -1,6 +1,5 @@
 #include <stdint.h>
-#include "scene.h"
-#include "physicsBridge.h"
+#include "physics_bridge.h"
 #include <btBulletCollisionCommon.h>
 #include <btBulletDynamicsCommon.h>
 #include <BulletCollision/CollisionDispatch/btGhostObject.h>

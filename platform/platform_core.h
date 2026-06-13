@@ -6,7 +6,7 @@
 #include "../core/event.h"
 #include "../core/input.h"
 #include "../core/log.h"
-#include "../core/timeCore.h"
+#include "../core/time_core.h"
 #include "../render/render.h"
 
 

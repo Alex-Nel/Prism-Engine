@@ -3,7 +3,7 @@
 
 extern "C"
 {
-    #include "../../platform/platformCore.h"
+    #include "../../platform/platform_core.h"
 }
 
 

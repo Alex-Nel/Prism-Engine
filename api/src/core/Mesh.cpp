@@ -4,7 +4,7 @@
 
 extern "C"
 {
-    #include "../../../core/meshCore.h"
+    #include "../../../core/mesh_core.h"
 }
 
 

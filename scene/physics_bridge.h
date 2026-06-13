@@ -3,8 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "scene.h"
-#include "../core/mathCore.h"
+#include "../core/math_core.h"
 
 
 

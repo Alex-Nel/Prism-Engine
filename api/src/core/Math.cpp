@@ -6,6 +6,7 @@ extern "C"
 {
     #include "../../../core/math/Vector2.h"
     #include "../../../core/math/Vector3.h"
+    #include "../../../core/math/Vector4.h"
     #include "../../../core/math/Quaternion.h"
     #include "../../../core/math/Matrix4.h"
 }

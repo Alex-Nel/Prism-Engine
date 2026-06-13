@@ -9,8 +9,8 @@
 #define FAST_OBJ_IMPLEMENTATION
 #include "fast_obj.h"
 #include "asset_manager.h"
-#include "core/ioCore.h"
-#include "core/meshCore.h"
+#include "core/io_core.h"
+#include "core/mesh_core.h"
 #include "core/image.h"
 
 

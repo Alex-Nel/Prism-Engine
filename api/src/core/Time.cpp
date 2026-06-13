@@ -3,7 +3,7 @@
 
 extern "C"
 {
-    #include "../../../core/timeCore.h"
+    #include "../../../core/time_core.h"
 }
 
 

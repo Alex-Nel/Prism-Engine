@@ -3,7 +3,7 @@
 
 extern "C"
 {
-    #include "../../../core/ioCore.h"
+    #include "../../../core/io_core.h"
     #include <stdlib.h> 
 }
 
