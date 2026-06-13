@@ -104,11 +104,16 @@ namespace Prism
 
     struct PRISM_API CameraComponent
     {
+        bool is_active;
         float fov;
         float nearZ;
         float farZ;
         Prism::Matrix4 projection_matrix; 
         bool is_dirty; 
+
+
+        void SetActive(bool active) { this->is_active = active; }
+        bool IsActive() const { return this->is_active; }
 
         Prism::Ray ScreenPointToRay(const Prism::Vector2& mouse_pos);
     };
@@ -119,14 +124,33 @@ namespace Prism
     // Point Light Component Wrapper
     // ==========================================
 
-    struct PRISM_API PointLightComponent
+    struct PRISM_API LightComponent
     {
+        bool is_active;
+        LightType type;
         Prism::Color color;
         float intensity;
+
+        float ambient_strength;
         
-        float constant;  
-        float linear;    
-        float quadratic; 
+        float constant;
+        float linear;
+        float quadratic;
+
+        float inner_cut_off;
+        float outer_cut_off;
+
+
+        void SetActive(bool active) { this->is_active = active; }
+        bool IsActive() const { return this->is_active; }
+
+
+        void SetType(LightType type);
+        void SetColor(const Prism::Color& color);
+        void SetIntensity(float intensity);
+        void SetAmbientStrength(float ambient_strength);
+        void SetAttenuation(float constant, float linear, float quadratic);
+        void SetSpotAngles(float inner_cutoff_degrees, float outer_cutoff_degrees);
     };
 
 
@@ -137,8 +161,13 @@ namespace Prism
 
     struct PRISM_API RenderComponent
     {
+        bool is_active;
         void* raw_mesh_ptr;
         void* raw_material_ptr;
+
+
+        void SetActive(bool active) { this->is_active = active; }
+        bool IsActive() const { return this->is_active; }
 
         void SetMaterial(Prism::Material material);
     };
@@ -151,6 +180,7 @@ namespace Prism
     
     struct PRISM_API RigidbodyComponent
     {
+        bool is_active;
         Prism::Entity owner;
         float mass;
         float linear_drag;
@@ -161,6 +191,10 @@ namespace Prism
         bool freeze_rot_x;
         bool freeze_rot_y;
         bool freeze_rot_z;
+
+
+        void SetActive(bool active) { this->is_active = active; }
+        bool IsActive() const { return this->is_active; }
 
 
         void SetGravity(bool use_gravity);
@@ -179,6 +213,7 @@ namespace Prism
 
     struct PRISM_API ColliderComponent
     {
+        bool is_active;
         Prism::Entity owner;
         int type;
         bool is_trigger;
@@ -199,6 +234,10 @@ namespace Prism
         int collision_mask;
 
 
+        void SetActive(bool active) { this->is_active = active; }
+        bool IsActive() const { return this->is_active; }
+
+
         void SetLayerAndMask(CollisionLayer layer, int mask);
         void SetBoxExtents(const Prism::Vector3& new_extents);
         void SetSphereRadius(float new_radius);
@@ -214,7 +253,11 @@ namespace Prism
 
     struct PRISM_API AudioListenerComponent 
     {
-        bool active = true;
+        bool is_active = true;
+
+
+        void SetActive(bool active) { this->is_active = active; }
+        bool IsActive() const { return this->is_active; }
     };
 
 
@@ -225,6 +268,7 @@ namespace Prism
 
     struct PRISM_API AudioSourceComponent 
     {
+        bool is_active = true;
         Prism::AudioClip clip; // The loaded asset
         
         float volume = 1.0f;
@@ -239,7 +283,12 @@ namespace Prism
         float minDistance = 1.0f;
         float maxDistance = 50.0f;
 
+
+        void SetActive(bool active) { this->is_active = active; }
+        bool IsActive() const { return this->is_active; }
+
         // Helper functions so the user doesn't have to manually toggle booleans
+        
         void Play() { isPlaying = true; }
         void Stop() { isPlaying = false; }
     };

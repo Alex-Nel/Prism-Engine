@@ -114,42 +114,54 @@ namespace Prism
     // ==========================================
     // Component Setters
     // ==========================================
-    void Entity::SetName(const std::string& name) { 
-        ::Entity_SetName(ToCore(*this), name.c_str()); 
+    std::string Entity::SetName(const std::string& name) { 
+        ::Entity_SetName(ToCore(*this), name.c_str());
+        return this->GetName();
     }
-    void Entity::AddTransform(const Vector3& pos, const Quaternion& rot, const Vector3& scale) {
+    Prism::Transform* Entity::AddTransform(const Vector3& pos, const Quaternion& rot, const Vector3& scale) {
         ::Entity_AddTransform(ToCore(*this), {pos.x, pos.y, pos.z}, {rot.x, rot.y, rot.z, rot.w}, {scale.x, scale.y, scale.z});
+        return this->GetTransform();
     }
-    void Entity::AddRenderable(Prism::Mesh mesh, Prism::Material material) {
+    Prism::RenderComponent* Entity::AddRenderable(Prism::Mesh mesh, Prism::Material material) {
         ::Entity_AddRenderable(ToCore(*this), (::Mesh*)mesh.GetRaw(), (::Material*)material.GetRaw());
+        return this->GetRenderable();
     }
-    void Entity::AddCamera(float fovDegrees) {
+    Prism::CameraComponent* Entity::AddCamera(float fovDegrees) {
         float fov_radians = fovDegrees * (3.14159265f / 180.0f);
         ::Entity_AddCamera(ToCore(*this), fov_radians, 0.1f, 1000.0f);
+        return this->GetCamera();
     }
-    void Entity::AddPointLight(const Prism::Color& color) {
-        ::Entity_AddPointLight(ToCore(*this), ::Color{color.r, color.g, color.b, color.a}, 1.0f, 1.0f, 0.09f, 0.032f);
+    Prism::LightComponent* Entity::AddLight(Prism::LightType type, const Prism::Color& color) {
+        ::Entity_AddLight(ToCore(*this), static_cast<::LightType>(type), ::Color{color.r, color.g, color.b, color.a});
+        return this->GetLight();
     }
-    void Entity::AddRigidbody(float mass) {
+    Prism::RigidbodyComponent* Entity::AddRigidbody(float mass) {
         ::Entity_AddRigidbody(ToCore(*this), mass);
+        return this->GetRigidbody();
     }
-    void Entity::AddColliderBox(const Prism::Vector3& extents, bool is_trigger) {
+    Prism::ColliderComponent* Entity::AddColliderBox(const Prism::Vector3& extents, bool is_trigger) {
         ::Entity_AddColliderBox(ToCore(*this), {extents.x, extents.y, extents.z}, is_trigger);
+        return this->GetCollider();
     }
-    void Entity::AddColliderBoxAuto(bool is_trigger) {
+    Prism::ColliderComponent* Entity::AddColliderBoxAuto(bool is_trigger) {
         ::Entity_AddColliderBoxAuto(ToCore(*this), is_trigger);
+        return this->GetCollider();
     }
-    void Entity::AddColliderSphere(float radius, bool is_trigger) {
+    Prism::ColliderComponent* Entity::AddColliderSphere(float radius, bool is_trigger) {
         ::Entity_AddColliderSphere(ToCore(*this), radius, is_trigger);
+        return this->GetCollider();
     }
-    void Entity::AddColliderMesh(Prism::Mesh mesh, bool is_trigger, bool is_convex) {
+    Prism::ColliderComponent* Entity::AddColliderMesh(Prism::Mesh mesh, bool is_trigger, bool is_convex) {
         ::Entity_AddColliderMesh(ToCore(*this), (::Mesh*)mesh.GetRaw(), is_trigger, is_convex);
+        return this->GetCollider();
     }
-    void Entity::AddAudioListener() {
+    Prism::AudioListenerComponent* Entity::AddAudioListener() {
         ::Entity_AddAudioListener(ToCore(*this));
+        return this->GetAudioListener();
     }
-    void Entity::AddAudioSource() {
+    Prism::AudioSourceComponent* Entity::AddAudioSource() {
         ::Entity_AddAudioSource(ToCore(*this));
+        return this->GetAudioSource();
     }
 
 
@@ -178,8 +190,8 @@ namespace Prism
     Prism::CameraComponent* Entity::GetCamera() {
         return reinterpret_cast<Prism::CameraComponent*>(::Entity_GetCamera(ToCore(*this)));
     }
-    Prism::PointLightComponent* Entity::GetPointLight() {
-        return reinterpret_cast<Prism::PointLightComponent*>(::Entity_GetPointLight(ToCore(*this)));
+    Prism::LightComponent* Entity::GetLight() {
+        return reinterpret_cast<Prism::LightComponent*>(::Entity_GetLight(ToCore(*this)));
     }
     Prism::AudioListenerComponent* Entity::GetAudioListener() {
         return reinterpret_cast<Prism::AudioListenerComponent*>(::Entity_GetAudioListener(ToCore(*this)));
@@ -254,13 +266,13 @@ namespace Prism
         return result;
     }
 
-    std::vector<Prism::PointLightComponent*> Entity::GetPointLightsInChildren(bool recursive) {
-        std::vector<Prism::PointLightComponent*> result;
+    std::vector<Prism::LightComponent*> Entity::GetLightsInChildren(bool recursive) {
+        std::vector<Prism::LightComponent*> result;
         std::vector<Prism::Entity> children = GetChildren(recursive);
 
         for (Prism::Entity& child : children)
         {
-            Prism::PointLightComponent* comp = child.GetPointLight();
+            Prism::LightComponent* comp = child.GetLight();
             if (comp != nullptr) result.push_back(comp);
         }
         return result;
@@ -364,13 +376,13 @@ namespace Prism
         return nullptr; // Not found in any parent
     }
 
-    Prism::PointLightComponent* Entity::GetPointLightInParent() {
+    Prism::LightComponent* Entity::GetLightInParent() {
         Prism::Entity current = this->GetParent();
 
         // Walk up the tree until we hit the root
         while (current.IsValid())
         {
-            Prism::PointLightComponent* comp = current.GetPointLight();
+            Prism::LightComponent* comp = current.GetLight();
             if (comp != nullptr) return comp;
             
             current = current.GetParent(); // Move up one level
@@ -424,8 +436,8 @@ namespace Prism
     void Entity::RemoveCamera() {
         ::Entity_RemoveComponent(ToCore(*this), COMPONENT_CAMERA);
     }
-    void Entity::RemovePointLight() {
-        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_POINT_LIGHT);
+    void Entity::RemoveLight() {
+        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_LIGHT);
     }
     void Entity::RemoveAudioListener() {
         ::Entity_RemoveComponent(ToCore(*this), COMPONENT_AUDIO_LISTENER);

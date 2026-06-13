@@ -21,9 +21,19 @@ namespace Prism
     struct RigidbodyComponent;
     struct ColliderComponent;
     struct CameraComponent;
-    struct PointLightComponent;
+    struct LightComponent;
     struct AudioListenerComponent;
     struct AudioSourceComponent;
+
+
+
+    // Enum for types of lights
+    enum LightType
+    {
+        Directional = 0,
+        Point = 1,
+        Spot = 2
+    };
 
 
 
@@ -61,18 +71,18 @@ namespace Prism
 
         // --- Component Setters ---
         
-        void SetName(const std::string& name);
-        void AddTransform(const Vector3& pos, const Quaternion& rot, const Vector3& scale);
-        void AddRenderable(Prism::Mesh mesh, Prism::Material material);
-        void AddCamera(float fovDegrees);
-        void AddPointLight(const Prism::Color& color);
-        void AddRigidbody(float mass);
-        void AddColliderBox(const Prism::Vector3& extents, bool is_trigger = false);
-        void AddColliderBoxAuto(bool is_trigger = false);
-        void AddColliderSphere(float radius, bool is_trigger = false);
-        void AddColliderMesh(Prism::Mesh mesh, bool is_trigger = false, bool is_convex = false);
-        void AddAudioListener();
-        void AddAudioSource();
+        std::string SetName(const std::string& name);
+        Prism::Transform* AddTransform(const Vector3& pos, const Quaternion& rot, const Vector3& scale);
+        Prism::RenderComponent* AddRenderable(Prism::Mesh mesh, Prism::Material material);
+        Prism::CameraComponent* AddCamera(float fovDegrees);
+        Prism::LightComponent* AddLight(Prism::LightType type, const Prism::Color& color);
+        Prism::RigidbodyComponent* AddRigidbody(float mass);
+        Prism::ColliderComponent* AddColliderBox(const Prism::Vector3& extents, bool is_trigger = false);
+        Prism::ColliderComponent* AddColliderBoxAuto(bool is_trigger = false);
+        Prism::ColliderComponent* AddColliderSphere(float radius, bool is_trigger = false);
+        Prism::ColliderComponent* AddColliderMesh(Prism::Mesh mesh, bool is_trigger = false, bool is_convex = false);
+        Prism::AudioListenerComponent* AddAudioListener();
+        Prism::AudioSourceComponent* AddAudioSource();
 
 
 
@@ -84,7 +94,7 @@ namespace Prism
         Prism::RigidbodyComponent* GetRigidbody();
         Prism::ColliderComponent* GetCollider();
         Prism::CameraComponent* GetCamera();
-        Prism::PointLightComponent* GetPointLight();
+        Prism::LightComponent* GetLight();
         Prism::AudioListenerComponent* GetAudioListener();
         Prism::AudioSourceComponent* GetAudioSource();
 
@@ -97,7 +107,7 @@ namespace Prism
         std::vector<Prism::RigidbodyComponent*> GetRigidbodiesInChildren(bool recursive = true);
         std::vector<Prism::ColliderComponent*> GetCollidersInChildren(bool recursive = true);
         std::vector<Prism::CameraComponent*> GetCamerasInChildren(bool recursive = true);
-        std::vector<Prism::PointLightComponent*> GetPointLightsInChildren(bool recursive = true);
+        std::vector<Prism::LightComponent*> GetLightsInChildren(bool recursive = true);
         std::vector<Prism::AudioListenerComponent*> GetAudioListenersInChildren(bool recursive = true);
         std::vector<Prism::AudioSourceComponent*> GetAudioSourcesInChildren(bool recursive = true);
         
@@ -107,7 +117,7 @@ namespace Prism
         Prism::RigidbodyComponent* GetRigidbodyInParent();
         Prism::ColliderComponent* GetColliderInParent();
         Prism::CameraComponent* GetCameraInParent();
-        Prism::PointLightComponent* GetPointLightInParent();
+        Prism::LightComponent* GetLightInParent();
         Prism::AudioListenerComponent* GetAudioListenerInParent();
         Prism::AudioSourceComponent* GetAudioSourceInParent();
 
@@ -119,7 +129,7 @@ namespace Prism
         void RemoveRigidbody();
         void RemoveCollider();
         void RemoveCamera();
-        void RemovePointLight();
+        void RemoveLight();
         void RemoveAudioListener();
         void RemoveAudioSource();
 

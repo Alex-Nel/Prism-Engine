@@ -8,20 +8,28 @@
 
 
 
+#define MAX_DIR_LIGHTS 4
+#define MAX_POINT_LIGHTS 8
+#define MAX_SPOT_LIGHTS 8
+
+
+
 // Struct for a global render state
 typedef struct RenderState
 {
     Matrix4 view_matrix;
     Matrix4 projection_matrix;
     Vector3 camera_pos;
-    DirectionalLight global_light;
-    PointLightData point_lights[MAX_RESOURCES];
+
+    DirectionalLightData dir_lights[MAX_DIR_LIGHTS];
+    uint32_t dir_light_count;
+
+    PointLightData point_lights[MAX_POINT_LIGHTS];
     uint32_t point_light_count;
+
+    SpotLightData spot_lights[MAX_SPOT_LIGHTS];
+    uint32_t spot_light_count;
 } RenderState;
-
-
-// Global render state to be used by OpenGL
-// static RenderState state;
 
 
 
@@ -57,15 +65,6 @@ typedef struct GLTexture
 
 
 
-// Internal data pools for meshes shaders and textures
-// static GLMesh mesh_pool[MAX_RESOURCES];
-// static GLShader shader_pool[MAX_RESOURCES];
-// static GLTexture texture_pool[MAX_RESOURCES];
-
-
-
-
-
 // Struct for a render command. Contains mesh, shader, texture, material, and transform data
 typedef struct RenderCommand
 {
@@ -76,11 +75,6 @@ typedef struct RenderCommand
     Matrix4 transform;
 } RenderCommand;
 
-
-
-// Internal data pool for given command queues
-// static RenderCommand command_queue[MAX_COMMANDS];
-// static uint32_t command_count = 0;
 
 
 
@@ -111,8 +105,7 @@ static void OpenGL_Shutdown(Renderer* r)
     // Garbage Collector Loop. We start at 1 because index 0 is the "Invalid/Null" handle.
     for (uint32_t i = 1; i < MAX_RESOURCES; i++)
     {    
-        // Optional: You could add a LOG_WARN here to tell the user they 
-        // had a memory leak during runtime!
+        // Optional: You could add a LOG_WARN here to tell the user they had a memory leak during runtime!
 
         if (internal->mesh_pool[i].active)
             Render_DestroyMesh(r, (MeshHandle){i});
@@ -468,11 +461,21 @@ static void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
     internal->state.view_matrix = packet->view_matrix;
     internal->state.projection_matrix = packet->projection_matrix;
     internal->state.camera_pos = packet->camera_pos;
-    internal->state.global_light = packet->global_light;
 
+    // 1. Copy Directional Lights
+    internal->state.dir_light_count = packet->dir_light_count;
+    for (uint32_t i = 0; i < packet->dir_light_count; i++)
+        internal->state.dir_lights[i] = packet->dir_lights[i];
+
+    // 2. Copy Point Lights
     internal->state.point_light_count = packet->point_light_count;
     for (uint32_t i = 0; i < packet->point_light_count; i++)
         internal->state.point_lights[i] = packet->point_lights[i];
+        
+    // 3. Copy Spot Lights
+    internal->state.spot_light_count = packet->spot_light_count;
+    for (uint32_t i = 0; i < packet->spot_light_count; i++)
+        internal->state.spot_lights[i] = packet->spot_lights[i];
     
     // Reset the queue for the new frame
     internal->command_count = 0;
@@ -545,21 +548,33 @@ static void OpenGL_EndFrame(Renderer* r)
             glUniformMatrix4fv(view_loc, 1, GL_FALSE, (float*)&internal->state.view_matrix);
             glUniformMatrix4fv(proj_loc, 1, GL_FALSE, (float*)&internal->state.projection_matrix);
 
-            // Upload Global Lighting Data
+            // Upload Camera Position
             GLint view_pos_loc  = glGetUniformLocation(gl_shader->program, "u_ViewPos");
-            GLint light_pos_loc = glGetUniformLocation(gl_shader->program, "u_LightDir");
-            GLint light_col_loc = glGetUniformLocation(gl_shader->program, "u_LightColor");
-            GLint ambient_loc   = glGetUniformLocation(gl_shader->program, "u_AmbientStrength");
-
             if (view_pos_loc != -1)  glUniform3fv(view_pos_loc, 1, (float*)&internal->state.camera_pos);
-            if (light_pos_loc != -1) glUniform3fv(light_pos_loc, 1, (float*)&internal->state.global_light.direction);
-            if (light_col_loc != -1) glUniform3fv(light_col_loc, 1, (float*)&internal->state.global_light.color);
-            if (ambient_loc != -1)   glUniform1f(ambient_loc, internal->state.global_light.ambient_strength);
-
-            // Upload Heavy Point Light Data (Only happens ONCE per shader!)
-            glUniform1i(glGetUniformLocation(gl_shader->program, "u_PointLightCount"), internal->state.point_light_count);
 
             char uniform_name[64];
+
+            // --- Upload Directional Lights ---
+            glUniform1i(glGetUniformLocation(gl_shader->program, "u_DirLightCount"), internal->state.dir_light_count);
+            for (uint32_t j = 0; j < internal->state.dir_light_count; j++)
+            {
+                DirectionalLightData* dl = &internal->state.dir_lights[j];
+                
+                sprintf(uniform_name, "u_DirLights[%d].direction", j);
+                glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&dl->direction);
+                
+                sprintf(uniform_name, "u_DirLights[%d].color", j);
+                glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&dl->color);
+                
+                sprintf(uniform_name, "u_DirLights[%d].intensity", j);
+                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), dl->intensity);
+
+                sprintf(uniform_name, "u_DirLights[%d].ambientStrength", j); // GLSL camelCase!
+                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), dl->ambient_strength);
+            }
+
+            // --- Upload Point Lights ---
+            glUniform1i(glGetUniformLocation(gl_shader->program, "u_PointLightCount"), internal->state.point_light_count);
             for (uint32_t j = 0; j < internal->state.point_light_count; j++)
             {
                 PointLightData* pl = &internal->state.point_lights[j];
@@ -581,6 +596,40 @@ static void OpenGL_EndFrame(Renderer* r)
                 
                 sprintf(uniform_name, "u_PointLights[%d].quadratic", j);
                 glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), pl->quadratic);
+            }
+
+            // --- Upload Spot Lights ---
+            glUniform1i(glGetUniformLocation(gl_shader->program, "u_SpotLightCount"), internal->state.spot_light_count);
+            for (uint32_t j = 0; j < internal->state.spot_light_count; j++)
+            {
+                SpotLightData* sl = &internal->state.spot_lights[j];
+                
+                sprintf(uniform_name, "u_SpotLights[%d].position", j);
+                glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&sl->position);
+
+                sprintf(uniform_name, "u_SpotLights[%d].direction", j);
+                glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&sl->direction);
+                
+                sprintf(uniform_name, "u_SpotLights[%d].color", j);
+                glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&sl->color);
+                
+                sprintf(uniform_name, "u_SpotLights[%d].intensity", j);
+                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->intensity);
+                
+                sprintf(uniform_name, "u_SpotLights[%d].constant", j);
+                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->constant);
+                
+                sprintf(uniform_name, "u_SpotLights[%d].linear", j);
+                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->linear);
+                
+                sprintf(uniform_name, "u_SpotLights[%d].quadratic", j);
+                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->quadratic);
+
+                sprintf(uniform_name, "u_SpotLights[%d].cutOff", j); // GLSL camelCase!
+                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->inner_cut_off);
+
+                sprintf(uniform_name, "u_SpotLights[%d].outerCutOff", j); // GLSL camelCase!
+                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->outer_cut_off);
             }
         }
 

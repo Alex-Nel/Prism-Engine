@@ -6,10 +6,15 @@ in vec2 TexCoord;
 in vec3 v_Normal;
 in vec3 v_FragPos;
 
-// --- GLOBAL UNIFORMS ---
+
+// --- Global Uniforms ---
+
 uniform vec3 u_ViewPos;
 
-// --- MATERIAL STRUCT ---
+
+
+// --- Material Struct ---
+
 struct Material {
     sampler2D diffuse; 
     vec3 tint;
@@ -18,12 +23,19 @@ struct Material {
 };
 uniform Material u_Material;
 
-// --- DIRECTIONAL LIGHT (The Sun) ---
-uniform vec3 u_LightDir;
-uniform vec3 u_LightColor;
-uniform float u_AmbientStrength;
 
-// --- POINT LIGHTS ---
+
+// ==========================================
+// Lighting Structures
+// ==========================================
+
+struct DirLight {
+    vec3 direction;
+    vec3 color;
+    float intensity;
+    float ambientStrength;
+};
+
 struct PointLight {
     vec3 position;
     vec3 color;
@@ -33,9 +45,116 @@ struct PointLight {
     float quadratic;
 };
 
+struct SpotLight {
+    vec3 position;
+    vec3 direction;
+    vec3 color;
+    float intensity;
+    float constant;
+    float linear;
+    float quadratic;
+    float cutOff;
+    float outerCutOff;
+};
+
+
+
+// --- Arrays & Counts ---
+
+#define MAX_DIR_LIGHTS 4
 #define MAX_POINT_LIGHTS 8
+#define MAX_SPOT_LIGHTS 8
+
+
+uniform DirLight u_DirLights[MAX_DIR_LIGHTS];
+uniform int u_DirLightCount;
+
 uniform PointLight u_PointLights[MAX_POINT_LIGHTS];
 uniform int u_PointLightCount;
+
+uniform SpotLight u_SpotLights[MAX_SPOT_LIGHTS];
+uniform int u_SpotLightCount;
+
+
+
+// ==========================================
+// Lighting Calculations
+// ==========================================
+
+vec3 CalcDirLight(DirLight light, vec3 normal, vec3 viewDir)
+{
+    vec3 lightDir = normalize(-light.direction);
+    
+    // Diffuse
+    float diff = max(dot(normal, lightDir), 0.0);
+    
+    // Specular
+    vec3 reflectDir = reflect(-lightDir, normal);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_Material.shininess);
+    
+    // Combine
+    vec3 ambient = light.ambientStrength * light.color * light.intensity;
+    vec3 diffuse = diff * light.color * light.intensity;
+    vec3 specular = u_Material.specularStrength * spec * light.color * light.intensity;
+    
+    return (ambient + diffuse + specular);
+}
+
+
+
+vec3 CalcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir)
+{
+    vec3 lightDir = normalize(light.position - fragPos);
+    
+    // Diffuse
+    float diff = max(dot(normal, lightDir), 0.0);
+    
+    // Specular
+    vec3 reflectDir = reflect(-lightDir, normal);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_Material.shininess);
+    
+    // Attenuation
+    float distance = length(light.position - fragPos);
+    float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));    
+    
+    // Combine
+    vec3 diffuse = diff * light.color * light.intensity;
+    vec3 specular = u_Material.specularStrength * spec * light.color * light.intensity;
+    
+    return (diffuse + specular) * attenuation;
+}
+
+
+
+vec3 CalcSpotLight(SpotLight light, vec3 normal, vec3 fragPos, vec3 viewDir)
+{
+    vec3 lightDir = normalize(light.position - fragPos);
+    
+    // Diffuse
+    float diff = max(dot(normal, lightDir), 0.0);
+    
+    // Specular
+    vec3 reflectDir = reflect(-lightDir, normal);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_Material.shininess);
+    
+    // Attenuation
+    float distance = length(light.position - fragPos);
+    float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));    
+    
+    // Spotlight Soft Edges Intensity
+    float theta = dot(lightDir, normalize(-light.direction)); 
+    float epsilon = light.cutOff - light.outerCutOff;
+    float spotIntensity = clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);
+    
+    // Combine
+    vec3 diffuse = diff * light.color * light.intensity;
+    vec3 specular = u_Material.specularStrength * spec * light.color * light.intensity;
+    
+    return (diffuse + specular) * attenuation * spotIntensity;
+}
+
+
+
 
 
 void main()
@@ -44,55 +163,24 @@ void main()
     vec3 norm = normalize(v_Normal);
     vec3 viewDir = normalize(u_ViewPos - v_FragPos);
 
-    // ==========================================
-    // 1. DIRECTIONAL LIGHT (The Sun)
-    // ==========================================
-    vec3 ambient = u_AmbientStrength * u_LightColor;
-    
-    vec3 dirLightDir = normalize(u_LightDir);
-    float diff = max(dot(norm, dirLightDir), 0.0);
-    vec3 diffuse = diff * u_LightColor;
-    
-    vec3 reflectDir = reflect(-dirLightDir, norm);  
-    
-    // NEW: Use the material's physical properties!
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_Material.shininess);
-    vec3 specular = u_Material.specularStrength * spec * u_LightColor;  
-        
-    vec3 totalLight = (ambient + diffuse + specular);
+    vec3 totalLight = vec3(0.0);
 
-    // ==========================================
-    // 2. POINT LIGHTS (The Glowing Orbs)
-    // ==========================================
-    for(int i = 0; i < u_PointLightCount; i++) {
-        
-        PointLight light = u_PointLights[i];
-        
-        float distance = length(light.position - v_FragPos);
-        float attenuation = 1.0 / (light.constant + 
-                                   light.linear * distance + 
-                                   light.quadratic * (distance * distance));    
-        
-        vec3 ptLightDir = normalize(light.position - v_FragPos);
-        float ptDiff = max(dot(norm, ptLightDir), 0.0);
-        vec3 ptDiffuse = ptDiff * light.color * light.intensity;
-        
-        vec3 ptReflectDir = reflect(-ptLightDir, norm);  
-        
-        // NEW: Use the material's physical properties here too!
-        float ptSpec = pow(max(dot(viewDir, ptReflectDir), 0.0), u_Material.shininess);
-        vec3 ptSpecular = u_Material.specularStrength * ptSpec * light.color * light.intensity;  
-        
-        totalLight += (ptDiffuse + ptSpecular) * attenuation;
-    }
 
-    // ==========================================
-    // 3. FINAL PIXEL COLOR
-    // ==========================================
-    // Sample the texture using the material's sampler
+    // Accumulate directional lights
+    for (int i = 0; i < u_DirLightCount; i++)
+        totalLight += CalcDirLight(u_DirLights[i], norm, viewDir);
+
+    // 2. Accumulate Point Lights
+    for (int i = 0; i < u_PointLightCount; i++)
+        totalLight += CalcPointLight(u_PointLights[i], norm, v_FragPos, viewDir);
+
+    // 3. Accumulate Spot Lights
+    for (int i = 0; i < u_SpotLightCount; i++)
+        totalLight += CalcSpotLight(u_SpotLights[i], norm, v_FragPos, viewDir);
+
+    
+    // Final Pixel Color
     vec4 texColor = texture(u_Material.diffuse, TexCoord);
-    
-    // Apply the material's tint color to the raw texture
     vec3 tintedAlbedo = texColor.rgb * u_Material.tint;
     
     // Multiply the accumulated physical light by the tinted surface color

@@ -41,7 +41,7 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
     Log_Info("Renderer Initialized");
 
     // Set renderer clear color to pure white
-    Engine_SetClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    Engine_SetClearColor(0.8f, 0.8f, 0.8f, 1.0f);
 
     engine.is_running = true;
 
@@ -117,6 +117,9 @@ void Engine_Run(Scene* active_scene)
         // Render scene
         Render_Clear(engine.renderer);
         Engine_RenderScene(active_scene);
+
+        // Process destroy queue
+        Scene_ProcessDestroyQueue(active_scene);
         
         // Swap Buffers & Reset Input arrays
         Engine_EndFrame(); 
@@ -186,13 +189,20 @@ void Engine_RenderScene(Scene* scene)
 
     // Make an empty render packet to send to the renderer
     RenderPacket packet = {0};
-    packet.global_light = scene->global_light;
 
 
     // Get all Point Lights from the ECS
-    PointLightData active_lights[MAX_RESOURCES]; // (Make sure MAX_POINT_LIGHTS is defined in your header!)
-    uint32_t light_count = 0;
-    uint32_t light_mask = COMPONENT_TRANSFORM | COMPONENT_POINT_LIGHT;
+    DirectionalLightData active_dir_lights[MAX_RESOURCES];
+    PointLightData active_point_lights[MAX_RESOURCES];
+    SpotLightData active_spot_lights[MAX_RESOURCES];
+
+    uint32_t directional_count = 0;
+    uint32_t point_count = 0;
+    uint32_t spot_count = 0;
+
+    uint32_t light_mask = COMPONENT_TRANSFORM | COMPONENT_LIGHT;
+
+    float pi = 3.14159265359f;
 
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
     {
@@ -201,23 +211,53 @@ void Engine_RenderScene(Scene* scene)
         if ((scene->component_masks[i] & light_mask) == light_mask)
         {    
             Transform* t = &scene->transforms[i];
-            PointLightComponent* l = &scene->point_lights[i];
-            
-            active_lights[light_count].position = Transform_GetGlobalPosition(t);
-            active_lights[light_count].color = l->color;
-            active_lights[light_count].intensity = l->intensity;
-            active_lights[light_count].constant = l->constant;
-            active_lights[light_count].linear = l->linear;
-            active_lights[light_count].quadratic = l->quadratic;
-            
-            light_count++;
-            if (light_count >= MAX_RESOURCES)
-                break;
+            LightComponent* l = &scene->lights[i];
+
+            if (!l->is_active)
+                continue;
+
+            if (l->type == LIGHT_DIRECTIONAL && directional_count < MAX_RESOURCES)
+            {
+                active_dir_lights[directional_count].direction = Transform_GetForwardVector(t);
+                active_dir_lights[directional_count].color = l->color;
+                active_dir_lights[directional_count].intensity = l->intensity;
+                active_dir_lights[directional_count].ambient_strength = l->ambient_strength;
+                directional_count++;
+            }
+            else if (l->type == LIGHT_POINT && point_count < MAX_RESOURCES)
+            {
+                active_point_lights[point_count].position = Transform_GetGlobalPosition(t);
+                active_point_lights[point_count].color = l->color;
+                active_point_lights[point_count].intensity = l->intensity;
+                active_point_lights[point_count].constant = l->constant;
+                active_point_lights[point_count].linear = l->linear;
+                active_point_lights[point_count].quadratic = l->quadratic;
+                point_count++;
+            }
+            else if (l->type == LIGHT_SPOT && spot_count < MAX_RESOURCES)
+            {
+                active_spot_lights[spot_count].position = Transform_GetGlobalPosition(t);
+                active_spot_lights[spot_count].direction = Transform_GetForwardVector(t);
+                active_spot_lights[spot_count].color = l->color;
+                active_spot_lights[spot_count].intensity = l->intensity;
+                active_spot_lights[spot_count].constant = l->constant;
+                active_spot_lights[spot_count].linear = l->linear;
+                active_spot_lights[spot_count].quadratic = l->quadratic;
+                active_spot_lights[spot_count].inner_cut_off = cosf(l->inner_cut_off * (pi / 180.0f));
+                active_spot_lights[spot_count].outer_cut_off = cosf(l->outer_cut_off * (pi / 180.0f));
+                spot_count++;
+            }
         }
     }
 
-    packet.point_lights = active_lights;
-    packet.point_light_count = light_count;
+    packet.dir_lights = active_dir_lights;
+    packet.dir_light_count = directional_count;
+
+    packet.point_lights = active_point_lights;
+    packet.point_light_count = point_count;
+
+    packet.spot_lights = active_spot_lights;
+    packet.spot_light_count = spot_count;
     
 
     uint32_t cam_id = scene->main_camera_id;
@@ -235,7 +275,6 @@ void Engine_RenderScene(Scene* scene)
         Matrix4 view = Matrix4CreateView(global_pos, cam_transform->local_rotation);
         Matrix4 proj = Matrix4Perspective(
             cam_comp->fov,
-            // (float)(engine.window_width)/(float)(engine.window_height),
             (float)(Platform_GetWindowWidth(engine.window))/(float)(Platform_GetWindowHeight(engine.window)),
             cam_comp->nearZ,
             cam_comp->farZ

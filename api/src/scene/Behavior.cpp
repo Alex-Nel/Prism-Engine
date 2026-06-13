@@ -12,6 +12,11 @@ extern "C"
 
 namespace Prism
 {
+
+    static inline ::Entity ToCore(const Entity& e) {
+        return { e.id, static_cast<::Scene*>(e.scene_ptr) };
+    }
+
     // ==========================================
     // Serialization Implementation
     // ==========================================
@@ -49,6 +54,19 @@ namespace Prism
             else if (std::holds_alternative<bool*>(pair.second) && cJSON_IsBool(item))
                 *std::get<bool*>(pair.second) = cJSON_IsTrue(item);
         }
+    }
+
+
+
+    // ==========================================
+    // Functions to set the active state of scripts
+    // ==========================================
+
+    void Behavior::SetActive(bool active) {
+        ::Script_SetActive(ToCore(this->entity), this, active);
+    }
+    bool Behavior::IsActive() {
+        return this->is_active;
     }
 
 

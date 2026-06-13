@@ -248,11 +248,15 @@ Vector3 Transform_GetForwardVector(Transform* t)
     // Normalize vector
     float length = sqrtf(forward.x*forward.x + forward.y*forward.y + forward.z*forward.z);
 
-    if (length > 0.0f)
+    if (length > 0.0001f)
     {
         forward.x /= length;
         forward.y /= length;
         forward.z /= length;
+    }
+    else
+    {
+        forward = (Vector3){0.0f, 0.0f, -1.0f};
     }
 
     return forward;

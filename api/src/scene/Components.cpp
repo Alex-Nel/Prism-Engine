@@ -69,7 +69,35 @@ namespace Prism
 
 
     // ==========================================
-    // Rigidbody Implementation
+    // Render Component Implementation
+    // ==========================================
+
+    void LightComponent::SetType(LightType type) {
+        this->type = type;
+    }
+    void LightComponent::SetColor(const Prism::Color& color) {
+        this->color = color;
+    }
+    void LightComponent::SetIntensity(float intensity) {
+        this->intensity = intensity;
+    }
+    void LightComponent::SetAmbientStrength(float ambient_strength) {
+        this->ambient_strength = ambient_strength;
+    }
+    void LightComponent::SetAttenuation(float constant, float linear, float quadratic) {
+        this->constant = constant;
+        this->linear = linear;
+        this->quadratic = quadratic;
+    }
+    void LightComponent::SetSpotAngles(float inner_cutoff_degrees, float outer_cutoff_degrees) {
+        this->inner_cut_off = inner_cutoff_degrees;
+        this->outer_cut_off = outer_cutoff_degrees;
+    }
+
+
+
+    // ==========================================
+    // Render Component Implementation
     // ==========================================
 
     void RenderComponent::SetMaterial(Prism::Material material) {

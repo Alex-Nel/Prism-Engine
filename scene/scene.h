@@ -78,13 +78,25 @@ typedef enum
     COMPONENT_TRANSFORM       = 1 << 1,
     COMPONENT_RENDER          = 1 << 2,
     COMPONENT_CAMERA          = 1 << 3,
-    COMPONENT_POINT_LIGHT     = 1 << 4,
+    COMPONENT_LIGHT           = 1 << 4,
     COMPONENT_COLLIDER        = 1 << 5,
     COMPONENT_RIGIDBODY       = 1 << 6,
     COMPONENT_AUDIO_LISTENER  = 1 << 7,
     COMPONENT_AUDIO_SOURCE    = 1 << 8,
     COMPONENT_SCRIPT          = 1 << 9
 } ComponentMask;
+
+
+
+
+
+// Enum for differnet light types
+typedef enum LightType 
+{
+    LIGHT_DIRECTIONAL = 0,
+    LIGHT_POINT = 1,
+    LIGHT_SPOT = 2
+} LightType;
 
 
 
@@ -146,6 +158,7 @@ typedef struct Transform
 // Component that holds rendering information
 typedef struct RenderComponent
 {
+    bool is_active;
     Mesh* mesh;
     Material* material;
 } RenderComponent;
@@ -155,6 +168,7 @@ typedef struct RenderComponent
 // Camera component for rendering
 typedef struct CameraComponent
 {
+    bool is_active;
     float fov;
     float nearZ;
     float farZ;
@@ -165,16 +179,25 @@ typedef struct CameraComponent
 
 
 // Point light component
-typedef struct PointLightComponent
+typedef struct LightComponent
 {
+    bool is_active;
+    LightType type;
     Color color;
     float intensity;
+
+    // Ambient light
+    float ambient_strength;
     
-    // Attenuation (Falloff) variables:
+    // Attenuation (Falloff) variables (for point and spot lights):
     float constant;     // usually 1.0f
     float linear;       // smaller means light travels further
     float quadratic;    // smaller means light travels further
-} PointLightComponent;
+
+    // Spot light constraints (Represented in degrees)
+    float inner_cut_off;
+    float outer_cut_off;
+} LightComponent;
 
 
 
@@ -191,6 +214,7 @@ typedef enum ColliderType
 // The Collider Unified Component
 typedef struct ColliderComponent
 {
+    bool is_active;
     Entity owner;
     ColliderType type;
     bool is_trigger;
@@ -218,6 +242,7 @@ typedef struct ColliderComponent
 // Rigidbody component and variables
 typedef struct RigidbodyComponent
 {
+    bool is_active;
     Entity owner;
     float mass;
     float linear_drag;
@@ -235,7 +260,7 @@ typedef struct RigidbodyComponent
 // An audio listener component (plays audio)
 typedef struct AudioListenerComponent
 {
-    bool active;
+    bool is_active;
 } AudioListenerComponent;
 
 
@@ -243,6 +268,7 @@ typedef struct AudioListenerComponent
 // The speaker component
 typedef struct AudioSourceComponent
 {
+    bool is_active;
     AudioClipHandle clip;
     float volume;
     float pitch;
@@ -266,6 +292,9 @@ struct cJSON;
 // Instance of a custom script and all special functions
 typedef struct ScriptInstance
 {
+    bool is_active;
+    bool is_enabled_internal;
+    bool has_started;
     void* instance_data;
 
     ScriptStartFunc OnStart;
@@ -285,8 +314,6 @@ typedef struct ScriptInstance
 
     void (*OnSerialize)(Entity entity, void* instance_data, struct cJSON* json);
     void (*OnDeserialize)(Entity entity, void* instance_data, struct cJSON* json);
-
-    bool has_started;
 } ScriptInstance;
 
 
@@ -305,15 +332,17 @@ typedef struct Scene
 {
     uint32_t component_masks[MAX_ENTITIES];
 
-    bool is_active_self[MAX_ENTITIES]; // Changable by the user
+    bool is_active_self[MAX_ENTITIES];
     bool is_active_in_hierarchy[MAX_ENTITIES];
     
+
     // The scenes component arrays
+    
     NameComponent names[MAX_ENTITIES];
     Transform transforms[MAX_ENTITIES];
     RenderComponent renderables[MAX_ENTITIES];
     CameraComponent cameras[MAX_ENTITIES];
-    PointLightComponent point_lights[MAX_ENTITIES];
+    LightComponent lights[MAX_ENTITIES];
     ColliderComponent colliders[MAX_ENTITIES];
     RigidbodyComponent rigidbodies[MAX_ENTITIES];
     AudioListenerComponent audio_listeners[MAX_ENTITIES];
@@ -321,10 +350,14 @@ typedef struct Scene
     ScriptComponent scripts[MAX_ENTITIES];
 
     uint32_t main_camera_id;
-
-    DirectionalLight global_light;
-
     PhysicsWorldHandle physics_world;
+
+
+    // Variables for entities to remove
+
+    bool is_pending_destroy[MAX_ENTITIES];
+    uint32_t entities_to_destroy[MAX_ENTITIES];
+    uint32_t destroy_count;
 } Scene;
 
 
@@ -347,6 +380,7 @@ uint32_t Scene_GetTotalEntityCount(Scene* scene);
 uint32_t Scene_GetActiveEntityCount(Scene* scene);
 void Scene_SetMainCamera(Scene* scene, Entity camera_entity);
 void Scene_ShutdownPhysics(Scene* scene);
+void Scene_ProcessDestroyQueue(Scene* scene);
 bool Scene_Raycast(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hit, int collision_mask, bool hit_triggers);
 int Scene_RaycastAll(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hits, int max_hits, int collision_mask, bool hit_triggers);
 
@@ -382,7 +416,7 @@ void Entity_SetName(Entity entity, const char* name);
 void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, Vector3 scale);
 void Entity_AddRenderable(Entity entity, Mesh* mesh, Material* material);
 void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ);
-void Entity_AddPointLight(Entity entity, Color color, float intensity, float constant, float linear, float quadratic);
+void Entity_AddLight(Entity entity, LightType type, Color color);
 void Entity_AddColliderBox(Entity entity, Vector3 extents, bool is_trigger);
 void Entity_AddColliderBoxAuto(Entity entity, bool is_trigger);
 void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger);
@@ -391,6 +425,7 @@ void Entity_AddRigidbody(Entity entity, float mass);
 void Entity_AddAudioListener(Entity entity);
 void Entity_AddAudioSource(Entity entity);
 void Entity_BindScript(Entity entity, ScriptInstance new_script);
+void Script_SetActive(Entity entity, void* instance_data, bool active);
 void Bridge_SpawnScript(Entity raw_e, const char* class_name, struct cJSON* json_data);
 
 
@@ -402,7 +437,7 @@ Transform* Entity_GetTransform(Entity entity);
 RenderComponent* Entity_GetRenderable(Entity entity);
 Mesh* Entity_GetMesh(Entity entity);
 CameraComponent* Entity_GetCamera(Entity entity);
-PointLightComponent* Entity_GetPointLight(Entity entity);
+LightComponent* Entity_GetLight(Entity entity);
 ColliderComponent* Entity_GetCollider(Entity entity);
 RigidbodyComponent* Entity_GetRigidbody(Entity entity);
 AudioListenerComponent* Entity_GetAudioListener(Entity entity);

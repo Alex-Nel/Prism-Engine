@@ -31,6 +31,7 @@ namespace Prism
         }
 
     public:
+        bool is_active = true; // Scripts start active by default
         // The entity this script is attached to.
         Prism::Entity entity; 
         std::string script_class_name;
@@ -81,6 +82,13 @@ namespace Prism
 
         void OnSerialize(struct cJSON* json);
         void OnDeserialize(struct cJSON* json);
+
+
+
+        // --- Active Toggles ---
+
+        void SetActive(bool active);
+        bool IsActive();
     };
 
 

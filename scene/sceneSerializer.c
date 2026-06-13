@@ -151,15 +151,19 @@ bool Scene_Save(Scene* scene, const char* filepath)
 
 
         // --- Save Point Lights ---
-        if (scene->component_masks[i] & COMPONENT_POINT_LIGHT)
+        if (scene->component_masks[i] & COMPONENT_LIGHT)
         {
-            PointLightComponent* l = &scene->point_lights[i];
+            LightComponent* l = &scene->lights[i];
             cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "light");
+            cJSON_AddNumberToObject(comp_obj, "type", l->type);
             cJSON_AddItemToObject(comp_obj, "color", SaveColor(l->color));
             cJSON_AddNumberToObject(comp_obj, "intensity", l->intensity);
+            cJSON_AddNumberToObject(comp_obj, "ambient_strength", l->ambient_strength);
             cJSON_AddNumberToObject(comp_obj, "constant", l->constant);
             cJSON_AddNumberToObject(comp_obj, "linear", l->linear);
             cJSON_AddNumberToObject(comp_obj, "quadratic", l->quadratic);
+            cJSON_AddNumberToObject(comp_obj, "inner_cut_off", l->inner_cut_off);
+            cJSON_AddNumberToObject(comp_obj, "outer_cut_off", l->outer_cut_off);
         }
 
 
@@ -209,7 +213,7 @@ bool Scene_Save(Scene* scene, const char* filepath)
         {
             AudioListenerComponent* al = &scene->audio_listeners[i];
             cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "audio_listener");
-            cJSON_AddBoolToObject(comp_obj, "active", al->active);
+            cJSON_AddBoolToObject(comp_obj, "active", al->is_active);
         }
 
 
@@ -364,15 +368,19 @@ bool Scene_Load(Scene* scene, const char* filepath)
 
 
         // --- Load Point Lights ---
-        if (mask & COMPONENT_POINT_LIGHT)
+        if (mask & COMPONENT_LIGHT)
         {
             cJSON* comp_obj = cJSON_GetObjectItemCaseSensitive(entity_json, "light");
-            PointLightComponent* l = &scene->point_lights[id];
+            LightComponent* l = &scene->lights[id];
+            l->type = cJSON_GetObjectItemCaseSensitive(comp_obj, "type")->valuedouble;
             l->color = LoadColor(cJSON_GetObjectItemCaseSensitive(comp_obj, "color"));
             l->intensity = cJSON_GetObjectItemCaseSensitive(comp_obj, "intensity")->valuedouble;
+            l->ambient_strength = cJSON_GetObjectItemCaseSensitive(comp_obj, "ambient_strength")->valuedouble;
             l->constant = cJSON_GetObjectItemCaseSensitive(comp_obj, "constant")->valuedouble;
-            l->linear = cJSON_GetObjectItemCaseSensitive(comp_obj, "linear")->valuedouble;;
+            l->linear = cJSON_GetObjectItemCaseSensitive(comp_obj, "linear")->valuedouble;
             l->quadratic = cJSON_GetObjectItemCaseSensitive(comp_obj, "quadratic")->valuedouble;
+            l->inner_cut_off = cJSON_GetObjectItemCaseSensitive(comp_obj, "inner_cut_off")->valuedouble;
+            l->outer_cut_off = cJSON_GetObjectItemCaseSensitive(comp_obj, "outer_cut_off")->valuedouble;
         }
 
 
@@ -461,7 +469,7 @@ bool Scene_Load(Scene* scene, const char* filepath)
             Entity_AddAudioListener(e); // Initialize standard defaults
             
             AudioListenerComponent* al = &scene->audio_listeners[id];
-            al->active = cJSON_GetObjectItemCaseSensitive(comp_obj, "active")->valueint;
+            al->is_active = cJSON_GetObjectItemCaseSensitive(comp_obj, "active")->valueint;
         }
 
 

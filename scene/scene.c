@@ -49,9 +49,9 @@ void Scene_Init(Scene* scene)
 
     scene->main_camera_id = 0;
 
-    scene->global_light.direction = (Vector3){1.0f, 2.0f, 1.0f};
-    scene->global_light.color = (Color){1.0f, 1.0f, 1.0f, 1.0f}; // Pure white
-    scene->global_light.ambient_strength = 0.2f;
+    // scene->global_light.direction = (Vector3){1.0f, 2.0f, 1.0f};
+    // scene->global_light.color = (Color){1.0f, 1.0f, 1.0f, 1.0f}; // Pure white
+    // scene->global_light.ambient_strength = 0.2f;
 
     scene->physics_world = Physics_InitWorld();
 }
@@ -174,8 +174,6 @@ void Scene_Update(Scene* scene)
 {
     if (!scene) return;
 
-    float dt = Time_DeltaTime();
-
     // Execute any custom scripts
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
     {
@@ -190,6 +188,26 @@ void Scene_Update(Scene* scene)
             for (uint32_t s = 0; s < script_comp->count; s++)
             {
                 ScriptInstance* script = &script_comp->instances[s];
+
+                // Catch state changes first
+                if (script->is_active && !script->is_enabled_internal)
+                {
+                    if (script->OnEnable != NULL)
+                        script->OnEnable(e, script->instance_data);
+                    
+                    script->is_enabled_internal = true;
+                }
+                else if (!script->is_active && script->is_enabled_internal)
+                {
+                    if (script->OnDisable != NULL)
+                        script->OnDisable(e, script->instance_data);
+                    
+                    script->is_enabled_internal = false;
+                }
+
+                // Skip script if it's disabled
+                if (!script->is_active)
+                    continue;
 
                 // Run OnStart once
                 if (!script->has_started)
@@ -292,6 +310,26 @@ void Scene_FixedUpdate(Scene* scene)
             for (uint32_t s = 0; s < script_comp->count; s++)
             {
                 ScriptInstance* script = &script_comp->instances[s];
+
+                // Catch state changes first
+                if (script->is_active && !script->is_enabled_internal)
+                {
+                    if (script->OnEnable != NULL)
+                        script->OnEnable(e, script->instance_data);
+                    
+                    script->is_enabled_internal = true;
+                }
+                else if (!script->is_active && script->is_enabled_internal)
+                {
+                    if (script->OnDisable != NULL)
+                        script->OnDisable(e, script->instance_data);
+                    
+                    script->is_enabled_internal = false;
+                }
+
+                // Skip script if it's disabled
+                if (!script->is_active)
+                    continue;
                 
                 // Ensure OnStart has run before FixedUpdate
                 if (!script->has_started)
@@ -686,6 +724,64 @@ void Scene_ShutdownPhysics(Scene* scene)
 
 
 
+// Deletes all entities in the destroy queue
+void Scene_ProcessDestroyQueue(Scene* scene)
+{
+    if (!scene || scene->destroy_count == 0)
+        return;
+    
+    // Loop through all entities to destroy
+    for (uint32_t i = 0; i < scene->destroy_count; i++)
+    {
+        uint32_t id = scene->entities_to_destroy[i];
+
+        // Run OnDestroy() before wiping memory
+        if (scene->component_masks[id] & COMPONENT_SCRIPT)
+        {
+            ScriptComponent* script_comp = &scene->scripts[id];
+            Entity e = { id, scene };
+
+            for (uint32_t s = 0; s < script_comp->count; s++)
+            {
+                ScriptInstance* script = &script_comp->instances[s];
+
+                if (script->has_started && script->OnDestroy != NULL)
+                    script->OnDestroy(e, script->instance_data);
+            }
+        }
+
+        // Cleanup physics (remove rigidbodies and colliders)
+        if (scene->component_masks[id] & COMPONENT_COLLIDER)
+        {
+            ColliderComponent* c = &scene->colliders[id];
+
+            if (c->physics_handle)
+            {
+                Physics_DestroyBody(scene->physics_world, c->physics_handle);
+                c->physics_handle = NULL;
+            }
+        }
+
+        // Unparent it from the hierarchy
+        Entity_RemoveParent((Entity){id, scene});
+        
+        // Clear all masks
+        scene->component_masks[id] = 0;
+        scene->is_active_self[id] = false;
+        scene->is_active_in_hierarchy[id] = false;
+        scene->is_pending_destroy[id] = false;
+
+        scene->names[id].name[0] = '\0';
+    }
+
+    // Reset queue for next frame
+    scene->destroy_count = 0;
+}
+
+
+
+
+
 // Performs a raycast from an origin, direction, and distance
 bool Scene_Raycast(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hit, int collision_mask, bool hit_triggers)
 {
@@ -759,36 +855,39 @@ Entity Entity_Create(Scene* scene, const char* name)
 
 
 
-// Deletes an entity from the scene
+// Adds an entity to the delete queue to be destroyed
 void Entity_Destroy(Entity entity)
 {
     if (!Entity_IsValid(entity)) return;
 
-    // Cleans the entity from the scene graph
-    if (entity.scene->component_masks[entity.id] & COMPONENT_TRANSFORM) 
+    Scene* scene = entity.scene;
+    uint32_t id = entity.id;
+
+    // Prevent double-queueing
+    if (scene->is_pending_destroy[id])
+        return;
+    
+    // Add to the queue
+    scene->entities_to_destroy[scene->destroy_count++] = id;
+    scene->is_pending_destroy[id] = true;
+
+    Entity_SetActive(entity, false);
+
+    // Recursively add all children
+    uint32_t child_buffer[MAX_ENTITIES];
+    uint32_t child_count = Entity_GetChildren(entity, child_buffer, MAX_ENTITIES, true);
+
+    for (uint32_t i = 0; i < child_count; i++)
     {
-        Transform* t = &entity.scene->transforms[entity.id];
+        uint32_t child_id = child_buffer[i];
 
-        // Recursively delete the entities children
-        uint32_t current_child_id = t->first_child_id;
-        while (current_child_id != ENTITY_NONE) 
+        if (!scene->is_pending_destroy[child_id])
         {
-            // Save the next sibling's ID before we destroy the current child!
-            // If we destroy the child first, its data is wiped and we lose the sibling chain.
-            uint32_t next_id = entity.scene->transforms[current_child_id].next_sibling_id;
-            
-            Entity child_entity = { current_child_id, entity.scene };
-            Entity_Destroy(child_entity);
-            
-            current_child_id = next_id;
+            scene->entities_to_destroy[scene->destroy_count++] = child_id;
+            scene->is_pending_destroy[child_id] = true;
+            Entity_SetActive((Entity){child_id, scene}, false);
         }
-
-        // Detach entity from its parent so we don't leave a dead pointer in their sibling list
-        Entity_RemoveParent(entity);
     }
-
-    // Erase entity from the ECS
-    entity.scene->component_masks[entity.id] = COMPONENT_NONE;
 }
 
 

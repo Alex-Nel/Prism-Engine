@@ -25,6 +25,19 @@ typedef enum GraphicsAPI
 
 
 
+// Struct for directional light data
+typedef struct DirectionalLightData
+{
+    Vector3 direction;
+    Color color;
+    float intensity;
+    float ambient_strength;
+} DirectionalLightData;
+
+
+
+
+
 // Struct for point light data
 typedef struct PointLightData
 {
@@ -40,6 +53,24 @@ typedef struct PointLightData
 
 
 
+// Struct for spot light data
+typedef struct SpotLightData
+{
+    Vector3 position;
+    Vector3 direction;
+    Color color;
+    float intensity;
+    float constant;
+    float linear;
+    float quadratic;
+    float inner_cut_off;
+    float outer_cut_off;
+} SpotLightData;
+
+
+
+
+
 // Struct for a render packet to send to renderer
 typedef struct RenderPacket
 {
@@ -47,9 +78,14 @@ typedef struct RenderPacket
     Matrix4 projection_matrix;
     Vector3 camera_pos;
     
-    DirectionalLight global_light;
+    DirectionalLightData* dir_lights;
+    uint32_t dir_light_count;
+    
     PointLightData* point_lights; 
     uint32_t point_light_count;
+
+    SpotLightData* spot_lights; 
+    uint32_t spot_light_count;
 } RenderPacket;
 
 

@@ -59,6 +59,7 @@ void Entity_AddRenderable(Entity entity, Mesh* mesh, Material* material)
     if (!entity.scene) return;
 
     RenderComponent* r = &entity.scene->renderables[entity.id];
+    r->is_active = true;
     r->mesh = mesh;
     r->material = material;
 
@@ -75,6 +76,7 @@ void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ)
     if (!entity.scene) return;
 
     CameraComponent* cam = &entity.scene->cameras[entity.id];
+    cam->is_active = true;
     cam->fov = fov;
     cam->nearZ = nearZ;
     cam->farZ = farZ;
@@ -88,18 +90,23 @@ void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ)
 
 
 // Adds a point light component to an entity with specified light attributes
-void Entity_AddPointLight(Entity entity, Color color, float intensity, float constant, float linear, float quadratic)
+void Entity_AddLight(Entity entity, LightType type, Color color)
 {
     if (!entity.scene) return;
     
-    PointLightComponent* light = &entity.scene->point_lights[entity.id];
+    LightComponent* light = &entity.scene->lights[entity.id];
+    light->is_active = true;
+    light->type = type;
     light->color = color;
-    light->intensity = intensity;
-    light->constant = constant;
-    light->linear = linear;
-    light->quadratic = quadratic;
+    light->intensity = 1.0f;
+    light->ambient_strength = (type == LIGHT_DIRECTIONAL) ? 0.1f : 0.0f;
+    light->constant = 1.0f;
+    light->linear = 0.09f;
+    light->quadratic = 0.032f;
+    light->inner_cut_off = 12.5f;
+    light->outer_cut_off = 17.5f;
     
-    entity.scene->component_masks[entity.id] |= COMPONENT_POINT_LIGHT;
+    entity.scene->component_masks[entity.id] |= COMPONENT_LIGHT;
 }
 
 
@@ -112,6 +119,7 @@ void Entity_AddColliderBox(Entity entity, Vector3 extents, bool is_trigger)
     if (!Entity_IsValid(entity)) return;
 
     ColliderComponent* c = &entity.scene->colliders[entity.id];
+    c->is_active = true;
     c->owner = entity;
     c->type = COLLIDER_BOX;
     c->is_trigger = is_trigger;
@@ -177,6 +185,7 @@ void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger)
     if (!Entity_IsValid(entity)) return;
 
     ColliderComponent* c = &entity.scene->colliders[entity.id];
+    c->is_active = true;
     c->owner = entity;
     c->type = COLLIDER_SPHERE;
     c->is_trigger = is_trigger;
@@ -216,6 +225,7 @@ void Entity_AddColliderMesh(Entity entity, Mesh* mesh, bool is_trigger, bool is_
     }
 
     ColliderComponent* c = &entity.scene->colliders[entity.id];
+    c->is_active = true;
     c->owner = entity;
     c->type = COLLIDER_MESH;
     c->is_trigger = is_trigger;
@@ -281,6 +291,7 @@ void Entity_AddRigidbody(Entity entity, float mass)
     }
 
     RigidbodyComponent* rb = &entity.scene->rigidbodies[entity.id];
+    rb->is_active = true;
     rb->owner = entity;
     rb->mass = mass;
     rb->linear_drag = 0.0f;
@@ -310,7 +321,7 @@ void Entity_AddAudioListener(Entity entity)
     if (!Entity_IsValid(entity)) return;
     
     AudioListenerComponent* listener = &entity.scene->audio_listeners[entity.id];
-    listener->active = true;
+    listener->is_active = true;
 
     entity.scene->component_masks[entity.id] |= COMPONENT_AUDIO_LISTENER;
 }
@@ -325,6 +336,7 @@ void Entity_AddAudioSource(Entity entity)
     if (!Entity_IsValid(entity)) return;
     
     AudioSourceComponent* src = &entity.scene->audio_sources[entity.id];
+    src->is_active = true;
     src->clip = (AudioClipHandle){0};
     src->volume = 1.0f;
     src->pitch = 1.0f;
@@ -361,6 +373,8 @@ void Entity_BindScript(Entity entity, ScriptInstance new_script)
 
     // Slot the new script in
     script_comp->instances[index] = new_script;
+    script_comp->instances[index].is_active = true;              // Scripts start active by default
+    script_comp->instances[index].is_enabled_internal = false;   // Engine hasn't formally "enabled" it yet
     script_comp->instances[index].has_started = false;
     
     // Increment the counter
@@ -368,6 +382,30 @@ void Entity_BindScript(Entity entity, ScriptInstance new_script)
     
     // Tell the ECS this entity has at least one script
     entity.scene->component_masks[entity.id] |= COMPONENT_SCRIPT;
+}
+
+
+
+
+
+// Sets a scripts active state
+void Script_SetActive(Entity entity, void* instance_data, bool active)
+{
+    if (!entity.scene) return;
+
+    if (!(entity.scene->component_masks[entity.id] & COMPONENT_SCRIPT)) return;
+
+    ScriptComponent* script_comp = &entity.scene->scripts[entity.id];
+    
+    // Find the specific instance
+    for (uint32_t s = 0; s < script_comp->count; s++)
+    {
+        if (script_comp->instances[s].instance_data == instance_data)
+        {
+            script_comp->instances[s].is_active = active;
+            return;
+        }
+    }
 }
 
 
@@ -466,13 +504,13 @@ CameraComponent* Entity_GetCamera(Entity entity)
 
 
 // Returns an entities point light struct
-PointLightComponent* Entity_GetPointLight(Entity entity)
+LightComponent* Entity_GetLight(Entity entity)
 {
     if (!entity.scene) return NULL;
 
-    if ((entity.scene->component_masks[entity.id] & COMPONENT_POINT_LIGHT) == COMPONENT_POINT_LIGHT)
+    if ((entity.scene->component_masks[entity.id] & COMPONENT_LIGHT) == COMPONENT_LIGHT)
     {
-        return &entity.scene->point_lights[entity.id];
+        return &entity.scene->lights[entity.id];
     }
 
     return NULL;
