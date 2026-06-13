@@ -1,4 +1,5 @@
 #include "../../include/scene/Components.hpp"
+#include "../../include/scene/Scene.hpp"
 
 
 extern "C"
@@ -47,6 +48,9 @@ namespace Prism
     Prism::Quaternion Transform::GetGlobalRotation() {
         ::Quaternion raw = ::Transform_GetGlobalRotation(reinterpret_cast<::Transform*>(this));
         return Prism::Quaternion(raw.x, raw.y, raw.z, raw.w);
+    }
+    Prism::Matrix4 Transform::GetWorldMatrix() {
+        return this->world_matrix;
     }
 
     Prism::Vector3 Transform::GetForwardVector() {

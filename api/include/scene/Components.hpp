@@ -89,6 +89,7 @@ namespace Prism
         Prism::Vector3 GetGlobalPosition();
         Prism::Vector3 GetGlobalScale();
         Prism::Quaternion GetGlobalRotation();
+        Prism::Matrix4 GetWorldMatrix();
 
         Prism::Vector3 GetForwardVector();
         Prism::Vector3 GetRightVector();
@@ -108,6 +109,8 @@ namespace Prism
         float farZ;
         Prism::Matrix4 projection_matrix; 
         bool is_dirty; 
+
+        Prism::Ray ScreenPointToRay(const Prism::Vector2& mouse_pos);
     };
 
 

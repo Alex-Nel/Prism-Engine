@@ -55,9 +55,51 @@ namespace Prism
         ::Vector3 raw = ::Vector3Cross({a.x, a.y, a.z}, {b.x, b.y, b.z});
         return Vector3(raw.x, raw.y, raw.z);
     }
+    Vector3 Vector3::Negate(const Vector3& v) {
+        ::Vector3 raw = ::Vector3Negate({v.x, v.y, v.z});
+        return Vector3(raw.x, raw.y, raw.z);
+    }
+    float Vector3::Length(const Vector3& v) {
+        return ::Vector3Length({v.x, v.y, v.z});
+    }
     Vector3 Vector3::Lerp(const Vector3& start, const Vector3& end, float t) {
         ::Vector3 raw = ::Vector3Lerp({start.x, start.y, start.z}, {end.x, end.y, end.z}, t);
         return Vector3(raw.x, raw.y, raw.z);
+    }
+    float Vector3::Distance(const Vector3& a, const Vector3& b) {
+        return ::Vector3Distance({a.x, a.y, a.z}, {b.x, b.y, b.z});
+    }
+
+
+
+    // ==========================================
+    // Vector4 Implementation
+    // ==========================================
+
+    void Vector4::Normalize() {
+        ::Vector4 raw = ::Vector4Normalize({x, y, z, w});
+        x = raw.x; y = raw.y; z = raw.z; w = raw.w;
+    }
+    Vector4 Vector4::Normalized() const {
+        ::Vector4 raw = ::Vector4Normalize({x, y, z, w});
+        return Vector4(raw.x, raw.y, raw.z, raw.w);
+    }
+    float Vector4::Dot(const Vector4& a, const Vector4& b) {
+        return ::Vector4Dot({a.x, a.y, a.z, a.w}, {b.x, b.y, b.z, b.w});
+    }
+    Vector4 Vector4::Negate(const Vector4& v) {
+        ::Vector4 raw = ::Vector4Negate({v.x, v.y, v.z, v.w});
+        return Vector4(raw.x, raw.y, raw.z, raw.w);
+    }
+    float Vector4::Length(const Vector4& v) {
+        return ::Vector4Length({v.x, v.y, v.z, v.w});
+    }
+    Vector4 Vector4::Lerp(const Vector4& start, const Vector4& end, float t) {
+        ::Vector4 raw = ::Vector4Lerp({start.x, start.y, start.z, start.w}, {end.x, end.y, end.z, end.w}, t);
+        return Vector4(raw.x, raw.y, raw.z, raw.w);
+    }
+    float Vector4::Distance(const Vector4& a, const Vector4& b) {
+        return ::Vector4Distance({a.x, a.y, a.z, a.w}, {b.x, b.y, b.z, b.w});
     }
 
 
@@ -124,17 +166,17 @@ namespace Prism
     // Helper to bridge our Matrix4 to ::Matrix4
     static inline ::Matrix4 ToCore(const Matrix4& m) {
         return ::Matrix4 {
-            m.m0, m.m4, m.m8, m.m12,
-            m.m1, m.m5, m.m9, m.m13,
-            m.m2, m.m6, m.m10, m.m14,
-            m.m3, m.m7, m.m11, m.m15 };
+            m.m0, m.m1, m.m2, m.m3,
+            m.m4, m.m5, m.m6, m.m7,
+            m.m8, m.m9, m.m10, m.m11,
+            m.m12, m.m13, m.m14, m.m15 };
     }
     static inline Matrix4 FromCore(const ::Matrix4& raw) {
         Matrix4 m;
-        m.m0 = raw.m0; m.m4 = raw.m4; m.m8 = raw.m8; m.m12 = raw.m12;
-        m.m1 = raw.m1; m.m5 = raw.m5; m.m9 = raw.m9; m.m13 = raw.m13;
-        m.m2 = raw.m2; m.m6 = raw.m6; m.m10 = raw.m10; m.m14 = raw.m14;
-        m.m3 = raw.m3; m.m7 = raw.m7; m.m11 = raw.m11; m.m15 = raw.m15;
+        m.m0 = raw.m0; m.m1 = raw.m1; m.m2 = raw.m2; m.m3 = raw.m3;
+        m.m4 = raw.m4; m.m5 = raw.m5; m.m6 = raw.m6; m.m7 = raw.m7;
+        m.m8 = raw.m8; m.m9 = raw.m9; m.m10 = raw.m10; m.m11 = raw.m11;
+        m.m12 = raw.m12; m.m13 = raw.m13; m.m14 = raw.m14; m.m15 = raw.m15;
         return m;
     }
 
@@ -152,6 +194,10 @@ namespace Prism
     Vector3 Matrix4::operator*(const Vector3& v) const {
         ::Vector3 raw = ::Matrix4MultiplyVector3(ToCore(*this), {v.x, v.y, v.z});
         return Vector3(raw.x, raw.y, raw.z);
+    }
+    Vector4 Matrix4::operator*(const Vector4& v) const {
+        ::Vector4 raw = ::Matrix4MultiplyVector4(ToCore(*this), {v.x, v.y, v.z, v.w});
+        return Vector4(raw.x, raw.y, raw.z, raw.w);
     }
 
     void Matrix4::Transpose() {

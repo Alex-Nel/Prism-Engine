@@ -687,29 +687,12 @@ void Scene_ShutdownPhysics(Scene* scene)
 
 
 // Performs a raycast from an origin, direction, and distance
-bool Scene_Raycast(Scene* scene, Vector3 origin, Vector3 direction, float max_distance, RaycastHit* out_hit, int collision_mask)
+bool Scene_Raycast(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hit, int collision_mask, bool hit_triggers)
 {
-    if (!scene || !scene->physics_world) return false;
+    if (!scene || !scene->physics_world)
+        return false;
 
-    // Normalize the direction vector
-    float length = sqrtf(direction.x * direction.x + direction.y * direction.y + direction.z * direction.z);
-    
-    if (length > 0.0f)
-    {
-        direction.x /= length;
-        direction.y /= length;
-        direction.z /= length;
-    }
-
-    // Calculate the end point of the ray
-    Vector3 end = {
-        origin.x + (direction.x * max_distance),
-        origin.y + (direction.y * max_distance),
-        origin.z + (direction.z * max_distance)
-    };
-
-    // Pass it to Bullet
-    return Physics_Raycast(scene->physics_world, origin, end, out_hit, collision_mask);
+    return Physics_Raycast(scene->physics_world, ray, max_distance, out_hit, collision_mask, hit_triggers);
 }
 
 
@@ -717,28 +700,12 @@ bool Scene_Raycast(Scene* scene, Vector3 origin, Vector3 direction, float max_di
 
 
 // Performs a raycast from origin to distance. Returns all hit objects up to max_hits
-int Scene_RaycastAll(Scene* scene, Vector3 origin, Vector3 direction, float max_distance, RaycastHit* out_hits, int max_hits, int collision_mask)
+int Scene_RaycastAll(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hits, int max_hits, int collision_mask, bool hit_triggers)
 {
-    if (!scene || !scene->physics_world) return 0;
+    if (!scene || !scene->physics_world)
+        return 0;
 
-    // Normalize the direction vector
-    float length = sqrtf(direction.x * direction.x + direction.y * direction.y + direction.z * direction.z);
-    
-    if (length > 0.0f)
-    {
-        direction.x /= length;
-        direction.y /= length;
-        direction.z /= length;
-    }
-
-    // Calculate the end point
-    Vector3 end = {
-        origin.x + (direction.x * max_distance),
-        origin.y + (direction.y * max_distance),
-        origin.z + (direction.z * max_distance)
-    };
-
-    return Physics_RaycastAll(scene->physics_world, origin, end, out_hits, max_hits, collision_mask);
+    return Physics_RaycastAll(scene->physics_world, ray, max_distance, out_hits, max_hits, collision_mask, hit_triggers);
 }
 
 

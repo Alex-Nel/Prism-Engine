@@ -1,3 +1,4 @@
+#include "../../include/Engine.hpp"
 #include "../../include/scene/Entity.hpp"
 #include "../../include/scene/Scene.hpp" // Needed for Scene::GetActive()
 
@@ -68,6 +69,44 @@ namespace Prism
             children.emplace_back(Prism::Entity(buffer[i], raw_entity.scene));
 
         return children;
+    }
+
+    Prism::Ray Entity::ScreenPointToRay(const Prism::Vector2& mouse_pos)
+    {
+        // Fetch both components
+        Prism::CameraComponent* cam = this->GetCamera();
+        Prism::Transform* t = this->GetTransform();
+
+        // Safety check
+        if (!cam || !t) 
+            return Prism::Ray{ {0,0,0}, {0,0,0} };
+
+        int width = Prism::Engine::GetWindowWidth();
+        int height = Prism::Engine::GetWindowHeight();
+
+        if (height == 0.0f)
+            height = 1.0f;
+
+        float aspect_ratio = (float)width / (float)height;
+
+        // Generate the projection matrix
+        ::Matrix4 c_proj = ::Matrix4Perspective(cam->fov, aspect_ratio, cam->nearZ, cam->farZ);
+
+        Prism::Matrix4 world = t->GetWorldMatrix();
+        ::Matrix4 c_world = ::Matrix4{
+            world.m0, world.m1, world.m2, world.m3,
+            world.m4, world.m5, world.m6, world.m7,
+            world.m8, world.m9, world.m10, world.m11,
+            world.m12, world.m13, world.m14, world.m15,
+        };
+        
+        Prism::Vector3 global_pos = t->GetGlobalPosition();
+        
+        
+        ::Ray raw_ray = ::Camera_ScreenPointToRay(c_proj, c_world, ::Vector3{global_pos.x, global_pos.y, global_pos.z}, mouse_pos.x, mouse_pos.y, width, height);
+        
+        return Prism::Ray{ {raw_ray.origin.x, raw_ray.origin.y, raw_ray.origin.z}, 
+                           {raw_ray.direction.x, raw_ray.direction.y, raw_ray.direction.z} };
     }
 
 

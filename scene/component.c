@@ -843,6 +843,51 @@ void Collider_SetConvex(Entity entity, bool is_convex)
 
 
 
+// Converts a point on the screen into a ray
+Ray Camera_ScreenPointToRay(Matrix4 projection, Matrix4 view, Vector3 camera_pos, float mouse_x, float mouse_y, float screen_width, float screen_height)
+{
+    // If the projection matrix is empty, return an empty ray to prevent NaN crash
+    if (projection.m0 == 0.0f && projection.m5 == 0.0f)
+        return (Ray){ camera_pos, {0.0f, 0.0f, 1.0f} }; 
+
+    // Convert Screen Coordinates to Normalized Device Coordinates
+    // Assuming (0,0) is top-left of the window
+    float x = (2.0f * mouse_x) / screen_width - 1.0f;
+    float y = 1.0f - (2.0f * mouse_y) / screen_height;
+    
+    // Clip Space
+    Vector4 ray_clip = { x, y, -1.0f, 1.0f };
+    
+    // Eye Space (Reverse the Projection)
+    Matrix4 inv_proj = Matrix4Inverse(projection);
+    Vector4 ray_eye = Matrix4MultiplyVector4(inv_proj, ray_clip);
+    ray_eye.z = -1.0f;
+    ray_eye.w = 0.0f;
+    
+    // World Space (Reverse the View)
+    // Matrix4 inv_view = Matrix4Inverse(view);
+    Vector4 ray_world_4d = Matrix4MultiplyVector4(view, ray_eye);
+    
+    Vector3 ray_world = { ray_world_4d.x, ray_world_4d.y, ray_world_4d.z };
+    ray_world = Vector3Normalize(ray_world);
+    
+    return (Ray){ camera_pos, ray_world };
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // Sets the specific material slot with a chosen material
 void Renderable_SetMaterial(RenderComponent* r, Material* material)
 {

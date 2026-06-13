@@ -13,6 +13,9 @@ namespace Prism
 {
     // Forward declerations
 
+    struct Ray;
+    struct RaycastHit;
+
     struct Transform;
     struct RenderComponent;
     struct RigidbodyComponent;
@@ -52,6 +55,7 @@ namespace Prism
         void RemoveParent();
         void AddModel(Prism::Model model);
         std::vector<Prism::Entity> GetChildren(bool recursive = true);
+        Prism::Ray ScreenPointToRay(const Prism::Vector2& mouse_pos); // TODO: Make this a component method instead
 
 
 

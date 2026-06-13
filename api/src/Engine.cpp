@@ -33,6 +33,14 @@ namespace Prism
 
     // --- UTILITY ---
 
+    int Engine::GetWindowWidth() {
+        return ::Platform_GetWindowWidth(::Engine_GetMainWindow());
+    }
+
+    int Engine::GetWindowHeight() {
+        return ::Platform_GetWindowHeight(::Engine_GetMainWindow());
+    }
+
     void Engine::SetClearColor(const Prism::Vector3& color, float alpha) {
         ::Engine_SetClearColor(color.x, color.y, color.z, alpha);
     }

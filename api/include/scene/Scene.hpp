@@ -7,13 +7,23 @@
 namespace Prism
 {
 
+    // Structure for a scene ray
+    typedef struct Ray
+    {
+        Prism::Vector3 origin;
+        Prism::Vector3 direction;
+    } Ray;
+
+
+
     // Structure for raycast information
     struct RaycastHit
     {
+        bool hit;
+        Prism::Entity entity;
         Prism::Vector3 point;
         Prism::Vector3 normal;
         float distance;
-        Prism::Entity entity;
     };
 
 
@@ -57,7 +67,7 @@ namespace Prism
         
         // --- Physics & Raycasting ---
         
-        bool Raycast(const Vector3& origin, const Vector3& direction, float maxDistance, RaycastHit& outHit, int collisionMask = COLLISION_MASK_ALL);
-        int RaycastAll(const Vector3& origin, const Vector3& direction, float maxDistance, RaycastHit* outHits, int maxHits, int collisionMask = COLLISION_MASK_ALL);
+        bool Raycast(const Prism::Ray ray, float maxDistance, RaycastHit& outHit, bool hit_triggers = false, int collisionMask = COLLISION_MASK_ALL);
+        int RaycastAll(const Prism::Ray ray, float maxDistance, RaycastHit* outHits, int maxHits, bool hit_triggers = false, int collisionMask = COLLISION_MASK_ALL);
     };
 }

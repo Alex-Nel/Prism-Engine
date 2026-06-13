@@ -24,13 +24,13 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
 void Platform_Shutdown(Window* window);
 
 // Returns the width of a window
-uint32_t GetWindowWidth(Window* window);
+uint32_t Platform_GetWindowWidth(Window* window);
 
 // Returns the height of a window
-uint32_t GetWindowHeight(Window* window);
+uint32_t Platform_GetWindowHeight(Window* window);
 
 // Sets the width and height of a window
-void SetWindowSize(Window* window, uint32_t width, uint32_t height);
+void Platform_SetWindowSize(Window* window, uint32_t width, uint32_t height);
 
 
 

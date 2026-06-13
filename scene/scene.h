@@ -19,7 +19,11 @@
 #define MAX_MATERIAL_SLOTS 256
 
 
+
 typedef struct Scene Scene;
+// typedef void* PhysicsWorldHandle;
+
+
 
 // Struct for an entity
 // Contains it's ID and pointer to the scene it's in
@@ -118,6 +122,7 @@ typedef struct NameComponent
 } NameComponent;
 
 
+
 // Transform: an entities positional parts within the scene
 typedef struct Transform
 {
@@ -137,12 +142,14 @@ typedef struct Transform
 } Transform;
 
 
+
 // Component that holds rendering information
 typedef struct RenderComponent
 {
     Mesh* mesh;
     Material* material;
 } RenderComponent;
+
 
 
 // Camera component for rendering
@@ -154,6 +161,7 @@ typedef struct CameraComponent
     Matrix4 projection_matrix; // Projection matrix is cached to prevent recalculations
     bool is_dirty; 
 } CameraComponent;
+
 
 
 // Point light component
@@ -169,6 +177,7 @@ typedef struct PointLightComponent
 } PointLightComponent;
 
 
+
 // Collider Types
 typedef enum ColliderType
 {
@@ -176,6 +185,7 @@ typedef enum ColliderType
     COLLIDER_SPHERE,
     COLLIDER_MESH
 } ColliderType;
+
 
 
 // The Collider Unified Component
@@ -204,6 +214,7 @@ typedef struct ColliderComponent
 } ColliderComponent;
 
 
+
 // Rigidbody component and variables
 typedef struct RigidbodyComponent
 {
@@ -220,11 +231,13 @@ typedef struct RigidbodyComponent
 } RigidbodyComponent;
 
 
+
 // An audio listener component (plays audio)
 typedef struct AudioListenerComponent
 {
     bool active;
 } AudioListenerComponent;
+
 
 
 // The speaker component
@@ -277,12 +290,14 @@ typedef struct ScriptInstance
 } ScriptInstance;
 
 
+
 // Custom scripting component
 typedef struct ScriptComponent
 {
     ScriptInstance instances[MAX_SCRIPTS_PER_ENTITY];
     uint32_t count;
 } ScriptComponent;
+
 
 
 // --- The Scene Struct ---
@@ -332,8 +347,8 @@ uint32_t Scene_GetTotalEntityCount(Scene* scene);
 uint32_t Scene_GetActiveEntityCount(Scene* scene);
 void Scene_SetMainCamera(Scene* scene, Entity camera_entity);
 void Scene_ShutdownPhysics(Scene* scene);
-bool Scene_Raycast(Scene* scene, Vector3 origin, Vector3 direction, float max_distance, RaycastHit* out_hit, int collision_mask);
-int Scene_RaycastAll(Scene* scene, Vector3 origin, Vector3 direction, float max_distance, RaycastHit* out_hits, int max_hits, int collision_mask);
+bool Scene_Raycast(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hit, int collision_mask, bool hit_triggers);
+int Scene_RaycastAll(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hits, int max_hits, int collision_mask, bool hit_triggers);
 
 
 
@@ -442,6 +457,7 @@ void Collider_SetConvex(Entity entity, bool is_convex);
 
 
 // --- Camera setters and functions ---
+Ray Camera_ScreenPointToRay(Matrix4 projection, Matrix4 view, Vector3 camera_pos, float mouse_x, float mouse_y, float screen_width, float screen_height);
 // TODO: Implement camera culling masks
 
 

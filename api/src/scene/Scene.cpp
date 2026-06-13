@@ -77,12 +77,14 @@ namespace Prism
 
     // --- Physics & Raycasting ---
     
-    bool Scene::Raycast(const Vector3& origin, const Vector3& direction, float maxDistance, RaycastHit& outHit, int collisionMask) {
+    bool Scene::Raycast(const Ray ray, float maxDistance, RaycastHit& outHit, bool hit_triggers, int collisionMask) {
         ::RaycastHit raw_hit;
-        bool hit = ::Scene_Raycast(static_cast<::Scene*>(m_RawScene), 
-                                   {origin.x, origin.y, origin.z}, 
-                                   {direction.x, direction.y, direction.z}, 
-                                   maxDistance, &raw_hit, collisionMask);
+        ::Ray c_ray = {
+            .origin = {ray.origin.x, ray.origin.y, ray.origin.z},
+            .direction = {ray.direction.x, ray.direction.y, ray.direction.z}
+        };
+
+        bool hit = ::Scene_Raycast(static_cast<::Scene*>(m_RawScene), c_ray, maxDistance, &raw_hit, collisionMask, hit_triggers);
         
         if (hit)
         {
@@ -95,14 +97,15 @@ namespace Prism
         return hit;
     }
 
-    int Scene::RaycastAll(const Vector3& origin, const Vector3& direction, float maxDistance, RaycastHit* outHits, int maxHits, int collisionMask) {
+    int Scene::RaycastAll(const Ray ray, float maxDistance, RaycastHit* outHits, int maxHits, bool hit_triggers, int collisionMask) {
         // Create a temporary array for the backend
         ::RaycastHit* raw_hits = new ::RaycastHit[maxHits];
+        ::Ray c_ray = {
+            .origin = {ray.origin.x, ray.origin.y, ray.origin.z},
+            .direction = {ray.direction.x, ray.direction.y, ray.direction.z}
+        };
         
-        int hit_count = ::Scene_RaycastAll(static_cast<::Scene*>(m_RawScene), 
-                                           {origin.x, origin.y, origin.z}, 
-                                           {direction.x, direction.y, direction.z}, 
-                                           maxDistance, raw_hits, maxHits, collisionMask);
+        int hit_count = ::Scene_RaycastAll(static_cast<::Scene*>(m_RawScene), c_ray, maxDistance, raw_hits, maxHits, collisionMask, hit_triggers);
         
         // Map the results back to the user's array
         for (int i = 0; i < hit_count; i++)

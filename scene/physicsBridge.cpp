@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include "scene.h"
 #include "physicsBridge.h"
 #include <btBulletCollisionCommon.h>
 #include <btBulletDynamicsCommon.h>
@@ -11,8 +12,62 @@ extern "C"
 
 
 
+// --- Custom Bullet Raycast Callbacks ---
+
+struct PrismClosestRayCallback : public btCollisionWorld::ClosestRayResultCallback 
+{
+    bool hitTriggers;
+
+    PrismClosestRayCallback(const btVector3& rayFromWorld, const btVector3& rayToWorld, bool hit_triggers)
+        : btCollisionWorld::ClosestRayResultCallback(rayFromWorld, rayToWorld), hitTriggers(hit_triggers) {}
+
+    virtual bool needsCollision(btBroadphaseProxy* proxy0) const override 
+    {
+        // Check standard layer masks first
+        bool collides = btCollisionWorld::RayResultCallback::needsCollision(proxy0);
+        if (!collides)
+            return false;
+
+        // Filter out Triggers if requested
+        btCollisionObject* obj = (btCollisionObject*)proxy0->m_clientObject;
+        if (!hitTriggers && obj) 
+        {
+            if (obj->getCollisionFlags() & btCollisionObject::CF_NO_CONTACT_RESPONSE)
+                return false; // Ignore
+        }
+
+        return true;
+    }
+};
+
+struct PrismAllHitsRayCallback : public btCollisionWorld::AllHitsRayResultCallback 
+{
+    bool hitTriggers;
+
+    PrismAllHitsRayCallback(const btVector3& rayFromWorld, const btVector3& rayToWorld, bool hit_triggers)
+        : btCollisionWorld::AllHitsRayResultCallback(rayFromWorld, rayToWorld), hitTriggers(hit_triggers) {}
+
+    virtual bool needsCollision(btBroadphaseProxy* proxy0) const override 
+    {
+        bool collides = btCollisionWorld::RayResultCallback::needsCollision(proxy0);
+        if (!collides)
+            return false;
+
+        btCollisionObject* obj = (btCollisionObject*)proxy0->m_clientObject;
+        if (!hitTriggers && obj) 
+        {
+            if (obj->getCollisionFlags() & btCollisionObject::CF_NO_CONTACT_RESPONSE)
+                return false; // Ignore
+        }
+
+        return true;
+    }
+};
+
+
+
 // Custom near-phase collision callback.
-// Prevents bullet from giving a stat-static collision warning
+// Prevents bullet from giving a static-static collision warning
 static void Physics_NearCallback(btBroadphasePair& pair, btCollisionDispatcher& dispatcher, const btDispatcherInfo& info)
 {
     btCollisionObject* obj0 = (btCollisionObject*)pair.m_pProxy0->m_clientObject;
@@ -681,12 +736,12 @@ void Physics_SetCollisionFilter(PhysicsWorldHandle world, PhysicsBodyHandle body
 
 
 // Does a raycast at a start and end point, returns first hit entity
-bool Physics_Raycast(PhysicsWorldHandle world, Vector3 start, Vector3 end, RaycastHit* out_hit, int collision_mask)
+bool Physics_Raycast(PhysicsWorldHandle world, Ray ray, float max_distance, RaycastHit* out_hit, int collision_mask, bool hit_triggers)
 {
     // zero out the hit struct first
     if (out_hit)
     {
-        out_hit->has_hit = false;
+        out_hit->hit = false;
         out_hit->entity_id = 0;
         out_hit->distance = 0.0f;
     }
@@ -694,12 +749,13 @@ bool Physics_Raycast(PhysicsWorldHandle world, Vector3 start, Vector3 end, Rayca
     if (!world || !out_hit) return false;
     btDiscreteDynamicsWorld* dynWorld = (btDiscreteDynamicsWorld*)world;
 
-    // Convert engine Vectors to Bullet Vectors
-    btVector3 btStart(start.x, start.y, start.z);
-    btVector3 btEnd(end.x, end.y, end.z);
+    // Convert Ray into start and end points
+    btVector3 btStart(ray.origin.x, ray.origin.y, ray.origin.z);
+    btVector3 btDir(ray.direction.x, ray.direction.y, ray.direction.z);
+    btVector3 btEnd = btStart + (btDir * max_distance);
 
-    // Create the Bullet Raycast Callback
-    btCollisionWorld::ClosestRayResultCallback rayCallback(btStart, btEnd);
+    // Create the Raycast Callback
+    PrismClosestRayCallback rayCallback(btStart, btEnd, hit_triggers);
 
     rayCallback.m_collisionFilterGroup = -1;              // Ray is in "All layers"
     rayCallback.m_collisionFilterMask = collision_mask;   // Determines what the ray is allowed to hit
@@ -710,7 +766,7 @@ bool Physics_Raycast(PhysicsWorldHandle world, Vector3 start, Vector3 end, Rayca
     // If raycast hit something, save information
     if (rayCallback.hasHit()) 
     {
-        out_hit->has_hit = true;
+        out_hit->hit = true;
         
         // Get the Entity ID
         if (rayCallback.m_collisionObject)
@@ -744,25 +800,27 @@ bool Physics_Raycast(PhysicsWorldHandle world, Vector3 start, Vector3 end, Rayca
 
 
 // Performs a raycast and collects multiple entities hit
-int Physics_RaycastAll(PhysicsWorldHandle world, Vector3 start, Vector3 end, RaycastHit* out_hits, int max_hits, int collision_mask)
+int Physics_RaycastAll(PhysicsWorldHandle world, Ray ray, float max_distance, RaycastHit* out_hits, int max_hits, int collision_mask, bool hit_triggers)
 {
     if (!world || !out_hits || max_hits <= 0) return 0;
 
     // Zero out the array of RaycastHits
     for (int i = 0; i < max_hits; i++)
     {
-        out_hits[i].has_hit = false;
+        out_hits[i].hit = false;
         out_hits[i].entity_id = 0;
         out_hits[i].distance = INT32_MAX; // Set very high for comparisons
     }
 
     btDiscreteDynamicsWorld* dynWorld = (btDiscreteDynamicsWorld*)world;
 
-    btVector3 btStart(start.x, start.y, start.z);
-    btVector3 btEnd(end.x, end.y, end.z);
+    // Convert Ray into start and end points
+    btVector3 btStart(ray.origin.x, ray.origin.y, ray.origin.z);
+    btVector3 btDir(ray.direction.x, ray.direction.y, ray.direction.z);
+    btVector3 btEnd = btStart + (btDir * max_distance);
 
     // Use the "All Hits" callback instead of the "Closest" callback
-    btCollisionWorld::AllHitsRayResultCallback rayCallback(btStart, btEnd);
+    PrismAllHitsRayCallback rayCallback(btStart, btEnd, hit_triggers);
 
     rayCallback.m_collisionFilterGroup = -1;              // Ray is in "All layers"
     rayCallback.m_collisionFilterMask = collision_mask;   // Determines what the ray is allowed to hit
@@ -802,7 +860,7 @@ int Physics_RaycastAll(PhysicsWorldHandle world, Vector3 start, Vector3 end, Ray
         // If it's a new entity, add it to our array (if we have space)
         if (!already_found && unique_hit_count < max_hits) 
         {
-            out_hits[unique_hit_count].has_hit = true;
+            out_hits[unique_hit_count].hit = true;
             out_hits[unique_hit_count].entity_id = current_id;
             out_hits[unique_hit_count].distance = current_dist;
             out_hits[unique_hit_count].point = Vector3{ rayCallback.m_hitPointWorld[i].x(), rayCallback.m_hitPointWorld[i].y(), rayCallback.m_hitPointWorld[i].z() };

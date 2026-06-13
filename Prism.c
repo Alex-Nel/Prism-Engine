@@ -100,7 +100,7 @@ void Engine_Run(Scene* active_scene)
             else if (e.type == EVENT_WINDOW_RESIZE)
             {
                 Render_SetViewport(engine.renderer, 0, 0, e.window_resize.width, e.window_resize.height);
-                SetWindowSize(engine.window, e.window_resize.width, e.window_resize.height);
+                Platform_SetWindowSize(engine.window, e.window_resize.width, e.window_resize.height);
             }
         }
 
@@ -152,7 +152,7 @@ bool Engine_IsRunning()
                 
             case EVENT_WINDOW_RESIZE:
                 Render_SetViewport(engine.renderer, 0, 0, e.window_resize.width, e.window_resize.height);
-                SetWindowSize(engine.window, e.window_resize.width, e.window_resize.height);
+                Platform_SetWindowSize(engine.window, e.window_resize.width, e.window_resize.height);
                 Log_Info("Window resized to: %d, %d\n", e.window_resize.width, e.window_resize.height);
                 break;
                 
@@ -236,7 +236,7 @@ void Engine_RenderScene(Scene* scene)
         Matrix4 proj = Matrix4Perspective(
             cam_comp->fov,
             // (float)(engine.window_width)/(float)(engine.window_height),
-            (float)(GetWindowWidth(engine.window))/(float)(GetWindowHeight(engine.window)),
+            (float)(Platform_GetWindowWidth(engine.window))/(float)(Platform_GetWindowHeight(engine.window)),
             cam_comp->nearZ,
             cam_comp->farZ
         );

@@ -60,6 +60,7 @@ namespace Prism
         inline Vector3 operator+(const Vector3& b) const { return Vector3(x + b.x, y + b.y, z + b.z); }
         inline Vector3 operator-(const Vector3& b) const { return Vector3(x - b.x, y - b.y, z - b.z); }
         inline Vector3 operator*(float s) const { return Vector3(x * s, y * s, z * s); }
+        inline Vector3 operator/(float s) const { return Vector3(x / s, y / s, z / s); }
         
         inline Vector3& operator+=(const Vector3& b) { x += b.x; y += b.y; z += b.z; return *this; }
         inline Vector3& operator-=(const Vector3& b) { x -= b.x; y -= b.y; z -= b.z; return *this; }
@@ -74,7 +75,50 @@ namespace Prism
 
         static float Dot(const Vector3& a, const Vector3& b);
         static Vector3 Cross(const Vector3& a, const Vector3& b);
+        static Vector3 Negate(const Vector3& v);
+        static float Length(const Vector3& v);
         static Vector3 Lerp(const Vector3& start, const Vector3& end, float t);
+        static float Distance(const Vector3& a, const Vector3& b);
+    };
+
+
+
+    // ==========================================
+    // Vector4 Wrapper
+    // ==========================================
+
+    struct PRISM_API Vector4
+    {
+        float x, y, z, w;
+
+        Vector4() : x(0.0f), y(0.0f), z(0.0f), w(0.0f) {}
+        Vector4(float _x, float _y, float _z, float _w) : x(_x), y(_y), z(_z), w(_w) {}
+
+
+
+        // --- Operator overloads ---
+        
+        inline Vector4 operator+(const Vector4& b) const { return Vector4(x + b.x, y + b.y, z + b.z, w + b.w); }
+        inline Vector4 operator-(const Vector4& b) const { return Vector4(x - b.x, y - b.y, z - b.z, w - b.w); }
+        inline Vector4 operator*(float s) const { return Vector4(x * s, y * s, z * s, w * s); }
+        inline Vector4 operator/(float s) const { return Vector4(x / s, y / s, z / s, w / s); }
+        
+        inline Vector4& operator+=(const Vector4& b) { x += b.x; y += b.y; z += b.z; w += b.w; return *this; }
+        inline Vector4& operator-=(const Vector4& b) { x -= b.x; y -= b.y; z -= b.z; w -= b.w; return *this; }
+        inline Vector4& operator*=(float s) { x *= s; y *= s; z *= s; w *= s; return *this; }
+
+
+        
+        // --- Non operator functions ---
+        
+        void Normalize();
+        Vector4 Normalized() const;
+
+        static float Dot(const Vector4& a, const Vector4& b);
+        static Vector4 Negate(const Vector4& v);
+        static float Length(const Vector4& v);
+        static Vector4 Lerp(const Vector4& start, const Vector4& end, float t);
+        static float Distance(const Vector4& a, const Vector4& b);
     };
 
 
@@ -137,6 +181,7 @@ namespace Prism
         Matrix4 operator*(const Matrix4& b) const;
         Matrix4& operator*=(const Matrix4& b);
         Vector3 operator*(const Vector3& v) const; // Allows: Vector3 worldPos = worldMatrix * localPos;
+        Vector4 operator*(const Vector4& v) const;
 
 
 

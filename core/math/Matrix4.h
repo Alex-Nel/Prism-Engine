@@ -2,6 +2,7 @@
 #define MATRIX4_H
 
 #include "Vector3.h"
+#include "Vector4.h"
 #include "Quaternion.h"
 
 // A 4x4 matrix used for openGL
@@ -32,6 +33,7 @@ Matrix4 Matrix4Translate(Vector3 t);
 Matrix4 Matrix4Scale(Vector3 s);
 Matrix4 Matrix4RotateX(float r);
 Vector3 Matrix4MultiplyVector3(Matrix4 m, Vector3 v);
+Vector4 Matrix4MultiplyVector4(Matrix4 m, Vector4 v);
 Quaternion QuaternionFromMatrix(Matrix4 m);
 void Matrix4ToArray(Matrix4 m, float out[16]);
 
