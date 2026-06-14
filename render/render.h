@@ -86,6 +86,10 @@ typedef struct RenderPacket
 
     SpotLightData* spot_lights; 
     uint32_t spot_light_count;
+
+    bool has_skybox;
+    TextureHandle skybox_texture;
+    ShaderHandle skybox_shader;
 } RenderPacket;
 
 
@@ -139,6 +143,8 @@ typedef struct Renderer
 
     ShaderHandle  (*CreateShader)(Renderer* r, const char* v_source, const char* f_source);
     void          (*DestroyShader)(Renderer* r, ShaderHandle shader);
+
+    TextureHandle (*CreateCubemap)(struct Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels);
 
     // Command Submission
     void (*BeginFrame)(Renderer* r, const RenderPacket* packet);
@@ -241,6 +247,19 @@ static inline void Render_DestroyShader(Renderer* r, ShaderHandle shader)
 {
     if (r && r->DestroyShader)
         r->DestroyShader(r, shader);
+}
+
+
+// Creates a CubeMap for the skybox. Returns a texture handle
+static inline TextureHandle Render_CreateCubemap(Renderer* r, 
+    const uint8_t* right, const uint8_t* left, const uint8_t* top, 
+    const uint8_t* bottom, const uint8_t* front, const uint8_t* back, 
+    uint32_t width, uint32_t height, uint32_t channels)
+{
+    if (r && r->CreateCubemap)
+        return r->CreateCubemap(r, right, left, top, bottom, front, back, width, height, channels);
+    else
+        return (TextureHandle){0};
 }
 
 

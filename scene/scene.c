@@ -782,6 +782,34 @@ void Scene_ProcessDestroyQueue(Scene* scene)
 
 
 
+// Sets the skybox of the scene
+void Scene_SetSkybox(Scene* scene, TextureHandle skybox_texture, ShaderHandle skybox_shader)
+{
+    if (!scene)
+        return;
+
+    scene->skybox_texture = skybox_texture;
+    scene->skybox_shader = skybox_shader;
+    scene->has_skybox = true;
+}
+
+
+
+
+
+// Removes the skybox from the scene
+void Scene_RemoveSkybox(Scene* scene)
+{
+    if (!scene)
+        return;
+    
+    scene->has_skybox = false;
+}
+
+
+
+
+
 // Performs a raycast from an origin, direction, and distance
 bool Scene_Raycast(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hit, int collision_mask, bool hit_triggers)
 {

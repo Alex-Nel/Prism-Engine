@@ -51,6 +51,7 @@ static Mesh* builtin_cube = NULL;
 static Mesh* builtin_sphere = NULL;
 static Texture* default_texture = NULL;
 static Shader* default_shader = NULL;
+static Shader* default_skybox_shader = NULL;
 
 
 
@@ -102,7 +103,7 @@ static AABB CalculateAABB(const Vertex3D* vertices, uint32_t vertex_count)
 // Creates a texture from memory
 static Texture* Asset_CreateTextureFromMemory(const char* name, const unsigned char* buffer, int length)
 {
-    ImageData img = Image_LoadFromMemory(buffer, length);
+    ImageData img = Image_LoadFromMemory(buffer, length, true);
     if (!img.pixels) return Asset_GetDefaultTexture();
 
     TextureHandle handle = Render_CreateTexture(renderer, img.pixels, img.width, img.height, img.channels);
@@ -577,19 +578,6 @@ Material* Asset_CreateMaterial(Shader* shader, Texture* diffuse)
 
 
 
-// // Get a pointer to a material from a material handle
-// Material* Asset_GetMaterial(MaterialHandle handle)
-// {
-//     if (handle.id < MAX_MATERIALS && material_pool[handle.id].active)
-//         return &material_pool[handle.id];
-
-//     return NULL;
-// }
-
-
-
-
-
 // Loads a vertex and fragment shader from a file path and compiles it to a full shader
 Shader* Asset_LoadShader(const char* name, const char* vert_path, const char* frag_path)
 {
@@ -656,7 +644,7 @@ Texture* Asset_LoadTexture(const char* name, const char* filepath)
     }
 
     // Load pixels
-    ImageData img = Image_Load(filepath);
+    ImageData img = Image_Load(filepath, true);
     if (!img.pixels)
     {
         Log_Error("CRITICAL: Failed to load texture: %s\n", filepath);
@@ -676,6 +664,78 @@ Texture* Asset_LoadTexture(const char* name, const char* filepath)
     new_text->width = img.width;
     new_text->height = img.height;
     new_text->channels = img.channels;
+
+    texture_count++;
+
+    return new_text;
+}
+
+
+
+
+
+// Loads a skybox texture from 6 separate images
+Texture* Asset_LoadSkyboxTexture(const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back)
+{
+    // Check if it's already loaded
+    for (uint32_t i = 0; i < texture_count; i++)
+    {
+        if (strcmp(texture_cache[i].name, name) == 0)
+            return &texture_cache[i];
+    }
+
+    // Load all 6 images
+    const char* paths[6] = { right, left, top, bottom, front, back };
+    ImageData images[6];
+    bool failed = false;
+
+    
+    for (int i = 0; i < 6; i++)
+    {
+        images[i] = Image_Load(paths[i], false);
+        if (!images[i].pixels)
+        {
+            Log_Error("CRITICAL: Failed to load skybox face: %s\n", paths[i]);
+            failed = true;
+            break; // Stop loading if one fails
+        }
+    }
+
+    // If any image failed, clean up the successful ones and abort
+    if (failed)
+    {
+        for (int i = 0; i < 6; i++) {
+            if (images[i].pixels) Image_Free(&images[i]);
+        }
+        return NULL;
+    }
+
+    // Image_Rotate90CW(&images[2]);
+
+    // Send all 6 pixel arrays to the GPU (Assuming all 6 faces of a skybox have the exact same width/height/channels)
+    TextureHandle handle = Render_CreateCubemap(
+        renderer,
+        images[0].pixels, // 0: Right
+        images[1].pixels, // 1: Left
+        images[2].pixels, // 2: Top
+        images[3].pixels, // 3: Bottom
+        images[4].pixels, // 4: Front
+        images[5].pixels, // 5: Back
+        images[0].width, images[0].height, images[0].channels
+    );
+
+    // Free the RAM for all 6 images
+    for (int i = 0; i < 6; i++)
+        Image_Free(&images[i]);
+
+    // Save to cache
+    Texture* new_text = &texture_cache[texture_count];
+    strcpy(new_text->name, name);
+    new_text->id = texture_count;
+    new_text->gpu_handle = handle;
+    new_text->width = images[0].width;
+    new_text->height = images[0].height;
+    new_text->channels = images[0].channels;
 
     texture_count++;
 
@@ -978,7 +1038,7 @@ Texture* Asset_GetDefaultTexture()
 
 
 
-// Greate the standard shader
+// Create the standard shader
 Shader* Asset_GetDefaultShader()
 {
     // If already made return the handle
@@ -991,6 +1051,25 @@ Shader* Asset_GetDefaultShader()
     }
 
     return default_shader;
+}
+
+
+
+
+
+// Create the default skybox shader
+Shader* Asset_GetDefaultSkyboxShader()
+{
+    // If already made return the handle
+    if (default_skybox_shader != NULL)
+        return default_skybox_shader;
+
+    if (shader_count < MAX_CACHED_SHADERS)
+    {
+        default_skybox_shader = Asset_LoadShader("SkyboxDefault", "assets/shaders/skybox_default.vert", "assets/shaders/skybox_default.frag");
+    }
+
+    return default_skybox_shader;
 }
 
 

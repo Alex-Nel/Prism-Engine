@@ -29,6 +29,10 @@ typedef struct RenderState
 
     SpotLightData spot_lights[MAX_SPOT_LIGHTS];
     uint32_t spot_light_count;
+
+    bool has_skybox;
+    TextureHandle skybox_texture;
+    ShaderHandle skybox_shader;
 } RenderState;
 
 
@@ -89,6 +93,9 @@ typedef struct OpenGL_Backend
     uint32_t command_count;
 
     RenderState state;
+
+    uint32_t skybox_vao;
+    uint32_t skybox_vbo;
 } OpenGL_Backend;
 
 
@@ -152,6 +159,75 @@ static void OpenGL_Clear(Renderer* r)
 
 
 
+
+
+
+
+
+
+
+
+
+
+// Rotates an images pixels by 90 degrees CW
+static uint8_t* OpenGL_RotatePixels90CW(const uint8_t* src, int w, int h, int c)
+{
+    if (!src)
+        return NULL;
+
+    uint8_t* dest = (uint8_t*)malloc(w * h * c);
+
+    for (int y = 0; y < h; y++)
+    {
+        for (int x = 0; x < w; x++)
+        {
+            // Calculate 90-degree clockwise coordinates
+            int new_x = h - 1 - y;
+            int new_y = x;
+
+            int old_index = (y * w + x) * c;
+            int new_index = (new_y * h + new_x) * c;
+
+            for (int i = 0; i < c; i++)
+                dest[new_index + i] = src[old_index + i];
+        }
+    }
+
+    return dest;
+}
+
+
+
+
+
+// Rotates an image's pixels by 90 degrees CCW
+static uint8_t* OpenGL_RotatePixels90CCW(const uint8_t* src, int w, int h, int c)
+{
+    if (!src)
+        return NULL;
+
+    uint8_t* dest = (uint8_t*)malloc(w * h * c);
+    if (!dest)
+        return NULL; // Good practice to check for allocation failure
+
+    for (int y = 0; y < h; y++)
+    {
+        for (int x = 0; x < w; x++)
+        {
+            // Calculate 90-degree counter-clockwise coordinates
+            int new_x = y;
+            int new_y = w - 1 - x;
+
+            int old_index = (y * w + x) * c;
+            int new_index = (new_y * h + new_x) * c;
+
+            for (int i = 0; i < c; i++)
+                dest[new_index + i] = src[old_index + i];
+        }
+    }
+
+    return dest;
+}
 
 
 
@@ -359,6 +435,64 @@ static ShaderHandle OpenGL_CreateShader(Renderer* r, const char* vertex_source, 
 
 
 
+// Creates a CubeMap for the skybox. Returns a texture handle
+TextureHandle OpenGL_CreateCubemap(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels)
+{
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    
+    // Find free texture slot in pool
+    uint32_t id = 0;
+    for (uint32_t i = 1; i < MAX_RESOURCES; i++)
+    {
+        if (!internal->texture_pool[i].active)
+        {
+            id = i; break;
+        }
+    }
+
+    if (id == 0)
+        return (TextureHandle){0};
+
+    uint32_t gl_tex;
+    glGenTextures(1, &gl_tex);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, gl_tex);
+
+    const uint8_t* faces[6] = { right, left, top, bottom, front, back };
+    
+    // Assume GL_RGB for 3 channels, GL_RGBA for 4
+    GLenum format = (channels == 4) ? GL_RGBA : GL_RGB;
+
+    if (left)   glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, left);
+    if (right)  glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, right);
+    if (bottom) glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, bottom);
+    if (back)   glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, back);
+    if (front)  glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, front);
+    
+    // Fix for the top being rotated CCW
+    if (top)
+    {
+        uint8_t* rotated_top = OpenGL_RotatePixels90CCW(top, width, height, channels);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, rotated_top);
+
+        free(rotated_top);
+    }
+    
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+    internal->texture_pool[id].id = gl_tex;
+    internal->texture_pool[id].active = true;
+
+    return (TextureHandle){id};
+}
+
+
+
+
+
 
 
 
@@ -476,6 +610,10 @@ static void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
     internal->state.spot_light_count = packet->spot_light_count;
     for (uint32_t i = 0; i < packet->spot_light_count; i++)
         internal->state.spot_lights[i] = packet->spot_lights[i];
+
+    internal->state.has_skybox = packet->has_skybox;
+    internal->state.skybox_texture = packet->skybox_texture;
+    internal->state.skybox_shader = packet->skybox_shader;
     
     // Reset the queue for the new frame
     internal->command_count = 0;
@@ -665,6 +803,48 @@ static void OpenGL_EndFrame(Renderer* r)
     }
 
     glBindVertexArray(0);
+
+    // Draw Skybox if it exists
+    if (internal->state.has_skybox)
+    {   
+        uint32_t shader_id = internal->state.skybox_shader.id;
+        uint32_t tex_id = internal->state.skybox_texture.id;
+
+        if (shader_id == 0 || tex_id == 0)
+            return;
+
+        // Change depth func so it draws at max depth (1.0)
+        glDepthFunc(GL_LEQUAL);
+        glDisable(GL_CULL_FACE);
+
+        GLuint prog = internal->shader_pool[shader_id].program;
+        glUseProgram(prog);
+        
+        // Upload Camera Matrices
+        GLint view_loc = glGetUniformLocation(prog, "u_View");
+        GLint proj_loc = glGetUniformLocation(prog, "u_Projection");
+        
+        glUniformMatrix4fv(view_loc, 1, GL_FALSE, (float*)&internal->state.view_matrix);
+        glUniformMatrix4fv(proj_loc, 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+        
+        // Bind the Cubemap from the Texture Pool
+        uint32_t gl_tex_id = internal->texture_pool[internal->state.skybox_texture.id].id;
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, gl_tex_id);
+
+        // If your shader explicitly names the sampler, bind it
+        GLint skybox_loc = glGetUniformLocation(prog, "u_Skybox");
+        if (skybox_loc != -1) glUniform1i(skybox_loc, 0);
+        
+        // Draw all 36 vertices
+        glBindVertexArray(internal->skybox_vao);
+        glDrawArrays(GL_TRIANGLES, 0, 36); 
+        glBindVertexArray(0);
+        
+        // Restore default depth testing
+        glDepthFunc(GL_LESS); 
+        glEnable(GL_CULL_FACE);
+    }
 }
 
 
@@ -704,6 +884,32 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc)
     glEnable(GL_CULL_FACE); // Disables drawing the inside of a mesh
 
 
+    
+    // Generate Internal Skybox VAO/VBO
+    float skyboxVertices[] = {
+        -1.0f,  1.0f, -1.0f,  -1.0f, -1.0f, -1.0f,   1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,   1.0f,  1.0f, -1.0f,  -1.0f,  1.0f, -1.0f,
+        -1.0f, -1.0f,  1.0f,  -1.0f, -1.0f, -1.0f,  -1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f,  -1.0f,  1.0f,  1.0f,  -1.0f, -1.0f,  1.0f,
+         1.0f, -1.0f, -1.0f,   1.0f, -1.0f,  1.0f,   1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,   1.0f,  1.0f, -1.0f,   1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f,  1.0f,  -1.0f,  1.0f,  1.0f,   1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,   1.0f, -1.0f,  1.0f,  -1.0f, -1.0f,  1.0f,
+        -1.0f,  1.0f, -1.0f,   1.0f,  1.0f, -1.0f,   1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,  -1.0f,  1.0f,  1.0f,  -1.0f,  1.0f, -1.0f,
+        -1.0f, -1.0f, -1.0f,  -1.0f, -1.0f,  1.0f,   1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,  -1.0f, -1.0f,  1.0f,   1.0f, -1.0f,  1.0f
+    };
+
+    glGenVertexArrays(1, &internal->skybox_vao);
+    glGenBuffers(1, &internal->skybox_vbo);
+    glBindVertexArray(internal->skybox_vao);
+    glBindBuffer(GL_ARRAY_BUFFER, internal->skybox_vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glBindVertexArray(0);
+
 
     r->backend_internal_data = internal;
 
@@ -721,6 +927,8 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc)
 
     r->CreateShader = OpenGL_CreateShader;
     r->DestroyShader = OpenGL_DestroyShader;
+
+    r->CreateCubemap = OpenGL_CreateCubemap;
 
     r->BeginFrame = OpenGL_BeginFrame;
     r->Submit = OpenGL_Submit;

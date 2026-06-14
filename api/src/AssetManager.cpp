@@ -35,6 +35,11 @@ namespace Prism
         return Prism::Texture(h);
     }
 
+    Texture AssetManager::LoadSkyboxTexture(const std::string& name, const std::string& right, const std::string& left, const std::string& top, const std::string& bottom, const std::string& front, const std::string& back) {
+        ::Texture* t = ::Asset_LoadSkyboxTexture(name.c_str(), right.c_str(), left.c_str(), top.c_str(), bottom.c_str(), front.c_str(), back.c_str());
+        return Prism::Texture(t);
+    }
+
     AudioClip AssetManager::LoadAudio(const std::string& filepath) {
         ::AudioClipHandle raw_handle = ::Audio_LoadClip(filepath.c_str());
         return Prism::AudioClip(raw_handle.id);
@@ -50,6 +55,11 @@ namespace Prism
         ::Color c_color = { color.r, color.g, color.b, color.a };
         ::Texture* raw_tex = ::Asset_CreateSolidColorTexture(name.c_str(), c_color);
         return Prism::Texture(raw_tex);
+    }
+
+    Texture AssetManager::GetTextureByName(std::string name) {
+        ::Texture* c_text = ::Asset_GetTextureByName(name.c_str());
+        return Prism::Texture(c_text);
     }
 
 
@@ -90,5 +100,9 @@ namespace Prism
 
     Shader AssetManager::GetDefaultShader() {
         return Prism::Shader(::Asset_GetDefaultShader());
+    }
+
+    Shader AssetManager::GetDefaultSkyboxShader() {
+        return Prism::Shader(::Asset_GetDefaultSkyboxShader());
     }
 }

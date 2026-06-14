@@ -15,10 +15,13 @@ typedef struct ImageData
 
 
 // Loads an image from disk into CPU RAM
-ImageData Image_Load(const char* filepath);
+ImageData Image_Load(const char* filepath, bool inverted);
 
 // Loads an image from a raw memory buffer (for embedded textures)
-ImageData Image_LoadFromMemory(const unsigned char* buffer, int length);
+ImageData Image_LoadFromMemory(const unsigned char* buffer, int length, bool inverted);
+
+// Rotates an image 90 degrees counter clock wise
+void Image_Rotate90CW(ImageData* img);
 
 // Frees the CPU RAM
 void Image_Free(ImageData* data);

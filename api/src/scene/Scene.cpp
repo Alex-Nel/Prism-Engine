@@ -73,6 +73,29 @@ namespace Prism
         ::Scene_SetMainCamera(static_cast<::Scene*>(m_RawScene), raw_cam);
     }
 
+    void Scene::SetSkybox(Prism::Texture* skybox_text, Prism::Shader* custom_shader) {
+        ::Shader* c_shader;
+
+        if (custom_shader != nullptr) {
+            c_shader = static_cast<::Shader*>(custom_shader->GetRaw());
+        }
+        else {
+            c_shader = ::Asset_GetDefaultSkyboxShader();
+        }
+
+        ::Texture* c_tex = static_cast<::Texture*>(skybox_text->GetRaw());
+
+        if (!c_tex || !c_shader) {
+            Debug_Error("Failed to set skybox");
+        }
+
+        ::Scene_SetSkybox(static_cast<::Scene*>(m_RawScene), c_tex->gpu_handle, c_shader->gpu_handle);
+    }
+
+    void Scene::RemoveSkybox() {
+        ::Scene_RemoveSkybox(static_cast<::Scene*>(m_RawScene));
+    }
+
 
 
     // --- Physics & Raycasting ---

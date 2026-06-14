@@ -5,7 +5,7 @@
 namespace Prism
 {
     // --- Image Data Wrapper ---
-    struct PRISM_API ImageData
+    struct PRISM_API Image
     {    
         void* pixels;
         int width;
@@ -13,12 +13,13 @@ namespace Prism
         int channels;
 
         // Default empty constructor
-        ImageData();
+        Image();
 
         // --- Memory Management Methods ---
         void Free();
+        void Image_Rotate90CW();
 
         // --- Static Factory Methods ---
-        static ImageData Load(const std::string& filepath);
+        static Image Load(const std::string& filepath, bool inverted = true);
     };
 }

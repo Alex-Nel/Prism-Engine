@@ -46,6 +46,7 @@ void Asset_Init(Renderer* r);
 
 Mesh* Asset_LoadMesh(const char* name, const char* filepath);
 Texture* Asset_LoadTexture(const char* name, const char* filepath);
+Texture* Asset_LoadSkyboxTexture(const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back);
 Shader* Asset_LoadShader(const char* name, const char* vert_path, const char* frag_path);
 
 
@@ -62,6 +63,7 @@ Mesh* Asset_GetBuiltinSphere();
 
 Texture* Asset_GetDefaultTexture();
 Shader* Asset_GetDefaultShader();
+Shader* Asset_GetDefaultSkyboxShader();
 
 
 

@@ -9,9 +9,9 @@ extern "C"
 
 namespace Prism
 {
-    ImageData::ImageData() : pixels(nullptr), width(0), height(0), channels(0) {}
+    Image::Image() : pixels(nullptr), width(0), height(0), channels(0) {}
 
-    void ImageData::Free() 
+    void Image::Free() 
     {
         // Reconstruct the C struct to pass it to the backend
         ::ImageData raw = { static_cast<unsigned char*>(pixels), width, height, channels };
@@ -19,12 +19,17 @@ namespace Prism
         pixels = nullptr; // Safety null
     }
 
-    ImageData ImageData::Load(const std::string& filepath) 
+    void Image::Image_Rotate90CW()
     {
-        ::ImageData raw = ::Image_Load(filepath.c_str());
+        ::Image_Rotate90CW(static_cast<::ImageData*>(this->pixels));
+    }
+
+    Image Image::Load(const std::string& filepath, bool inverted) 
+    {
+        ::ImageData raw = ::Image_Load(filepath.c_str(), inverted);
         
-        // Map the C struct back to our safe C++ struct
-        ImageData img;
+        // Map the C struct back to a C++ struct
+        Image img;
         img.pixels = raw.pixels;
         img.width = raw.width;
         img.height = raw.height;

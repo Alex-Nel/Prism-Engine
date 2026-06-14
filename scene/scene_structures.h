@@ -353,6 +353,14 @@ typedef struct Scene
     PhysicsWorldHandle physics_world;
 
 
+    // Variables for the skybox
+
+    bool has_skybox;
+    TextureHandle skybox_texture;
+    ShaderHandle skybox_shader;
+    Color background_color;
+
+
     // Variables for entities to remove
 
     bool is_pending_destroy[MAX_ENTITIES];

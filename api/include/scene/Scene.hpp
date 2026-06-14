@@ -62,6 +62,8 @@ namespace Prism
         uint32_t GetTotalEntityCount();
         uint32_t GetActiveEntityCount();
         void SetMainCamera(Entity cameraEntity);
+        void SetSkybox(Prism::Texture* skybox_text, Prism::Shader* custom_shader);
+        void RemoveSkybox();
 
 
         

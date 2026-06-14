@@ -258,6 +258,10 @@ void Engine_RenderScene(Scene* scene)
 
     packet.spot_lights = active_spot_lights;
     packet.spot_light_count = spot_count;
+
+    packet.has_skybox = scene->has_skybox;
+    packet.skybox_texture = scene->skybox_texture;
+    packet.skybox_shader = scene->skybox_shader;
     
 
     uint32_t cam_id = scene->main_camera_id;
