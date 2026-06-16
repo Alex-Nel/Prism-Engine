@@ -77,9 +77,9 @@ namespace Prism
         Prism::CameraComponent* AddCamera(float fovDegrees);
         Prism::LightComponent* AddLight(Prism::LightType type, const Prism::Color& color);
         Prism::RigidbodyComponent* AddRigidbody(float mass);
-        Prism::ColliderComponent* AddColliderBox(const Prism::Vector3& extents, bool is_trigger = false);
+        Prism::ColliderComponent* AddColliderBox(const Prism::Vector3 extents = Prism::Vector3{1, 1, 1}, bool is_trigger = false);
         Prism::ColliderComponent* AddColliderBoxAuto(bool is_trigger = false);
-        Prism::ColliderComponent* AddColliderSphere(float radius, bool is_trigger = false);
+        Prism::ColliderComponent* AddColliderSphere(float radius = 0.5f, bool is_trigger = false);
         Prism::ColliderComponent* AddColliderMesh(Prism::Mesh mesh, bool is_trigger = false, bool is_convex = false);
         Prism::AudioListenerComponent* AddAudioListener();
         Prism::AudioSourceComponent* AddAudioSource();

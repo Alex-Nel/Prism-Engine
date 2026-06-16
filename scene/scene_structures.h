@@ -136,6 +136,7 @@ typedef struct NameComponent
 // Transform: an entities positional parts within the scene
 typedef struct Transform
 {
+    Entity entity;
     Vector3 local_position;
     Vector3 local_rotation_euler;
     Quaternion local_rotation;
@@ -156,6 +157,7 @@ typedef struct Transform
 // Component that holds rendering information
 typedef struct RenderComponent
 {
+    Entity entity;
     bool is_active;
     Mesh* mesh;
     Material* material;
@@ -166,6 +168,7 @@ typedef struct RenderComponent
 // Camera component for rendering
 typedef struct CameraComponent
 {
+    Entity entity;
     bool is_active;
     float fov;
     float nearZ;
@@ -179,6 +182,7 @@ typedef struct CameraComponent
 // Point light component
 typedef struct LightComponent
 {
+    Entity entity;
     bool is_active;
     LightType type;
     Color color;
@@ -212,8 +216,8 @@ typedef enum ColliderType
 // The Collider Unified Component
 typedef struct ColliderComponent
 {
-    bool is_active;
     Entity owner;
+    bool is_active;
     ColliderType type;
     bool is_trigger;
     bool is_convex;
@@ -240,8 +244,8 @@ typedef struct ColliderComponent
 // Rigidbody component and variables
 typedef struct RigidbodyComponent
 {
-    bool is_active;
     Entity owner;
+    bool is_active;
     float mass;
     float linear_drag;
     float angular_drag;
@@ -258,6 +262,7 @@ typedef struct RigidbodyComponent
 // An audio listener component (plays audio)
 typedef struct AudioListenerComponent
 {
+    Entity entity;
     bool is_active;
 } AudioListenerComponent;
 
@@ -266,6 +271,7 @@ typedef struct AudioListenerComponent
 // The speaker component
 typedef struct AudioSourceComponent
 {
+    Entity entity;
     bool is_active;
     AudioClipHandle clip;
     float volume;
@@ -290,6 +296,7 @@ struct cJSON;
 // Instance of a custom script and all special functions
 typedef struct ScriptInstance
 {
+    Entity entity;
     bool is_active;
     bool is_enabled_internal;
     bool has_started;
@@ -327,6 +334,18 @@ typedef struct ScriptComponent
 
 
 
+// Struct for a skybox
+typedef struct Skybox
+{
+    Texture* texture;
+    Shader* shader;
+    Color background_color;
+} Skybox;
+
+
+
+
+
 // --- The Scene Struct ---
 typedef struct Scene
 {
@@ -356,9 +375,7 @@ typedef struct Scene
     // Variables for the skybox
 
     bool has_skybox;
-    TextureHandle skybox_texture;
-    ShaderHandle skybox_shader;
-    Color background_color;
+    Skybox skybox;
 
 
     // Variables for entities to remove

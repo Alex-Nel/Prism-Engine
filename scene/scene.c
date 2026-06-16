@@ -49,11 +49,13 @@ void Scene_Init(Scene* scene)
 
     scene->main_camera_id = 0;
 
-    // scene->global_light.direction = (Vector3){1.0f, 2.0f, 1.0f};
-    // scene->global_light.color = (Color){1.0f, 1.0f, 1.0f, 1.0f}; // Pure white
-    // scene->global_light.ambient_strength = 0.2f;
-
     scene->physics_world = Physics_InitWorld();
+
+    // Setting skybox information
+    scene->skybox.background_color = (Color){0.8f, 0.8f, 0.8f, 1.0f};
+    scene->skybox.texture = NULL;
+    scene->skybox.shader = NULL;
+    scene->has_skybox = false;
 }
 
 
@@ -783,14 +785,16 @@ void Scene_ProcessDestroyQueue(Scene* scene)
 
 
 // Sets the skybox of the scene
-void Scene_SetSkybox(Scene* scene, TextureHandle skybox_texture, ShaderHandle skybox_shader)
+void Scene_SetSkybox(Scene* scene, Texture* skybox_texture, Shader* skybox_shader)
 {
     if (!scene)
         return;
+    
+    if (!scene->has_skybox)
+        scene->has_skybox = true;
 
-    scene->skybox_texture = skybox_texture;
-    scene->skybox_shader = skybox_shader;
-    scene->has_skybox = true;
+    scene->skybox.texture = skybox_texture;
+    scene->skybox.shader = skybox_shader;
 }
 
 

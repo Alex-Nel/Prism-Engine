@@ -513,6 +513,7 @@ void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, V
     if (!entity.scene) return;
 
     Transform* t = &entity.scene->transforms[entity.id];
+    t->entity = entity;
     t->local_position = position;
     t->local_rotation = rotation;
     t->local_scale = scale;
@@ -543,6 +544,7 @@ void Entity_AddRenderable(Entity entity, Mesh* mesh, Material* material)
     if (!entity.scene) return;
 
     RenderComponent* r = &entity.scene->renderables[entity.id];
+    r->entity = entity;
     r->is_active = true;
     r->mesh = mesh;
     r->material = material;
@@ -560,6 +562,7 @@ void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ)
     if (!entity.scene) return;
 
     CameraComponent* cam = &entity.scene->cameras[entity.id];
+    cam->entity = entity;
     cam->is_active = true;
     cam->fov = fov;
     cam->nearZ = nearZ;
@@ -579,6 +582,7 @@ void Entity_AddLight(Entity entity, LightType type, Color color)
     if (!entity.scene) return;
     
     LightComponent* light = &entity.scene->lights[entity.id];
+    light->entity = entity;
     light->is_active = true;
     light->type = type;
     light->color = color;
@@ -603,8 +607,8 @@ void Entity_AddColliderBox(Entity entity, Vector3 extents, bool is_trigger)
     if (!Entity_IsValid(entity)) return;
 
     ColliderComponent* c = &entity.scene->colliders[entity.id];
-    c->is_active = true;
     c->owner = entity;
+    c->is_active = true;
     c->type = COLLIDER_BOX;
     c->is_trigger = is_trigger;
     c->mesh_ptr = NULL;
@@ -669,8 +673,8 @@ void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger)
     if (!Entity_IsValid(entity)) return;
 
     ColliderComponent* c = &entity.scene->colliders[entity.id];
-    c->is_active = true;
     c->owner = entity;
+    c->is_active = true;
     c->type = COLLIDER_SPHERE;
     c->is_trigger = is_trigger;
     c->mesh_ptr = NULL;
@@ -709,8 +713,8 @@ void Entity_AddColliderMesh(Entity entity, Mesh* mesh, bool is_trigger, bool is_
     }
 
     ColliderComponent* c = &entity.scene->colliders[entity.id];
-    c->is_active = true;
     c->owner = entity;
+    c->is_active = true;
     c->type = COLLIDER_MESH;
     c->is_trigger = is_trigger;
     c->is_convex = is_convex;
@@ -775,8 +779,8 @@ void Entity_AddRigidbody(Entity entity, float mass)
     }
 
     RigidbodyComponent* rb = &entity.scene->rigidbodies[entity.id];
-    rb->is_active = true;
     rb->owner = entity;
+    rb->is_active = true;
     rb->mass = mass;
     rb->linear_drag = 0.0f;
     rb->angular_drag = 0.05f; // A bit of rotational drag looks more realistic
@@ -805,6 +809,7 @@ void Entity_AddAudioListener(Entity entity)
     if (!Entity_IsValid(entity)) return;
     
     AudioListenerComponent* listener = &entity.scene->audio_listeners[entity.id];
+    listener->entity = entity;
     listener->is_active = true;
 
     entity.scene->component_masks[entity.id] |= COMPONENT_AUDIO_LISTENER;
@@ -820,6 +825,7 @@ void Entity_AddAudioSource(Entity entity)
     if (!Entity_IsValid(entity)) return;
     
     AudioSourceComponent* src = &entity.scene->audio_sources[entity.id];
+    src->entity = entity;
     src->is_active = true;
     src->clip = (AudioClipHandle){0};
     src->volume = 1.0f;
@@ -857,6 +863,7 @@ void Entity_BindScript(Entity entity, ScriptInstance new_script)
 
     // Slot the new script in
     script_comp->instances[index] = new_script;
+    script_comp->instances[index].entity = entity;
     script_comp->instances[index].is_active = true;              // Scripts start active by default
     script_comp->instances[index].is_enabled_internal = false;   // Engine hasn't formally "enabled" it yet
     script_comp->instances[index].has_started = false;

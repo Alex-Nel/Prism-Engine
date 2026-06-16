@@ -63,6 +63,7 @@ namespace Prism
     struct PRISM_API Transform
     {
     public:
+        Prism::Entity entity; // The Entity that this component is attached to
         Prism::Vector3 local_position;
         Prism::Vector3 local_rotation_euler;
         Prism::Quaternion local_rotation;
@@ -104,6 +105,7 @@ namespace Prism
 
     struct PRISM_API CameraComponent
     {
+        Prism::Entity entity; // The Entity that this component is attached to
         bool is_active;
         float fov;
         float nearZ;
@@ -126,6 +128,7 @@ namespace Prism
 
     struct PRISM_API LightComponent
     {
+        Prism::Entity entity; // The Entity that this component is attached to
         bool is_active;
         LightType type;
         Prism::Color color;
@@ -161,6 +164,7 @@ namespace Prism
 
     struct PRISM_API RenderComponent
     {
+        Prism::Entity entity; // The Entity that this component is attached to
         bool is_active;
         void* raw_mesh_ptr;
         void* raw_material_ptr;
@@ -180,8 +184,8 @@ namespace Prism
     
     struct PRISM_API RigidbodyComponent
     {
+        Prism::Entity owner; // The Entity that this component is attached to
         bool is_active;
-        Prism::Entity owner;
         float mass;
         float linear_drag;
         float angular_drag;
@@ -213,8 +217,8 @@ namespace Prism
 
     struct PRISM_API ColliderComponent
     {
+        Prism::Entity owner; // The Entity that this component is attached to
         bool is_active;
-        Prism::Entity owner;
         int type;
         bool is_trigger;
         bool is_convex;
@@ -253,6 +257,7 @@ namespace Prism
 
     struct PRISM_API AudioListenerComponent 
     {
+        Prism::Entity entity; // The Entity that this component is attached to
         bool is_active = true;
 
 
@@ -268,6 +273,7 @@ namespace Prism
 
     struct PRISM_API AudioSourceComponent 
     {
+        Prism::Entity entity;  // The Entity that this component is attached to
         bool is_active = true;
         Prism::AudioClip clip; // The loaded asset
         

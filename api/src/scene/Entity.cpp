@@ -28,6 +28,7 @@ namespace Prism
     // ==========================================
     // Core Functions
     // ==========================================
+
     bool Entity::IsValid() const {
         return ::Entity_IsValid(ToCore(*this));
     }
@@ -114,6 +115,7 @@ namespace Prism
     // ==========================================
     // Component Setters
     // ==========================================
+
     std::string Entity::SetName(const std::string& name) { 
         ::Entity_SetName(ToCore(*this), name.c_str());
         return this->GetName();
@@ -139,7 +141,7 @@ namespace Prism
         ::Entity_AddRigidbody(ToCore(*this), mass);
         return this->GetRigidbody();
     }
-    Prism::ColliderComponent* Entity::AddColliderBox(const Prism::Vector3& extents, bool is_trigger) {
+    Prism::ColliderComponent* Entity::AddColliderBox(const Prism::Vector3 extents, bool is_trigger) {
         ::Entity_AddColliderBox(ToCore(*this), {extents.x, extents.y, extents.z}, is_trigger);
         return this->GetCollider();
     }

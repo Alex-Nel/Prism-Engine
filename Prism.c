@@ -115,6 +115,11 @@ void Engine_Run(Scene* active_scene)
         Scene_Update(active_scene);
 
         // Render scene
+        if (!active_scene->has_skybox)
+        {
+            Color bg = active_scene->skybox.background_color;
+            Render_SetClearColor(engine.renderer, bg.r, bg.g, bg.b, bg.a);
+        }
         Render_Clear(engine.renderer);
         Engine_RenderScene(active_scene);
 
@@ -260,8 +265,8 @@ void Engine_RenderScene(Scene* scene)
     packet.spot_light_count = spot_count;
 
     packet.has_skybox = scene->has_skybox;
-    packet.skybox_texture = scene->skybox_texture;
-    packet.skybox_shader = scene->skybox_shader;
+    packet.skybox_texture = scene->skybox.texture->gpu_handle;
+    packet.skybox_shader = scene->skybox.shader->gpu_handle;
     
 
     uint32_t cam_id = scene->main_camera_id;
