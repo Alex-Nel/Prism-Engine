@@ -115,12 +115,6 @@ void Engine_Run(Scene* active_scene)
         Scene_Update(active_scene);
 
         // Render scene
-        if (!active_scene->has_skybox)
-        {
-            Color bg = active_scene->skybox.background_color;
-            Render_SetClearColor(engine.renderer, bg.r, bg.g, bg.b, bg.a);
-        }
-        Render_Clear(engine.renderer);
         Engine_RenderScene(active_scene);
 
         // Process destroy queue
@@ -186,17 +180,32 @@ void Engine_SetClearColor(float red, float green, float blue, float alpha)
 
 
 
+// Small struct to sort cameras before rendering
+typedef struct ActiveCamera
+{
+    uint32_t entity_id;
+    int render_order;
+} ActiveCamera;
+
+// Sorting function for cameras (lowest order renders first)
+int CompareCameraOrder(const void* a, const void* b)
+{
+    return ((ActiveCamera*)a)->render_order - ((ActiveCamera*)b)->render_order;
+}
+
+
+
+
+
 // Renders a specified scene
 void Engine_RenderScene(Scene* scene)
 {
     if (!scene) return;
 
-
     // Make an empty render packet to send to the renderer
     RenderPacket packet = {0};
 
-
-    // Get all Point Lights from the ECS
+    // --- Get all Point Lights from the ECS ---
     DirectionalLightData active_dir_lights[MAX_RESOURCES];
     PointLightData active_point_lights[MAX_RESOURCES];
     SpotLightData active_spot_lights[MAX_RESOURCES];
@@ -267,67 +276,97 @@ void Engine_RenderScene(Scene* scene)
     packet.has_skybox = scene->has_skybox;
     packet.skybox_texture = scene->skybox.texture->gpu_handle;
     packet.skybox_shader = scene->skybox.shader->gpu_handle;
-    
 
-    uint32_t cam_id = scene->main_camera_id;
+
+
+    // --- Gather and sort camera ---
+
+    ActiveCamera active_cameras[MAX_ENTITIES];
+    uint32_t camera_count = 0;
     uint32_t cam_mask = COMPONENT_TRANSFORM | COMPONENT_CAMERA;
-
-
-    if ((scene->component_masks[cam_id] & cam_mask) == cam_mask)
-    {
-        Transform* cam_transform = &scene->transforms[cam_id];
-        CameraComponent* cam_comp = &scene->cameras[cam_id];
-
-        Vector3 global_pos = Transform_GetGlobalPosition(cam_transform);
-
-        // Use an objects transform and global position to make the world matrix
-        Matrix4 view = Matrix4CreateView(global_pos, cam_transform->local_rotation);
-        Matrix4 proj = Matrix4Perspective(
-            cam_comp->fov,
-            (float)(Platform_GetWindowWidth(engine.window))/(float)(Platform_GetWindowHeight(engine.window)),
-            cam_comp->nearZ,
-            cam_comp->farZ
-        );
-
-        packet.view_matrix = view;
-        packet.projection_matrix = proj;
-        packet.camera_pos = global_pos;
-
-        Render_BeginFrame(engine.renderer, &packet);
-    }
-    else
-    {
-        // If no camera exists, use identity matrices
-        packet.view_matrix = Matrix4Identity();
-        packet.projection_matrix = Matrix4Identity();
-        packet.camera_pos = (Vector3){0.0f, 0.0f, 0.0f};
-
-        Render_BeginFrame(engine.renderer, &packet);
-    }
-
-
-    // This loop looks at the Scene data and sends it to the Renderer
-    uint32_t required_mask = COMPONENT_TRANSFORM | COMPONENT_RENDER;
 
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
     {
-        if (!scene->is_active_in_hierarchy[i]) continue;
-
-        if ((scene->component_masks[i] & required_mask) == required_mask)
+        if (!scene->is_active_in_hierarchy[i])
+            continue;
+        
+        if ((scene->component_masks[i] & cam_mask) == cam_mask)
         {
-            Transform* t = &scene->transforms[i];
-            RenderComponent* rc = &scene->renderables[i];
-
-            if (rc->mesh && rc->material)
+            if (scene->cameras[i].is_active)
             {
-                Material* mat = rc->material;
-
-                ShaderHandle shd = mat->shader->gpu_handle;
-                TextureHandle tex = mat->diffuse_texture->gpu_handle;
-                MeshHandle msh = rc->mesh->gpu_handle;
-                Render_Submit(engine.renderer, msh, shd, tex, mat->properties, t->world_matrix);
+                active_cameras[camera_count].entity_id = i;
+                active_cameras[camera_count].render_order = scene->cameras[i].render_order;
+                camera_count++;
             }
         }
+    }
+
+    qsort(active_cameras, camera_count, sizeof(ActiveCamera), CompareCameraOrder);
+    
+
+
+    // --- Execute render pass per camera ---
+
+    uint32_t required_mesh_mask = COMPONENT_TRANSFORM | COMPONENT_RENDER;
+
+    for (uint32_t c = 0; c < camera_count; c++)
+    {
+        uint32_t cam_id = active_cameras[c].entity_id;
+        Transform* cam_transform = &scene->transforms[cam_id];
+        CameraComponent* cam_comp = &scene->cameras[cam_id];
+
+        // Clear the screen based on this camera's flags
+        if (cam_comp->clear_flags == CLEAR_COLOR_AND_DEPTH)
+        {
+            // Sets background color and wipes depth
+            Color bg = scene->skybox.background_color;
+            Render_SetClearColor(engine.renderer, bg.r, bg.g, bg.b, bg.a);
+            Render_Clear(engine.renderer);
+        }
+        else if (cam_comp->clear_flags == CLEAR_DEPTH_ONLY)
+        {
+            Render_ClearDepth(engine.renderer);
+        }
+
+        // Build Camera Matrices
+        Vector3 global_pos = Transform_GetGlobalPosition(cam_transform);
+        packet.view_matrix = Matrix4CreateView(global_pos, cam_transform->local_rotation);
+        packet.projection_matrix = Matrix4Perspective(
+            cam_comp->fov,
+            (float)(Platform_GetWindowWidth(engine.window))/(float)(Platform_GetWindowHeight(engine.window)),
+            cam_comp->nearZ, cam_comp->farZ
+        );
+        packet.camera_pos = global_pos;
+
+        packet.has_skybox = (cam_comp->clear_flags == CLEAR_COLOR_AND_DEPTH) ? scene->has_skybox : false;
+
+        // Start pass
+        Render_BeginFrame(engine.renderer, &packet);
+
+        // Submit meshes for this camera only
+        for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+        {
+            if (!scene->is_active_in_hierarchy[i])
+                continue;
+
+            if ((scene->component_masks[i] & required_mesh_mask) == required_mesh_mask)
+            {
+                RenderComponent* rc = &scene->renderables[i];
+
+                if ((rc->layer_mask & cam_comp->culling_masks) == 0)
+                    continue;
+
+                if (rc->mesh && rc->material)
+                {
+                    Transform* t = &scene->transforms[i];
+                    Render_Submit(engine.renderer, rc->mesh->gpu_handle, rc->material->shader->gpu_handle,
+                                    rc->material->diffuse_texture->gpu_handle, rc->material->properties, t->world_matrix);
+                }
+            }
+        }
+
+        // End pass
+        Render_EndFrame(engine.renderer);
     }
 }
 
@@ -338,10 +377,8 @@ void Engine_RenderScene(Scene* scene)
 // Renders the frame, swaps the buffers and updates the input
 void Engine_EndFrame()
 {
-    if (!engine.is_running) return;
-
-    // Dispatch all queued draw calls to the GPU
-    Render_EndFrame(engine.renderer);
+    if (!engine.is_running)
+        return;
 
     // Swap the OS window buffers to display the new frame
     Platform_SwapBuffers(engine.window);

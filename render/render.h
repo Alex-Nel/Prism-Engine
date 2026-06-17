@@ -132,6 +132,7 @@ typedef struct Renderer
     void (*SetViewport)(Renderer* r, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
     void (*SetClearColor)(Renderer* renderer, float r, float g, float b, float a);
     void (*Clear)(Renderer* r);
+    void (*ClearDepth)(Renderer* r);
 
 
     // Resource Management
@@ -196,6 +197,13 @@ static inline void Render_Clear(Renderer* r)
 {
     if (r && r->Clear)
         r->Clear(r);
+}
+
+// Clears the depth buffer
+static inline void Render_ClearDepth(Renderer* r)
+{
+    if (r && r->ClearDepth)
+        r->ClearDepth(r);
 }
 
 

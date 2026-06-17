@@ -83,6 +83,17 @@ typedef enum LightType
 
 
 
+// Defines what the camera wipes before drawing
+typedef enum CameraClearFlags {
+    CLEAR_COLOR_AND_DEPTH = 0,
+    CLEAR_DEPTH_ONLY = 1,
+    CLEAR_NONE = 2
+} CameraClearFlags;
+
+
+
+
+
 typedef struct Scene Scene;
 
 // Struct for an entity
@@ -161,6 +172,8 @@ typedef struct RenderComponent
     bool is_active;
     Mesh* mesh;
     Material* material;
+
+    uint32_t layer_mask;
 } RenderComponent;
 
 
@@ -174,7 +187,12 @@ typedef struct CameraComponent
     float nearZ;
     float farZ;
     Matrix4 projection_matrix; // Projection matrix is cached to prevent recalculations
-    bool is_dirty; 
+    bool is_dirty;
+
+    uint32_t culling_masks;
+
+    int render_order; // Lower numbers render first
+    CameraClearFlags clear_flags;
 } CameraComponent;
 
 

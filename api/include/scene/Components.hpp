@@ -56,6 +56,16 @@ namespace Prism
 
 
 
+    // Defines what the camera wipes before drawing
+    enum CameraClearFlags
+    {
+        CLEAR_COLOR_AND_DEPTH = 0,
+        CLEAR_DEPTH_ONLY = 1,
+        CLEAR_NONE = 2
+    };
+
+
+
     // ==========================================
     // Transform Wrapper
     // ==========================================
@@ -95,29 +105,6 @@ namespace Prism
         Prism::Vector3 GetForwardVector();
         Prism::Vector3 GetRightVector();
         Prism::Vector3 GetUpVector();
-    };
-
-
-
-    // ==========================================
-    // Camera Component Wrapper
-    // ==========================================
-
-    struct PRISM_API CameraComponent
-    {
-        Prism::Entity entity; // The Entity that this component is attached to
-        bool is_active;
-        float fov;
-        float nearZ;
-        float farZ;
-        Prism::Matrix4 projection_matrix; 
-        bool is_dirty; 
-
-
-        void SetActive(bool active) { this->is_active = active; }
-        bool IsActive() const { return this->is_active; }
-
-        Prism::Ray ScreenPointToRay(const Prism::Vector2& mouse_pos);
     };
 
 
@@ -168,12 +155,45 @@ namespace Prism
         bool is_active;
         void* raw_mesh_ptr;
         void* raw_material_ptr;
+        uint32_t layer_mask;
 
 
         void SetActive(bool active) { this->is_active = active; }
         bool IsActive() const { return this->is_active; }
 
         void SetMaterial(Prism::Material material);
+
+        void SetLayerMask(uint8_t mask);
+    };
+
+
+
+    // ==========================================
+    // Camera Component Wrapper
+    // ==========================================
+
+    struct PRISM_API CameraComponent
+    {
+        Prism::Entity entity; // The Entity that this component is attached to
+        bool is_active;
+        float fov;
+        float nearZ;
+        float farZ;
+        Prism::Matrix4 projection_matrix; 
+        bool is_dirty;
+        uint32_t culling_masks;
+        int render_order;
+        CameraClearFlags clear_flags;
+
+
+        void SetActive(bool active) { this->is_active = active; }
+        bool IsActive() const { return this->is_active; }
+
+        Prism::Ray ScreenPointToRay(const Prism::Vector2& mouse_pos);
+
+        void SetCullingMask(uint32_t layer_index);
+        void AddLayerToMask(uint8_t layer_index);
+        void RemoveLayerFromMask(uint8_t layer_index);
     };
 
 

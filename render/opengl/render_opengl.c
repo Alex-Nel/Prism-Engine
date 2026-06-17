@@ -149,10 +149,17 @@ static void OpenGL_SetClearColor(Renderer* renderer, float r, float g, float b, 
     glClearColor(r, g, b, a);
 }
 
-// Clears the renderer
+// Clears all buffers in the context
 static void OpenGL_Clear(Renderer* r)
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+
+// Clears the depth buffer of openGL
+static void OpenGL_ClearDepth(Renderer* r)
+{
+    // Wipe ONLY the depth buffer so the color from previous cameras remains!
+    glClear(GL_DEPTH_BUFFER_BIT); 
 }
 
 
@@ -918,6 +925,7 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc)
     r->SetViewport = OpenGL_SetViewport;
     r->SetClearColor = OpenGL_SetClearColor;
     r->Clear = OpenGL_Clear;
+    r->ClearDepth = OpenGL_ClearDepth;
 
     r->CreateMesh = OpenGL_CreateMesh;
     r->DestroyMesh = OpenGL_DestroyMesh;

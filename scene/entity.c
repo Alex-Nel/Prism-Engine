@@ -548,6 +548,7 @@ void Entity_AddRenderable(Entity entity, Mesh* mesh, Material* material)
     r->is_active = true;
     r->mesh = mesh;
     r->material = material;
+    r->layer_mask = 1; // 1 is the default layer (layer 0)
 
     entity.scene->component_masks[entity.id] |= COMPONENT_RENDER;
 }
@@ -568,6 +569,9 @@ void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ)
     cam->nearZ = nearZ;
     cam->farZ = farZ;
     cam->is_dirty = true;
+    cam->culling_masks = 0xFFFFFFFF;
+    cam->render_order = 0;
+    cam->clear_flags = CLEAR_COLOR_AND_DEPTH;
 
     entity.scene->component_masks[entity.id] |= COMPONENT_CAMERA;
 }

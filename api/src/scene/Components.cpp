@@ -103,6 +103,25 @@ namespace Prism
     void RenderComponent::SetMaterial(Prism::Material material) {
         this->raw_material_ptr = material.GetRaw();
     }
+    void RenderComponent::SetLayerMask(uint8_t layer_index) {
+        this->layer_mask = (1u << layer_index); // Sets the object to a specific layer (0 through 31)
+    }
+
+
+
+    // ==========================================
+    // Camera Component Implementation
+    // ==========================================
+
+    void CameraComponent::SetCullingMask(uint32_t mask) {
+        this->culling_masks = mask; // Shift a '1' over by 'layer_index' spaces
+    }
+    void CameraComponent::AddLayerToMask(uint8_t layer_index) {
+        this->culling_masks |= (1u << layer_index); // Add a specific layer to the camera's sight
+    }
+    void CameraComponent::RemoveLayerFromMask(uint8_t layer_index) {
+        this->culling_masks &= ~(1u << layer_index); // Remove a specific layer from the camera's sight
+    }
 
 
 
