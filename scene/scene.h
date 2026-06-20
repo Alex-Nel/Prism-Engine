@@ -28,6 +28,8 @@ bool Scene_Save(Scene* scene, const char* filepath);
 bool Scene_Load(Scene* scene, const char* filepath);
 void Scene_Update(Scene* scene);
 void Scene_FixedUpdate(Scene* scene);
+void Scene_UpdateAnimators(Scene* scene, float delta_time);
+void Scene_UpdateBoneAttachments(Scene* scene);
 void Scene_UpdateTransforms(Scene* scene);
 Entity Scene_GetEntity(Scene* scene, const char* name);
 uint32_t Scene_GetTotalEntityCount(Scene* scene);
@@ -54,6 +56,8 @@ void Entity_SetActive(Entity entity, bool active);
 void Entity_AddModel(Entity parent, Model* model);
 uint32_t Entity_GetChildren(Entity entity, uint32_t* out_array, uint32_t max_count, bool recursive);
 Entity Entity_GetParentWithComponent(Entity entity, uint32_t component_mask);
+Entity Entity_FindChildByName(Entity entity, const char* name);
+int Entity_GetAnimatorBoneIndex(Entity entity, const char* bone_name);
 void Entity_RemovePhysics(Entity entity);
 void Entity_RemoveRigidbody(Entity entity);
 
@@ -80,6 +84,8 @@ void Entity_AddColliderMesh(Entity entity, Mesh* mesh, bool is_trigger, bool is_
 void Entity_AddRigidbody(Entity entity, float mass);
 void Entity_AddAudioListener(Entity entity);
 void Entity_AddAudioSource(Entity entity);
+void Entity_AddAnimator(Entity entity, void* raw_skeleton, void* raw_clip);
+void Entity_AddBoneAttachment(Entity entity, int bone_index, Matrix4 offset);
 void Entity_BindScript(Entity entity, ScriptInstance new_script);
 void Script_SetActive(Entity entity, void* instance_data, bool active);
 void Bridge_SpawnScript(Entity raw_e, const char* class_name, struct cJSON* json_data);
@@ -98,6 +104,8 @@ ColliderComponent* Entity_GetCollider(Entity entity);
 RigidbodyComponent* Entity_GetRigidbody(Entity entity);
 AudioListenerComponent* Entity_GetAudioListener(Entity entity);
 AudioSourceComponent* Entity_GetAudioSource(Entity entity);
+AnimatorComponent* Entity_GetAnimator(Entity entity);
+BoneAttachmentComponent* Entity_GetBoneAttachment(Entity entity);
 ScriptComponent* Entity_GetScripts(Entity entity);
 
 

@@ -22,6 +22,15 @@ namespace Prism
     static inline ::Entity ToCore(const Entity& e) {
         return { e.id, static_cast<::Scene*>(e.scene_ptr) };
     }
+    static inline ::Matrix4 MatToCore(const Prism::Matrix4& m) {
+        ::Matrix4 c_M = ::Matrix4{
+            m.m0, m.m1, m.m2, m.m3,
+            m.m4, m.m5, m.m6, m.m7,
+            m.m8, m.m9, m.m10, m.m11,
+            m.m12, m.m13, m.m14, m.m15,
+        };
+        return c_M;
+    }
 
 
 
@@ -41,6 +50,18 @@ namespace Prism
 
     void Entity::SetParent(Entity parent) {
         ::Entity_SetParent(ToCore(*this), ToCore(parent));
+        ::BoneAttachmentComponent* attachment = ::Entity_GetBoneAttachment(ToCore(*this));
+        if (attachment)
+            attachment->is_active = false;
+    }
+    void Entity::SetParent(Entity parent, const char* bone_name, Prism::Matrix4 local_offset) {
+        ::Entity_SetParent(ToCore(*this), ToCore(parent));
+        int bone_idx = ::Entity_GetAnimatorBoneIndex(ToCore(parent), bone_name);
+
+        if (bone_idx != -1)
+            ::Entity_AddBoneAttachment(ToCore(*this), bone_idx, MatToCore(local_offset));
+        else
+            Debug_Log("Failed to attach. Parent has no animator or bone does not exist.");
     }
     Prism::Entity Entity::GetParent() {
         ::Entity raw_e = ::Entity_GetParent(ToCore(*this));        
@@ -48,6 +69,9 @@ namespace Prism
     }
     void Entity::RemoveParent() {
         ::Entity_RemoveParent(ToCore(*this));
+        ::BoneAttachmentComponent* attachment = ::Entity_GetBoneAttachment(ToCore(*this));
+        if (attachment)
+            attachment->is_active = false;
     }
     void Entity::AddModel(Prism::Model model) {
         ::Entity_AddModel(ToCore(*this), (::Model*)model.GetRawModel());
@@ -72,6 +96,12 @@ namespace Prism
         return children;
     }
 
+    Prism::Entity Entity::FindChildByName(const std::string& name) const {
+        ::Entity c_entity = ToCore(*this);
+        ::Entity result = ::Entity_FindChildByName(c_entity, name.c_str());
+        return Prism::Entity(result.id, this->scene_ptr);
+    }
+
     Prism::Ray Entity::ScreenPointToRay(const Prism::Vector2& mouse_pos)
     {
         // Fetch both components
@@ -94,12 +124,7 @@ namespace Prism
         ::Matrix4 c_proj = ::Matrix4Perspective(cam->fov, aspect_ratio, cam->nearZ, cam->farZ);
 
         Prism::Matrix4 world = t->GetWorldMatrix();
-        ::Matrix4 c_world = ::Matrix4{
-            world.m0, world.m1, world.m2, world.m3,
-            world.m4, world.m5, world.m6, world.m7,
-            world.m8, world.m9, world.m10, world.m11,
-            world.m12, world.m13, world.m14, world.m15,
-        };
+        ::Matrix4 c_world = MatToCore(world);
         
         Prism::Vector3 global_pos = t->GetGlobalPosition();
         
@@ -165,6 +190,10 @@ namespace Prism
         ::Entity_AddAudioSource(ToCore(*this));
         return this->GetAudioSource();
     }
+    Prism::AnimatorComponent* Entity::AddAnimator(void* raw_skeleton, const Prism::AnimationClip& default_clip) {
+        ::Entity_AddAnimator(ToCore(*this), raw_skeleton, default_clip.GetRaw());
+        return this->GetAnimator();
+    }
 
 
 
@@ -200,6 +229,12 @@ namespace Prism
     }
     Prism::AudioSourceComponent* Entity::GetAudioSource() {
         return reinterpret_cast<Prism::AudioSourceComponent*>(::Entity_GetAudioSource(ToCore(*this)));
+    }
+    Prism::AnimatorComponent* Entity::GetAnimator() {
+        return reinterpret_cast<Prism::AnimatorComponent*>(::Entity_GetAnimator(ToCore(*this)));
+    }
+    Prism::BoneAttachmentComponent* Entity::GetBoneAttachment() {
+        return reinterpret_cast<Prism::BoneAttachmentComponent*>(::Entity_GetBoneAttachment(ToCore(*this)));
     }
 
 
@@ -299,6 +334,30 @@ namespace Prism
         for (Prism::Entity& child : children)
         {
             Prism::AudioSourceComponent* comp = child.GetAudioSource();
+            if (comp != nullptr) result.push_back(comp);
+        }
+        return result;
+    }
+
+    std::vector<Prism::AnimatorComponent*> Entity::GetAnimatorsInChildren(bool recursive) {
+        std::vector<Prism::AnimatorComponent*> result;
+        std::vector<Prism::Entity> children = GetChildren(recursive);
+
+        for (Prism::Entity& child : children)
+        {
+            Prism::AnimatorComponent* comp = child.GetAnimator();
+            if (comp != nullptr) result.push_back(comp);
+        }
+        return result;
+    }
+
+    std::vector<Prism::BoneAttachmentComponent*> Entity::GetBoneAttachmentsInChildren(bool recursive) {
+        std::vector<Prism::BoneAttachmentComponent*> result;
+        std::vector<Prism::Entity> children = GetChildren(recursive);
+
+        for (Prism::Entity& child : children)
+        {
+            Prism::BoneAttachmentComponent* comp = child.GetBoneAttachment();
             if (comp != nullptr) result.push_back(comp);
         }
         return result;
@@ -420,6 +479,34 @@ namespace Prism
         return nullptr; // Not found in any parent
     }
 
+    Prism::AnimatorComponent* Entity::GetAnimatorInParent() {
+        Prism::Entity current = this->GetParent();
+
+        // Walk up the tree until we hit the root
+        while (current.IsValid())
+        {
+            Prism::AnimatorComponent* comp = current.GetAnimator();
+            if (comp != nullptr) return comp;
+            
+            current = current.GetParent(); // Move up one level
+        }
+        return nullptr; // Not found in any parent
+    }
+
+    Prism::BoneAttachmentComponent* Entity::GetBoneAttachmentInParent() {
+        Prism::Entity current = this->GetParent();
+
+        // Walk up the tree until we hit the root
+        while (current.IsValid())
+        {
+            Prism::BoneAttachmentComponent* comp = current.GetBoneAttachment();
+            if (comp != nullptr) return comp;
+            
+            current = current.GetParent(); // Move up one level
+        }
+        return nullptr; // Not found in any parent
+    }
+
 
 
     // ==========================================
@@ -446,6 +533,9 @@ namespace Prism
     }
     void Entity::RemoveAudioSource() {
         ::Entity_RemoveComponent(ToCore(*this), COMPONENT_AUDIO_SOURCE);
+    }
+    void Entity::RemoveAnimator() {
+        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_ANIMATOR);
     }
 
 

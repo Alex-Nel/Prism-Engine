@@ -24,6 +24,7 @@ Vector3 Vector3Scale(Vector3 v, float s);
 Vector3 Vector3Negate(Vector3 v);
 float Vector3Length(Vector3 v);
 Vector3 Vector3Lerp(Vector3 start, Vector3 end, float t);
+Vector3 Vector3Slerp(Vector3 start, Vector3 end, float t);
 float Vector3Distance(Vector3 a, Vector3 b);
 
 

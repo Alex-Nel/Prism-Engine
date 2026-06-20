@@ -27,6 +27,8 @@ float GetYawFromQuaternion(Quaternion q);
 float GetRollFromQuaternion(Quaternion q);
 Vector3 QuaternionToEuler(Quaternion q);
 Quaternion QuaternionFromEuler(float pitch, float yaw, float roll);
+Quaternion QuaternionLerp(Quaternion q1, Quaternion q2, float t);
+Quaternion QuaternionSlerp(Quaternion q1, Quaternion q2, float t);
 Quaternion QuaternionInverse(Quaternion q);
 Quaternion QuaternionIdentity();
 

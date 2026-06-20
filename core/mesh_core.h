@@ -5,6 +5,10 @@
 #include <stdbool.h>
 #include "math_core.h"
 
+#define MAX_NAME_LENGTH 256
+#define MAX_BONES 256
+#define MAX_BONE_INFLUENCE 4
+
 
 
 typedef struct { uint32_t id; } MeshHandle;
@@ -19,6 +23,9 @@ typedef struct Vertex3D
     Vector3 position;
     Vector3 normal;
     Vector2 uv;
+
+    int bone_ids[MAX_BONE_INFLUENCE];
+    float bone_weights[MAX_BONE_INFLUENCE];
 } Vertex3D;
 
 
@@ -53,7 +60,7 @@ typedef struct AABB
 // Struct for all mesh data
 typedef struct Mesh
 {
-    char name[64];
+    char name[MAX_NAME_LENGTH];
 
     // Mesh Data
     Vertex3D* vertices;
@@ -74,7 +81,7 @@ typedef struct Mesh
 // Structure for a texture
 typedef struct Texture
 {
-    char name[64];
+    char name[MAX_NAME_LENGTH];
     uint32_t id;
     TextureHandle gpu_handle;
     int width, height, channels;
@@ -85,7 +92,7 @@ typedef struct Texture
 // Structure for a compiled shader
 typedef struct Shader
 {
-    char name[64];
+    char name[MAX_NAME_LENGTH];
     uint32_t id;
     ShaderHandle gpu_handle;
 } Shader;
@@ -114,6 +121,94 @@ typedef struct Material
     MaterialProperties properties;
     
 } Material;
+
+
+
+
+
+// A single keyframe on the timeline
+typedef struct VectorKey
+{
+    float time;
+    Vector3 value;
+} VectorKey;
+
+typedef struct QuaternionKey
+{
+    float time;
+    Quaternion value;
+} QuaternionKey;
+
+
+
+// Represents the timeline for ONE specific bone
+typedef struct AnimationChannel
+{
+    char bone_name[MAX_NAME_LENGTH];
+    
+    VectorKey* positions;
+    uint32_t position_count;
+    
+    QuaternionKey* rotations;
+    uint32_t rotation_count;
+    
+    VectorKey* scales;
+    uint32_t scale_count;
+} AnimationChannel;
+
+
+
+// Represents a full animation
+typedef struct AnimationClip
+{
+    char name[MAX_NAME_LENGTH];
+    float duration_ticks;
+    float ticks_per_second;
+    
+    AnimationChannel* channels;
+    uint32_t channel_count;
+} AnimationClip;
+
+
+
+
+
+// Represents a single bone in the skeleton
+typedef struct BoneInfo
+{
+    char name[MAX_NAME_LENGTH];
+    Matrix4 inverse_bind; // The matrix that transforms a vertex from Mesh Space to Bone Space
+} BoneInfo;
+
+
+
+// One node of a complete skeleton
+typedef struct SkeletonNode
+{
+    char name[MAX_NAME_LENGTH];
+    Matrix4 default_local_transform;
+    
+    struct SkeletonNode* children;
+    uint32_t child_count;
+} SkeletonNode;
+
+
+
+// The Skeleton Asset (Shared by all meshes in a model)
+typedef struct Skeleton
+{
+    BoneInfo bones[MAX_BONES];
+    uint32_t bone_count;
+
+    SkeletonNode* root_node;
+} Skeleton;
+
+
+
+
+
+// Sets a vertex to a safe, un-animated state
+void Vertex_SetDefaultBones(Vertex3D* v);
 
 
 

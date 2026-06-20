@@ -12,6 +12,39 @@ namespace Prism
 {
 
     // ==========================================
+    // Model Wrapper
+    // ==========================================
+
+    class PRISM_API Model 
+    {
+    private:
+        void* m_Handle;
+
+    public:
+        Model(void* raw_model = nullptr) : m_Handle(raw_model) {}
+
+        void* GetRawModel() const {
+            return m_Handle;
+        }
+
+        bool IsValid() const {
+            return m_Handle != nullptr;
+        }
+
+        void* GetRawSkeleton() const;
+        uint32_t GetAnimationCount() const;
+        Prism::AnimationClip GetAnimation(uint32_t index) const;
+        Prism::AnimationClip GetAnimation(const std::string& name) const;
+        Prism::Material GetMaterial(uint32_t mesh_index) const;
+        uint32_t GetMeshCount() const;
+        Prism::Mesh GetMesh(uint32_t index) const;
+    };
+
+
+
+
+
+    // ==========================================
     // Asset Manager Static Class
     // ==========================================
     

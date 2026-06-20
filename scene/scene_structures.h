@@ -54,17 +54,19 @@ typedef enum CollisionLayer
 // Enum for all Component Masks
 typedef enum
 {
-    COMPONENT_NONE            = 0,
-    COMPONENT_NAME            = 1 << 0,
-    COMPONENT_TRANSFORM       = 1 << 1,
-    COMPONENT_RENDER          = 1 << 2,
-    COMPONENT_CAMERA          = 1 << 3,
-    COMPONENT_LIGHT           = 1 << 4,
-    COMPONENT_COLLIDER        = 1 << 5,
-    COMPONENT_RIGIDBODY       = 1 << 6,
-    COMPONENT_AUDIO_LISTENER  = 1 << 7,
-    COMPONENT_AUDIO_SOURCE    = 1 << 8,
-    COMPONENT_SCRIPT          = 1 << 9
+    COMPONENT_NONE             = 0,
+    COMPONENT_NAME             = 1 << 0,
+    COMPONENT_TRANSFORM        = 1 << 1,
+    COMPONENT_RENDER           = 1 << 2,
+    COMPONENT_CAMERA           = 1 << 3,
+    COMPONENT_LIGHT            = 1 << 4,
+    COMPONENT_COLLIDER         = 1 << 5,
+    COMPONENT_RIGIDBODY        = 1 << 6,
+    COMPONENT_AUDIO_LISTENER   = 1 << 7,
+    COMPONENT_AUDIO_SOURCE     = 1 << 8,
+    COMPONENT_ANIMATOR         = 1 << 9,
+    COMPONENT_BONE_ATTACHMENT  = 1 << 10,
+    COMPONENT_SCRIPT           = 1 << 11
 } ComponentMask;
 
 
@@ -308,6 +310,35 @@ typedef struct AudioSourceComponent
 
 
 
+// An animation component that plays an animation
+typedef struct AnimatorComponent
+{
+    Entity entity;
+    bool is_active;
+
+    Skeleton* skeleton;
+    AnimationClip* current_clip;
+
+    float current_time_ticks;
+    bool is_playing;
+    float playback_speed;
+
+    Matrix4 final_bone_matrices[MAX_BONES];
+} AnimatorComponent;
+
+
+
+// A bone attachment for complex models
+typedef struct BoneAttachmentComponent
+{
+    Entity owner;
+    bool is_active;
+    int target_bone_index;       // The integer ID of the bone in the skeleton
+    Matrix4 local_offset;  // An offset matrix to adjust how the item sits in the hand
+} BoneAttachmentComponent;
+
+
+
 // Forward decleration of cJSON struct
 struct cJSON;
 
@@ -384,6 +415,8 @@ typedef struct Scene
     RigidbodyComponent rigidbodies[MAX_ENTITIES];
     AudioListenerComponent audio_listeners[MAX_ENTITIES];
     AudioSourceComponent audio_sources[MAX_ENTITIES];
+    AnimatorComponent animators[MAX_ENTITIES];
+    BoneAttachmentComponent bone_attachments[MAX_ENTITIES];
     ScriptComponent scripts[MAX_ENTITIES];
 
     uint32_t main_camera_id;

@@ -3,6 +3,20 @@
 #include <string.h>
 
 
+
+
+
+// Sets a vertex to a safe, un-animated state
+void Vertex_SetDefaultBones(Vertex3D* v)
+{
+    for (int i = 0; i < MAX_BONE_INFLUENCE; i++)
+    {
+        v->bone_ids[i] = -1;   // -1 means "No bone affects this slot"
+        v->bone_weights[i] = 0.0f; // 0 influence
+    }
+}
+
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Move these functions to asset manager to be able to procedurally generate terrain or custom shapes from code later
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

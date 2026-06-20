@@ -319,6 +319,84 @@ namespace Prism
         void Stop() { isPlaying = false; }
     };
 
-    
-    
+
+
+    // ==========================================
+    // Animator Wrapper
+    // ==========================================
+
+    struct PRISM_API AnimatorComponent
+    {
+    public:
+        Prism::Entity entity; // The Entity that this component is attached to
+        bool is_active;
+        
+        void* raw_skeleton;
+        void* raw_current_clip;
+        
+        float current_time_ticks;
+        bool is_playing;
+        float playback_speed;
+
+    private:
+        Prism::Matrix4 final_bone_matrices[256];
+
+
+    public:
+        void SetActive(bool active) {
+            this->is_active = active;
+        }
+        bool IsActive() const {
+            return this->is_active;
+        }
+
+
+        // Animation Controls
+
+        void Play() {
+            this->is_playing = true;
+        }
+        void Pause() {
+            this->is_playing = false;
+        }
+        void Stop() { 
+            this->is_playing = false; 
+            this->current_time_ticks = 0.0f; 
+        }
+        
+        void SetPlaybackSpeed(float speed) {
+            this->playback_speed = speed;
+        }
+        
+        // Swap animations
+        void SetClip(const Prism::AnimationClip& clip) {
+            this->raw_current_clip = clip.GetRaw();
+            this->current_time_ticks = 0.0f; // Reset timeline
+        }
+    };
+
+
+
+    // ==========================================
+    // Bone Attachment Wrapper
+    // ==========================================
+
+    struct PRISM_API BoneAttachmentComponent
+    {
+        bool is_active;
+        Prism::Entity owner;
+        uint32_t target_animator_id;
+        int target_bone_index;
+        Prism::Matrix4 local_offset;
+
+        void SetActive(bool active) {
+            this->is_active = active;
+        }
+        bool IsActive() const {
+            return this->is_active;
+        }
+        void SetOffset(const Prism::Matrix4& offset) {
+            this->local_offset = offset;
+        }
+    };
 }

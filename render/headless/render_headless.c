@@ -25,7 +25,7 @@ static void Headless_SetClearColor(Renderer* r, float red, float green, float bl
 static void Headless_Clear(Renderer* r) {}
 
 static void Headless_BeginFrame(Renderer* r, const RenderPacket* packet) {}
-static void Headless_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat, Matrix4 transform) {}
+static void Headless_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat, Matrix4 transform, Matrix4* bone_matrices) {}
 static void Headless_EndFrame(Renderer* r) {}
 
 

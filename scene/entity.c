@@ -5,7 +5,8 @@
 // Creates an entity with a name
 Entity Entity_Create(Scene* scene, const char* name)
 {
-    if (!scene) return (Entity){0, NULL};
+    if (!scene)
+        return (Entity){ENTITY_NONE, NULL};
 
     // Finds the first available spot in the entity pool
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
@@ -37,7 +38,7 @@ Entity Entity_Create(Scene* scene, const char* name)
     }
     
     // Scene is full, return NULL entity
-    return (Entity){0, NULL}; 
+    return (Entity){ENTITY_NONE, NULL}; 
 }
 
 
@@ -87,7 +88,7 @@ void Entity_Destroy(Entity entity)
 bool Entity_IsValid(Entity entity)
 {
     // It is valid if the scene pointer is not null AND the mask is not NONE
-    return (entity.scene != NULL) && (entity.scene->component_masks[entity.id] != COMPONENT_NONE);
+    return (entity.scene != NULL) && (entity.id != ENTITY_NONE) && (entity.id < MAX_ENTITIES);
 }
 
 
@@ -258,7 +259,7 @@ void Entity_AddModel(Entity parent, Model* model)
     {
         // Create the entity
         char child_name[MAX_NAME_LENGTH];
-        snprintf(child_name, sizeof(child_name), "%s Node %d", model->name, i);
+        snprintf(child_name, MAX_NAME_LENGTH, "%s", model->nodes[i].mesh->name);
         Entity child = Entity_Create(parent.scene, child_name);
 
         // Set it up in the hierarchy
@@ -272,6 +273,23 @@ void Entity_AddModel(Entity parent, Model* model)
 
         // Give it the specific mesh and material
         Entity_AddRenderable(child, model->nodes[i].mesh, model->nodes[i].material);
+
+        if (model->animation_count > 0 && model->skeleton && model->skeleton->bone_count > 0)
+        {
+            int bone_idx = -1;
+
+            for (int b = 0; b < model->skeleton->bone_count; b++)
+            {
+                if (strcmp(model->skeleton->bones[b].name, model->nodes[i].mesh->name) == 0)
+                {
+                    bone_idx = b;
+                    break;
+                }
+            }
+
+            if (bone_idx != -1)
+                Entity_AddBoneAttachment(child, bone_idx, Matrix4Identity());
+        }
     }
 }
 
@@ -344,6 +362,82 @@ Entity Entity_GetParentWithComponent(Entity entity, uint32_t component_mask)
     }
 
     return (Entity){ ENTITY_NONE, NULL }; // Not found
+}
+
+
+
+
+
+// Recursively searches an entities hierarchy to find an entity with a specific name
+static uint32_t SearchHierarchyForName(Scene* scene, uint32_t current_id, const char* target_name)
+{
+    // Check if the current entity matches the name
+    if (scene->component_masks[current_id] & COMPONENT_NAME)
+    {
+        if (strcmp(scene->names[current_id].name, target_name) == 0)
+            return current_id;
+    }
+
+    // Iterate through all children
+    uint32_t child = scene->transforms[current_id].first_child_id;
+    
+    while (child != ENTITY_NONE)
+    {
+        uint32_t found_id = SearchHierarchyForName(scene, child, target_name);
+        if (found_id != ENTITY_NONE)
+            return found_id; 
+
+        child = scene->transforms[child].next_sibling_id;
+    }
+
+    return ENTITY_NONE;
+}
+
+
+
+
+
+// Searches through an entities children to find one with a matching name
+Entity Entity_FindChildByName(Entity entity, const char* name)
+{
+    if (!Entity_IsValid(entity))
+        return (Entity){ENTITY_NONE, NULL};
+
+    uint32_t found_id = SearchHierarchyForName(entity.scene, entity.id, name);
+
+    if (found_id != 0)
+        return (Entity){found_id, entity.scene};
+
+    return (Entity){ENTITY_NONE, NULL};
+}
+
+
+
+
+
+// Finds a specific bone index in an animator component
+int Entity_GetAnimatorBoneIndex(Entity entity, const char* bone_name)
+{
+    if (!Entity_IsValid(entity)) 
+        return -1;
+    
+    // Check if it actually has an animator
+    if (!(entity.scene->component_masks[entity.id] & COMPONENT_ANIMATOR)) 
+        return -1;
+    
+    AnimatorComponent* anim = &entity.scene->animators[entity.id];
+    if (!anim->skeleton) 
+        return -1;
+
+    // Search the skeleton for the bone name
+    for (uint32_t i = 0; i < anim->skeleton->bone_count; i++) 
+    {
+        if (strcmp(anim->skeleton->bones[i].name, bone_name) == 0) {
+            return i;
+        }
+    }
+
+    return -1; // Bone not found
 }
 
 
@@ -491,7 +585,7 @@ void Entity_UnbindScript(Entity entity, void* target_instance_data)
 // Sets the name of an entity
 void Entity_SetName(Entity entity, const char* name)
 {
-    if (!entity.scene || !name) return;
+    if (!Entity_IsValid(entity) || !name) return;
 
     // Copy the string into the ECS array
     strncpy(entity.scene->names[entity.id].name, name, MAX_NAME_LENGTH - 1);
@@ -510,7 +604,8 @@ void Entity_SetName(Entity entity, const char* name)
 // Adds a transform to an entity with a specified position, rotation, and scale
 void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, Vector3 scale)
 {
-    if (!entity.scene) return;
+    if (!Entity_IsValid(entity))
+        return;
 
     Transform* t = &entity.scene->transforms[entity.id];
     t->entity = entity;
@@ -541,7 +636,7 @@ void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, V
 // Adds a renderable component to an entity with a specified mesh and material
 void Entity_AddRenderable(Entity entity, Mesh* mesh, Material* material)
 {
-    if (!entity.scene) return;
+    if (!Entity_IsValid(entity)) return;
 
     RenderComponent* r = &entity.scene->renderables[entity.id];
     r->entity = entity;
@@ -560,7 +655,7 @@ void Entity_AddRenderable(Entity entity, Mesh* mesh, Material* material)
 // Adds a camera component to an entity with a specified FOX, near clipping plane, and far clipping plane
 void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ)
 {
-    if (!entity.scene) return;
+    if (!Entity_IsValid(entity)) return;
 
     CameraComponent* cam = &entity.scene->cameras[entity.id];
     cam->entity = entity;
@@ -583,7 +678,7 @@ void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ)
 // Adds a point light component to an entity with specified light attributes
 void Entity_AddLight(Entity entity, LightType type, Color color)
 {
-    if (!entity.scene) return;
+    if (!Entity_IsValid(entity)) return;
     
     LightComponent* light = &entity.scene->lights[entity.id];
     light->entity = entity;
@@ -848,10 +943,62 @@ void Entity_AddAudioSource(Entity entity)
 
 
 
+// Addds an animator to an entity
+void Entity_AddAnimator(Entity entity, void* raw_skeleton, void* raw_clip)
+{
+    if (!Entity_IsValid(entity))
+        return;
+
+    uint32_t id = entity.id;
+    entity.scene->component_masks[id] |= COMPONENT_ANIMATOR;
+
+    AnimatorComponent* anim = &entity.scene->animators[id];
+    
+    // Core setup
+    anim->is_active = true;
+    anim->entity = entity; 
+    anim->skeleton = (Skeleton*)raw_skeleton;
+    anim->current_clip = (AnimationClip*)raw_clip;
+
+    // Playback defaults
+    anim->current_time_ticks = 0.0f;
+    anim->is_playing = true;
+    anim->playback_speed = 1.0f;
+
+    // Safety fallback: Initialize all matrices to Identity
+    for (int i = 0; i < MAX_BONES; i++)
+        anim->final_bone_matrices[i] = Matrix4Identity();
+}
+
+
+
+
+
+// Adds a bone attachment to an entity
+void Entity_AddBoneAttachment(Entity entity, int bone_index, Matrix4 offset)
+{
+    if (!Entity_IsValid(entity))
+        return;
+
+    uint32_t id = entity.id;
+    entity.scene->component_masks[id] |= COMPONENT_BONE_ATTACHMENT;
+
+    BoneAttachmentComponent* attachment = &entity.scene->bone_attachments[id];
+
+    attachment->owner = entity;
+    attachment->is_active = true;
+    attachment->target_bone_index = bone_index;
+    attachment->local_offset = offset;
+}
+
+
+
+
+
 // Adds a custom script to an entity
 void Entity_BindScript(Entity entity, ScriptInstance new_script)
 {
-    if (!entity.scene) return;
+    if (!Entity_IsValid(entity)) return;
     
     ScriptComponent* script_comp = &entity.scene->scripts[entity.id];
     
@@ -933,7 +1080,8 @@ const char* Entity_GetName(Entity entity)
 // Returns an entities transform struct
 Transform* Entity_GetTransform(Entity entity)
 {
-    if (!entity.scene) return NULL;
+    if (!Entity_IsValid(entity))
+        return NULL;
     
     // Ensure the entity actually has a transform before returning a pointer to it
     if ((entity.scene->component_masks[entity.id] & COMPONENT_TRANSFORM) == COMPONENT_TRANSFORM)
@@ -951,12 +1099,11 @@ Transform* Entity_GetTransform(Entity entity)
 // Returns an entities Renderable struct
 RenderComponent* Entity_GetRenderable(Entity entity)
 {
-    if (!entity.scene) return NULL;
+    if (!Entity_IsValid(entity))
+        return NULL;
 
     if ((entity.scene->component_masks[entity.id] & COMPONENT_RENDER) == COMPONENT_RENDER)
-    {
         return &entity.scene->renderables[entity.id];
-    }
     
     return NULL;
 }
@@ -968,7 +1115,8 @@ RenderComponent* Entity_GetRenderable(Entity entity)
 // Returns an entities Mesh Handle
 Mesh* Entity_GetMesh(Entity entity)
 {
-    if (!Entity_IsValid(entity)) return NULL;
+    if (!Entity_IsValid(entity))
+        return NULL;
     
     // Check if the entity actually has a render component
     if (entity.scene->component_masks[entity.id] & COMPONENT_RENDER)
@@ -984,12 +1132,11 @@ Mesh* Entity_GetMesh(Entity entity)
 // Returns an entities camera struct
 CameraComponent* Entity_GetCamera(Entity entity)
 {
-    if (!entity.scene) return NULL;
+    if (!Entity_IsValid(entity))
+        return NULL;
 
     if ((entity.scene->component_masks[entity.id] & COMPONENT_CAMERA) == COMPONENT_CAMERA)
-    {
         return &entity.scene->cameras[entity.id];
-    }
 
     return NULL;
 }
@@ -1001,12 +1148,11 @@ CameraComponent* Entity_GetCamera(Entity entity)
 // Returns an entities point light struct
 LightComponent* Entity_GetLight(Entity entity)
 {
-    if (!entity.scene) return NULL;
+    if (!Entity_IsValid(entity))
+        return NULL;
 
     if ((entity.scene->component_masks[entity.id] & COMPONENT_LIGHT) == COMPONENT_LIGHT)
-    {
         return &entity.scene->lights[entity.id];
-    }
 
     return NULL;
 }
@@ -1018,8 +1164,11 @@ LightComponent* Entity_GetLight(Entity entity)
 // Returns an entities collider struct (Regardless of type)
 ColliderComponent* Entity_GetCollider(Entity entity)
 {
-    if (!Entity_IsValid(entity)) return NULL;
-    if (!(entity.scene->component_masks[entity.id] & COMPONENT_COLLIDER)) return NULL;
+    if (!Entity_IsValid(entity))
+        return NULL;
+    
+    if (!(entity.scene->component_masks[entity.id] & COMPONENT_COLLIDER))
+        return NULL;
     
     return &entity.scene->colliders[entity.id];
 }
@@ -1031,8 +1180,11 @@ ColliderComponent* Entity_GetCollider(Entity entity)
 // Returns an entities Rigibody struct
 RigidbodyComponent* Entity_GetRigidbody(Entity entity)
 {
-    if (!Entity_IsValid(entity)) return NULL;
-    if (!(entity.scene->component_masks[entity.id] & COMPONENT_RIGIDBODY)) return NULL;
+    if (!Entity_IsValid(entity))
+        return NULL;
+    
+    if (!(entity.scene->component_masks[entity.id] & COMPONENT_RIGIDBODY))
+        return NULL;
     
     return &entity.scene->rigidbodies[entity.id];
 }
@@ -1044,12 +1196,11 @@ RigidbodyComponent* Entity_GetRigidbody(Entity entity)
 // Returns an entities audio listener
 AudioListenerComponent* Entity_GetAudioListener(Entity entity)
 {
-    if (!entity.scene) return NULL;
+    if (!Entity_IsValid(entity))
+        return NULL;
 
     if ((entity.scene->component_masks[entity.id] & COMPONENT_AUDIO_LISTENER) == COMPONENT_AUDIO_LISTENER)
-    {
         return &entity.scene->audio_listeners[entity.id];
-    }
 
     return NULL;
 }
@@ -1061,12 +1212,43 @@ AudioListenerComponent* Entity_GetAudioListener(Entity entity)
 // Returns an entities audio source
 AudioSourceComponent* Entity_GetAudioSource(Entity entity)
 {
-    if (!entity.scene) return NULL;
+    if (!Entity_IsValid(entity))
+        return NULL;
 
     if ((entity.scene->component_masks[entity.id] & COMPONENT_AUDIO_SOURCE) == COMPONENT_AUDIO_SOURCE)
-    {
         return &entity.scene->audio_sources[entity.id];
-    }
+
+    return NULL;
+}
+
+
+
+
+
+// Returns an entities animator component
+AnimatorComponent* Entity_GetAnimator(Entity entity)
+{
+    if (!Entity_IsValid(entity))
+        return NULL;
+    
+    if ((entity.scene->component_masks[entity.id] & COMPONENT_ANIMATOR) == COMPONENT_ANIMATOR)
+        return &entity.scene->animators[entity.id];
+    
+    return NULL;
+}
+
+
+
+
+
+// Returns an entities bone attachment
+BoneAttachmentComponent* Entity_GetBoneAttachment(Entity entity)
+{
+    if (!Entity_IsValid(entity))
+        return NULL;
+
+    if ((entity.scene->component_masks[entity.id] & COMPONENT_BONE_ATTACHMENT) == COMPONENT_BONE_ATTACHMENT)
+        return &entity.scene->bone_attachments[entity.id];
 
     return NULL;
 }

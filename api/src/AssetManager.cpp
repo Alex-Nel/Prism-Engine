@@ -3,6 +3,7 @@
 
 extern "C"
 {
+    #include <string.h>
     #include "../../assets/asset_manager.h"
     #include "../../audio/audio.h"
 }
@@ -12,7 +13,64 @@ namespace Prism
 {
 
     // ==========================================
-    // LOADING METHODS
+    // Model implementation
+    // ==========================================
+
+    void* Model::GetRawSkeleton() const {
+        ::Model* c_Model = static_cast<::Model*>(m_Handle);
+        return c_Model->skeleton;
+    }
+
+    uint32_t Model::GetAnimationCount() const {
+        if (!IsValid())
+            return 0;
+        return static_cast<::Model*>(m_Handle)->animation_count;
+    }
+
+    Prism::AnimationClip Model::GetAnimation(uint32_t index) const {
+        ::Model* c_model = static_cast<::Model*>(m_Handle);
+        if (index >= c_model->animation_count)
+            return Prism::AnimationClip(nullptr);
+        return Prism::AnimationClip(c_model->animations[index]);
+    }
+
+    Prism::AnimationClip Model::GetAnimation(const std::string& name) const {
+        ::Model* c_model = static_cast<::Model*>(m_Handle);
+        
+        // Search the array for a matching name
+        for (uint32_t i = 0; i < c_model->animation_count; i++) {
+            if (strcmp(c_model->animations[i]->name, name.c_str()) == 0) {
+                return Prism::AnimationClip(c_model->animations[i]);
+            }
+        }
+        return Prism::AnimationClip(nullptr); // Not found
+    }
+
+    Prism::Material Model::GetMaterial(uint32_t mesh_index) const {
+        ::Model* c_model = static_cast<::Model*>(m_Handle);
+        if (mesh_index >= c_model->node_count)
+            return Prism::Material(nullptr);
+        return Prism::Material(c_model->nodes[mesh_index].material);
+    }
+
+    uint32_t Model::GetMeshCount() const {
+        if (!IsValid()) return 0;
+        ::Model* c_model = static_cast<::Model*>(m_Handle);
+        return c_model->node_count;
+    }
+    Prism::Mesh Model::GetMesh(uint32_t index) const {
+        if (!IsValid()) return Prism::Mesh(nullptr);
+        ::Model* c_model = static_cast<::Model*>(m_Handle);
+        if (index >= c_model->node_count) {
+            return Prism::Mesh(nullptr);
+        }
+        return Prism::Mesh(c_model->nodes[index].mesh);
+    }
+
+
+
+    // ==========================================
+    // Asset Manager loading methods
     // ==========================================
     
     Model AssetManager::LoadModel(const std::string& name, const std::string& filepath){

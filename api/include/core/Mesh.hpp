@@ -25,6 +25,9 @@ namespace Prism
         Vector3 normal;
         Vector2 uv;
 
+        int bone_ids[4];
+        float bone_weights[4];
+
 
         // --- Constructors ---   
 
@@ -195,23 +198,23 @@ namespace Prism
 
 
     // ==========================================
-    // Model Wrapper
+    // AnimationClip Wrapper
     // ==========================================
 
-    class PRISM_API Model 
+    class PRISM_API AnimationClip
     {
     private:
-        void* m_Handle;
-
+        void* m_RawClip;
+        
     public:
-        Model(void* raw_model = nullptr) : m_Handle(raw_model) {}
+        AnimationClip(void* raw_clip) : m_RawClip(raw_clip) {}
 
-        void* GetRawModel() const {
-            return m_Handle;
+        void* GetRaw() const {
+            return m_RawClip;
         }
 
         bool IsValid() const {
-            return m_Handle != nullptr;
+            return m_RawClip != nullptr;
         }
     };
 }

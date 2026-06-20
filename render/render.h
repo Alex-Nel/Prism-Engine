@@ -149,7 +149,7 @@ typedef struct Renderer
 
     // Command Submission
     void (*BeginFrame)(Renderer* r, const RenderPacket* packet);
-    void (*Submit)(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat, Matrix4 transform);
+    void (*Submit)(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat, Matrix4 transform, Matrix4* bone_matrices);
     void (*EndFrame)(Renderer* r);
 
     // Hidden implementation-specific data (e.g., SDL_GLContext or Vulkan Instance)
@@ -282,10 +282,10 @@ static inline void Render_BeginFrame(Renderer* r, const RenderPacket* packet)
 }
 
 // Adds an object to the draw queue
-static inline void Render_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat_props, Matrix4 transform)
+static inline void Render_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices)
 {
     if (r && r->Submit)
-        r->Submit(r, mesh, shader, texture, mat_props, transform);
+        r->Submit(r, mesh, shader, texture, mat_props, transform, bone_matrices);
 }
 
 // Sorts the queue, binds the state, and executes the actual GPU draw calls

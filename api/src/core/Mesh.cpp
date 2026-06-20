@@ -12,9 +12,19 @@ namespace Prism
 {
     // --- Vertex3D ---
 
-    Vertex3D::Vertex3D() : position(0,0,0), normal(0,0,0), uv(0,0) {}
+    Vertex3D::Vertex3D() : position(0,0,0), normal(0,11,0), uv(0,0) {
+        for (int i = 0; i < 4; i++) {
+            bone_ids[i] = -1;
+            bone_weights[i] = 0.0f;
+        }
+    }
     Vertex3D::Vertex3D(const Vector3& pos, const Vector3& norm, const Vector2& tex) 
-        : position(pos), normal(norm), uv(tex) {}
+        : position(pos), normal(norm), uv(tex) {
+        for (int i = 0; i < 4; i++) {
+            bone_ids[i] = -1;
+            bone_weights[i] = 0.0f;
+        }
+    }
 
 
 
@@ -77,6 +87,5 @@ namespace Prism
         {
             Debug_Warning("Attempted to set specular strength on an invalid Material");
         }
-    }
-    
+    }    
 }

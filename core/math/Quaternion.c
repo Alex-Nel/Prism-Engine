@@ -179,7 +179,83 @@ Quaternion QuaternionFromEuler(float pitch, float yaw, float roll)
 
 
 
+//
+//
+//
+Quaternion QuaternionLerp(Quaternion q1, Quaternion q2, float t)
+{
+    Quaternion out;
+    
+    // Calculate the dot product to find the angle/direction between them
+    float dot = q1.x * q2.x + q1.y * q2.y + q1.z * q2.z + q1.w * q2.w;
+
+    // Flip q2 if the dot product is negative to ensure the shortest path
+    float bias = 1.0f;
+    if (dot < 0.0f)
+    {
+        bias = -1.0f;
+    }
+
+    // Standard linear interpolation
+    out.x = q1.x + (q2.x * bias - q1.x) * t;
+    out.y = q1.y + (q2.y * bias - q1.y) * t;
+    out.z = q1.z + (q2.z * bias - q1.z) * t;
+    out.w = q1.w + (q2.w * bias - q1.w) * t;
+
+    // Quaternions must be normalized to represent valid rotations
+    return QuaternionNormalize(out);
+}
+
+
+
+//
+// Spherical Linear Interpolation for Quaternions
+//
+Quaternion QuaternionSlerp(Quaternion q1, Quaternion q2, float t)
+{
+    Quaternion out;
+    
+    // Calculate the dot product (cosine of the angle between the two rotations)
+    float cosHalfTheta = q1.x * q2.x + q1.y * q2.y + q1.z * q2.z + q1.w * q2.w;
+
+    // If dot is negative, Slerp will take the long way around the sphere. 
+    // We reverse one quaternion to take the shortest path.
+    if (cosHalfTheta < 0.0f)
+    {
+        q2.x = -q2.x; q2.y = -q2.y; q2.z = -q2.z; q2.w = -q2.w;
+        cosHalfTheta = -cosHalfTheta;
+    }
+
+    // If the inputs are too close, just use standard linear interpolation to avoid divide-by-zero
+    if (cosHalfTheta >= 0.999f)
+    {
+        out.x = q1.x + (q2.x - q1.x) * t;
+        out.y = q1.y + (q2.y - q1.y) * t;
+        out.z = q1.z + (q2.z - q1.z) * t;
+        out.w = q1.w + (q2.w - q1.w) * t;
+        return QuaternionNormalize(out);
+    }
+
+    // Standard Slerp Math
+    float halfTheta = acosf(cosHalfTheta);
+    float sinHalfTheta = sqrtf(1.0f - cosHalfTheta * cosHalfTheta);
+
+    float ratioA = sinf((1 - t) * halfTheta) / sinHalfTheta;
+    float ratioB = sinf(t * halfTheta) / sinHalfTheta;
+
+    out.x = (q1.x * ratioA) + (q2.x * ratioB);
+    out.y = (q1.y * ratioA) + (q2.y * ratioB);
+    out.z = (q1.z * ratioA) + (q2.z * ratioB);
+    out.w = (q1.w * ratioA) + (q2.w * ratioB);
+
+    return out;
+}
+
+
+
+//
 // Get the inverse of a quaternion
+//
 Quaternion QuaternionInverse(Quaternion q)
 {
     float lenSq = q.w*q.w + q.x*q.x + q.y*q.y + q.z*q.z;

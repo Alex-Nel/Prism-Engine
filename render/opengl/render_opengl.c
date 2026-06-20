@@ -77,6 +77,7 @@ typedef struct RenderCommand
     TextureHandle texture;
     MaterialProperties mat_props;
     Matrix4 transform;
+    Matrix4* bone_matrices;
 } RenderCommand;
 
 
@@ -293,6 +294,15 @@ static MeshHandle OpenGL_CreateMesh(Renderer* r, const Vertex3D* vertices, uint3
     // UV (Vector2)
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, uv));
     glEnableVertexAttribArray(2);
+
+    // Bone IDs
+    glVertexAttribIPointer(3, MAX_BONE_INFLUENCE, GL_INT, sizeof(Vertex3D), (void*)offsetof(Vertex3D, bone_ids));
+    glEnableVertexAttribArray(3);
+
+    // Bone Weights
+    glVertexAttribPointer(4, MAX_BONE_INFLUENCE, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, bone_weights));
+    glEnableVertexAttribArray(4);
+
 
     glBindVertexArray(0); // Unbind to prevent accidental modifications
 
@@ -629,7 +639,7 @@ static void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
 
 
 // Adds an object to the draw queue
-static void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat_props, Matrix4 transform)
+static void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
     // Return if the queue is full
@@ -640,7 +650,8 @@ static void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, Tex
         shader,
         texture,
         mat_props,
-        transform
+        transform,
+        bone_matrices
     };
 }
 
@@ -802,6 +813,34 @@ static void OpenGL_EndFrame(Renderer* r)
 
         GLint spec_loc = glGetUniformLocation(gl_shader->program, "u_Material.specularStrength");
         if (spec_loc != -1) glUniform1f(spec_loc, cmd->mat_props.specular_strength);
+
+
+        // Upload bone matrices
+        GLint bone_loc = glGetUniformLocation(gl_shader->program, "u_BoneMatrices");
+        if (bone_loc != -1) 
+        {
+            if (cmd->bone_matrices != NULL) 
+            {
+                // Upload the Animator's 100 matrices!
+                // 100 is the count, GL_FALSE means don't transpose (assuming column-major)
+                glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)cmd->bone_matrices);
+            } 
+            else 
+            {
+                // If the shader wants bones but the object has none, give it Identity matrices
+                static Matrix4 identity_bones[MAX_BONES];
+                static bool initialized = false;
+                if (!initialized)
+                {
+                    for (int b = 0; b < MAX_BONES; b++)
+                        identity_bones[b] = Matrix4Identity();
+                        
+                    initialized = true;
+                }
+                
+                glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)identity_bones);
+            }
+        }
         
 
         // Draw

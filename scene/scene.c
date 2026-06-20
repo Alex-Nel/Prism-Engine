@@ -170,6 +170,191 @@ static void DispatchCollisionEvent(Scene* scene, uint32_t entity_id, uint32_t ot
 
 
 
+// Helper to find a specific bone's timeline in a clip
+static AnimationChannel* FindChannel(AnimationClip* clip, const char* bone_name)
+{
+    for (uint32_t i = 0; i < clip->channel_count; i++)
+    {
+        if (strcmp(clip->channels[i].bone_name, bone_name) == 0)
+            return &clip->channels[i];
+    }
+
+    return NULL;
+}
+
+
+
+
+
+// Helper to find the bone's ID in the flat skeleton array
+static int FindBoneIndex(Skeleton* skel, const char* name)
+{
+    for (uint32_t i = 0; i < skel->bone_count; i++)
+    {
+        if (strcmp(skel->bones[i].name, name) == 0)
+            return i;
+    }
+
+    return -1;
+}
+
+
+
+
+
+// Interpolates positions in an animation
+static Vector3 InterpolatePosition(AnimationChannel* channel, float anim_time)
+{
+    // If only 1 frame, return it
+    if (channel->position_count == 1)
+        return channel->positions[0].value;
+
+    // Clamp to the first frame
+    if (anim_time <= channel->positions[0].time) 
+        return channel->positions[0].value;
+
+    // Clamp to the last frame
+    if (anim_time >= channel->positions[channel->position_count - 1].time)
+        return channel->positions[channel->position_count - 1].value;
+
+    // Find the current frame index
+    uint32_t p0_index = 0;
+    for (uint32_t i = 0; i < channel->position_count - 1; i++)
+    {
+        if (anim_time < channel->positions[i + 1].time)
+        {
+            p0_index = i;
+            break;
+        }
+    }
+
+    uint32_t p1_index = p0_index + 1;
+
+    // Calculate the interpolation factor (t)
+    float delta_time = channel->positions[p1_index].time - channel->positions[p0_index].time;
+    float factor = (anim_time - channel->positions[p0_index].time) / delta_time;
+
+    return Vector3Lerp(channel->positions[p0_index].value, channel->positions[p1_index].value, factor);
+}
+
+
+
+
+
+// Interpolates Rotations in an animation
+static Quaternion InterpolateRotation(AnimationChannel* channel, float anim_time)
+{
+    // If only 1 frame, return it
+    if (channel->rotation_count == 1)
+        return channel->rotations[0].value;
+
+    // Clamp to the first frame
+    if (anim_time <= channel->rotations[0].time) 
+        return channel->rotations[0].value;
+
+    // Clamp to the last frame
+    if (anim_time >= channel->rotations[channel->rotation_count - 1].time)
+        return channel->rotations[channel->rotation_count - 1].value;
+
+    // Find the current frame index
+    uint32_t p0_index = 0;
+    for (uint32_t i = 0; i < channel->rotation_count - 1; i++)
+    {
+        if (anim_time < channel->rotations[i + 1].time)
+        {
+            p0_index = i;
+            break;
+        }
+    }
+
+    uint32_t p1_index = p0_index + 1;
+
+    float delta_time = channel->rotations[p1_index].time - channel->rotations[p0_index].time;
+    float factor = (anim_time - channel->rotations[p0_index].time) / delta_time;
+
+    return QuaternionSlerp(channel->rotations[p0_index].value, channel->rotations[p1_index].value, factor);
+}
+
+
+
+
+
+// Interpolates Scales in an animation
+static Vector3 InterpolateScale(AnimationChannel* channel, float anim_time)
+{
+    // If only 1 frame, return it
+    if (channel->scale_count == 1)
+        return channel->scales[0].value;
+
+    // Clamp to the first frame
+    if (anim_time <= channel->scales[0].time) 
+        return channel->scales[0].value;
+
+    // Clamp to the last frame
+    if (anim_time >= channel->scales[channel->scale_count - 1].time)
+        return channel->scales[channel->scale_count - 1].value;
+
+    // Find the current frame index
+    uint32_t p0_index = 0;
+    for (uint32_t i = 0; i < channel->scale_count - 1; i++)
+    {
+        if (anim_time < channel->scales[i + 1].time)
+        {
+            p0_index = i;
+            break;
+        }
+    }
+
+    uint32_t p1_index = p0_index + 1;
+
+    float delta_time = channel->scales[p1_index].time - channel->scales[p0_index].time;
+    float factor = (anim_time - channel->scales[p0_index].time) / delta_time;
+
+    return Vector3Lerp(channel->scales[p0_index].value, channel->scales[p1_index].value, factor);
+}
+
+
+
+
+
+// Recursively Cascades through bone transform in a skeleton tree
+static void CalculateBoneTransform(SkeletonNode* node, Matrix4 parent_transform, AnimatorComponent* anim)
+{
+    Matrix4 local_transform = node->default_local_transform;
+
+    // If this bone is animated, calculate its local matrix for this exact microsecond
+    AnimationChannel* channel = FindChannel(anim->current_clip, node->name);
+    if (channel) 
+    {
+        Vector3 anim_pos = InterpolatePosition(channel, anim->current_time_ticks);
+        Quaternion anim_rot = InterpolateRotation(channel, anim->current_time_ticks);
+        Vector3 anim_scale = InterpolateScale(channel, anim->current_time_ticks);
+        
+        local_transform = Matrix4CreateTransform(anim_pos, anim_rot, anim_scale);
+    }
+
+    // Multiply Local by Parent to get the Global space
+    Matrix4 global_transform = Matrix4Multiply(parent_transform, local_transform);
+
+    // If this node is an actual Bone that affects vertices, save it for the GPU
+    int bone_index = FindBoneIndex(anim->skeleton, node->name);
+    if (bone_index != -1) 
+    {
+        // Global Transform * Inverse Bind Matrix
+        anim->final_bone_matrices[bone_index] = Matrix4Multiply(global_transform, anim->skeleton->bones[bone_index].inverse_bind);
+    }
+
+    // Recurse down to all children
+    for (uint32_t i = 0; i < node->child_count; i++)
+    {
+        CalculateBoneTransform(&node->children[i], global_transform, anim);
+    }
+}
+
+
+
+
+
 // Updates the scene
 // Runs custom scripts (OnUpdate) and audio sources/listeners
 void Scene_Update(Scene* scene)
@@ -228,8 +413,14 @@ void Scene_Update(Scene* scene)
     }
 
 
+    // Update animation timelines
+    Scene_UpdateAnimators(scene, Time_DeltaTime());
+
     // Update all transforms in the scene
     Scene_UpdateTransforms(scene);
+
+    // Update all bone attachments
+    Scene_UpdateBoneAttachments(scene);
 
 
 
@@ -578,7 +769,7 @@ static void UpdateTransformTree(Scene* scene, uint32_t entity_id, Matrix4* paren
     }
 
 
-    // --- LEFT-CHILD, RIGHT-SIBLING TRAVERSAL ---
+    // --- Left Child, Right Sibling Traversal ---
     // Process the oldest child. Pass the parents world_matrix to them
     if (t->first_child_id != ENTITY_NONE)
         UpdateTransformTree(scene, t->first_child_id, &t->world_matrix, needs_update);
@@ -586,6 +777,101 @@ static void UpdateTransformTree(Scene* scene, uint32_t entity_id, Matrix4* paren
     // Process our next sibling. Siblings share the same parent, 
     if (t->next_sibling_id != ENTITY_NONE)
         UpdateTransformTree(scene, t->next_sibling_id, parent_world, force_update);
+}
+
+
+
+
+
+// Updates all animators in a scene
+void Scene_UpdateAnimators(Scene* scene, float delta_time)
+{
+    uint32_t required_mask = COMPONENT_TRANSFORM | COMPONENT_ANIMATOR;
+
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i])
+            continue;
+
+        if ((scene->component_masks[i] & required_mask) != required_mask)
+            continue;
+
+        AnimatorComponent* anim = &scene->animators[i];
+        if (!anim->is_active || !anim->is_playing || !anim->current_clip) continue;
+
+        // Advance timeline
+        float ticks_per_sec = anim->current_clip->ticks_per_second;
+        anim->current_time_ticks += (delta_time * ticks_per_sec * anim->playback_speed);
+        
+        // Loop timeline
+        if (anim->current_time_ticks >= anim->current_clip->duration_ticks)
+            anim->current_time_ticks = fmodf(anim->current_time_ticks, anim->current_clip->duration_ticks);
+        
+        // Update any skeletal animations
+        if (anim->skeleton && anim->skeleton->bone_count > 0)
+            CalculateBoneTransform(anim->skeleton->root_node, Matrix4Identity(), anim);
+    }
+}
+
+
+
+
+
+// Updates all bone attachments in a scene
+void Scene_UpdateBoneAttachments(Scene* scene)
+{
+    uint32_t required_mask = COMPONENT_TRANSFORM | COMPONENT_BONE_ATTACHMENT;
+
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i])
+            continue;
+
+        if ((scene->component_masks[i] & required_mask) != required_mask)
+            continue;
+
+        BoneAttachmentComponent* attachment = &scene->bone_attachments[i];
+        if (!attachment->is_active)
+            continue;
+
+        Transform* t = &scene->transforms[i];
+
+        uint32_t parent_id = t->parent_id;
+        if (parent_id == ENTITY_NONE)
+            continue;
+        
+        if (!(scene->component_masks[parent_id] & COMPONENT_ANIMATOR))
+            continue;
+
+        // Get the Animator and Skeleton
+        AnimatorComponent* parent_anim = &scene->animators[parent_id];
+        Skeleton* skel = parent_anim->skeleton;
+        
+        // Fetch the bone matrix
+        Matrix4 gpu_bone_mat = parent_anim->final_bone_matrices[attachment->target_bone_index];        
+        Matrix4 bind_matrix = Matrix4Inverse(skel->bones[attachment->target_bone_index].inverse_bind);
+        Matrix4 pure_world_bone = Matrix4Multiply(gpu_bone_mat, bind_matrix);
+
+        Transform* parent_t = &scene->transforms[t->parent_id];
+        Matrix4 scaled_bone = Matrix4Multiply(parent_t->world_matrix, pure_world_bone);
+
+        // Apply the user's custom rotation/position offset
+        Matrix4 final_matrix = Matrix4Multiply(scaled_bone, attachment->local_offset);
+        
+        // We set the LOCAL values, and treat it as a root entity (no parent).
+        t->local_position = (Vector3){ final_matrix.m12, final_matrix.m13, final_matrix.m14 };
+        t->local_rotation = QuaternionFromMatrix(final_matrix);
+        
+        // Mark as dirty so the Physics System knows to fix the colliders
+        t->is_dirty = true;
+        
+        // Overwrite the world matrix immediately for rendering
+        t->world_matrix = final_matrix;
+
+        // If this attached entity has children, cascade the new matrix
+        if (t->first_child_id != ENTITY_NONE)
+            UpdateTransformTree(scene, t->first_child_id, &t->world_matrix, true);
+    }
 }
 
 
@@ -620,7 +906,8 @@ void Scene_UpdateTransforms(Scene* scene)
 // Returns the entity from searching by name (slow)
 Entity Scene_GetEntity(Scene* scene, const char* name)
 {
-    if (!scene || !name) return (Entity){ 0, NULL };
+    if (!scene || !name)
+        return (Entity){ ENTITY_NONE, NULL };
 
     // Search every active entity in the scene
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
@@ -637,7 +924,7 @@ Entity Scene_GetEntity(Scene* scene, const char* name)
     }
 
     // If no match, return NULL entity
-    return (Entity){ 0, NULL }; 
+    return (Entity){ ENTITY_NONE, NULL }; 
 }
 
 

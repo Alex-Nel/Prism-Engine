@@ -157,6 +157,10 @@ namespace Prism
         ::Quaternion raw = ::QuaternionFromAxisAngle(axis.x, axis.y, axis.z, angle);
         return Quaternion(raw.x, raw.y, raw.z, raw.w);
     }
+    Quaternion Quaternion::Slerp(const Quaternion& q1, const Quaternion& q2, float t) {
+        ::Quaternion raw = ::QuaternionSlerp(::Quaternion{q1.x, q1.y, q1.z, q1.w}, ::Quaternion{q2.x, q2.y, q2.z, q2.w}, t);
+        return Quaternion(raw.x, raw.y, raw.z, raw.w);
+    }
 
 
 

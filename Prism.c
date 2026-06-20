@@ -359,8 +359,26 @@ void Engine_RenderScene(Scene* scene)
                 if (rc->mesh && rc->material)
                 {
                     Transform* t = &scene->transforms[i];
+
+                    Matrix4* bone_ptr = NULL;
+
+                    // Check if the entity has an animator or if it's parent has an animator
+                    if (scene->component_masks[i] & COMPONENT_ANIMATOR)
+                    {
+                        bone_ptr = scene->animators[i].final_bone_matrices;
+                    }
+                    else if (t->parent_id != 0 && t->parent_id != ENTITY_NONE)
+                    {
+                        if (scene->component_masks[t->parent_id] & COMPONENT_ANIMATOR)
+                        {
+                            bone_ptr = scene->animators[t->parent_id].final_bone_matrices;
+                        }
+                    }
+
+
                     Render_Submit(engine.renderer, rc->mesh->gpu_handle, rc->material->shader->gpu_handle,
-                                    rc->material->diffuse_texture->gpu_handle, rc->material->properties, t->world_matrix);
+                                    rc->material->diffuse_texture->gpu_handle, rc->material->properties,
+                                    t->world_matrix, bone_ptr);
                 }
             }
         }

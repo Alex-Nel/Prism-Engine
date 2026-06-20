@@ -155,6 +155,7 @@ namespace Prism
         static Quaternion FromEuler(const Vector3& euler);
         static Quaternion FromAxisAngle(float ax, float ay, float az, float angle);
         static Quaternion FromAxisAngle(const Vector3& axis, float angle);
+        static Quaternion Slerp(const Quaternion& q1, const Quaternion& q2, float t);
     };
 
 

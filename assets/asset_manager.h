@@ -23,10 +23,15 @@ typedef struct ModelNode
 // The container for an entire imported 3D file
 typedef struct Model
 {
-    char name[64];
+    char name[MAX_NAME_LENGTH];
     
     ModelNode* nodes;    // Dynamic array of nodes (parts)
     uint32_t node_count; // How many parts this model has
+
+    Skeleton* skeleton;
+
+    uint32_t animation_count;
+    AnimationClip** animations;
 } Model;
 
 
@@ -63,6 +68,7 @@ Mesh* Asset_GetBuiltinSphere();
 
 Texture* Asset_GetDefaultTexture();
 Shader* Asset_GetDefaultShader();
+Shader* Asset_GetDefaultAnimatedShader();
 Shader* Asset_GetDefaultSkyboxShader();
 
 

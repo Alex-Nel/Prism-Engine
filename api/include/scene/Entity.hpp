@@ -24,6 +24,8 @@ namespace Prism
     struct LightComponent;
     struct AudioListenerComponent;
     struct AudioSourceComponent;
+    struct AnimatorComponent;
+    struct BoneAttachmentComponent;
 
 
 
@@ -61,10 +63,12 @@ namespace Prism
         // --- Hierarchy Functions ---
 
         void SetParent(Entity parent);
+        void SetParent(Entity parent, const char* bone_name, Prism::Matrix4 local_offset = Prism::Matrix4::Identity());
         Prism::Entity GetParent();
         void RemoveParent();
         void AddModel(Prism::Model model);
         std::vector<Prism::Entity> GetChildren(bool recursive = true);
+        Prism::Entity FindChildByName(const std::string& name) const;
         Prism::Ray ScreenPointToRay(const Prism::Vector2& mouse_pos); // TODO: Make this a component method instead
 
 
@@ -83,6 +87,7 @@ namespace Prism
         Prism::ColliderComponent* AddColliderMesh(Prism::Mesh mesh, bool is_trigger = false, bool is_convex = false);
         Prism::AudioListenerComponent* AddAudioListener();
         Prism::AudioSourceComponent* AddAudioSource();
+        Prism::AnimatorComponent* AddAnimator(void* raw_skeleton, const Prism::AnimationClip& default_clip);
 
 
 
@@ -97,6 +102,8 @@ namespace Prism
         Prism::LightComponent* GetLight();
         Prism::AudioListenerComponent* GetAudioListener();
         Prism::AudioSourceComponent* GetAudioSource();
+        Prism::AnimatorComponent* GetAnimator();
+        Prism::BoneAttachmentComponent* GetBoneAttachment();
 
 
 
@@ -110,6 +117,8 @@ namespace Prism
         std::vector<Prism::LightComponent*> GetLightsInChildren(bool recursive = true);
         std::vector<Prism::AudioListenerComponent*> GetAudioListenersInChildren(bool recursive = true);
         std::vector<Prism::AudioSourceComponent*> GetAudioSourcesInChildren(bool recursive = true);
+        std::vector<Prism::AnimatorComponent*> GetAnimatorsInChildren(bool recursive = true);
+        std::vector<Prism::BoneAttachmentComponent*> GetBoneAttachmentsInChildren(bool recursive = true);
         
         
         Prism::Transform* GetTransformInParent();
@@ -120,6 +129,8 @@ namespace Prism
         Prism::LightComponent* GetLightInParent();
         Prism::AudioListenerComponent* GetAudioListenerInParent();
         Prism::AudioSourceComponent* GetAudioSourceInParent();
+        Prism::AnimatorComponent* GetAnimatorInParent();
+        Prism::BoneAttachmentComponent* GetBoneAttachmentInParent();
 
 
 
@@ -132,6 +143,7 @@ namespace Prism
         void RemoveLight();
         void RemoveAudioListener();
         void RemoveAudioSource();
+        void RemoveAnimator();
 
 
 
