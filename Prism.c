@@ -6,6 +6,7 @@
 // Internal state
 static PrismEngine engine;
 
+static EngineUpdateCallback g_PreUpdateCallback = NULL;
 
 
 // Initializes all engine systems
@@ -68,6 +69,16 @@ Window* Engine_GetMainWindow()
 
 
 
+// Sets the custom callback function
+void Engine_SetPreUpdateCallback(EngineUpdateCallback callback)
+{
+    g_PreUpdateCallback = callback;
+}
+
+
+
+
+
 // Runs the engine, updates and renders the scene
 void Engine_Run(Scene* active_scene)
 {
@@ -104,6 +115,11 @@ void Engine_Run(Scene* active_scene)
             }
         }
 
+        // If the API registered a custom callback, call it
+        if (g_PreUpdateCallback != NULL)
+            g_PreUpdateCallback();
+
+        // Update accumulator and fixed updates
         float fixed_dt = Time_FixedDeltaTime();
         while (accumulator >= fixed_dt)
         {

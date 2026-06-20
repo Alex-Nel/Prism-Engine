@@ -22,12 +22,17 @@ typedef struct PrismEngine
     uint32_t target_fps;
 } PrismEngine;
 
+typedef void (*EngineUpdateCallback)(void);
+
 
 // Initializes Platform, Core, and Render systems
 bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t window_height, uint32_t target_fps, GraphicsAPI api);
 
 // Get the main window pointer
 Window* Engine_GetMainWindow();
+
+// Allows API to set custom runtime logic
+void Engine_SetPreUpdateCallback(EngineUpdateCallback callback);
 
 
 void Engine_Run(Scene* active_scene);

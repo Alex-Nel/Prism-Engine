@@ -3,7 +3,9 @@
 #include <string>
 #include <cstdint>
 #include "scene/Scene.hpp"
+#include "scene/ScriptRegistry.hpp"
 #include "core/Math.hpp"
+#include "core/Input.hpp"
 #include "PrismAPI.hpp"
 
 

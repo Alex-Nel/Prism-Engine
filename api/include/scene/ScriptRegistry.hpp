@@ -35,5 +35,7 @@ namespace Prism
 
         // Spawns the script AND loads its variables from the JSON
         static void SpawnFromJSON(Prism::Entity e, const std::string& className, struct cJSON* json_data);
+
+        static void Clear();
     };
 }

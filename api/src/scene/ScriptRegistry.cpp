@@ -27,6 +27,10 @@ namespace Prism
             Debug_Warn("Script class %s not found in Registry!", className.c_str());
         }
     }
+
+    void ScriptRegistry::Clear() {
+        Factory.clear();
+    }
 }
 
 

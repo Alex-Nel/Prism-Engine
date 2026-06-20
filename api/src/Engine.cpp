@@ -19,13 +19,14 @@ namespace Prism
 
     void Engine::Run(Scene& active_scene) 
     {
-        // Grab the opaque void* from the C++ Scene and cast it back to the raw C struct!
+        ::Engine_SetPreUpdateCallback(&Prism::Input::DispatchCallbacks);
         ::Scene* raw_scene = static_cast<::Scene*>(active_scene.GetRaw());
         ::Engine_Run(raw_scene);
     }
 
     void Engine::Shutdown() 
     {
+        Prism::ScriptRegistry::Clear();
         ::Engine_Shutdown();
     }
 

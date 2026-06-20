@@ -1,5 +1,9 @@
 #pragma once
 
+#include <string>
+#include <unordered_map>
+#include <vector>
+#include <functional>
 #include "Math.hpp"
 #include "../PrismAPI.hpp"
 
@@ -33,10 +37,20 @@ namespace Prism
         MOUSE_BUTTON_MAX
     };
 
+    class Engine;
 
     // --- Contains functions that deal with user input ---
     class PRISM_API Input
     {
+        friend class Engine;
+
+    private:
+        // Maps custom string to a physics key
+        static std::unordered_map<std::string, KeyCode> s_ActionMap;
+
+        // Maps a physical key to a list of lambda functions
+        static std::unordered_map<KeyCode, std::vector<std::function<void()>>> s_KeyPressedCallbacks;
+
     public:
         // Prevent accidental instantiation 
         Input() = delete;
@@ -53,7 +67,7 @@ namespace Prism
 
 
         // ==========================================
-        // MOUSE BUTTON STATE
+        // Mouse Button State
         // ==========================================
 
         static bool IsMouseButtonDown(MouseButton button);
@@ -63,14 +77,27 @@ namespace Prism
 
 
         // ==========================================
-        // MOUSE MOVEMENT
+        // Mouse Movement
         // ==========================================
 
-        // Return a Prism::Vector2 instead of requiring pointers
         static Vector2 GetMousePosition();
         static Vector2 GetMouseDelta();
         static float GetMouseDeltaX();
         static float GetMouseDeltaY();
         static float GetMouseScrollDelta();
+
+
+
+        // ==========================================
+        // Action Mapping
+        // ==========================================
+
+        static void RegisterAction(const std::string& actionName, KeyCode key);
+        static bool IsActionPressed(const std::string& actionName);
+        static void BindKeyPressed(KeyCode key, std::function<void()> callback);
+
+    private:
+        static void DispatchCallbacks();
+        static void Clear();
     };
 }
