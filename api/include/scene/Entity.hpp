@@ -66,6 +66,9 @@ namespace Prism
         void SetParent(Entity parent, const char* bone_name, Prism::Matrix4 local_offset = Prism::Matrix4::Identity());
         Prism::Entity GetParent();
         void RemoveParent();
+        void SetTag(const std::string& tag);
+        std::string GetTag() const;
+        bool CompareTag(const std::string& tag) const;
         void AddModel(Prism::Model model);
         std::vector<Prism::Entity> GetChildren(bool recursive = true);
         Prism::Entity FindChildByName(const std::string& name) const;

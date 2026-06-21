@@ -56,17 +56,18 @@ typedef enum
 {
     COMPONENT_NONE             = 0,
     COMPONENT_NAME             = 1 << 0,
-    COMPONENT_TRANSFORM        = 1 << 1,
-    COMPONENT_RENDER           = 1 << 2,
-    COMPONENT_CAMERA           = 1 << 3,
-    COMPONENT_LIGHT            = 1 << 4,
-    COMPONENT_COLLIDER         = 1 << 5,
-    COMPONENT_RIGIDBODY        = 1 << 6,
-    COMPONENT_AUDIO_LISTENER   = 1 << 7,
-    COMPONENT_AUDIO_SOURCE     = 1 << 8,
-    COMPONENT_ANIMATOR         = 1 << 9,
-    COMPONENT_BONE_ATTACHMENT  = 1 << 10,
-    COMPONENT_SCRIPT           = 1 << 11
+    COMPONENT_TAG              = 1 << 1,
+    COMPONENT_TRANSFORM        = 1 << 2,
+    COMPONENT_RENDER           = 1 << 3,
+    COMPONENT_CAMERA           = 1 << 4,
+    COMPONENT_LIGHT            = 1 << 5,
+    COMPONENT_COLLIDER         = 1 << 6,
+    COMPONENT_RIGIDBODY        = 1 << 7,
+    COMPONENT_AUDIO_LISTENER   = 1 << 8,
+    COMPONENT_AUDIO_SOURCE     = 1 << 9,
+    COMPONENT_ANIMATOR         = 1 << 10,
+    COMPONENT_BONE_ATTACHMENT  = 1 << 11,
+    COMPONENT_SCRIPT           = 1 << 12
 } ComponentMask;
 
 
@@ -143,6 +144,14 @@ typedef struct NameComponent
 {
     char name[MAX_NAME_LENGTH];
 } NameComponent;
+
+
+
+//
+typedef struct TagComponent
+{
+    char tag[MAX_NAME_LENGTH];
+} TagComponent;
 
 
 
@@ -407,6 +416,7 @@ typedef struct Scene
     // The scenes component arrays
     
     NameComponent names[MAX_ENTITIES];
+    TagComponent tags[MAX_ENTITIES];
     Transform transforms[MAX_ENTITIES];
     RenderComponent renderables[MAX_ENTITIES];
     CameraComponent cameras[MAX_ENTITIES];

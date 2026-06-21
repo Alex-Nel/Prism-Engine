@@ -73,6 +73,19 @@ namespace Prism
         if (attachment)
             attachment->is_active = false;
     }
+    void Entity::SetTag(const std::string& tag) {
+        ::Entity_SetTag(ToCore(*this), tag.c_str());
+    }
+    std::string Entity::GetTag() const {
+        const char* c_tag = ::Entity_GetTag(ToCore(*this));
+        return c_tag ? std::string(c_tag) : "";
+    }
+    bool Entity::CompareTag(const std::string& tag) const {
+        const char* c_tag = ::Entity_GetTag(ToCore(*this));
+        if (!c_tag)
+            return false;
+        return strcmp(c_tag, tag.c_str()) == 0;
+    }
     void Entity::AddModel(Prism::Model model) {
         ::Entity_AddModel(ToCore(*this), (::Model*)model.GetRawModel());
     }

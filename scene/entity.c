@@ -585,7 +585,8 @@ void Entity_UnbindScript(Entity entity, void* target_instance_data)
 // Sets the name of an entity
 void Entity_SetName(Entity entity, const char* name)
 {
-    if (!Entity_IsValid(entity) || !name) return;
+    if (!Entity_IsValid(entity) || !name)
+        return;
 
     // Copy the string into the ECS array
     strncpy(entity.scene->names[entity.id].name, name, MAX_NAME_LENGTH - 1);
@@ -595,6 +596,23 @@ void Entity_SetName(Entity entity, const char* name)
 
     // Tell ECS this entity has a name
     entity.scene->component_masks[entity.id] |= COMPONENT_NAME;
+}
+
+
+
+
+
+// Sets the tag of an entity
+void Entity_SetTag(Entity entity, const char* tag)
+{
+    if (!Entity_IsValid(entity))
+        return;
+
+    entity.scene->component_masks[entity.id] |= COMPONENT_TAG;
+
+    // Copy string
+    strncpy(entity.scene->tags[entity.id].tag, tag, MAX_NAME_LENGTH - 1);
+    entity.scene->tags[entity.id].tag[MAX_NAME_LENGTH-1] = '\0';
 }
 
 
@@ -1071,6 +1089,22 @@ const char* Entity_GetName(Entity entity)
         return NULL;
 
     return entity.scene->names[entity.id].name;
+}
+
+
+
+
+
+// Returns the tag of an entity
+const char* Entity_GetTag(Entity entity)
+{
+    if (!Entity_IsValid(entity))
+        return NULL;
+
+    if (entity.scene->component_masks[entity.id] & COMPONENT_TAG)
+        return entity.scene->tags[entity.id].tag;
+    
+    return NULL;
 }
 
 

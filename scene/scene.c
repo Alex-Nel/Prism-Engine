@@ -976,6 +976,41 @@ uint32_t Scene_GetActiveEntityCount(Scene* scene)
 
 
 
+// Searches the scene and fills the out_array with matching entities
+uint32_t Scene_GetEntitiesWithTag(Scene* scene, const char* target_tag, Entity* out_array, uint32_t max_results)
+{
+    if (!scene || !out_array)
+        return 0;
+
+    uint32_t count = 0;
+
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        // Stop if we filled the array
+        if (count >= max_results)
+            break;
+
+        // Skip dead entities
+        if (!scene->is_active_in_hierarchy[i]) continue;
+
+        // Check if it has a tag component
+        if (scene->component_masks[i] & COMPONENT_TAG)
+        {
+            if (strcmp(scene->tags[i].tag, target_tag) == 0)
+            {
+                out_array[count] = (Entity){ i, scene };
+                count++;
+            }
+        }
+    }
+
+    return count;
+}
+
+
+
+
+
 // Sets the main camera of a scene
 void Scene_SetMainCamera(Scene* scene, Entity camera_entity)
 {

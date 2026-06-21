@@ -34,6 +34,7 @@ void Scene_UpdateTransforms(Scene* scene);
 Entity Scene_GetEntity(Scene* scene, const char* name);
 uint32_t Scene_GetTotalEntityCount(Scene* scene);
 uint32_t Scene_GetActiveEntityCount(Scene* scene);
+uint32_t Scene_GetEntitiesWithTag(Scene* scene, const char* target_tag, Entity* out_array, uint32_t max_results);
 void Scene_SetMainCamera(Scene* scene, Entity camera_entity);
 void Scene_ShutdownPhysics(Scene* scene);
 void Scene_ProcessDestroyQueue(Scene* scene);
@@ -73,6 +74,7 @@ void Entity_UnbindScript(Entity entity, void* target_instance_data);
 // --- Component Setters ---
 
 void Entity_SetName(Entity entity, const char* name);
+void Entity_SetTag(Entity entity, const char* name);
 void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, Vector3 scale);
 void Entity_AddRenderable(Entity entity, Mesh* mesh, Material* material);
 void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ);
@@ -95,6 +97,7 @@ void Bridge_SpawnScript(Entity raw_e, const char* class_name, struct cJSON* json
 // --- Component Getters ---
 
 const char* Entity_GetName(Entity entity);
+const char* Entity_GetTag(Entity entity);
 Transform* Entity_GetTransform(Entity entity);
 RenderComponent* Entity_GetRenderable(Entity entity);
 Mesh* Entity_GetMesh(Entity entity);
