@@ -79,13 +79,44 @@ void Engine_SetPreUpdateCallback(EngineUpdateCallback callback)
 
 
 
+// A function to process window events without pausing main loop
+static void Engine_OnModalEvent(void* userdata)
+{
+    Scene* active_scene = (Scene*)userdata;
+    if (!active_scene) return;
+
+    // Force the renderer to update its viewport immediately
+    uint32_t w = Platform_GetWindowWidth(engine.window);
+    uint32_t h = Platform_GetWindowHeight(engine.window);
+    
+    if (w > 0 && h > 0)
+        Render_SetViewport(engine.renderer, 0, 0, w, h);
+
+    // Tick the time to prevent physics/animation explosions when we let go
+    Time_Tick();
+
+    // Update scripts/animations
+    Scene_Update(active_scene);
+
+    // Render and Swap Buffers directly!
+    Engine_RenderScene(active_scene);
+    Platform_SwapBuffers(engine.window);
+}
+
+
+
+
+
 // Runs the engine, updates and renders the scene
 void Engine_Run(Scene* active_scene)
 {
-    if (!active_scene) {
+    if (!active_scene)
+    {
         Log_Error("Cannot run engine without an active scene");
         return;
     }
+
+    Platform_SetEventWatchCallback(Engine_OnModalEvent, active_scene);
 
     Log_Info("Running Scene");
 

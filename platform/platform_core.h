@@ -13,6 +13,9 @@
 // Definition of a "window", implemented by each platform
 typedef struct Window Window;
 
+// Defines a function callback for a platform to watch events
+typedef void (*PlatformEventWatchCallback)(void* user_data);
+
 
 
 // Functions for initializing and shuting down platform
@@ -34,6 +37,9 @@ void Platform_SetWindowSize(Window* window, uint32_t width, uint32_t height);
 
 
 
+
+// Registers the callback function
+void Platform_SetEventWatchCallback(PlatformEventWatchCallback callback, void* user_data);
 
 // Gets the OS-specific graphics function pointer (for openGL)
 void* Platform_GetProcAddress(const char* name);

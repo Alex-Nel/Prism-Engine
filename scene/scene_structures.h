@@ -140,6 +140,7 @@ typedef void (*CollisionCallback)(Entity self, Entity other, void* instance_data
 // -------------------------------- //
 
 
+// An entities name
 typedef struct NameComponent
 {
     char name[MAX_NAME_LENGTH];
@@ -147,7 +148,7 @@ typedef struct NameComponent
 
 
 
-//
+// An entities tag
 typedef struct TagComponent
 {
     char tag[MAX_NAME_LENGTH];

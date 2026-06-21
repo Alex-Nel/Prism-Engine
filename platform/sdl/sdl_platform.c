@@ -18,6 +18,14 @@ struct Window
 
 
 
+// Static variables
+
+static PlatformEventWatchCallback g_WatchCallback = NULL;
+static void* g_WatchUserData = NULL;
+static Window* g_PlatformWindow = NULL; // Global ref for the watcher function
+
+
+
 // Translate SDL Keys to Engine Key enums
 static KeyCode TranslateKey(SDL_Keycode sdl_key)
 {
@@ -171,9 +179,62 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
     win->height = height;
     win->is_mouse_captured = false;
     win->should_close = false;
+    g_PlatformWindow = win;
 
     return win;
 }
+
+
+
+
+
+// This runs synchronously, for any OS that blocks the main loop during events
+static bool SDLCALL WindowEventWatcher(void* userdata, SDL_Event* event)
+{
+    // If it's a resize event, update the Window immediately
+    if (event->type == SDL_EVENT_WINDOW_RESIZED || event->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED)
+    {
+        if (g_PlatformWindow)
+        {
+            g_PlatformWindow->width = (uint32_t)event->window.data1;
+            g_PlatformWindow->height = (uint32_t)event->window.data2;
+        }
+    }
+
+    // If the window is resized, moved, or exposed, force the engine to render
+    if (event->type == SDL_EVENT_WINDOW_RESIZED || 
+        event->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED || 
+        event->type == SDL_EVENT_WINDOW_MOVED || 
+        event->type == SDL_EVENT_WINDOW_EXPOSED)
+    {
+        if (g_WatchCallback)
+        {
+            g_WatchCallback(g_WatchUserData);
+        }
+    }
+    
+    return true; // Keep processing events
+}
+
+
+
+
+
+// Sets the watch callback function
+void Platform_SetEventWatchCallback(PlatformEventWatchCallback callback, void* user_data)
+{
+    g_WatchCallback = callback;
+    g_WatchUserData = user_data;
+    
+    static bool watcher_added = false;
+    if (!watcher_added)
+    {
+        SDL_AddEventWatch(WindowEventWatcher, NULL);
+        watcher_added = true;
+    }
+}
+
+
 
 
 
