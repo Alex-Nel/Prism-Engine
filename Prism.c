@@ -430,6 +430,43 @@ void Engine_RenderScene(Scene* scene)
             }
         }
 
+
+        // --- Submit Line Renderers ---
+        uint32_t required_line_mask = COMPONENT_TRANSFORM | COMPONENT_LINE_RENDERER;
+
+        for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+        {
+            if (!scene->is_active_in_hierarchy[i])
+                continue;
+
+            if ((scene->component_masks[i] & required_line_mask) == required_line_mask)
+            {
+                LineRendererComponent* line = &scene->line_renderers[i];
+
+                if (!line->is_active || line->point_count < 2)
+                    continue;
+
+                // Ensure the dynamic mesh and material exist
+                if (line->dynamic_mesh && line->material)
+                {
+                    // TODO: Add a layer_mask to LineRendererComponents
+                    // if ((line->layer_mask & cam_comp->culling_masks) == 0) continue;
+
+                    MaterialProperties local_props = line->material->properties;
+    
+                    // 2. Override the tint on the copy ONLY
+                    local_props.tint_color = line->color;
+
+                    Render_Submit(engine.renderer, line->dynamic_mesh->gpu_handle, 
+                                  line->material->shader->gpu_handle,
+                                  line->material->diffuse_texture->gpu_handle, 
+                                  local_props,
+                                  Matrix4Identity(), NULL);
+                }
+            }
+        }
+
+
         // End pass
         Render_EndFrame(engine.renderer);
     }

@@ -207,6 +207,10 @@ namespace Prism
         ::Entity_AddAnimator(ToCore(*this), raw_skeleton, default_clip.GetRaw());
         return this->GetAnimator();
     }
+    Prism::LineRendererComponent* Entity::AddLineRenderer(Prism::Material* mat) {
+        ::Entity_AddLineRenderer(ToCore(*this), static_cast<::Material*>(mat->GetRaw()));
+        return this->GetLineRenderer();
+    }
 
 
 
@@ -248,6 +252,9 @@ namespace Prism
     }
     Prism::BoneAttachmentComponent* Entity::GetBoneAttachment() {
         return reinterpret_cast<Prism::BoneAttachmentComponent*>(::Entity_GetBoneAttachment(ToCore(*this)));
+    }
+    Prism::LineRendererComponent* Entity::GetLineRenderer() {
+        return reinterpret_cast<Prism::LineRendererComponent*>(::Entity_GetLineRenderer(ToCore(*this)));
     }
 
 

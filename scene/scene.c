@@ -109,6 +109,16 @@ void Scene_Clear(Scene* scene)
 
 
 
+// Gets the position data from a Matrix4
+static inline Vector3 Matrix4GetPosition(Matrix4 m)
+{
+    return (Vector3){ m.m12, m.m13, m.m14 };
+}
+
+
+
+
+
 // Simple array search
 static bool ArrayContains(uint32_t* array, uint32_t count, uint32_t value)
 {
@@ -422,6 +432,9 @@ void Scene_Update(Scene* scene)
     // Update all bone attachments
     Scene_UpdateBoneAttachments(scene);
 
+    // Update all line renderers
+    Scene_UpdateLineRenderers(scene);
+
 
 
     // Update the main audio listener
@@ -700,6 +713,150 @@ void Scene_FixedUpdate(Scene* scene)
     }
 
     Scene_UpdateTransforms(scene);
+}
+
+
+
+
+
+// Runs every frame to recalculate the 3D ribbon for all line renderers
+void Scene_UpdateLineRenderers(Scene* scene)
+{
+    // Get the camera position
+    uint32_t cam_id = scene->main_camera_id;
+    if (cam_id == ENTITY_NONE)
+        return;
+
+    Vector3 cam_pos = Matrix4GetPosition(scene->transforms[cam_id].world_matrix);
+
+    // Loop through any line renderers in the scene and update the lines mesh
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i])
+            continue;
+
+        if (!(scene->component_masks[i] & COMPONENT_LINE_RENDERER))
+            continue;
+
+        LineRendererComponent* line = &scene->line_renderers[i];
+        
+        // A line needs at least 2 points
+        if (line->point_count < 2)
+            continue;
+        
+        // Allocate temporary CPU memory for the new geometry
+        uint32_t virtual_count = line->is_loop ? line->point_count + 1 : line->point_count;
+        uint32_t vertex_count = virtual_count * 2;
+        uint32_t index_count = (virtual_count - 1) * 6; // 2 triangles per segment
+
+        Vertex3D* temp_verts = calloc(vertex_count, sizeof(Vertex3D));
+        uint32_t* temp_indices = calloc(index_count, sizeof(uint32_t));
+
+        Vector3* processed_points = malloc(virtual_count * sizeof(Vector3));
+        Transform* t = &scene->transforms[i];
+
+
+        // --- Space conversion ---
+        for (uint32_t p = 0; p < line->point_count; p++)
+        {
+            if (line->use_world_space)
+                processed_points[p] = line->points[p];
+            else
+                processed_points[p] = Matrix4MultiplyVector3(t->world_matrix, line->points[p]);
+        }
+
+        if (line->is_loop)
+            processed_points[line->point_count] = processed_points[0];
+
+        
+            // --- Generate Vertices ---
+        for (uint32_t p = 0; p < virtual_count; p++)
+        {
+            Vector3 current = processed_points[p];
+            Vector3 next;
+            Vector3 prev;
+
+            // Get the next point
+            if (p < virtual_count - 1)
+                next = processed_points[p + 1];
+            else if (line->is_loop)
+                next = processed_points[1];
+            else
+                next = Vector3Add(current, Vector3Subtract(current, processed_points[p - 1]));
+
+            // Get the previous point
+            if (p > 0)
+                prev = processed_points[p - 1];
+            else if (line->is_loop)
+                prev = processed_points[virtual_count - 2]; // The last actual point
+            else
+                prev = Vector3Subtract(current, Vector3Subtract(processed_points[1], current));
+        
+            // Calculate the miter tangent (average of incoming and outgoing)
+            Vector3 dir_in = Vector3Normalize(Vector3Subtract(current, prev));
+            Vector3 dir_out = Vector3Normalize(Vector3Subtract(next, current));
+            Vector3 tangent = Vector3Normalize(Vector3Add(dir_in, dir_out));
+
+            if (tangent.x == 0.0f && tangent.y == 0.0f && tangent.z == 0.0f)
+                tangent = dir_out;
+
+            
+            // Calculate the camera direction specific to this exact vertex
+            Vector3 cam_dir = Vector3Normalize(Vector3Subtract(cam_pos, current));
+            
+            // Safety fallback to prevent NaN if the camera is exactly inside the line
+            if (cam_dir.x == 0.0f && cam_dir.y == 0.0f && cam_dir.z == 0.0f)
+                cam_dir = (Vector3){0.0f, 1.0f, 0.0f};
+
+            Vector3 right = Vector3Normalize(Vector3Cross(cam_dir, tangent));
+
+            // Because the corner is angled, the ribbon must expand slightly outward to maintain exact visual thickness
+            float dot_miter = (dir_out.x * tangent.x) + (dir_out.y * tangent.y) + (dir_out.z * tangent.z); 
+            float miter_factor = (dot_miter > 0.1f) ? (1.0f / dot_miter) : 1.0f;
+            if (miter_factor > 5.0f)
+                miter_factor = 5.0f; // Clamp to prevent exploding spikes on extreme corners
+
+            float percent = (virtual_count > 1) ? (float)p / (float)(virtual_count - 1) : 0.0f;
+            float current_thickness = line->start_thickness + (line->end_thickness - line->start_thickness) * percent;
+            
+            // Multiply by miter_factor to push the corner outward appropriately
+            Vector3 offset = Vector3Scale(right, current_thickness * 0.5f * miter_factor);
+
+            // Top Vertex
+            temp_verts[p*2].position = Vector3Add(current, offset);
+            temp_verts[p*2].normal = cam_dir; // Pointing at the camera so physics lighting illuminates it
+            temp_verts[p*2].uv = (Vector2){ percent, 1.0f };
+            Vertex_SetDefaultBones(&temp_verts[p*2]); 
+
+            // Bottom Vertex
+            temp_verts[p*2 + 1].position = Vector3Subtract(current, offset);
+            temp_verts[p*2 + 1].normal = cam_dir;
+            temp_verts[p*2 + 1].uv = (Vector2){ percent, 0.0f };
+            Vertex_SetDefaultBones(&temp_verts[p*2 + 1]);
+        }
+
+        // --- Generate Indices ---
+        uint32_t idx = 0;
+        for (uint32_t p = 0; p < virtual_count - 1; p++)
+        {
+            // Triangle 1 (Top-Left, Bottom-Left, Top-Right)
+            temp_indices[idx++] = p * 2;
+            temp_indices[idx++] = p * 2 + 1;
+            temp_indices[idx++] = (p + 1) * 2;
+
+            // Triangle 2 (Bottom-Left, Bottom-Right, Top-Right)
+            temp_indices[idx++] = p * 2 + 1;
+            temp_indices[idx++] = (p + 1) * 2 + 1;
+            temp_indices[idx++] = (p + 1) * 2;
+        }
+
+        // --- Send to GPU ---
+        Asset_UpdateDynamicMesh(line->dynamic_mesh, temp_verts, vertex_count, temp_indices, index_count);
+
+        free(processed_points);
+        free(temp_verts);
+        free(temp_indices);
+    }
 }
 
 

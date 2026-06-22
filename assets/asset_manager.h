@@ -79,6 +79,12 @@ Texture* Asset_CreateSolidColorTexture(const char* name, Color color);
 // Material creation function
 Material* Asset_CreateMaterial(Shader* shader, Texture* diffuse);
 
+// Creates a dynamic mesh from the renderer
+Mesh* Asset_CreateDynamicMesh(uint32_t max_vertices, uint32_t max_indices);
+
+// Updates a dynamic mesh from the renderer
+void Asset_UpdateDynamicMesh(Mesh* mesh, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
+
 
 
 // Functions to retrieve meshes and textures by name

@@ -28,6 +28,7 @@ bool Scene_Save(Scene* scene, const char* filepath);
 bool Scene_Load(Scene* scene, const char* filepath);
 void Scene_Update(Scene* scene);
 void Scene_FixedUpdate(Scene* scene);
+void Scene_UpdateLineRenderers(Scene* scene);
 void Scene_UpdateAnimators(Scene* scene, float delta_time);
 void Scene_UpdateBoneAttachments(Scene* scene);
 void Scene_UpdateTransforms(Scene* scene);
@@ -88,6 +89,7 @@ void Entity_AddAudioListener(Entity entity);
 void Entity_AddAudioSource(Entity entity);
 void Entity_AddAnimator(Entity entity, void* raw_skeleton, void* raw_clip);
 void Entity_AddBoneAttachment(Entity entity, int bone_index, Matrix4 offset);
+void Entity_AddLineRenderer(Entity entity, Material* material);
 void Entity_BindScript(Entity entity, ScriptInstance new_script);
 void Script_SetActive(Entity entity, void* instance_data, bool active);
 void Bridge_SpawnScript(Entity raw_e, const char* class_name, struct cJSON* json_data);
@@ -109,6 +111,7 @@ AudioListenerComponent* Entity_GetAudioListener(Entity entity);
 AudioSourceComponent* Entity_GetAudioSource(Entity entity);
 AnimatorComponent* Entity_GetAnimator(Entity entity);
 BoneAttachmentComponent* Entity_GetBoneAttachment(Entity entity);
+LineRendererComponent* Entity_GetLineRenderer(Entity entity);
 ScriptComponent* Entity_GetScripts(Entity entity);
 
 
@@ -168,6 +171,15 @@ Ray Camera_ScreenPointToRay(Matrix4 projection, Matrix4 view, Vector3 camera_pos
 
 void Renderable_SetMaterial(RenderComponent* r, Material* material);
 
+
+
+// --- Line Renderer Function ---
+
+void LineRenderer_AddPoint(LineRendererComponent* line, Vector3 point);
+void LineRenderer_ClearPoints(LineRendererComponent* line);
+void LineRenderer_SetPoint(LineRendererComponent* line, uint32_t index, Vector3 point);
+Vector3 LineRenderer_GetPoint(LineRendererComponent* line, uint32_t index);
+void LineRenderer_SetPoints(LineRendererComponent* line, Vector3* points, uint32_t count);
 
 
 

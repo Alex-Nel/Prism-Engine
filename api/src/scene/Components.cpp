@@ -202,4 +202,76 @@ namespace Prism
         ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
         ::Collider_SetConvex(raw_e, is_convex);
     }
+
+
+
+    // ==========================================
+    // Collider Implementation
+    // ==========================================
+
+    void LineRendererComponent::AddPoint(const Prism::Vector3& point) {
+        ::Entity e = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::LineRenderer_AddPoint(&static_cast<::Scene*>(e.scene)->line_renderers[e.id], ::Vector3{point.x, point.y, point.z});
+    }
+
+    void LineRendererComponent::SetPoint(uint32_t index, const Prism::Vector3& point) {
+        ::Entity e = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::LineRenderer_SetPoint(&static_cast<::Scene*>(e.scene)->line_renderers[e.id], index, ::Vector3{point.x, point.y, point.z});
+    }
+
+    void LineRendererComponent::SetPoints(const std::vector<Prism::Vector3>& points) {
+        ::Entity e = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::LineRenderer_SetPoints(&static_cast<::Scene*>(e.scene)->line_renderers[e.id], (::Vector3*)points.data(), (uint32_t)points.size());
+    }
+
+    uint32_t LineRendererComponent::GetPointCount() {
+        ::Entity e = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::LineRendererComponent* LR = &static_cast<::Scene*>(e.scene)->line_renderers[e.id];
+        return LR->point_count;
+    }
+
+    void LineRendererComponent::ClearPoints() {
+        ::Entity e = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::LineRenderer_ClearPoints(&static_cast<::Scene*>(e.scene)->line_renderers[e.id]);
+    }
+
+    Prism::Vector3 LineRendererComponent::GetPoint(uint32_t index) const {
+        ::Entity e = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::Vector3 p = ::LineRenderer_GetPoint(&static_cast<::Scene*>(e.scene)->line_renderers[e.id], index);
+        return Prism::Vector3(p.x, p.y, p.z);
+    }
+
+    std::vector<Prism::Vector3> LineRendererComponent::GetPoints() const {
+        ::LineRendererComponent* c_line = &static_cast<::Scene*>(this->entity.scene_ptr)->line_renderers[this->entity.id];
+        std::vector<Prism::Vector3> result(c_line->point_count);
+        for(uint32_t i = 0; i < c_line->point_count; i++)
+            result[i] = Prism::Vector3(c_line->points[i].x, c_line->points[i].y, c_line->points[i].z);
+        return result;
+    }
+
+    void LineRendererComponent::SetThickness(float startThickness, float endThickness) {
+        ::LineRendererComponent* c_line = &static_cast<::Scene*>(this->entity.scene_ptr)->line_renderers[this->entity.id];
+        c_line->start_thickness = startThickness;
+        c_line->end_thickness = endThickness;
+    }
+
+    void LineRendererComponent::SetThickness(float thickness) {
+        SetThickness(thickness, thickness);
+    }
+
+    void LineRendererComponent::SetColor(const Prism::Color& color) {
+        static_cast<::Scene*>(this->entity.scene_ptr)->line_renderers[this->entity.id].color = ::Color{color.r, color.g, color.b, color.a};
+    }
+
+    void LineRendererComponent::SetUseWorldSpace(bool useWorldSpace) {
+        static_cast<::Scene*>(this->entity.scene_ptr)->line_renderers[this->entity.id].use_world_space = useWorldSpace;
+    }
+
+    bool LineRendererComponent::GetUseWorldSpace() const {
+        return static_cast<::Scene*>(this->entity.scene_ptr)->line_renderers[this->entity.id].use_world_space;
+    }
+
+    void LineRendererComponent::SetLoop(bool isLoop) {
+        static_cast<::Scene*>(this->entity.scene_ptr)->line_renderers[this->entity.id].is_loop = isLoop;
+    }
 }

@@ -61,6 +61,26 @@ static void Headless_DestroyShader(Renderer* r, ShaderHandle shader) {}
 
 
 
+static TextureHandle Headless_CreateCubemap(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels)
+{
+    Headless_Backend* internal = (Headless_Backend*)r->backend_internal_data;
+    return (TextureHandle){ ++internal->resource_counter };
+}
+
+
+
+static MeshHandle Headless_CreateDynamicMesh(Renderer* r, uint32_t max_vertices, uint32_t max_indices)
+{
+    Headless_Backend* internal = (Headless_Backend*)r->backend_internal_data;
+    return (MeshHandle){ ++internal->resource_counter };
+}
+
+
+
+static void Headless_UpdateDynamicMesh(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count) {}
+
+
+
 // --- Headless initialization Function ---
 Renderer* Headless_Init()
 {
@@ -84,6 +104,10 @@ Renderer* Headless_Init()
     r->DestroyTexture = Headless_DestroyTexture;
     r->CreateShader = Headless_CreateShader;
     r->DestroyShader = Headless_DestroyShader;
+
+    r->CreateCubemap = Headless_CreateCubemap;
+    r->CreateDynamicMesh = Headless_CreateDynamicMesh;
+    r->UpdateDynamicMesh = Headless_UpdateDynamicMesh;
 
     r->BeginFrame = Headless_BeginFrame;
     r->Submit = Headless_Submit;

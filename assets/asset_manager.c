@@ -866,6 +866,58 @@ Material* Asset_CreateMaterial(Shader* shader, Texture* diffuse)
 
 
 
+// Creates a dynamic mesh from the renderer and returns the handle to the mesh
+Mesh* Asset_CreateDynamicMesh(uint32_t max_vertices, uint32_t max_indices)
+{
+    if (mesh_count >= MAX_CACHED_MESHES)
+    {
+        Log_Error("Cannot create dynamic mesh. MAX_CACHED_MESHES reached.");
+        return NULL;
+    }
+
+    MeshHandle handle = Render_CreateDynamicMesh(renderer, max_vertices, max_indices);
+
+    Mesh* dynamic_mesh = &mesh_cache[mesh_count];
+
+    strncpy(dynamic_mesh->name, "Dynamic_Mesh", MAX_NAME_LENGTH - 1);
+    dynamic_mesh->name[MAX_NAME_LENGTH - 1] = '\0';
+
+    dynamic_mesh->id = mesh_count;
+    dynamic_mesh->gpu_handle = handle;
+
+    // TODO: Add proper local bounds to dynamic meshes when the renderer gets upgraded
+    dynamic_mesh->local_bounds.min = (Vector3){-99999.0f, -99999.0f, -99999.0f};
+    dynamic_mesh->local_bounds.max = (Vector3){ 99999.0f,  99999.0f,  99999.0f};
+    dynamic_mesh->vertices = NULL;
+    dynamic_mesh->vertex_count = 0;
+    dynamic_mesh->indices = NULL;
+    dynamic_mesh->index_count = 0;
+
+    mesh_count++;
+    
+    return dynamic_mesh;
+}
+
+
+
+
+
+// Updates a dynamic mesh from the renderer
+void Asset_UpdateDynamicMesh(Mesh* mesh, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count)
+{
+    if (!mesh)
+        return;
+
+    mesh->vertex_count = vertex_count;
+    mesh->index_count = index_count;
+
+    Render_UpdateDynamicMesh(renderer, mesh->gpu_handle, vertices, vertex_count, indices, index_count);
+}
+
+
+
+
+
 // Loads a vertex and fragment shader from a file path and compiles it to a full shader
 Shader* Asset_LoadShader(const char* name, const char* vert_path, const char* frag_path)
 {

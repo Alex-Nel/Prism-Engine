@@ -336,3 +336,85 @@ void Renderable_SetMaterial(RenderComponent* r, Material* material)
 
     r->material = material;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Adds a point to a line renderer
+void LineRenderer_AddPoint(LineRendererComponent* line, Vector3 point)
+{
+    if (!line || !line->is_active)
+        return;
+
+    if (line->point_count < MAX_LINE_POINTS)
+        line->points[line->point_count++] = point;
+}
+
+
+
+
+
+// Clears all the points in a line renderer
+void LineRenderer_ClearPoints(LineRendererComponent* line)
+{
+    if (!line || !line->is_active)
+        return;
+
+    line->point_count = 0;
+}
+
+
+
+
+
+// Sets a point in the line renderer to a specific Vector3
+void LineRenderer_SetPoint(LineRendererComponent* line, uint32_t index, Vector3 point)
+{
+    if (!line || !line->is_active || index >= line->point_count)
+        return;
+
+    line->points[index] = point;
+}
+
+
+
+
+
+// Gets a specific point from a line renderer
+Vector3 LineRenderer_GetPoint(LineRendererComponent* line, uint32_t index)
+{
+    if (!line || !line->is_active || index >= line->point_count)
+        return (Vector3){0,0,0};
+
+    return line->points[index];
+}
+
+
+
+
+
+// Sets all point of a line renderer to a given array
+void LineRenderer_SetPoints(LineRendererComponent* line, Vector3* points, uint32_t count)
+{
+    if (!line || !line->is_active || !points)
+        return;
+     
+    if (count > MAX_LINE_POINTS)
+        line->point_count = MAX_LINE_POINTS;
+    else
+        line->point_count = count;
+    
+    for (uint32_t i = 0; i < line->point_count; i++)
+        line->points[i] = points[i];
+}

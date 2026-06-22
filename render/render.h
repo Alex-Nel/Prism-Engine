@@ -145,7 +145,9 @@ typedef struct Renderer
     ShaderHandle  (*CreateShader)(Renderer* r, const char* v_source, const char* f_source);
     void          (*DestroyShader)(Renderer* r, ShaderHandle shader);
 
-    TextureHandle (*CreateCubemap)(struct Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels);
+    TextureHandle (*CreateCubemap)(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels);
+    MeshHandle (*CreateDynamicMesh)(Renderer* r, uint32_t max_vertices, uint32_t max_indices);
+    void (*UpdateDynamicMesh)(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
 
     // Command Submission
     void (*BeginFrame)(Renderer* r, const RenderPacket* packet);
@@ -268,6 +270,24 @@ static inline TextureHandle Render_CreateCubemap(Renderer* r,
         return r->CreateCubemap(r, right, left, top, bottom, front, back, width, height, channels);
     else
         return (TextureHandle){0};
+}
+
+
+// Creates a dynamic mesh. Returns a mesh handle
+static inline MeshHandle Render_CreateDynamicMesh(Renderer* r, uint32_t max_vertices, uint32_t max_indices)
+{
+    if (r && r->CreateDynamicMesh)
+        return r->CreateDynamicMesh(r, max_vertices, max_indices);
+    else
+        return (MeshHandle){0};
+}
+
+
+// Quickly overwrites the existing GPU memory with new vertex data
+static inline void Render_UpdateDynamicMesh(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count)
+{
+    if (r && r->UpdateDynamicMesh)
+        r->UpdateDynamicMesh(r, handle, vertices, vertex_count, indices, index_count);   
 }
 
 

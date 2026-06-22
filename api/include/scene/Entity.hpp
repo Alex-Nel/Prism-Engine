@@ -26,6 +26,7 @@ namespace Prism
     struct AudioSourceComponent;
     struct AnimatorComponent;
     struct BoneAttachmentComponent;
+    struct LineRendererComponent;
 
 
 
@@ -91,6 +92,7 @@ namespace Prism
         Prism::AudioListenerComponent* AddAudioListener();
         Prism::AudioSourceComponent* AddAudioSource();
         Prism::AnimatorComponent* AddAnimator(void* raw_skeleton, const Prism::AnimationClip& default_clip);
+        Prism::LineRendererComponent* AddLineRenderer(Prism::Material* mat = nullptr);
 
 
 
@@ -107,6 +109,7 @@ namespace Prism
         Prism::AudioSourceComponent* GetAudioSource();
         Prism::AnimatorComponent* GetAnimator();
         Prism::BoneAttachmentComponent* GetBoneAttachment();
+        Prism::LineRendererComponent* GetLineRenderer();
 
 
 

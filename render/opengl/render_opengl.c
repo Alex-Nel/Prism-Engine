@@ -453,7 +453,7 @@ static ShaderHandle OpenGL_CreateShader(Renderer* r, const char* vertex_source, 
 
 
 // Creates a CubeMap for the skybox. Returns a texture handle
-TextureHandle OpenGL_CreateCubemap(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels)
+static TextureHandle OpenGL_CreateCubemap(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
     
@@ -504,6 +504,108 @@ TextureHandle OpenGL_CreateCubemap(Renderer* r, const uint8_t* right, const uint
     internal->texture_pool[id].active = true;
 
     return (TextureHandle){id};
+}
+
+
+
+
+
+// Creates a dynamic mesh. Returns a mesh handle
+static MeshHandle OpenGL_CreateDynamicMesh(Renderer* r, uint32_t max_vertices, uint32_t max_indices)
+{
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+
+    // Find an empty slot
+    uint32_t id = 0;
+    for (uint32_t i = 1; i < MAX_RESOURCES; i++)
+    {
+        if (!internal->mesh_pool[i].active)
+        {
+            id = i;
+            break;
+        }
+    }
+
+    if (id == 0)
+        return (MeshHandle){0};
+
+    
+    GLMesh* mesh = &internal->mesh_pool[id];
+    mesh->active = true;
+    mesh->index_count = 0;
+    
+    glGenVertexArrays(1, &mesh->vao);
+    glGenBuffers(1, &mesh->vbo);
+    glGenBuffers(1, &mesh->ebo);
+    glBindVertexArray(mesh->vao);
+
+    // Allocate empty vertex data with GL_DYNAMIC_DRAW
+    glBindBuffer(GL_ARRAY_BUFFER, mesh->vbo);
+    glBufferData(GL_ARRAY_BUFFER, max_vertices * sizeof(Vertex3D), NULL, GL_DYNAMIC_DRAW);
+
+    // Allocate empty index data with GL_DYNAMIC_DRAW
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, max_indices * sizeof(uint32_t), NULL, GL_DYNAMIC_DRAW);
+
+    // Define Vertex Attributes
+    // Position
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, position));
+    
+    // Normal
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, normal));
+    
+    // UV
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, uv));
+    
+    // Bone IDs (Assuming your setup uses glVertexAttribIPointer for int arrays)
+    glEnableVertexAttribArray(3);
+    glVertexAttribIPointer(3, MAX_BONE_INFLUENCE, GL_INT, sizeof(Vertex3D), (void*)offsetof(Vertex3D, bone_ids));
+    
+    // Bone Weights
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, MAX_BONE_INFLUENCE, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, bone_weights));
+
+    glBindVertexArray(0);
+    
+    return (MeshHandle){id};
+}
+
+
+
+
+
+// Quickly overwrites the existing GPU memory with new vertex data
+static void OpenGL_UpdateDynamicMesh(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count)
+{
+    if (handle.id == 0 || handle.id >= MAX_RESOURCES)
+        return;
+
+    if (vertex_count == 0 || index_count == 0)
+        return;
+
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    GLMesh* mesh = &internal->mesh_pool[handle.id];
+
+    if (!mesh->active)
+        return;
+
+    mesh->index_count = index_count;
+
+    // Overwrite the buffers
+    glBindVertexArray(mesh->vao);
+
+    // Vertex Buffer using SubData
+    glBindBuffer(GL_ARRAY_BUFFER, mesh->vbo);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, vertex_count * sizeof(Vertex3D), vertices);
+
+    // Overwrite the Index Buffer using SubData
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->ebo);
+    glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, index_count * sizeof(uint32_t), indices);
+
+    glBindVertexArray(0);
 }
 
 
@@ -976,6 +1078,8 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc)
     r->DestroyShader = OpenGL_DestroyShader;
 
     r->CreateCubemap = OpenGL_CreateCubemap;
+    r->CreateDynamicMesh = OpenGL_CreateDynamicMesh;
+    r->UpdateDynamicMesh = OpenGL_UpdateDynamicMesh;
 
     r->BeginFrame = OpenGL_BeginFrame;
     r->Submit = OpenGL_Submit;

@@ -399,4 +399,34 @@ namespace Prism
             this->local_offset = offset;
         }
     };
+
+
+
+    // ==========================================
+    // Line Renderer Wrapper
+    // ==========================================
+
+    struct PRISM_API LineRendererComponent
+    {
+    private:
+        Prism::Entity entity;
+
+    public:
+        void AddPoint(const Prism::Vector3& point);
+        void SetPoint(uint32_t index, const Prism::Vector3& point);
+        void SetPoints(const std::vector<Prism::Vector3>& points);
+
+        uint32_t GetPointCount();
+        Prism::Vector3 GetPoint(uint32_t index) const;
+        std::vector<Prism::Vector3> GetPoints() const;
+        
+        void ClearPoints();
+
+        void SetThickness(float startThickness, float endThickness);
+        void SetThickness(float thickness);
+        void SetColor(const Prism::Color& color);
+        void SetUseWorldSpace(bool UseWorldSpace);
+        bool GetUseWorldSpace() const;
+        void SetLoop(bool isLoop);
+    };
 }

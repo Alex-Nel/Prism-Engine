@@ -16,6 +16,7 @@
 #define MAX_SCRIPTS_PER_ENTITY 64
 #define MAX_COLLISION_OVERLAPS 16
 #define MAX_MATERIAL_SLOTS 256
+#define MAX_LINE_POINTS 1024
 
 
 
@@ -67,7 +68,8 @@ typedef enum
     COMPONENT_AUDIO_SOURCE     = 1 << 9,
     COMPONENT_ANIMATOR         = 1 << 10,
     COMPONENT_BONE_ATTACHMENT  = 1 << 11,
-    COMPONENT_SCRIPT           = 1 << 12
+    COMPONENT_LINE_RENDERER    = 1 << 12,
+    COMPONENT_SCRIPT           = 1 << 13
 } ComponentMask;
 
 
@@ -349,6 +351,26 @@ typedef struct BoneAttachmentComponent
 
 
 
+// A line renderer component for 2D lines
+typedef struct LineRendererComponent
+{
+    Entity entity;
+    bool is_active;
+    Vector3 points[MAX_LINE_POINTS];
+    uint32_t point_count;
+
+    float start_thickness;
+    float end_thickness;
+    Color color;
+    bool is_loop;
+    bool use_world_space;
+
+    Mesh* dynamic_mesh;
+    Material* material;
+} LineRendererComponent;
+
+
+
 // Forward decleration of cJSON struct
 struct cJSON;
 
@@ -428,6 +450,7 @@ typedef struct Scene
     AudioSourceComponent audio_sources[MAX_ENTITIES];
     AnimatorComponent animators[MAX_ENTITIES];
     BoneAttachmentComponent bone_attachments[MAX_ENTITIES];
+    LineRendererComponent line_renderers[MAX_ENTITIES];
     ScriptComponent scripts[MAX_ENTITIES];
 
     uint32_t main_camera_id;

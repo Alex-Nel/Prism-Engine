@@ -1013,6 +1013,34 @@ void Entity_AddBoneAttachment(Entity entity, int bone_index, Matrix4 offset)
 
 
 
+// Adds a line renderer to an entity
+void Entity_AddLineRenderer(Entity entity, Material* material)
+{
+    if (!Entity_IsValid(entity))
+        return;
+
+    uint32_t id = entity.id;
+    entity.scene->component_masks[id] |= COMPONENT_LINE_RENDERER;
+
+    LineRendererComponent* line = &entity.scene->line_renderers[id];
+
+    line->entity = entity;
+    line->is_active = true;
+    line->point_count = 0;
+    line->start_thickness = 0.3;
+    line->end_thickness = 0.3;
+    line->color = (Color){0.8f, 0.8f, 0.8f, 1.0f};
+    line->is_loop = false;
+    line->use_world_space = true;
+
+    line->dynamic_mesh = Asset_CreateDynamicMesh(MAX_LINE_POINTS * 2, MAX_LINE_POINTS * 6);
+    line->material = material;
+}
+
+
+
+
+
 // Adds a custom script to an entity
 void Entity_BindScript(Entity entity, ScriptInstance new_script)
 {
@@ -1283,6 +1311,22 @@ BoneAttachmentComponent* Entity_GetBoneAttachment(Entity entity)
 
     if ((entity.scene->component_masks[entity.id] & COMPONENT_BONE_ATTACHMENT) == COMPONENT_BONE_ATTACHMENT)
         return &entity.scene->bone_attachments[entity.id];
+
+    return NULL;
+}
+
+
+
+
+
+// Returns an entities line renderer
+LineRendererComponent* Entity_GetLineRenderer(Entity entity)
+{
+    if (!Entity_IsValid(entity))
+        return NULL;
+
+    if ((entity.scene->component_masks[entity.id] & COMPONENT_LINE_RENDERER) == COMPONENT_LINE_RENDERER)
+        return &entity.scene->line_renderers[entity.id];
 
     return NULL;
 }
