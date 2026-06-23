@@ -211,6 +211,10 @@ namespace Prism
         ::Entity_AddLineRenderer(ToCore(*this), static_cast<::Material*>(mat->GetRaw()));
         return this->GetLineRenderer();
     }
+    Prism::SpriteRendererComponent* Entity::AddSpriteRenderer(Prism::Material* mat) {
+        ::Entity_AddSpriteRenderer(ToCore(*this), static_cast<::Material*>(mat->GetRaw()));
+        return this->GetSpriteRenderer();
+    }
 
 
 
@@ -255,6 +259,9 @@ namespace Prism
     }
     Prism::LineRendererComponent* Entity::GetLineRenderer() {
         return reinterpret_cast<Prism::LineRendererComponent*>(::Entity_GetLineRenderer(ToCore(*this)));
+    }
+    Prism::SpriteRendererComponent* Entity::GetSpriteRenderer() {
+        return reinterpret_cast<Prism::SpriteRendererComponent*>(::Entity_GetSpriteRenderer(ToCore(*this)));
     }
 
 
@@ -382,6 +389,33 @@ namespace Prism
         }
         return result;
     }
+
+    std::vector<Prism::LineRendererComponent*> Entity::GetLineRenderersInChildren(bool recursive) {
+        std::vector<Prism::LineRendererComponent*> result;
+        std::vector<Prism::Entity> children = GetChildren(recursive);
+
+        for (Prism::Entity& child : children)
+        {
+            Prism::LineRendererComponent* comp = child.GetLineRenderer();
+            if (comp != nullptr) result.push_back(comp);
+        }
+        return result;
+    }
+
+    std::vector<Prism::SpriteRendererComponent*> Entity::GetSpriteRenderersInChildren(bool recursive) {
+        std::vector<Prism::SpriteRendererComponent*> result;
+        std::vector<Prism::Entity> children = GetChildren(recursive);
+
+        for (Prism::Entity& child : children)
+        {
+            Prism::SpriteRendererComponent* comp = child.GetSpriteRenderer();
+            if (comp != nullptr) result.push_back(comp);
+        }
+        return result;
+    }
+
+
+
 
 
 
@@ -527,6 +561,34 @@ namespace Prism
         return nullptr; // Not found in any parent
     }
 
+    Prism::LineRendererComponent* Entity::GetLineRendererInParent() {
+        Prism::Entity current = this->GetParent();
+
+        // Walk up the tree until we hit the root
+        while (current.IsValid())
+        {
+            Prism::LineRendererComponent* comp = current.GetLineRenderer();
+            if (comp != nullptr) return comp;
+            
+            current = current.GetParent(); // Move up one level
+        }
+        return nullptr; // Not found in any parent
+    }
+
+    Prism::SpriteRendererComponent* Entity::GetSpriteRendererInParent() {
+        Prism::Entity current = this->GetParent();
+
+        // Walk up the tree until we hit the root
+        while (current.IsValid())
+        {
+            Prism::SpriteRendererComponent* comp = current.GetSpriteRenderer();
+            if (comp != nullptr) return comp;
+            
+            current = current.GetParent(); // Move up one level
+        }
+        return nullptr; // Not found in any parent
+    }
+
 
 
     // ==========================================
@@ -556,6 +618,12 @@ namespace Prism
     }
     void Entity::RemoveAnimator() {
         ::Entity_RemoveComponent(ToCore(*this), COMPONENT_ANIMATOR);
+    }
+    void Entity::RemoveLineRenderer() {
+        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_LINE_RENDERER);
+    }
+    void Entity::RemoveSpriteRenderer() {
+        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_SPRITE_RENDERER);
     }
 
 

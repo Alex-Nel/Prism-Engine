@@ -78,6 +78,8 @@ typedef struct RenderCommand
     MaterialProperties mat_props;
     Matrix4 transform;
     Matrix4* bone_matrices;
+    bool is_transparent;
+    float depth_distance;
 } RenderCommand;
 
 
@@ -741,7 +743,7 @@ static void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
 
 
 // Adds an object to the draw queue
-static void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices)
+static void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
     // Return if the queue is full
@@ -753,7 +755,9 @@ static void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, Tex
         texture,
         mat_props,
         transform,
-        bone_matrices
+        bone_matrices,
+        is_transparent,
+        depth_distance
     };
 }
 
@@ -764,6 +768,18 @@ static int CompareRenderCommands(const void* a, const void* b)
 {
     RenderCommand* cmdA = (RenderCommand*)a;
     RenderCommand* cmdB = (RenderCommand*)b;
+
+    // Opaque commands are first
+    if (cmdA->is_transparent != cmdB->is_transparent)
+        return cmdA->is_transparent - cmdB->is_transparent;
+
+    // If transparent, sort back to front
+    if (cmdA->is_transparent)
+    {
+        if (cmdA->depth_distance < cmdB->depth_distance) return 1;
+        if (cmdA->depth_distance > cmdB->depth_distance) return -1;
+        return 0;
+    }
 
     // Sort primarily by shader, then by texture
     if (cmdA->shader.id != cmdB->shader.id)
@@ -786,11 +802,27 @@ static void OpenGL_EndFrame(Renderer* r)
     uint32_t current_shader = 0;
     uint32_t current_texture = 0;
 
+    bool blending_enabled = false;
+
+    glEnable(GL_CULL_FACE);
+
+    uint32_t transparent_start_idx = internal->command_count;
     for (uint32_t i = 0; i < internal->command_count; i++)
+    {
+        if (internal->command_queue[i].is_transparent)
+        {
+            transparent_start_idx = i;
+            break;
+        }
+    }
+
+    // Render opaque objects
+    for (uint32_t i = 0; i < transparent_start_idx; i++)
     {
         RenderCommand* cmd = &internal->command_queue[i];
 
-        if (!internal->mesh_pool[cmd->mesh.id].active || !internal->shader_pool[cmd->shader.id].active) continue;
+        if (!internal->mesh_pool[cmd->mesh.id].active || !internal->shader_pool[cmd->shader.id].active)
+            continue;
 
         GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
         GLShader* gl_shader = &internal->shader_pool[cmd->shader.id];
@@ -950,6 +982,12 @@ static void OpenGL_EndFrame(Renderer* r)
         glDrawElements(GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
     }
 
+    if (blending_enabled)
+    {
+        glDisable(GL_BLEND);
+        glDepthMask(GL_TRUE);
+    }
+
     glBindVertexArray(0);
 
     // Draw Skybox if it exists
@@ -993,6 +1031,186 @@ static void OpenGL_EndFrame(Renderer* r)
         glDepthFunc(GL_LESS); 
         glEnable(GL_CULL_FACE);
     }
+
+
+
+    if (transparent_start_idx < internal->command_count)
+    {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_FALSE); // Protect depth buffer from transparent overlap
+
+        glDisable(GL_CULL_FACE);
+
+        for (uint32_t i = transparent_start_idx; i < internal->command_count; i++)
+        {
+            RenderCommand* cmd = &internal->command_queue[i];
+            if (!internal->mesh_pool[cmd->mesh.id].active || !internal->shader_pool[cmd->shader.id].active)
+                continue;
+
+            GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
+            GLShader* gl_shader = &internal->shader_pool[cmd->shader.id];
+
+            if (current_shader != cmd->shader.id)
+            {
+                glUseProgram(gl_shader->program);
+                current_shader = cmd->shader.id;
+
+                // Upload Camera Matrices
+                GLint view_loc  = glGetUniformLocation(gl_shader->program, "u_View");
+                GLint proj_loc  = glGetUniformLocation(gl_shader->program, "u_Projection");
+                glUniformMatrix4fv(view_loc, 1, GL_FALSE, (float*)&internal->state.view_matrix);
+                glUniformMatrix4fv(proj_loc, 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+
+                // Upload Camera Position
+                GLint view_pos_loc  = glGetUniformLocation(gl_shader->program, "u_ViewPos");
+                if (view_pos_loc != -1)  glUniform3fv(view_pos_loc, 1, (float*)&internal->state.camera_pos);
+
+                char uniform_name[64];
+
+                // --- Upload Directional Lights ---
+                glUniform1i(glGetUniformLocation(gl_shader->program, "u_DirLightCount"), internal->state.dir_light_count);
+                for (uint32_t j = 0; j < internal->state.dir_light_count; j++)
+                {
+                    DirectionalLightData* dl = &internal->state.dir_lights[j];
+                    
+                    sprintf(uniform_name, "u_DirLights[%d].direction", j);
+                    glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&dl->direction);
+                    
+                    sprintf(uniform_name, "u_DirLights[%d].color", j);
+                    glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&dl->color);
+                    
+                    sprintf(uniform_name, "u_DirLights[%d].intensity", j);
+                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), dl->intensity);
+
+                    sprintf(uniform_name, "u_DirLights[%d].ambientStrength", j); // GLSL camelCase!
+                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), dl->ambient_strength);
+                }
+
+                // --- Upload Point Lights ---
+                glUniform1i(glGetUniformLocation(gl_shader->program, "u_PointLightCount"), internal->state.point_light_count);
+                for (uint32_t j = 0; j < internal->state.point_light_count; j++)
+                {
+                    PointLightData* pl = &internal->state.point_lights[j];
+                    
+                    sprintf(uniform_name, "u_PointLights[%d].position", j);
+                    glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&pl->position);
+                    
+                    sprintf(uniform_name, "u_PointLights[%d].color", j);
+                    glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&pl->color);
+                    
+                    sprintf(uniform_name, "u_PointLights[%d].intensity", j);
+                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), pl->intensity);
+                    
+                    sprintf(uniform_name, "u_PointLights[%d].constant", j);
+                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), pl->constant);
+                    
+                    sprintf(uniform_name, "u_PointLights[%d].linear", j);
+                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), pl->linear);
+                    
+                    sprintf(uniform_name, "u_PointLights[%d].quadratic", j);
+                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), pl->quadratic);
+                }
+
+                // --- Upload Spot Lights ---
+                glUniform1i(glGetUniformLocation(gl_shader->program, "u_SpotLightCount"), internal->state.spot_light_count);
+                for (uint32_t j = 0; j < internal->state.spot_light_count; j++)
+                {
+                    SpotLightData* sl = &internal->state.spot_lights[j];
+                    
+                    sprintf(uniform_name, "u_SpotLights[%d].position", j);
+                    glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&sl->position);
+
+                    sprintf(uniform_name, "u_SpotLights[%d].direction", j);
+                    glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&sl->direction);
+                    
+                    sprintf(uniform_name, "u_SpotLights[%d].color", j);
+                    glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&sl->color);
+                    
+                    sprintf(uniform_name, "u_SpotLights[%d].intensity", j);
+                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->intensity);
+                    
+                    sprintf(uniform_name, "u_SpotLights[%d].constant", j);
+                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->constant);
+                    
+                    sprintf(uniform_name, "u_SpotLights[%d].linear", j);
+                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->linear);
+                    
+                    sprintf(uniform_name, "u_SpotLights[%d].quadratic", j);
+                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->quadratic);
+
+                    sprintf(uniform_name, "u_SpotLights[%d].cutOff", j); // GLSL camelCase!
+                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->inner_cut_off);
+
+                    sprintf(uniform_name, "u_SpotLights[%d].outerCutOff", j); // GLSL camelCase!
+                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->outer_cut_off);
+                }
+            }
+
+
+            if (current_texture != cmd->texture.id)
+            {
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->texture.id].id);
+                current_texture = cmd->texture.id;
+            }
+
+            // Upload Matrices
+            GLint model_loc = glGetUniformLocation(gl_shader->program, "u_Model");
+            
+            glUniformMatrix4fv(model_loc, 1, GL_FALSE, (float*)&cmd->transform);
+
+            GLint diff_loc = glGetUniformLocation(gl_shader->program, "u_Material.diffuse");
+            if (diff_loc != -1) glUniform1i(diff_loc, 0);
+
+            GLint tint_loc = glGetUniformLocation(gl_shader->program, "u_Material.tint");
+            if (tint_loc != -1) glUniform3fv(tint_loc, 1, (float*)&cmd->mat_props.tint_color);
+
+            GLint shine_loc = glGetUniformLocation(gl_shader->program, "u_Material.shininess");
+            if (shine_loc != -1) glUniform1f(shine_loc, cmd->mat_props.shininess);
+
+            GLint spec_loc = glGetUniformLocation(gl_shader->program, "u_Material.specularStrength");
+            if (spec_loc != -1) glUniform1f(spec_loc, cmd->mat_props.specular_strength);
+
+
+            // Upload bone matrices
+            GLint bone_loc = glGetUniformLocation(gl_shader->program, "u_BoneMatrices");
+            if (bone_loc != -1) 
+            {
+                if (cmd->bone_matrices != NULL) 
+                {
+                    // Upload the Animator's 100 matrices!
+                    // 100 is the count, GL_FALSE means don't transpose (assuming column-major)
+                    glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)cmd->bone_matrices);
+                } 
+                else 
+                {
+                    // If the shader wants bones but the object has none, give it Identity matrices
+                    static Matrix4 identity_bones[MAX_BONES];
+                    static bool initialized = false;
+                    if (!initialized)
+                    {
+                        for (int b = 0; b < MAX_BONES; b++)
+                            identity_bones[b] = Matrix4Identity();
+                            
+                        initialized = true;
+                    }
+                    
+                    glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)identity_bones);
+                }
+            }   
+
+            // Draw
+            glBindVertexArray(gl_mesh->vao);
+            glDrawElements(GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
+        }
+
+        glDisable(GL_BLEND);
+        glDepthMask(GL_TRUE); // Restore depth writing
+        glEnable(GL_CULL_FACE);
+    }
+
+    glBindVertexArray(0);
 }
 
 

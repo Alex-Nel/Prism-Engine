@@ -425,7 +425,7 @@ void Engine_RenderScene(Scene* scene)
 
                     Render_Submit(engine.renderer, rc->mesh->gpu_handle, rc->material->shader->gpu_handle,
                                     rc->material->diffuse_texture->gpu_handle, rc->material->properties,
-                                    t->world_matrix, bone_ptr);
+                                    t->world_matrix, bone_ptr, false, 0.0f);
                 }
             }
         }
@@ -461,8 +461,63 @@ void Engine_RenderScene(Scene* scene)
                                   line->material->shader->gpu_handle,
                                   line->material->diffuse_texture->gpu_handle, 
                                   local_props,
-                                  Matrix4Identity(), NULL);
+                                  Matrix4Identity(), NULL, false, 0.0f);
                 }
+            }
+        }
+
+
+
+        // --- Submit Sprite Renderers ---
+        uint32_t required_sprite_mask = COMPONENT_TRANSFORM | COMPONENT_SPRITE_RENDERER;
+
+        for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+        {
+            if (!scene->is_active_in_hierarchy[i])
+                continue;
+
+            if ((scene->component_masks[i] & required_sprite_mask) == required_sprite_mask)
+            {
+                SpriteRendererComponent* sprite = &scene->sprite_renderers[i];
+                if (!sprite->is_active || !sprite->quad || !sprite->material)
+                    continue;
+
+                Transform* t = &scene->transforms[i];
+
+                // Calculate squared distance from the camera for Alpha Sorting!
+                Vector3 sprite_pos = Transform_GetGlobalPosition(t);
+                float dx = global_pos.x - sprite_pos.x; // global_pos is the camera position from earlier in the function
+                float dy = global_pos.y - sprite_pos.y;
+                float dz = global_pos.z - sprite_pos.z;
+                float dist_sq = (dx * dx) + (dy * dy) + (dz * dz);
+
+                MaterialProperties local_props = sprite->material->properties;
+                local_props.tint_color = sprite->color;
+
+
+                // Get the width/height of the texture
+                float tex_w = (float)sprite->material->diffuse_texture->width;
+                float tex_h = (float)sprite->material->diffuse_texture->height;
+                
+                // Calculate aspect ratio. e.g., A tall texture might be 0.5 ratio.
+                float aspect_x = tex_w / tex_h;
+                float aspect_y = 1.0f; // Keep Y standard, scale X to match
+
+                // Create a temporary matrix that scales the 1x1 quad to the correct aspect ratio
+                Matrix4 aspect_matrix;
+                aspect_matrix.m0 = aspect_x;
+                aspect_matrix.m5 = aspect_y;
+                aspect_matrix.m10 = 1.0f;
+                aspect_matrix.m15 = 1.0f;
+                
+                // Multiply the Entity's World Matrix by the Aspect Matrix
+                Matrix4 final_sprite_matrix = Matrix4Multiply(t->world_matrix, aspect_matrix);
+
+
+                Render_Submit(engine.renderer, sprite->quad->gpu_handle,
+                              sprite->material->shader->gpu_handle,
+                              sprite->material->diffuse_texture->gpu_handle,
+                              local_props, final_sprite_matrix, NULL, true, dist_sq);
             }
         }
 

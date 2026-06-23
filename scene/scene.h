@@ -90,6 +90,7 @@ void Entity_AddAudioSource(Entity entity);
 void Entity_AddAnimator(Entity entity, void* raw_skeleton, void* raw_clip);
 void Entity_AddBoneAttachment(Entity entity, int bone_index, Matrix4 offset);
 void Entity_AddLineRenderer(Entity entity, Material* material);
+void Entity_AddSpriteRenderer(Entity entity, Material* material);
 void Entity_BindScript(Entity entity, ScriptInstance new_script);
 void Script_SetActive(Entity entity, void* instance_data, bool active);
 void Bridge_SpawnScript(Entity raw_e, const char* class_name, struct cJSON* json_data);
@@ -112,6 +113,7 @@ AudioSourceComponent* Entity_GetAudioSource(Entity entity);
 AnimatorComponent* Entity_GetAnimator(Entity entity);
 BoneAttachmentComponent* Entity_GetBoneAttachment(Entity entity);
 LineRendererComponent* Entity_GetLineRenderer(Entity entity);
+SpriteRendererComponent* Entity_GetSpriteRenderer(Entity entity);
 ScriptComponent* Entity_GetScripts(Entity entity);
 
 

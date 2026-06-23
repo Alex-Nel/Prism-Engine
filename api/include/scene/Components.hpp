@@ -429,4 +429,20 @@ namespace Prism
         bool GetUseWorldSpace() const;
         void SetLoop(bool isLoop);
     };
+
+
+
+    // ==========================================
+    // Sprite Renderer Wrapper
+    // ==========================================
+
+    struct PRISM_API SpriteRendererComponent
+    {
+    private:
+        Prism::Entity entity;
+
+    public:
+        void SetColor(const Prism::Color& color);
+        Prism::Color GetColor() const;
+    };
 }

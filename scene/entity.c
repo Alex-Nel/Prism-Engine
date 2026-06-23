@@ -1041,6 +1041,27 @@ void Entity_AddLineRenderer(Entity entity, Material* material)
 
 
 
+// Adds a sprite renderer to a component
+void Entity_AddSpriteRenderer(Entity entity, Material* material)
+{
+    if (!Entity_IsValid(entity))
+        return;
+
+    uint32_t id = entity.id;
+    entity.scene->component_masks[id] |= COMPONENT_SPRITE_RENDERER;
+
+    SpriteRendererComponent* sprite = &entity.scene->sprite_renderers[id];
+    sprite->entity = entity;
+    sprite->is_active = true;
+    sprite->color = (Color){1.0f, 1.0f, 1.0f, 1.0f};
+    sprite->material = material;
+    sprite->quad = Asset_GetBuiltinQuad();
+}
+
+
+
+
+
 // Adds a custom script to an entity
 void Entity_BindScript(Entity entity, ScriptInstance new_script)
 {
@@ -1327,6 +1348,22 @@ LineRendererComponent* Entity_GetLineRenderer(Entity entity)
 
     if ((entity.scene->component_masks[entity.id] & COMPONENT_LINE_RENDERER) == COMPONENT_LINE_RENDERER)
         return &entity.scene->line_renderers[entity.id];
+
+    return NULL;
+}
+
+
+
+
+
+// Returns an entities sprite renderer
+SpriteRendererComponent* Entity_GetSpriteRenderer(Entity entity)
+{
+    if (!Entity_IsValid(entity))
+        return NULL;
+
+    if ((entity.scene->component_masks[entity.id] & COMPONENT_SPRITE_RENDERER) == COMPONENT_SPRITE_RENDERER)
+        return &entity.scene->sprite_renderers[entity.id];
 
     return NULL;
 }

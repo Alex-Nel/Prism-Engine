@@ -69,7 +69,8 @@ typedef enum
     COMPONENT_ANIMATOR         = 1 << 10,
     COMPONENT_BONE_ATTACHMENT  = 1 << 11,
     COMPONENT_LINE_RENDERER    = 1 << 12,
-    COMPONENT_SCRIPT           = 1 << 13
+    COMPONENT_SPRITE_RENDERER  = 1 << 13,
+    COMPONENT_SCRIPT           = 1 << 14
 } ComponentMask;
 
 
@@ -371,6 +372,19 @@ typedef struct LineRendererComponent
 
 
 
+// A Sprite Renderer Component
+typedef struct SpriteRendererComponent
+{
+    Entity entity;
+    bool is_active;
+    Color color;
+
+    Mesh* quad;
+    Material* material;
+} SpriteRendererComponent;
+
+
+
 // Forward decleration of cJSON struct
 struct cJSON;
 
@@ -451,6 +465,7 @@ typedef struct Scene
     AnimatorComponent animators[MAX_ENTITIES];
     BoneAttachmentComponent bone_attachments[MAX_ENTITIES];
     LineRendererComponent line_renderers[MAX_ENTITIES];
+    SpriteRendererComponent sprite_renderers[MAX_ENTITIES];
     ScriptComponent scripts[MAX_ENTITIES];
 
     uint32_t main_camera_id;

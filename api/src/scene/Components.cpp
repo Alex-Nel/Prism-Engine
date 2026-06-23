@@ -206,7 +206,7 @@ namespace Prism
 
 
     // ==========================================
-    // Collider Implementation
+    // Line Renderer Implementation
     // ==========================================
 
     void LineRendererComponent::AddPoint(const Prism::Vector3& point) {
@@ -273,5 +273,21 @@ namespace Prism
 
     void LineRendererComponent::SetLoop(bool isLoop) {
         static_cast<::Scene*>(this->entity.scene_ptr)->line_renderers[this->entity.id].is_loop = isLoop;
+    }
+
+
+
+    // ==========================================
+    // Sprite Renderer Implementation
+    // ==========================================
+
+    void SpriteRendererComponent::SetColor(const Prism::Color& color) {
+        ::Entity e = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        static_cast<::Scene*>(e.scene)->sprite_renderers[e.id].color = ::Color{color.r, color.g, color.b, color.a};
+    }
+    Prism::Color SpriteRendererComponent::GetColor() const {
+        ::Entity e = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::Color c = static_cast<::Scene*>(e.scene)->sprite_renderers[e.id].color;
+        return Prism::Color(c.r, c.g, c.b, c.a);
     }
 }

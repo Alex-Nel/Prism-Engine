@@ -27,6 +27,7 @@ namespace Prism
     struct AnimatorComponent;
     struct BoneAttachmentComponent;
     struct LineRendererComponent;
+    struct SpriteRendererComponent;
 
 
 
@@ -93,6 +94,7 @@ namespace Prism
         Prism::AudioSourceComponent* AddAudioSource();
         Prism::AnimatorComponent* AddAnimator(void* raw_skeleton, const Prism::AnimationClip& default_clip);
         Prism::LineRendererComponent* AddLineRenderer(Prism::Material* mat = nullptr);
+        Prism::SpriteRendererComponent* AddSpriteRenderer(Prism::Material* mat = nullptr);
 
 
 
@@ -110,6 +112,7 @@ namespace Prism
         Prism::AnimatorComponent* GetAnimator();
         Prism::BoneAttachmentComponent* GetBoneAttachment();
         Prism::LineRendererComponent* GetLineRenderer();
+        Prism::SpriteRendererComponent* GetSpriteRenderer();
 
 
 
@@ -125,6 +128,8 @@ namespace Prism
         std::vector<Prism::AudioSourceComponent*> GetAudioSourcesInChildren(bool recursive = true);
         std::vector<Prism::AnimatorComponent*> GetAnimatorsInChildren(bool recursive = true);
         std::vector<Prism::BoneAttachmentComponent*> GetBoneAttachmentsInChildren(bool recursive = true);
+        std::vector<Prism::LineRendererComponent*> GetLineRenderersInChildren(bool recursive = true);
+        std::vector<Prism::SpriteRendererComponent*> GetSpriteRenderersInChildren(bool recursive = true);
         
         
         Prism::Transform* GetTransformInParent();
@@ -137,6 +142,8 @@ namespace Prism
         Prism::AudioSourceComponent* GetAudioSourceInParent();
         Prism::AnimatorComponent* GetAnimatorInParent();
         Prism::BoneAttachmentComponent* GetBoneAttachmentInParent();
+        Prism::LineRendererComponent* GetLineRendererInParent();
+        Prism::SpriteRendererComponent* GetSpriteRendererInParent();
 
 
 
@@ -150,6 +157,8 @@ namespace Prism
         void RemoveAudioListener();
         void RemoveAudioSource();
         void RemoveAnimator();
+        void RemoveLineRenderer();
+        void RemoveSpriteRenderer();
 
 
 
