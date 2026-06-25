@@ -5,7 +5,7 @@
 #include "Vector4.h"
 #include "Quaternion.h"
 
-// A 4x4 matrix used for openGL
+// A 4x4 matrix
 typedef struct Matrix4
 {
     float m0, m1, m2,  m3;

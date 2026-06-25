@@ -28,10 +28,16 @@ bool Scene_Save(Scene* scene, const char* filepath);
 bool Scene_Load(Scene* scene, const char* filepath);
 void Scene_Update(Scene* scene);
 void Scene_FixedUpdate(Scene* scene);
+void Scene_UpdateScripts(Scene* scene);
+void Scene_FixedUpdateScripts(Scene* scene);
+void Scene_UpdateAudio(Scene* scene);
 void Scene_UpdateLineRenderers(Scene* scene);
 void Scene_UpdateAnimators(Scene* scene, float delta_time);
 void Scene_UpdateBoneAttachments(Scene* scene);
 void Scene_UpdateTransforms(Scene* scene);
+void Scene_SyncPhysicsPreSim(Scene* scene);
+void Scene_StepPhysicsAndCollisions(Scene* scene);
+void Scene_SyncPhysicsPostSim(Scene* scene);
 Entity Scene_GetEntity(Scene* scene, const char* name);
 uint32_t Scene_GetTotalEntityCount(Scene* scene);
 uint32_t Scene_GetActiveEntityCount(Scene* scene);
@@ -164,7 +170,9 @@ void Collider_SetConvex(Entity entity, bool is_convex);
 
 
 // --- Camera setters and functions ---
-Ray Camera_ScreenPointToRay(Matrix4 projection, Matrix4 view, Vector3 camera_pos, float mouse_x, float mouse_y, float screen_width, float screen_height);
+Ray Camera_ScreenPointToRay(CameraComponent* cam, Transform* cam_transform, float mouse_x, float mouse_y);
+Vector2 Camera_WorldToScreenPoint(CameraComponent* cam, Transform* cam_transform, Vector3 world_pos);
+void Camera_SetFOV(CameraComponent* cam, float FOV);
 // TODO: Implement camera culling masks
 
 

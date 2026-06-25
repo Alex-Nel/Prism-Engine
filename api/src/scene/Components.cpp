@@ -113,6 +113,25 @@ namespace Prism
     // Camera Component Implementation
     // ==========================================
 
+    Prism::Ray CameraComponent::ScreenPointToRay(const Prism::Vector2& screenPoint) const {
+        ::Entity e = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::CameraComponent* cam = &static_cast<::Scene*>(e.scene)->cameras[e.id];
+        ::Transform* t = &static_cast<::Scene*>(e.scene)->transforms[e.id];
+
+        ::Ray c_ray = ::Camera_ScreenPointToRay(cam, t, screenPoint.x, screenPoint.y);
+        
+        return Prism::Ray{ Prism::Vector3(c_ray.origin.x, c_ray.origin.y, c_ray.origin.z), Prism::Vector3(c_ray.direction.x, c_ray.direction.y, c_ray.direction.z) };
+    }
+    Prism::Vector2 CameraComponent::WorldToScreenPoint(const Prism::Vector3& worldPosition) const {
+        ::Entity e = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::CameraComponent* cam = &static_cast<::Scene*>(e.scene)->cameras[e.id];
+        ::Transform* t = &static_cast<::Scene*>(e.scene)->transforms[e.id];
+
+        ::Vector3 pos = {worldPosition.x, worldPosition.y, worldPosition.z};
+        ::Vector2 screen_pos = ::Camera_WorldToScreenPoint(cam, t, pos);
+        
+        return Prism::Vector2(screen_pos.x, screen_pos.y);
+    }
     void CameraComponent::SetCullingMask(uint32_t mask) {
         this->culling_masks = mask; // Shift a '1' over by 'layer_index' spaces
     }
@@ -121,6 +140,15 @@ namespace Prism
     }
     void CameraComponent::RemoveLayerFromMask(uint8_t layer_index) {
         this->culling_masks &= ~(1u << layer_index); // Remove a specific layer from the camera's sight
+    }
+    void CameraComponent::SetViewport(float x, float y, float width, float height) {
+        this->viewport_x = x;
+        this->viewport_y = y;
+        this->viewport_width = width;
+        this->viewport_height = height;
+    }
+    void CameraComponent::SetFOV(float fov) {
+        this->fov = fov;
     }
 
 

@@ -184,16 +184,23 @@ namespace Prism
         uint32_t culling_masks;
         int render_order;
         CameraClearFlags clear_flags;
+        float viewport_x;
+        float viewport_y;
+        float viewport_width;
+        float viewport_height;
 
 
         void SetActive(bool active) { this->is_active = active; }
         bool IsActive() const { return this->is_active; }
 
-        Prism::Ray ScreenPointToRay(const Prism::Vector2& mouse_pos);
+        Prism::Ray ScreenPointToRay(const Prism::Vector2& screenPoint) const;
+        Prism::Vector2 WorldToScreenPoint(const Prism::Vector3& worldPosition) const;
 
         void SetCullingMask(uint32_t layer_index);
         void AddLayerToMask(uint8_t layer_index);
         void RemoveLayerFromMask(uint8_t layer_index);
+        void SetViewport(float x, float y, float width, float height);
+        void SetFOV(float fov);
     };
 
 

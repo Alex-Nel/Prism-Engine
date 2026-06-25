@@ -247,7 +247,14 @@ int CompareCameraOrder(const void* a, const void* b)
 // Renders a specified scene
 void Engine_RenderScene(Scene* scene)
 {
-    if (!scene) return;
+    if (!scene)
+        return;
+
+    CameraComponent* cam = &scene->cameras[scene->main_camera_id];
+    cam->viewport_x = 0;
+    cam->viewport_y = 0;
+    cam->viewport_width = (uint32_t)Platform_GetWindowWidth(engine.window);
+    cam->viewport_height = (uint32_t)Platform_GetWindowHeight(engine.window);
 
     // Make an empty render packet to send to the renderer
     RenderPacket packet = {0};
@@ -377,7 +384,7 @@ void Engine_RenderScene(Scene* scene)
 
         // Build Camera Matrices
         Vector3 global_pos = Transform_GetGlobalPosition(cam_transform);
-        packet.view_matrix = Matrix4CreateView(global_pos, cam_transform->local_rotation);
+        packet.view_matrix = Matrix4Inverse(cam_transform->world_matrix);
         packet.projection_matrix = Matrix4Perspective(
             cam_comp->fov,
             (float)(Platform_GetWindowWidth(engine.window))/(float)(Platform_GetWindowHeight(engine.window)),

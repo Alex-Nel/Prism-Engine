@@ -280,35 +280,141 @@ void Collider_SetConvex(Entity entity, bool is_convex)
 
 
 
-// Converts a point on the screen into a ray
-Ray Camera_ScreenPointToRay(Matrix4 projection, Matrix4 view, Vector3 camera_pos, float mouse_x, float mouse_y, float screen_width, float screen_height)
+// Recalculates a cameras projection matrix when needed
+static void Camera_RecalculateProjectionIfNeeded(CameraComponent* cam)
 {
-    // If the projection matrix is empty, return an empty ray to prevent NaN crash
-    if (projection.m0 == 0.0f && projection.m5 == 0.0f)
-        return (Ray){ camera_pos, {0.0f, 0.0f, 1.0f} }; 
+    // If the fov is 0, it means the camera component was just created and is uninitialized.
+    if (cam->fov <= 0.0f) {
+        cam->fov = 60.0f;
+        cam->nearZ = 0.1f;
+        cam->farZ = 1000.0f;
+        cam->is_dirty = true;
+    }
+
+    if (cam->is_dirty && cam->viewport_height > 0)
+    {
+        float aspect = (float)cam->viewport_width / (float)cam->viewport_height;
+        cam->projection_matrix = Matrix4Perspective(cam->fov, aspect, cam->nearZ, cam->farZ);
+        cam->is_dirty = false;
+    }
+}
+
+
+
+
+
+// Converts a point on the screen into a ray
+Ray Camera_ScreenPointToRay(CameraComponent* cam, Transform* cam_transform, float mouse_x, float mouse_y)
+{
+    // If the cam or transform are not valid, return default ray
+    if (!cam || !cam_transform)
+        return (Ray) { {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f} };
+
+    
+    // Prevent Viewport Division by Zero!
+    if (cam->viewport_width == 0 || cam->viewport_height == 0) 
+        return (Ray){ Transform_GetGlobalPosition(cam_transform), {0.0f, 0.0f, 1.0f} };
+
+    // If the matrix is empty, rebuild it
+    Camera_RecalculateProjectionIfNeeded(cam);
 
     // Convert Screen Coordinates to Normalized Device Coordinates
     // Assuming (0,0) is top-left of the window
-    float x = (2.0f * mouse_x) / screen_width - 1.0f;
-    float y = 1.0f - (2.0f * mouse_y) / screen_height;
-    
+    float x = (2.0f * (mouse_x - (float)cam->viewport_x)) / (float)cam->viewport_width - 1.0f;
+    float y = 1.0f - (2.0f * (mouse_y - (float)cam->viewport_y)) / (float)cam->viewport_height;
+
     // Clip Space
-    Vector4 ray_clip = { x, y, -1.0f, 1.0f };
+    Vector4 near_clip = { x, y, 0.0001f, 1.0f }; 
+    Vector4 far_clip  = { x, y, 0.9999f, 1.0f };
     
     // Eye Space (Reverse the Projection)
-    Matrix4 inv_proj = Matrix4Inverse(projection);
-    Vector4 ray_eye = Matrix4MultiplyVector4(inv_proj, ray_clip);
-    ray_eye.z = -1.0f;
-    ray_eye.w = 0.0f;
+    Matrix4 inv_proj = Matrix4Inverse(cam->projection_matrix);
+    Vector3 cam_pos = Transform_GetGlobalPosition(cam_transform);
+    Matrix4 view_matrix = Matrix4CreateView(cam_pos, cam_transform->local_rotation);
+    Matrix4 inv_view = Matrix4Inverse(view_matrix); // Restore Inverse View!
     
-    // World Space (Reverse the View)
-    // Matrix4 inv_view = Matrix4Inverse(view);
-    Vector4 ray_world_4d = Matrix4MultiplyVector4(view, ray_eye);
+    // 4. Unproject Near Point
+    Vector4 near_eye = Matrix4MultiplyVector4(inv_proj, near_clip);
+    if (near_eye.w != 0.0f) {
+        near_eye.x /= near_eye.w; near_eye.y /= near_eye.w; near_eye.z /= near_eye.w; near_eye.w = 1.0f;
+    }
+    Vector4 near_world = Matrix4MultiplyVector4(inv_view, near_eye);
+
+    // 5. Unproject Far Point
+    Vector4 far_eye = Matrix4MultiplyVector4(inv_proj, far_clip);
+    if (far_eye.w != 0.0f) {
+        far_eye.x /= far_eye.w; far_eye.y /= far_eye.w; far_eye.z /= far_eye.w; far_eye.w = 1.0f;
+    }
+    Vector4 far_world = Matrix4MultiplyVector4(inv_view, far_eye);
+
+    // 6. Direction = Far - Near
+    Vector3 ray_dir = {
+        far_world.x - near_world.x,
+        far_world.y - near_world.y,
+        far_world.z - near_world.z
+    };
     
-    Vector3 ray_world = { ray_world_4d.x, ray_world_4d.y, ray_world_4d.z };
-    ray_world = Vector3Normalize(ray_world);
+    return (Ray){ cam_pos, Vector3Normalize(ray_dir) };
+}
+
+
+
+
+
+// Converts a 3D world position into a 2D pixel coordinate on the screen
+Vector2 Camera_WorldToScreenPoint(CameraComponent* cam, Transform* cam_transform, Vector3 world_pos)
+{
+    // If the cam or transform are not valid, return default ray
+    if (!cam || !cam_transform)
+        return (Vector2){ 0.0f, 0.0f };
+
+    // Prevent Viewport Division by Zero!
+    if (cam->viewport_width == 0 || cam->viewport_height == 0) 
+        return (Vector2){ 0.0f, 0.0f };
+
+    // If the matrix is empty, rebuild it
+    Camera_RecalculateProjectionIfNeeded(cam);
     
-    return (Ray){ camera_pos, ray_world };
+    // 1. Generate the exact View Matrix the renderer uses
+    Vector3 cam_pos = Transform_GetGlobalPosition(cam_transform);
+    Matrix4 view_matrix = Matrix4CreateView(cam_pos, cam_transform->local_rotation);
+    
+    // 2. Transform World to Eye Space
+    Vector4 clip_space = {world_pos.x, world_pos.y, world_pos.z, 1.0f};
+    clip_space = Matrix4MultiplyVector4(view_matrix, clip_space);
+
+    // 3. Transform Eye to Clip Space
+    clip_space = Matrix4MultiplyVector4(cam->projection_matrix, clip_space);
+
+    // 4. Frustum Culling 
+    // If w is less than a tiny positive number, it is touching the camera lens or behind it!
+    if (clip_space.w < 0.0001f)
+        return (Vector2){ -9999.0f, -9999.0f };
+
+    // 5. Perspective Divide (Normalized Device Coordinates: -1 to 1)
+    Vector3 ndc;
+    ndc.x = clip_space.x / clip_space.w;
+    ndc.y = clip_space.y / clip_space.w;
+    
+    // 6. Convert NDC to Screen Pixels
+    Vector2 screen_pos;
+    screen_pos.x = (float)cam->viewport_x + ((ndc.x + 1.0f) / 2.0f) * (float)cam->viewport_width;
+    screen_pos.y = (float)cam->viewport_y + ((1.0f - ndc.y) / 2.0f) * (float)cam->viewport_height;
+
+    return screen_pos;
+}
+
+
+
+
+
+// Sets the FOV of a camera
+void Camera_SetFOV(CameraComponent* cam, float FOV)
+{
+    if (!cam)
+        return;
+
+    cam->fov = FOV;
 }
 
 

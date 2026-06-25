@@ -685,6 +685,10 @@ void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ)
     cam->culling_masks = 0xFFFFFFFF;
     cam->render_order = 0;
     cam->clear_flags = CLEAR_COLOR_AND_DEPTH;
+    cam->viewport_x = 0;
+    cam->viewport_y = 0;
+    cam->viewport_width = 0;
+    cam->viewport_height = 0;
 
     entity.scene->component_masks[entity.id] |= COMPONENT_CAMERA;
 }

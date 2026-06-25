@@ -379,6 +379,16 @@ void Platform_Shutdown(Window* window)
 
 
 
+// Gets the x and y position of the window (from the top left)
+void Platform_GetWindowPosition(Window* window, uint32_t* x, uint32_t* y)
+{
+    SDL_GetWindowPosition(window->sdl_window, x, y);
+}
+
+
+
+
+
 // Returns a windows width
 uint32_t Platform_GetWindowWidth(Window* window)
 {

@@ -412,10 +412,10 @@ Vector4 Matrix4MultiplyVector4(Matrix4 m, Vector4 v)
 {
     Vector4 result;
 
-    result.x = m.m0*v.x + m.m1*v.y + m.m2*v.z + m.m3*v.w;
-    result.y = m.m4*v.x + m.m5*v.y + m.m6*v.z + m.m7*v.w;
-    result.z = m.m8*v.x + m.m9*v.y + m.m10*v.z + m.m11*v.w;
-    result.w = m.m12*v.x + m.m13*v.y + m.m14*v.z + m.m15*v.w;
+    result.x = m.m0*v.x + m.m4*v.y + m.m8*v.z  + m.m12*v.w;
+    result.y = m.m1*v.x + m.m5*v.y + m.m9*v.z  + m.m13*v.w;
+    result.z = m.m2*v.x + m.m6*v.y + m.m10*v.z + m.m14*v.w;
+    result.w = m.m3*v.x + m.m7*v.y + m.m11*v.z + m.m15*v.w;
     
     return result;
 }

@@ -188,7 +188,7 @@ typedef struct RenderComponent
     Mesh* mesh;
     Material* material;
 
-    uint32_t layer_mask;
+    uint32_t layer_mask; // Only one layer mask
 } RenderComponent;
 
 
@@ -204,10 +204,15 @@ typedef struct CameraComponent
     Matrix4 projection_matrix; // Projection matrix is cached to prevent recalculations
     bool is_dirty;
 
-    uint32_t culling_masks;
+    uint32_t culling_masks; // Can be several layer masks
 
     int render_order; // Lower numbers render first
     CameraClearFlags clear_flags;
+
+    uint32_t viewport_x;
+    uint32_t viewport_y;
+    uint32_t viewport_width;
+    uint32_t viewport_height;
 } CameraComponent;
 
 

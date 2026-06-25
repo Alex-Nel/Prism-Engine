@@ -369,8 +369,62 @@ static void CalculateBoneTransform(SkeletonNode* node, Matrix4 parent_transform,
 // Runs custom scripts (OnUpdate) and audio sources/listeners
 void Scene_Update(Scene* scene)
 {
-    if (!scene) return;
+    if (!scene)
+        return;
 
+    // Execute any custom scripts
+    Scene_UpdateScripts(scene);
+
+    // Update animation timelines
+    Scene_UpdateAnimators(scene, Time_DeltaTime());
+
+    // Update all transforms in the scene
+    Scene_UpdateTransforms(scene);
+
+    // Update all bone attachments
+    Scene_UpdateBoneAttachments(scene);
+
+    // Update all line renderers
+    Scene_UpdateLineRenderers(scene);
+
+    // Update all audio components
+    Scene_UpdateAudio(scene);
+}
+
+
+
+
+
+// Runs physics and other fixed time operations
+void Scene_FixedUpdate(Scene* scene)
+{
+    if (!scene)
+        return;
+
+    // Execute Fixed Updates in scripts
+    Scene_FixedUpdateScripts(scene);
+
+    // update transforms incase scripts moved objects
+    Scene_UpdateTransforms(scene);
+
+
+    // Run the physics engine for the time frame
+    Scene_SyncPhysicsPreSim(scene);
+    Scene_StepPhysicsAndCollisions(scene);
+    Scene_SyncPhysicsPostSim(scene);
+
+    
+    // Update transforms again based on physics results
+    Scene_UpdateTransforms(scene);
+}
+
+
+
+
+
+// Runs the OnUpdate function for all scripts in a scene
+void Scene_UpdateScripts(Scene* scene)
+{
     // Execute any custom scripts
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
     {
@@ -421,22 +475,72 @@ void Scene_Update(Scene* scene)
             }
         }
     }
-
-
-    // Update animation timelines
-    Scene_UpdateAnimators(scene, Time_DeltaTime());
-
-    // Update all transforms in the scene
-    Scene_UpdateTransforms(scene);
-
-    // Update all bone attachments
-    Scene_UpdateBoneAttachments(scene);
-
-    // Update all line renderers
-    Scene_UpdateLineRenderers(scene);
+}
 
 
 
+
+
+// Runs the OnFixedUpdate function for all scripts in a scene
+void Scene_FixedUpdateScripts(Scene* scene)
+{
+    // Execute Fixed Updates in scripts
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i]) continue;
+
+        if (scene->component_masks[i] & COMPONENT_SCRIPT)
+        {
+            ScriptComponent* script_comp = &scene->scripts[i];
+            Entity e = { i, scene };
+
+            for (uint32_t s = 0; s < script_comp->count; s++)
+            {
+                ScriptInstance* script = &script_comp->instances[s];
+
+                // Catch state changes first
+                if (script->is_active && !script->is_enabled_internal)
+                {
+                    if (script->OnEnable != NULL)
+                        script->OnEnable(e, script->instance_data);
+                    
+                    script->is_enabled_internal = true;
+                }
+                else if (!script->is_active && script->is_enabled_internal)
+                {
+                    if (script->OnDisable != NULL)
+                        script->OnDisable(e, script->instance_data);
+                    
+                    script->is_enabled_internal = false;
+                }
+
+                // Skip script if it's disabled
+                if (!script->is_active)
+                    continue;
+                
+                // Ensure OnStart has run before FixedUpdate
+                if (!script->has_started)
+                {
+                    if (script->OnStart != NULL)
+                        script->OnStart(e, script->instance_data);
+                    
+                    script->has_started = true;
+                }
+
+                if (script->OnFixedUpdate != NULL)
+                    script->OnFixedUpdate(e, script->instance_data);
+            }
+        }
+    }
+}
+
+
+
+
+
+// Updates and synchronizes all audio components
+void Scene_UpdateAudio(Scene* scene)
+{
     // Update the main audio listener
     uint32_t listener_mask = COMPONENT_TRANSFORM | COMPONENT_AUDIO_LISTENER;
 
@@ -492,227 +596,6 @@ void Scene_Update(Scene* scene)
             }
         }
     }
-}
-
-
-
-
-
-// Runs physics and other fixed time operations
-void Scene_FixedUpdate(Scene* scene)
-{
-    if (!scene) return;
-
-    // Execute Fixed Updates in scripts
-    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
-    {
-        if (!scene->is_active_in_hierarchy[i]) continue;
-
-        if (scene->component_masks[i] & COMPONENT_SCRIPT)
-        {
-            ScriptComponent* script_comp = &scene->scripts[i];
-            Entity e = { i, scene };
-
-            for (uint32_t s = 0; s < script_comp->count; s++)
-            {
-                ScriptInstance* script = &script_comp->instances[s];
-
-                // Catch state changes first
-                if (script->is_active && !script->is_enabled_internal)
-                {
-                    if (script->OnEnable != NULL)
-                        script->OnEnable(e, script->instance_data);
-                    
-                    script->is_enabled_internal = true;
-                }
-                else if (!script->is_active && script->is_enabled_internal)
-                {
-                    if (script->OnDisable != NULL)
-                        script->OnDisable(e, script->instance_data);
-                    
-                    script->is_enabled_internal = false;
-                }
-
-                // Skip script if it's disabled
-                if (!script->is_active)
-                    continue;
-                
-                // Ensure OnStart has run before FixedUpdate
-                if (!script->has_started)
-                {
-                    if (script->OnStart != NULL)
-                        script->OnStart(e, script->instance_data);
-                    
-                    script->has_started = true;
-                }
-
-                if (script->OnFixedUpdate != NULL)
-                    script->OnFixedUpdate(e, script->instance_data);
-            }
-        }
-    }
-
-
-    // update transforms incase scripts moved objects
-    Scene_UpdateTransforms(scene);
-
-
-    // Pre-Physics Sync: Push Manual Transforms To Physics
-    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
-    {
-        if (!scene->is_active_in_hierarchy[i]) continue;
-        if (!(scene->component_masks[i] & COMPONENT_TRANSFORM)) continue;
-
-        Transform* t = &scene->transforms[i];
-
-        bool has_collider = (scene->component_masks[i] & COMPONENT_COLLIDER);
-        bool has_rigidbody = (scene->component_masks[i] & COMPONENT_RIGIDBODY);
-        
-        bool is_static = has_collider && !has_rigidbody;
-        bool is_kinematic = has_rigidbody && scene->rigidbodies[i].is_kinematic;
-        bool is_dynamic = has_rigidbody && !scene->rigidbodies[i].is_kinematic;
-
-        if (is_static || is_kinematic || (is_dynamic && t->is_dirty))
-        {
-            ColliderComponent* c = &scene->colliders[i];
-            if (c->physics_handle)
-            {
-                Vector3 global_pos = Transform_GetGlobalPosition(t);
-                Quaternion global_rot = Transform_GetGlobalRotation(t);
-                Vector3 global_scale = Transform_GetGlobalScale(t);
-
-                Physics_SetBodyPosition(c->physics_handle, global_pos);
-                Physics_SetBodyRotation(c->physics_handle, global_rot);
-                Physics_SetBodyScale(c->physics_handle, global_scale);
-
-                if (is_dynamic)
-                    Physics_SetLinearVelocity(c->physics_handle, (Vector3){0,0,0});
-            }
-        }
-    }
-
-
-    // Step Physics Simulation
-    if (scene->physics_world)
-    {
-        // Important to use the FIXED delta time here, not the variable one
-        float fixed_dt = Time_FixedDeltaTime();
-        Physics_StepSimulation(scene->physics_world, fixed_dt);
-
-        // Shift current memory to "last frame" memory
-        for (uint32_t i = 0; i < MAX_ENTITIES; i++)
-        {
-            if (scene->component_masks[i] & COMPONENT_COLLIDER)
-            {
-                ColliderComponent* c = &scene->colliders[i];
-                memcpy(c->touching_last_frame, c->touching_entities, sizeof(uint32_t) * c->touching_count);
-                c->touching_last_count = c->touching_count;
-                c->touching_count = 0; 
-            }
-        }
-
-
-        // Fetch Collisions for all colliders
-        CollisionPair pairs[1024]; 
-        int hit_count = Physics_GetCollisions(scene->physics_world, pairs, 1024);
-
-        for (int i = 0; i < hit_count; i++)
-        {
-            uint32_t idA = pairs[i].entity_a;
-            uint32_t idB = pairs[i].entity_b;
-
-            // Save the hit to Entity A's memory
-            ColliderComponent* colA = &scene->colliders[idA];
-            if (colA->touching_count < MAX_COLLISION_OVERLAPS)
-                colA->touching_entities[colA->touching_count++] = idB;
-
-            // Save the hit to Entity B's memory
-            ColliderComponent* colB = &scene->colliders[idB];
-            if (colB->touching_count < MAX_COLLISION_OVERLAPS)
-                colB->touching_entities[colB->touching_count++] = idA;
-        }
-
-
-        // Process Collision Events
-        for (uint32_t i = 0; i < MAX_ENTITIES; i++)
-        {
-            if (!(scene->component_masks[i] & COMPONENT_COLLIDER)) continue;
-            
-            ColliderComponent* c = &scene->colliders[i];
-            
-            for (uint32_t j = 0; j < c->touching_count; j++)
-            {
-                uint32_t other_id = c->touching_entities[j];
-
-                // If it was touching last frame, it's an EVENT_STAY, otherwise it's an EVENT_ENTER
-                bool was_touching = ArrayContains(c->touching_last_frame, c->touching_last_count, other_id);
-                
-                if (was_touching)
-                    DispatchCollisionEvent(scene, i, other_id, EVENT_STAY);
-                else
-                    DispatchCollisionEvent(scene, i, other_id, EVENT_ENTER);
-            }
-            
-            // Check for EXIT events
-            for (uint32_t j = 0; j < c->touching_last_count; j++)
-            {
-                uint32_t other_id = c->touching_last_frame[j];
-
-                // If it's not touching this frame, it's an EVENT_EXIT
-                bool is_touching_now = ArrayContains(c->touching_entities, c->touching_count, other_id);
-                
-                if (!is_touching_now)
-                    DispatchCollisionEvent(scene, i, other_id, EVENT_EXIT);
-            }
-        }
-    }
-
-
-    // Post-Physics Sync: Pull dynamic transforms from Physics
-    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
-    {
-        if (!scene->is_active_in_hierarchy[i]) continue;
-        
-        // If it has a Rigidbody, physics engine controls positions/rotations
-        if ((scene->component_masks[i] & COMPONENT_RIGIDBODY) && !scene->rigidbodies[i].is_kinematic)
-        {
-            ColliderComponent* c = &scene->colliders[i];
-
-            if (c->physics_handle)
-            {
-                Transform* t = &scene->transforms[i];
-
-                Vector3 phys_global_pos = Physics_GetBodyPosition(c->physics_handle);
-                Quaternion phys_global_rot = Physics_GetBodyRotation(c->physics_handle);
-
-                if (t->parent_id == ENTITY_NONE)
-                {
-                    // If an entity has no parent, the world space is the local space
-                    Transform_SetLocalPosition(t, phys_global_pos);
-                    Transform_SetLocalRotation(t, phys_global_rot);
-                }
-                else
-                {
-                    // If an entity has a parent, convert global physics pos/rot to local space
-                    Transform* parent_t = &scene->transforms[t->parent_id];
-
-                    // Local position = Inverse(parent world matrix) * Global Position
-                    Matrix4 inv_parent_matrix = Matrix4Inverse(parent_t->world_matrix);
-                    Vector3 local_pos = Matrix4MultiplyVector3(inv_parent_matrix, phys_global_pos);
-
-                    // Local rotation = Inverse(Parent Global Rotation) * Global Rotation
-                    Quaternion parent_global_rot = Transform_GetGlobalRotation(parent_t);
-                    Quaternion inv_parent_rot = QuaternionInverse(parent_global_rot);
-                    Quaternion local_rot = QuaternionMultiply(inv_parent_rot, phys_global_rot);
-
-                    Transform_SetLocalPosition(t, local_pos);
-                    Transform_SetLocalRotation(t, local_rot);
-                }
-            }
-        }
-    }
-
-    Scene_UpdateTransforms(scene);
 }
 
 
@@ -1051,6 +934,183 @@ void Scene_UpdateTransforms(Scene* scene)
             {
                 // Start recursion
                 UpdateTransformTree(scene, i, NULL, false);
+            }
+        }
+    }
+}
+
+
+
+
+
+// Pushes manual transform transform changes to the physics engine before simulation
+void Scene_SyncPhysicsPreSim(Scene* scene)
+{
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i])
+            continue;
+
+        if (!(scene->component_masks[i] & COMPONENT_TRANSFORM))
+            continue;
+
+        Transform* t = &scene->transforms[i];
+
+        bool has_collider = (scene->component_masks[i] & COMPONENT_COLLIDER);
+        bool has_rigidbody = (scene->component_masks[i] & COMPONENT_RIGIDBODY);
+        
+        bool is_static = has_collider && !has_rigidbody;
+        bool is_kinematic = has_rigidbody && scene->rigidbodies[i].is_kinematic;
+        bool is_dynamic = has_rigidbody && !scene->rigidbodies[i].is_kinematic;
+
+        if (is_static || is_kinematic || (is_dynamic && t->is_dirty))
+        {
+            ColliderComponent* c = &scene->colliders[i];
+            if (c->physics_handle)
+            {
+                Vector3 global_pos = Transform_GetGlobalPosition(t);
+                Quaternion global_rot = Transform_GetGlobalRotation(t);
+                Vector3 global_scale = Transform_GetGlobalScale(t);
+
+                Physics_SetBodyPosition(c->physics_handle, global_pos);
+                Physics_SetBodyRotation(c->physics_handle, global_rot);
+                Physics_SetBodyScale(c->physics_handle, global_scale);
+
+                if (is_dynamic)
+                    Physics_SetLinearVelocity(c->physics_handle, (Vector3){0,0,0});
+            }
+        }
+    }
+}
+
+
+
+
+
+// Steps the physics engine and dispatches collision events
+void Scene_StepPhysicsAndCollisions(Scene* scene)
+{
+    if (scene->physics_world)
+    {
+        // Important to use the FIXED delta time here, not the variable one
+        float fixed_dt = Time_FixedDeltaTime();
+        Physics_StepSimulation(scene->physics_world, fixed_dt);
+
+        // Shift current memory to "last frame" memory
+        for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+        {
+            if (scene->component_masks[i] & COMPONENT_COLLIDER)
+            {
+                ColliderComponent* c = &scene->colliders[i];
+                memcpy(c->touching_last_frame, c->touching_entities, sizeof(uint32_t) * c->touching_count);
+                c->touching_last_count = c->touching_count;
+                c->touching_count = 0; 
+            }
+        }
+
+
+        // Fetch Collisions for all colliders
+        CollisionPair pairs[1024]; 
+        int hit_count = Physics_GetCollisions(scene->physics_world, pairs, 1024);
+
+        for (int i = 0; i < hit_count; i++)
+        {
+            uint32_t idA = pairs[i].entity_a;
+            uint32_t idB = pairs[i].entity_b;
+
+            // Save the hit to Entity A's memory
+            ColliderComponent* colA = &scene->colliders[idA];
+            if (colA->touching_count < MAX_COLLISION_OVERLAPS)
+                colA->touching_entities[colA->touching_count++] = idB;
+
+            // Save the hit to Entity B's memory
+            ColliderComponent* colB = &scene->colliders[idB];
+            if (colB->touching_count < MAX_COLLISION_OVERLAPS)
+                colB->touching_entities[colB->touching_count++] = idA;
+        }
+
+
+        // Process Collision Events
+        for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+        {
+            if (!(scene->component_masks[i] & COMPONENT_COLLIDER)) continue;
+            
+            ColliderComponent* c = &scene->colliders[i];
+            
+            for (uint32_t j = 0; j < c->touching_count; j++)
+            {
+                uint32_t other_id = c->touching_entities[j];
+
+                // If it was touching last frame, it's an EVENT_STAY, otherwise it's an EVENT_ENTER
+                bool was_touching = ArrayContains(c->touching_last_frame, c->touching_last_count, other_id);
+                
+                if (was_touching)
+                    DispatchCollisionEvent(scene, i, other_id, EVENT_STAY);
+                else
+                    DispatchCollisionEvent(scene, i, other_id, EVENT_ENTER);
+            }
+            
+            // Check for EXIT events
+            for (uint32_t j = 0; j < c->touching_last_count; j++)
+            {
+                uint32_t other_id = c->touching_last_frame[j];
+
+                // If it's not touching this frame, it's an EVENT_EXIT
+                bool is_touching_now = ArrayContains(c->touching_entities, c->touching_count, other_id);
+                
+                if (!is_touching_now)
+                    DispatchCollisionEvent(scene, i, other_id, EVENT_EXIT);
+            }
+        }
+    }
+}
+
+
+
+
+
+// Pulls transform changes back from the physics engine
+void Scene_SyncPhysicsPostSim(Scene* scene)
+{
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i]) continue;
+        
+        // If it has a Rigidbody, physics engine controls positions/rotations
+        if ((scene->component_masks[i] & COMPONENT_RIGIDBODY) && !scene->rigidbodies[i].is_kinematic)
+        {
+            ColliderComponent* c = &scene->colliders[i];
+
+            if (c->physics_handle)
+            {
+                Transform* t = &scene->transforms[i];
+
+                Vector3 phys_global_pos = Physics_GetBodyPosition(c->physics_handle);
+                Quaternion phys_global_rot = Physics_GetBodyRotation(c->physics_handle);
+
+                if (t->parent_id == ENTITY_NONE)
+                {
+                    // If an entity has no parent, the world space is the local space
+                    Transform_SetLocalPosition(t, phys_global_pos);
+                    Transform_SetLocalRotation(t, phys_global_rot);
+                }
+                else
+                {
+                    // If an entity has a parent, convert global physics pos/rot to local space
+                    Transform* parent_t = &scene->transforms[t->parent_id];
+
+                    // Local position = Inverse(parent world matrix) * Global Position
+                    Matrix4 inv_parent_matrix = Matrix4Inverse(parent_t->world_matrix);
+                    Vector3 local_pos = Matrix4MultiplyVector3(inv_parent_matrix, phys_global_pos);
+
+                    // Local rotation = Inverse(Parent Global Rotation) * Global Rotation
+                    Quaternion parent_global_rot = Transform_GetGlobalRotation(parent_t);
+                    Quaternion inv_parent_rot = QuaternionInverse(parent_global_rot);
+                    Quaternion local_rot = QuaternionMultiply(inv_parent_rot, phys_global_rot);
+
+                    Transform_SetLocalPosition(t, local_pos);
+                    Transform_SetLocalRotation(t, local_rot);
+                }
             }
         }
     }
