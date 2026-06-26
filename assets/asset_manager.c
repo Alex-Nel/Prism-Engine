@@ -18,6 +18,7 @@
 #define MAX_CACHED_SHADERS 1024
 #define MAX_CACHED_TEXTURES 1024
 #define MAX_CACHED_MESHES 1024
+#define MAX_CACHED_SKINNED_MESHES 1024
 #define MAX_CACHED_MODELS 1024
 #define MAX_MATERIALS 1024
 
@@ -35,6 +36,9 @@ static uint32_t texture_count = 0;
 
 static Mesh mesh_cache[MAX_CACHED_MESHES];
 static uint32_t mesh_count = 0;
+
+static SkinnedMesh skinned_mesh_cache[MAX_CACHED_SKINNED_MESHES];
+static uint32_t skinned_mesh_count = 0;
 
 static Model* model_cache[MAX_CACHED_MODELS];
 static uint32_t model_count = 0;
@@ -73,7 +77,7 @@ void Asset_Init(Renderer* r)
 
 
 // Calculates the AABB box for a specified mesh (set of vertices)
-static AABB CalculateAABB(const Vertex3D* vertices, uint32_t vertex_count)
+static AABB CalculateAABB_Static(const Vertex3D* vertices, uint32_t vertex_count)
 {
     // Start min at the highest possible number, and max at the lowest possible number
     AABB bounds = {
@@ -85,6 +89,33 @@ static AABB CalculateAABB(const Vertex3D* vertices, uint32_t vertex_count)
     {
         Vector3 p = vertices[i].position;
 
+        if (p.x < bounds.min.x) bounds.min.x = p.x;
+        if (p.y < bounds.min.y) bounds.min.y = p.y;
+        if (p.z < bounds.min.z) bounds.min.z = p.z;
+
+        if (p.x > bounds.max.x) bounds.max.x = p.x;
+        if (p.y > bounds.max.y) bounds.max.y = p.y;
+        if (p.z > bounds.max.z) bounds.max.z = p.z;
+    }
+
+    return bounds;
+}
+
+
+
+
+
+// Calculates the AABB box for a Skinned Mesh
+static AABB CalculateAABB_Skinned(const Vertex3DSkinned* vertices, uint32_t vertex_count)
+{
+    AABB bounds = {
+        (Vector3){ FLT_MAX, FLT_MAX, FLT_MAX },
+        (Vector3){-FLT_MAX, -FLT_MAX, -FLT_MAX}
+    };
+
+    for (uint32_t i = 0; i < vertex_count; i++)
+    {
+        Vector3 p = vertices[i].position;
         if (p.x < bounds.min.x) bounds.min.x = p.x;
         if (p.y < bounds.min.y) bounds.min.y = p.y;
         if (p.z < bounds.min.z) bounds.min.z = p.z;
@@ -420,8 +451,6 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
         
         uint32_t vertex_count = ai_mesh->mNumVertices;
         uint32_t max_index_count = ai_mesh->mNumFaces * 3; 
-
-        Vertex3D* vertices = malloc(sizeof(Vertex3D) * vertex_count);
         uint32_t* indices = malloc(sizeof(uint32_t) * max_index_count);
 
         // Get the nodes transform
@@ -433,128 +462,155 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
 
         // Check if the file contains animations
         bool has_animations = (scene->mNumAnimations > 0);
-        bool is_rigid_attachment = (ai_mesh->mNumBones == 0);
-
-
-
-        // ----- Extract Vertices -----
+        bool is_skinned = (ai_mesh->mNumBones > 0);
         
-        for (uint32_t i = 0; i < vertex_count; i++)
+        new_model->nodes[m].is_skinned = is_skinned;
+        new_model->nodes[m].material = material_map[ai_mesh->mMaterialIndex];
+
+
+        // Skinned meshes
+        if (is_skinned)
         {
-            Vertex3D v;
-            Vertex_SetDefaultBones(&v);
-
-            Vector3 raw_pos = (Vector3){ ai_mesh->mVertices[i].x, ai_mesh->mVertices[i].y, ai_mesh->mVertices[i].z };
-            Vector3 raw_norm = (Vector3){ ai_mesh->mNormals[i].x, ai_mesh->mNormals[i].y, ai_mesh->mNormals[i].z };
-
-            if (is_rigid_attachment && !has_animations)
+            if (skinned_mesh_count >= MAX_CACHED_SKINNED_MESHES)
             {
-                v.position = Matrix4MultiplyVector3(node_transform, raw_pos);
+                Log_Error("CRITICAL: Skinned mesh cache limit reached!");
+                continue;
+            }
 
-                v.normal.x = node_transform.m0 * raw_norm.x + node_transform.m4 * raw_norm.y + node_transform.m8 * raw_norm.z;
-                v.normal.y = node_transform.m1 * raw_norm.x + node_transform.m5 * raw_norm.y + node_transform.m9 * raw_norm.z;
-                v.normal.z = node_transform.m2 * raw_norm.x + node_transform.m6 * raw_norm.y + node_transform.m10 * raw_norm.z;
+            Vertex3DSkinned* vertices = malloc(sizeof(Vertex3DSkinned) * vertex_count);
 
-                float length = sqrtf(v.normal.x*v.normal.x + v.normal.y*v.normal.y + v.normal.z*v.normal.z);
-                if (length > 0.0001f)
-                {
-                    v.normal.x /= length;
-                    v.normal.y /= length;
-                    v.normal.z /= length;
+            // 1. Extract Vertices
+            for (uint32_t i = 0; i < vertex_count; i++)
+            {
+                Vertex3DSkinned v;
+                v.position = (Vector3){ ai_mesh->mVertices[i].x, ai_mesh->mVertices[i].y, ai_mesh->mVertices[i].z };
+                v.normal = (Vector3){ ai_mesh->mNormals[i].x, ai_mesh->mNormals[i].y, ai_mesh->mNormals[i].z };
+                
+                if (ai_mesh->mTextureCoords[0]) v.uv = (Vector2){ ai_mesh->mTextureCoords[0][i].x, ai_mesh->mTextureCoords[0][i].y };
+                else v.uv = (Vector2){ 0.0f, 0.0f };
+
+                // Initialize bones to default (empty) state
+                for (int b = 0; b < MAX_BONE_INFLUENCE; b++) {
+                    v.bone_ids[b] = -1;
+                    v.bone_weights[b] = 0.0f;
                 }
-            }
-            else
-            {
-                v.position = raw_pos;
-                v.normal = raw_norm;
+                vertices[i] = v;
             }
 
-            if (ai_mesh->mTextureCoords[0])
-                v.uv = (Vector2){ ai_mesh->mTextureCoords[0][i].x, ai_mesh->mTextureCoords[0][i].y };
-            else
-                v.uv = (Vector2){ 0.0f, 0.0f };
-
-            vertices[i] = v;
-        }
-
-
-
-        // ----- Extract bone information and invert weights -----
-        
-        for (uint32_t b = 0; b < ai_mesh->mNumBones; b++)
-        {
-            struct aiBone* ai_bone = ai_mesh->mBones[b];
-            
-            // Convert Assimp matrix to a Matrix4 (Assimp uses row-major matrices)
-            Matrix4 inv_bind = AssimpToColumnMatrix(ai_bone->mOffsetMatrix);
-
-            // Get the Global ID for this bone
-            int bone_id = GetOrAddBone(new_model->skeleton, ai_bone->mName.data, inv_bind);
-
-            // Apply this bone's weight to all vertices it affects
-            for (uint32_t w = 0; w < ai_bone->mNumWeights; w++)
+            // 2. Extract Bone Weights
+            for (uint32_t b = 0; b < ai_mesh->mNumBones; b++)
             {
-                uint32_t vertex_id = ai_bone->mWeights[w].mVertexId;
-                float weight = ai_bone->mWeights[w].mWeight;
+                struct aiBone* ai_bone = ai_mesh->mBones[b];
+                Matrix4 inv_bind = AssimpToColumnMatrix(ai_bone->mOffsetMatrix);
+                int bone_id = GetOrAddBone(new_model->skeleton, ai_bone->mName.data, inv_bind);
 
-                // Find the first empty bone slot (marked by -1) in this specific vertex
-                for (int slot = 0; slot < MAX_BONE_INFLUENCE; slot++)
+                for (uint32_t w = 0; w < ai_bone->mNumWeights; w++)
                 {
-                    if (vertices[vertex_id].bone_ids[slot] == -1)
+                    uint32_t vertex_id = ai_bone->mWeights[w].mVertexId;
+                    float weight = ai_bone->mWeights[w].mWeight;
+
+                    for (int slot = 0; slot < MAX_BONE_INFLUENCE; slot++)
                     {
-                        vertices[vertex_id].bone_ids[slot] = bone_id;
-                        vertices[vertex_id].bone_weights[slot] = weight;
-                        break;
+                        if (vertices[vertex_id].bone_ids[slot] == -1) {
+                            vertices[vertex_id].bone_ids[slot] = bone_id;
+                            vertices[vertex_id].bone_weights[slot] = weight;
+                            break;
+                        }
                     }
                 }
             }
-        }
 
-
-
-        // ----- Extract Indices -----
-
-        uint32_t actual_index_count = 0;
-        for (uint32_t i = 0; i < ai_mesh->mNumFaces; i++)
-        {
-            struct aiFace face = ai_mesh->mFaces[i];
-            for (uint32_t j = 0; j < face.mNumIndices; j++)
-            {
-                indices[actual_index_count++] = face.mIndices[j];
+            // 3. Extract Indices
+            uint32_t actual_index_count = 0;
+            for (uint32_t i = 0; i < ai_mesh->mNumFaces; i++) {
+                struct aiFace face = ai_mesh->mFaces[i];
+                for (uint32_t j = 0; j < face.mNumIndices; j++) indices[actual_index_count++] = face.mIndices[j];
             }
+
+            // 4. Send to GPU and Cache
+            MeshHandle mesh_handle = Render_CreateSkinnedMesh(renderer, vertices, vertex_count, indices, actual_index_count);
+            SkinnedMesh* sub_mesh = &skinned_mesh_cache[skinned_mesh_count];
+            
+            strncpy(sub_mesh->name, real_node_name, sizeof(sub_mesh->name) - 1);
+            sub_mesh->name[sizeof(sub_mesh->name) - 1] = '\0';
+            sub_mesh->id = skinned_mesh_count;
+            sub_mesh->gpu_handle = mesh_handle;
+            sub_mesh->vertices = vertices;
+            sub_mesh->vertex_count = vertex_count;
+            sub_mesh->indices = indices;
+            sub_mesh->index_count = actual_index_count;
+            sub_mesh->local_bounds = CalculateAABB_Skinned(vertices, vertex_count);
+
+            skinned_mesh_count++;
+            new_model->nodes[m].skinned_mesh = sub_mesh;
+            new_model->nodes[m].mesh = NULL;
         }
 
-        if (mesh_count >= MAX_CACHED_MESHES)
+        // Static meshwa
+        else 
         {
-            Log_Error("Error: Max cached meshe limit reached. Cannot load sub-mesh %d", m);
-            free(vertices);
-            free(indices);
-            continue;
+            if (mesh_count >= MAX_CACHED_MESHES)
+            {
+                Log_Error("CRITICAL: Static mesh cache limit reached!");
+                continue; // Skip loading this sub-mesh to prevent a crash
+            }
+
+            Vertex3D* vertices = malloc(sizeof(Vertex3D) * vertex_count);
+
+            // 1. Extract Vertices
+            for (uint32_t i = 0; i < vertex_count; i++)
+            {
+                Vertex3D v;
+                Vector3 raw_pos = (Vector3){ ai_mesh->mVertices[i].x, ai_mesh->mVertices[i].y, ai_mesh->mVertices[i].z };
+                Vector3 raw_norm = (Vector3){ ai_mesh->mNormals[i].x, ai_mesh->mNormals[i].y, ai_mesh->mNormals[i].z };
+
+                // Apply node transformation directly to geometry if rigid
+                if (!has_animations) {
+                    v.position = Matrix4MultiplyVector3(node_transform, raw_pos);
+                    v.normal.x = node_transform.m0 * raw_norm.x + node_transform.m4 * raw_norm.y + node_transform.m8 * raw_norm.z;
+                    v.normal.y = node_transform.m1 * raw_norm.x + node_transform.m5 * raw_norm.y + node_transform.m9 * raw_norm.z;
+                    v.normal.z = node_transform.m2 * raw_norm.x + node_transform.m6 * raw_norm.y + node_transform.m10 * raw_norm.z;
+
+                    float length = sqrtf(v.normal.x*v.normal.x + v.normal.y*v.normal.y + v.normal.z*v.normal.z);
+                    if (length > 0.0001f) {
+                        v.normal.x /= length; v.normal.y /= length; v.normal.z /= length;
+                    }
+                } else {
+                    v.position = raw_pos;
+                    v.normal = raw_norm;
+                }
+
+                if (ai_mesh->mTextureCoords[0]) v.uv = (Vector2){ ai_mesh->mTextureCoords[0][i].x, ai_mesh->mTextureCoords[0][i].y };
+                else v.uv = (Vector2){ 0.0f, 0.0f };
+
+                vertices[i] = v;
+            }
+
+            // 2. Extract Indices
+            uint32_t actual_index_count = 0;
+            for (uint32_t i = 0; i < ai_mesh->mNumFaces; i++) {
+                struct aiFace face = ai_mesh->mFaces[i];
+                for (uint32_t j = 0; j < face.mNumIndices; j++) indices[actual_index_count++] = face.mIndices[j];
+            }
+
+            // 3. Send to GPU and Cache
+            MeshHandle mesh_handle = Render_CreateMesh(renderer, vertices, vertex_count, indices, actual_index_count);
+            Mesh* sub_mesh = &mesh_cache[mesh_count];
+            
+            strncpy(sub_mesh->name, real_node_name, sizeof(sub_mesh->name) - 1);
+            sub_mesh->name[sizeof(sub_mesh->name) - 1] = '\0';
+            sub_mesh->id = mesh_count;
+            sub_mesh->gpu_handle = mesh_handle;
+            sub_mesh->vertices = vertices;
+            sub_mesh->vertex_count = vertex_count;
+            sub_mesh->indices = indices;
+            sub_mesh->index_count = actual_index_count;
+            sub_mesh->local_bounds = CalculateAABB_Static(vertices, vertex_count);
+
+            mesh_count++;
+            new_model->nodes[m].mesh = sub_mesh;
+            new_model->nodes[m].skinned_mesh = NULL;
         }
-
-        // Send this piece of the model to the GPU
-        MeshHandle mesh_handle = Render_CreateMesh(renderer, vertices, vertex_count, indices, actual_index_count);
-
-        Mesh* sub_mesh = &mesh_cache[mesh_count];
-        // snprintf(sub_mesh->name, sizeof(sub_mesh->name), "%s Part %d", name, m);
-        strncpy(sub_mesh->name, real_node_name, sizeof(sub_mesh->name) - 1);
-        sub_mesh->name[sizeof(sub_mesh->name) - 1] = '\0';
-        sub_mesh->id = mesh_count;
-        sub_mesh->gpu_handle = mesh_handle;
-
-        sub_mesh->vertices = vertices;
-        sub_mesh->vertex_count = vertex_count;
-        sub_mesh->indices = indices;
-        sub_mesh->index_count = actual_index_count;
-        sub_mesh->local_bounds = CalculateAABB(vertices, vertex_count);
-
-        mesh_count++;
-        
-        // Save it into the Model Node
-        new_model->nodes[m].mesh = sub_mesh;
-        
-        // Use the correct material
-        new_model->nodes[m].material = material_map[ai_mesh->mMaterialIndex];
     }
 
     // Sets the root of the skeleton node
@@ -711,7 +767,6 @@ Mesh* Asset_LoadMesh(const char* name, const char* filepath)
             {
                 fastObjIndex mi = indices[k];
                 Vertex3D v;
-                Vertex_SetDefaultBones(&v);
 
                 v.position.x = mesh->positions[mi.p * 3 + 0];
                 v.position.y = mesh->positions[mi.p * 3 + 1];
@@ -751,28 +806,30 @@ Mesh* Asset_LoadMesh(const char* name, const char* filepath)
     // Create GPU mesh
     MeshHandle handle = Render_CreateMesh(renderer, final_vertices, vertex_count, final_indices, index_count);
 
+    // Check if we've reached the maximum cached meshes
+    if (mesh_count >= MAX_CACHED_MESHES)
+    {
+        Log_Warning("MAX_CACHED_MESHES reached. Cannot cache %s", name);
+        free(final_vertices);
+        free(final_indices);
+        fast_obj_destroy(mesh);
+        return NULL;
+    }
+
     Mesh* new_mesh = &mesh_cache[mesh_count];
 
     // Cache mesh
-    if (mesh_count < MAX_CACHED_MESHES)
-    {
-        strcpy(new_mesh->name, name);
-        new_mesh->gpu_handle = handle;
+    strcpy(new_mesh->name, name);
+    new_mesh->gpu_handle = handle;
 
-        new_mesh->id = mesh_count;
-        new_mesh->index_count = index_count;
-        new_mesh->indices = final_indices;
-        new_mesh->local_bounds = CalculateAABB(final_vertices, vertex_count);
-        new_mesh->vertex_count = vertex_count;
-        new_mesh->vertices = final_vertices;
+    new_mesh->id = mesh_count;
+    new_mesh->index_count = index_count;
+    new_mesh->indices = final_indices;
+    new_mesh->local_bounds = CalculateAABB_Static(final_vertices, vertex_count);
+    new_mesh->vertex_count = vertex_count;
+    new_mesh->vertices = final_vertices;
 
-        mesh_count++;
-    }
-    else
-    {
-        free(final_vertices);
-        free(final_indices);
-    }
+    mesh_count++;
 
     fast_obj_destroy(mesh);
 
@@ -1114,11 +1171,6 @@ Mesh* Asset_GetBuiltinQuad()
     };
 
 
-    // Sets default bone information for each vertex
-    for (int i = 0; i < 4; i++)
-        Vertex_SetDefaultBones(&vertices[i]);
-
-
     // Copy vertices and indices to the heap for caching
     Vertex3D* heap_vertices = malloc(sizeof(vertices));
     memcpy(heap_vertices, vertices, sizeof(vertices));
@@ -1138,7 +1190,7 @@ Mesh* Asset_GetBuiltinQuad()
         m->indices = heap_indices;
         m->vertex_count = 4;
         m->index_count = 6;
-        m->local_bounds = CalculateAABB(heap_vertices, 4);
+        m->local_bounds = CalculateAABB_Static(heap_vertices, 4);
 
         builtin_quad = m;
 
@@ -1208,11 +1260,6 @@ Mesh* Asset_GetBuiltinCube()
     };
 
 
-    // Sets default bone information for each vertex
-    for (int i = 0; i < 24; i++)
-        Vertex_SetDefaultBones(&vertices[i]);
-
-
     // Copy vertices and indices to the heap for caching
     Vertex3D* heap_vertices = malloc(sizeof(vertices));
     memcpy(heap_vertices, vertices, sizeof(vertices));
@@ -1234,7 +1281,7 @@ Mesh* Asset_GetBuiltinCube()
         m->indices = heap_indices;
         m->vertex_count = 24;
         m->index_count = 36;
-        m->local_bounds = CalculateAABB(heap_vertices, 24);
+        m->local_bounds = CalculateAABB_Static(heap_vertices, 24);
 
         builtin_cube = m;
 
@@ -1286,7 +1333,6 @@ Mesh* Asset_GetBuiltinSphere()
             float zPos = sinf(xSegment * 2.0f * PI) * sinf(ySegment * PI);
 
             Vertex3D v;
-            Vertex_SetDefaultBones(&v);
 
             v.position = (Vector3){xPos * 0.5f, yPos * 0.5f, zPos * 0.5f}; // Radius 0.5
             v.normal = (Vector3){xPos, yPos, zPos}; // Normal is just the normalized position
@@ -1332,7 +1378,7 @@ Mesh* Asset_GetBuiltinSphere()
         m->indices = indices;
         m->vertex_count = vertex_count;
         m->index_count = index_count;
-        m->local_bounds = CalculateAABB(vertices, vertex_count);
+        m->local_bounds = CalculateAABB_Static(vertices, vertex_count);
 
         builtin_sphere = m;
 
@@ -1479,6 +1525,19 @@ Mesh* Asset_GetMeshByName(const char* name)
 {
     for (uint32_t i = 0; i < mesh_count; i++)
         if (strcmp(mesh_cache[i].name, name) == 0) return &mesh_cache[i];
+
+    return NULL;
+}
+
+
+
+
+
+// Look up a skinned mesh by its string name
+SkinnedMesh* Asset_GetSkinnedMeshByName(const char* name)
+{
+    for (uint32_t i = 0; i < skinned_mesh_count; i++)
+        if (strcmp(skinned_mesh_cache[i].name, name) == 0) return &skinned_mesh_cache[i];
 
     return NULL;
 }

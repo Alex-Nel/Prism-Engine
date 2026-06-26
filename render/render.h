@@ -147,6 +147,7 @@ typedef struct Renderer
 
     TextureHandle (*CreateCubemap)(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels);
     MeshHandle (*CreateDynamicMesh)(Renderer* r, uint32_t max_vertices, uint32_t max_indices);
+    MeshHandle (*CreateSkinnedMesh)(Renderer* r, const Vertex3DSkinned* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count);
     void (*UpdateDynamicMesh)(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
 
     // Command Submission
@@ -270,6 +271,15 @@ static inline TextureHandle Render_CreateCubemap(Renderer* r,
         return r->CreateCubemap(r, right, left, top, bottom, front, back, width, height, channels);
     else
         return (TextureHandle){0};
+}
+
+
+// Creates a skinned mesh. Returns a mesh handle 
+static inline MeshHandle Render_CreateSkinnedMesh(Renderer* r, const Vertex3DSkinned* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count)
+{
+    if (r && r->CreateSkinnedMesh)
+        return r->CreateSkinnedMesh(r, vertices, vertex_count, indices, index_count);
+    return (MeshHandle){0};
 }
 
 

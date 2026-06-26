@@ -23,10 +23,20 @@ typedef struct Vertex3D
     Vector3 position;
     Vector3 normal;
     Vector2 uv;
+} Vertex3D;
+
+
+
+// Vertex3D struct for skinned mesh data.
+typedef struct Vertex3DSkinned
+{
+    Vector3 position;
+    Vector3 normal;
+    Vector2 uv;
 
     int bone_ids[MAX_BONE_INFLUENCE];
     float bone_weights[MAX_BONE_INFLUENCE];
-} Vertex3D;
+} Vertex3DSkinned;
 
 
 
@@ -57,7 +67,7 @@ typedef struct AABB
 
 
 
-// Struct for all mesh data
+// Struct for static mesh data
 typedef struct Mesh
 {
     char name[MAX_NAME_LENGTH];
@@ -75,6 +85,27 @@ typedef struct Mesh
     // GPU handle
     MeshHandle gpu_handle;
 } Mesh;
+
+
+
+// Struct for skinned (dynamic) mesh data
+typedef struct SkinnedMesh
+{
+    char name[MAX_NAME_LENGTH];
+
+    // Mesh Data
+    Vertex3DSkinned* vertices;
+    uint32_t vertex_count;
+    uint32_t* indices;
+    uint32_t index_count;
+    AABB local_bounds;
+
+    // Index in asset manager
+    uint32_t id;
+
+    // GPU handle
+    MeshHandle gpu_handle;
+} SkinnedMesh;
 
 
 
@@ -208,7 +239,7 @@ typedef struct Skeleton
 
 
 // Sets a vertex to a safe, un-animated state
-void Vertex_SetDefaultBones(Vertex3D* v);
+// void Vertex_SetDefaultBones(Vertex3D* v);
 
 
 

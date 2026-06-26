@@ -297,15 +297,6 @@ static MeshHandle OpenGL_CreateMesh(Renderer* r, const Vertex3D* vertices, uint3
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, uv));
     glEnableVertexAttribArray(2);
 
-    // Bone IDs
-    glVertexAttribIPointer(3, MAX_BONE_INFLUENCE, GL_INT, sizeof(Vertex3D), (void*)offsetof(Vertex3D, bone_ids));
-    glEnableVertexAttribArray(3);
-
-    // Bone Weights
-    glVertexAttribPointer(4, MAX_BONE_INFLUENCE, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, bone_weights));
-    glEnableVertexAttribArray(4);
-
-
     glBindVertexArray(0); // Unbind to prevent accidental modifications
 
     return (MeshHandle){id};
@@ -512,6 +503,70 @@ static TextureHandle OpenGL_CreateCubemap(Renderer* r, const uint8_t* right, con
 
 
 
+// Uploads vertex and index data to the GPU and returns a handle
+static MeshHandle OpenGL_CreateSkinnedMesh(Renderer* r, const Vertex3DSkinned* vertices, uint32_t vertex_count, const uint32_t* indices,  uint32_t index_count)
+{
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+
+    // Find an empty slot
+    // TODO: use a free-list for O(1) allocation
+    uint32_t id = 0;
+    for (uint32_t i = 1; i < MAX_RESOURCES; i++)
+    {
+        if (!internal->mesh_pool[i].active)
+        {
+            id = i;
+            break;
+        }
+    }
+
+    // Return 0 if pool is full
+    if (id == 0) return (MeshHandle){0};
+
+    GLMesh* mesh = &internal->mesh_pool[id];
+    mesh->active = true;
+    mesh->index_count = index_count;
+
+    // Generate OpenGL buffers
+    glGenVertexArrays(1, &mesh->vao);
+    glGenBuffers(1, &mesh->vbo);
+    glGenBuffers(1, &mesh->ebo);
+    glBindVertexArray(mesh->vao);
+
+    // Upload Vertex Data
+    glBindBuffer(GL_ARRAY_BUFFER, mesh->vbo);
+    glBufferData(GL_ARRAY_BUFFER, vertex_count * sizeof(Vertex3DSkinned), vertices, GL_STATIC_DRAW);
+
+    // Upload Index Data
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_count * sizeof(uint32_t), indices, GL_STATIC_DRAW);
+
+    // Define Vertex Attributes
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex3DSkinned), (void*)offsetof(Vertex3DSkinned, position));
+    
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex3DSkinned), (void*)offsetof(Vertex3DSkinned, normal));
+    
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex3DSkinned), (void*)offsetof(Vertex3DSkinned, uv));
+
+    glEnableVertexAttribArray(3);
+    glVertexAttribIPointer(3, MAX_BONE_INFLUENCE, GL_INT, sizeof(Vertex3DSkinned), (void*)offsetof(Vertex3DSkinned, bone_ids));
+    
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, MAX_BONE_INFLUENCE, GL_FLOAT, GL_FALSE, sizeof(Vertex3DSkinned), (void*)offsetof(Vertex3DSkinned, bone_weights));
+
+
+    glBindVertexArray(0); // Unbind to prevent accidental modifications
+
+    return (MeshHandle){id};
+}
+
+
+
+
+
 // Creates a dynamic mesh. Returns a mesh handle
 static MeshHandle OpenGL_CreateDynamicMesh(Renderer* r, uint32_t max_vertices, uint32_t max_indices)
 {
@@ -561,14 +616,6 @@ static MeshHandle OpenGL_CreateDynamicMesh(Renderer* r, uint32_t max_vertices, u
     // UV
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, uv));
-    
-    // Bone IDs (Assuming your setup uses glVertexAttribIPointer for int arrays)
-    glEnableVertexAttribArray(3);
-    glVertexAttribIPointer(3, MAX_BONE_INFLUENCE, GL_INT, sizeof(Vertex3D), (void*)offsetof(Vertex3D, bone_ids));
-    
-    // Bone Weights
-    glEnableVertexAttribArray(4);
-    glVertexAttribPointer(4, MAX_BONE_INFLUENCE, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, bone_weights));
 
     glBindVertexArray(0);
     
@@ -955,8 +1002,7 @@ static void OpenGL_EndFrame(Renderer* r)
         {
             if (cmd->bone_matrices != NULL) 
             {
-                // Upload the Animator's 100 matrices!
-                // 100 is the count, GL_FALSE means don't transpose (assuming column-major)
+                // Upload matrices to the Animator
                 glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)cmd->bone_matrices);
             } 
             else 
@@ -996,40 +1042,44 @@ static void OpenGL_EndFrame(Renderer* r)
         uint32_t shader_id = internal->state.skybox_shader.id;
         uint32_t tex_id = internal->state.skybox_texture.id;
 
-        if (shader_id == 0 || tex_id == 0)
-            return;
+        if (shader_id != 0 || tex_id != 0)
+        {
+            // Change depth func so it draws at max depth (1.0)
+            glDepthFunc(GL_LEQUAL);
+            glDisable(GL_CULL_FACE);
+    
+            GLuint prog = internal->shader_pool[shader_id].program;
+            glUseProgram(prog);
+            
+            // Upload Camera Matrices
+            GLint view_loc = glGetUniformLocation(prog, "u_View");
+            GLint proj_loc = glGetUniformLocation(prog, "u_Projection");
+            
+            glUniformMatrix4fv(view_loc, 1, GL_FALSE, (float*)&internal->state.view_matrix);
+            glUniformMatrix4fv(proj_loc, 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+            
+            // Bind the Cubemap from the Texture Pool
+            uint32_t gl_tex_id = internal->texture_pool[internal->state.skybox_texture.id].id;
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, gl_tex_id);
+    
+            // If your shader explicitly names the sampler, bind it
+            GLint skybox_loc = glGetUniformLocation(prog, "u_Skybox");
+            if (skybox_loc != -1) glUniform1i(skybox_loc, 0);
+            
+            // Draw all 36 vertices
+            glBindVertexArray(internal->skybox_vao);
+            glDrawArrays(GL_TRIANGLES, 0, 36); 
+            glBindVertexArray(0);
+            
+            // Restore default depth testing
+            glDepthFunc(GL_LESS);
+            glEnable(GL_CULL_FACE);
+        }
 
-        // Change depth func so it draws at max depth (1.0)
-        glDepthFunc(GL_LEQUAL);
-        glDisable(GL_CULL_FACE);
-
-        GLuint prog = internal->shader_pool[shader_id].program;
-        glUseProgram(prog);
-        
-        // Upload Camera Matrices
-        GLint view_loc = glGetUniformLocation(prog, "u_View");
-        GLint proj_loc = glGetUniformLocation(prog, "u_Projection");
-        
-        glUniformMatrix4fv(view_loc, 1, GL_FALSE, (float*)&internal->state.view_matrix);
-        glUniformMatrix4fv(proj_loc, 1, GL_FALSE, (float*)&internal->state.projection_matrix);
-        
-        // Bind the Cubemap from the Texture Pool
-        uint32_t gl_tex_id = internal->texture_pool[internal->state.skybox_texture.id].id;
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, gl_tex_id);
-
-        // If your shader explicitly names the sampler, bind it
-        GLint skybox_loc = glGetUniformLocation(prog, "u_Skybox");
-        if (skybox_loc != -1) glUniform1i(skybox_loc, 0);
-        
-        // Draw all 36 vertices
-        glBindVertexArray(internal->skybox_vao);
-        glDrawArrays(GL_TRIANGLES, 0, 36); 
-        glBindVertexArray(0);
-        
-        // Restore default depth testing
-        glDepthFunc(GL_LESS); 
-        glEnable(GL_CULL_FACE);
+        // Reset current shader and texture before rendering transparent geometry
+        current_shader = 0;
+        current_texture = 0;
     }
 
 
@@ -1179,8 +1229,7 @@ static void OpenGL_EndFrame(Renderer* r)
             {
                 if (cmd->bone_matrices != NULL) 
                 {
-                    // Upload the Animator's 100 matrices!
-                    // 100 is the count, GL_FALSE means don't transpose (assuming column-major)
+                    // Upload matrices to the Animator
                     glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)cmd->bone_matrices);
                 } 
                 else 
@@ -1221,7 +1270,10 @@ static void OpenGL_EndFrame(Renderer* r)
 Renderer* OpenGL_Init(Render_LoadProcFn load_proc)
 {
     Renderer* r = malloc(sizeof(Renderer));
-    if (!r) return NULL;
+    if (!r)
+        return NULL;
+
+    memset(r, 0, sizeof(Renderer));
 
     OpenGL_Backend* internal = malloc(sizeof(OpenGL_Backend));
     memset(internal, 0, sizeof(OpenGL_Backend));
@@ -1297,6 +1349,7 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc)
 
     r->CreateCubemap = OpenGL_CreateCubemap;
     r->CreateDynamicMesh = OpenGL_CreateDynamicMesh;
+    r->CreateSkinnedMesh = OpenGL_CreateSkinnedMesh;
     r->UpdateDynamicMesh = OpenGL_UpdateDynamicMesh;
 
     r->BeginFrame = OpenGL_BeginFrame;

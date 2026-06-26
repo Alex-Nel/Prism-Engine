@@ -146,16 +146,40 @@ namespace Prism
 
 
     // ==========================================
-    // Render Component Wrapper
+    // Mesh Render Component Wrapper
     // ==========================================
 
-    struct PRISM_API RenderComponent
+    struct PRISM_API MeshRendererComponent
     {
         Prism::Entity entity; // The Entity that this component is attached to
         bool is_active;
         void* raw_mesh_ptr;
         void* raw_material_ptr;
         uint32_t layer_mask;
+
+
+        void SetActive(bool active) { this->is_active = active; }
+        bool IsActive() const { return this->is_active; }
+
+        void SetMaterial(Prism::Material material);
+
+        void SetLayerMask(uint8_t mask);
+    };
+
+
+
+    // ==========================================
+    // Skinned Mesh Render Component Wrapper
+    // ==========================================
+
+    struct PRISM_API SkinnedMeshRendererComponent
+    {
+        Prism::Entity entity; // The Entity that this component is attached to
+        bool is_active;
+        void* raw_mesh_ptr;
+        void* raw_material_ptr;
+        uint32_t layer_mask;
+        Prism::Entity root_animator;
 
 
         void SetActive(bool active) { this->is_active = active; }

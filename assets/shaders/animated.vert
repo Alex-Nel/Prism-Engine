@@ -15,7 +15,7 @@ uniform mat4 u_View;
 uniform mat4 u_Projection;
 
 // --- Bone Matrices ---
-const int MAX_BONES = 100;
+const int MAX_BONES = 256;
 uniform mat4 u_BoneMatrices[MAX_BONES];
 
 // Outputs to Fragment Shader

@@ -55,22 +55,23 @@ typedef enum CollisionLayer
 // Enum for all Component Masks
 typedef enum
 {
-    COMPONENT_NONE             = 0,
-    COMPONENT_NAME             = 1 << 0,
-    COMPONENT_TAG              = 1 << 1,
-    COMPONENT_TRANSFORM        = 1 << 2,
-    COMPONENT_RENDER           = 1 << 3,
-    COMPONENT_CAMERA           = 1 << 4,
-    COMPONENT_LIGHT            = 1 << 5,
-    COMPONENT_COLLIDER         = 1 << 6,
-    COMPONENT_RIGIDBODY        = 1 << 7,
-    COMPONENT_AUDIO_LISTENER   = 1 << 8,
-    COMPONENT_AUDIO_SOURCE     = 1 << 9,
-    COMPONENT_ANIMATOR         = 1 << 10,
-    COMPONENT_BONE_ATTACHMENT  = 1 << 11,
-    COMPONENT_LINE_RENDERER    = 1 << 12,
-    COMPONENT_SPRITE_RENDERER  = 1 << 13,
-    COMPONENT_SCRIPT           = 1 << 14
+    COMPONENT_NONE                     = 0,
+    COMPONENT_NAME                     = 1 << 0,
+    COMPONENT_TAG                      = 1 << 1,
+    COMPONENT_TRANSFORM                = 1 << 2,
+    COMPONENT_MESH_RENDERER            = 1 << 3,
+    COMPONENT_SKINNED_MESH_RENDERER    = 1 << 4,
+    COMPONENT_CAMERA                   = 1 << 5,
+    COMPONENT_LIGHT                    = 1 << 6,
+    COMPONENT_COLLIDER                 = 1 << 7,
+    COMPONENT_RIGIDBODY                = 1 << 8,
+    COMPONENT_AUDIO_LISTENER           = 1 << 9,
+    COMPONENT_AUDIO_SOURCE             = 1 << 10,
+    COMPONENT_ANIMATOR                 = 1 << 11,
+    COMPONENT_BONE_ATTACHMENT          = 1 << 12,
+    COMPONENT_LINE_RENDERER            = 1 << 13,
+    COMPONENT_SPRITE_RENDERER          = 1 << 14,
+    COMPONENT_SCRIPT                   = 1 << 15
 } ComponentMask;
 
 
@@ -181,15 +182,32 @@ typedef struct Transform
 
 
 // Component that holds rendering information
-typedef struct RenderComponent
+typedef struct MeshRendererComponent
 {
     Entity entity;
     bool is_active;
+
     Mesh* mesh;
     Material* material;
 
     uint32_t layer_mask; // Only one layer mask
-} RenderComponent;
+} MeshRendererComponent;
+
+
+
+// Component that holds skinned mesh rendering information
+typedef struct SkinnedMeshRendererComponent
+{
+    Entity entity;
+    bool is_active;
+
+    SkinnedMesh* mesh;
+    Material* material;
+
+    uint32_t layer_mask; // Only one layer mask
+
+    uint32_t root_animator_entity_id;
+} SkinnedMeshRendererComponent;
 
 
 
@@ -460,7 +478,8 @@ typedef struct Scene
     NameComponent names[MAX_ENTITIES];
     TagComponent tags[MAX_ENTITIES];
     Transform transforms[MAX_ENTITIES];
-    RenderComponent renderables[MAX_ENTITIES];
+    MeshRendererComponent mesh_renderers[MAX_ENTITIES];
+    SkinnedMeshRendererComponent skinned_mesh_renderers[MAX_ENTITIES];
     CameraComponent cameras[MAX_ENTITIES];
     LightComponent lights[MAX_ENTITIES];
     ColliderComponent colliders[MAX_ENTITIES];

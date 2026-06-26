@@ -709,13 +709,11 @@ void Scene_UpdateLineRenderers(Scene* scene)
             temp_verts[p*2].position = Vector3Add(current, offset);
             temp_verts[p*2].normal = cam_dir; // Pointing at the camera so physics lighting illuminates it
             temp_verts[p*2].uv = (Vector2){ percent, 1.0f };
-            Vertex_SetDefaultBones(&temp_verts[p*2]); 
 
             // Bottom Vertex
             temp_verts[p*2 + 1].position = Vector3Subtract(current, offset);
             temp_verts[p*2 + 1].normal = cam_dir;
             temp_verts[p*2 + 1].uv = (Vector2){ percent, 0.0f };
-            Vertex_SetDefaultBones(&temp_verts[p*2 + 1]);
         }
 
         // --- Generate Indices ---

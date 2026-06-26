@@ -97,13 +97,26 @@ namespace Prism
 
 
     // ==========================================
-    // Render Component Implementation
+    // Mesh Renderer Component Implementation
     // ==========================================
 
-    void RenderComponent::SetMaterial(Prism::Material material) {
+    void MeshRendererComponent::SetMaterial(Prism::Material material) {
         this->raw_material_ptr = material.GetRaw();
     }
-    void RenderComponent::SetLayerMask(uint8_t layer_index) {
+    void MeshRendererComponent::SetLayerMask(uint8_t layer_index) {
+        this->layer_mask = (1u << layer_index); // Sets the object to a specific layer (0 through 31)
+    }
+
+
+
+    // ==========================================
+    // Skinned Mesh Renderer Component Implementation
+    // ==========================================
+
+    void SkinnedMeshRendererComponent::SetMaterial(Prism::Material material) {
+        this->raw_material_ptr = material.GetRaw();
+    }
+    void SkinnedMeshRendererComponent::SetLayerMask(uint8_t layer_index) {
         this->layer_mask = (1u << layer_index); // Sets the object to a specific layer (0 through 31)
     }
 

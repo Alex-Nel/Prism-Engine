@@ -281,7 +281,7 @@ void Collider_SetConvex(Entity entity, bool is_convex)
 
 
 // Recalculates a cameras projection matrix when needed
-static void Camera_RecalculateProjectionIfNeeded(CameraComponent* cam)
+void Camera_RecalculateProjectionIfNeeded(CameraComponent* cam)
 {
     // If the fov is 0, it means the camera component was just created and is uninitialized.
     if (cam->fov <= 0.0f) {
@@ -291,11 +291,10 @@ static void Camera_RecalculateProjectionIfNeeded(CameraComponent* cam)
         cam->is_dirty = true;
     }
 
-    if (cam->is_dirty && cam->viewport_height > 0)
+    if (cam->viewport_height > 0)
     {
         float aspect = (float)cam->viewport_width / (float)cam->viewport_height;
         cam->projection_matrix = Matrix4Perspective(cam->fov, aspect, cam->nearZ, cam->farZ);
-        cam->is_dirty = false;
     }
 }
 
@@ -432,7 +431,7 @@ void Camera_SetFOV(CameraComponent* cam, float FOV)
 
 
 // Sets the specific material slot with a chosen material
-void Renderable_SetMaterial(RenderComponent* r, Material* material)
+void MeshRenderer_SetMaterial(MeshRendererComponent* r, Material* material)
 {
     if (!r)
     {

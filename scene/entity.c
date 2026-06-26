@@ -249,7 +249,11 @@ void Entity_AddModel(Entity parent, Model* model)
     // If the model is only a single mesh, just attach it to the parent
     if (model->node_count == 1)
     {
-        Entity_AddRenderable(parent, model->nodes[0].mesh, model->nodes[0].material);
+        if (model->nodes[0].is_skinned)
+            Entity_AddSkinnedMeshRenderer(parent, model->nodes[0].skinned_mesh, model->nodes[0].material, parent.id);
+        else
+            Entity_AddMeshRenderer(parent, model->nodes[0].mesh, model->nodes[0].material);
+
         return;
     }
 
@@ -259,7 +263,12 @@ void Entity_AddModel(Entity parent, Model* model)
     {
         // Create the entity
         char child_name[MAX_NAME_LENGTH];
-        snprintf(child_name, MAX_NAME_LENGTH, "%s", model->nodes[i].mesh->name);
+        
+        if (model->nodes[i].is_skinned)
+            snprintf(child_name, MAX_NAME_LENGTH, "%s", model->nodes[i].skinned_mesh->name);
+        else
+            snprintf(child_name, MAX_NAME_LENGTH, "%s", model->nodes[i].mesh->name);
+
         Entity child = Entity_Create(parent.scene, child_name);
 
         // Set it up in the hierarchy
@@ -272,15 +281,19 @@ void Entity_AddModel(Entity parent, Model* model)
         Transform_SetLocalScale(child_t, (Vector3){1, 1, 1});
 
         // Give it the specific mesh and material
-        Entity_AddRenderable(child, model->nodes[i].mesh, model->nodes[i].material);
+        if (model->nodes[i].is_skinned)
+            Entity_AddSkinnedMeshRenderer(child, model->nodes[i].skinned_mesh, model->nodes[i].material, parent.id);
+        else
+            Entity_AddMeshRenderer(child, model->nodes[i].mesh, model->nodes[i].material);
 
+        // Handle bone attachments
         if (model->animation_count > 0 && model->skeleton && model->skeleton->bone_count > 0)
         {
             int bone_idx = -1;
 
             for (int b = 0; b < model->skeleton->bone_count; b++)
             {
-                if (strcmp(model->skeleton->bones[b].name, model->nodes[i].mesh->name) == 0)
+                if (strcmp(model->skeleton->bones[b].name, child_name) == 0)
                 {
                     bone_idx = b;
                     break;
@@ -651,19 +664,39 @@ void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, V
 
 
 
-// Adds a renderable component to an entity with a specified mesh and material
-void Entity_AddRenderable(Entity entity, Mesh* mesh, Material* material)
+// Adds a mesh renderer component to an entity with a specified mesh and material
+void Entity_AddMeshRenderer(Entity entity, Mesh* mesh, Material* material)
 {
     if (!Entity_IsValid(entity)) return;
 
-    RenderComponent* r = &entity.scene->renderables[entity.id];
+    MeshRendererComponent* r = &entity.scene->mesh_renderers[entity.id];
     r->entity = entity;
     r->is_active = true;
     r->mesh = mesh;
     r->material = material;
     r->layer_mask = 1; // 1 is the default layer (layer 0)
 
-    entity.scene->component_masks[entity.id] |= COMPONENT_RENDER;
+    entity.scene->component_masks[entity.id] |= COMPONENT_MESH_RENDERER;
+}
+
+
+
+
+
+// Adds a skinned mesh renderer component to an entity with a specified skinned mesh and material
+void Entity_AddSkinnedMeshRenderer(Entity entity, SkinnedMesh* mesh, Material* material, uint32_t animator_id)
+{
+    if (!Entity_IsValid(entity)) return;
+
+    SkinnedMeshRendererComponent* r = &entity.scene->skinned_mesh_renderers[entity.id];
+    r->entity = entity;
+    r->is_active = true;
+    r->mesh = mesh;
+    r->material = material;
+    r->layer_mask = 1; // 1 is the default layer (layer 0)
+    r->root_animator_entity_id = animator_id;
+
+    entity.scene->component_masks[entity.id] |= COMPONENT_SKINNED_MESH_RENDERER;
 }
 
 
@@ -761,13 +794,13 @@ void Entity_AddColliderBoxAuto(Entity entity, bool is_trigger)
     if (!Entity_IsValid(entity)) return;
 
     // Ensure the entity actually has a mesh to read
-    if (!(entity.scene->component_masks[entity.id] & COMPONENT_RENDER))
+    if (!(entity.scene->component_masks[entity.id] & COMPONENT_MESH_RENDERER))
     {
         Log_Warning("WARNING: Cannot Auto-Fit Box Collider. Entity has no Mesh!");
         return;
     }
 
-    RenderComponent* r = &entity.scene->renderables[entity.id];
+    MeshRendererComponent* r = &entity.scene->mesh_renderers[entity.id];
 
     if (r->mesh)
     {
@@ -1184,13 +1217,29 @@ Transform* Entity_GetTransform(Entity entity)
 
 
 // Returns an entities Renderable struct
-RenderComponent* Entity_GetRenderable(Entity entity)
+MeshRendererComponent* Entity_GetMeshRenderer(Entity entity)
 {
     if (!Entity_IsValid(entity))
         return NULL;
 
-    if ((entity.scene->component_masks[entity.id] & COMPONENT_RENDER) == COMPONENT_RENDER)
-        return &entity.scene->renderables[entity.id];
+    if ((entity.scene->component_masks[entity.id] & COMPONENT_MESH_RENDERER) == COMPONENT_MESH_RENDERER)
+        return &entity.scene->mesh_renderers[entity.id];
+    
+    return NULL;
+}
+
+
+
+
+
+// Returns an entities Renderable struct
+SkinnedMeshRendererComponent* Entity_GetSkinnedMeshRenderer(Entity entity)
+{
+    if (!Entity_IsValid(entity))
+        return NULL;
+
+    if ((entity.scene->component_masks[entity.id] & COMPONENT_SKINNED_MESH_RENDERER) == COMPONENT_SKINNED_MESH_RENDERER)
+        return &entity.scene->skinned_mesh_renderers[entity.id];
     
     return NULL;
 }
@@ -1206,8 +1255,8 @@ Mesh* Entity_GetMesh(Entity entity)
         return NULL;
     
     // Check if the entity actually has a render component
-    if (entity.scene->component_masks[entity.id] & COMPONENT_RENDER)
-        return entity.scene->renderables[entity.id].mesh;
+    if (entity.scene->component_masks[entity.id] & COMPONENT_MESH_RENDERER)
+        return entity.scene->mesh_renderers[entity.id].mesh;
     
     return NULL;
 }

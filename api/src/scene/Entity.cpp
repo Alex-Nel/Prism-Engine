@@ -129,9 +129,14 @@ namespace Prism
         ::Entity_AddTransform(ToCore(*this), {pos.x, pos.y, pos.z}, {rot.x, rot.y, rot.z, rot.w}, {scale.x, scale.y, scale.z});
         return this->GetTransform();
     }
-    Prism::RenderComponent* Entity::AddRenderable(Prism::Mesh mesh, Prism::Material material) {
-        ::Entity_AddRenderable(ToCore(*this), (::Mesh*)mesh.GetRaw(), (::Material*)material.GetRaw());
-        return this->GetRenderable();
+    Prism::MeshRendererComponent* Entity::AddMeshRenderer(Prism::Mesh mesh, Prism::Material material) {
+        ::Entity_AddMeshRenderer(ToCore(*this), (::Mesh*)mesh.GetRaw(), (::Material*)material.GetRaw());
+        return this->GetMeshRenderer();
+    }
+    Prism::SkinnedMeshRendererComponent* Entity::AddSkinnedMeshRenderer(Prism::SkinnedMesh mesh, Prism::Material material, Prism::Entity root_animator) {
+        uint32_t anim_id = root_animator.IsValid() ? root_animator.id : 0;
+        ::Entity_AddSkinnedMeshRenderer(ToCore(*this), (::SkinnedMesh*)mesh.GetRaw(), (::Material*)material.GetRaw(), anim_id);
+        return this->GetSkinnedMeshRenderer();
     }
     Prism::CameraComponent* Entity::AddCamera(float fovDegrees) {
         float fov_radians = fovDegrees * (3.14159265f / 180.0f);
@@ -197,8 +202,11 @@ namespace Prism
     Prism::Transform* Entity::GetTransform() {
         return reinterpret_cast<Prism::Transform*>(::Entity_GetTransform(ToCore(*this)));
     }
-    Prism::RenderComponent* Entity::GetRenderable() {
-        return reinterpret_cast<Prism::RenderComponent*>(::Entity_GetRenderable(ToCore(*this)));
+    Prism::MeshRendererComponent* Entity::GetMeshRenderer() {
+        return reinterpret_cast<Prism::MeshRendererComponent*>(::Entity_GetMeshRenderer(ToCore(*this)));
+    }
+    Prism::SkinnedMeshRendererComponent* Entity::GetSkinnedMeshRenderer() {
+        return reinterpret_cast<Prism::SkinnedMeshRendererComponent*>(::Entity_GetSkinnedMeshRenderer(ToCore(*this)));
     }
     Prism::RigidbodyComponent* Entity::GetRigidbody() {
         return reinterpret_cast<Prism::RigidbodyComponent*>(::Entity_GetRigidbody(ToCore(*this)));
@@ -249,13 +257,25 @@ namespace Prism
         return result;
     }
 
-    std::vector<Prism::RenderComponent*> Entity::GetRenderablesInChildren(bool recursive) {
-        std::vector<Prism::RenderComponent*> result;
+    std::vector<Prism::MeshRendererComponent*> Entity::GetMeshRenderersInChildren(bool recursive) {
+        std::vector<Prism::MeshRendererComponent*> result;
         std::vector<Prism::Entity> children = GetChildren(recursive);
 
         for (Prism::Entity& child : children)
         {
-            Prism::RenderComponent* comp = child.GetRenderable();
+            Prism::MeshRendererComponent* comp = child.GetMeshRenderer();
+            if (comp != nullptr) result.push_back(comp);
+        }
+        return result;
+    }
+
+    std::vector<Prism::SkinnedMeshRendererComponent*> Entity::GetSkinnedMeshRenderersInChildren(bool recursive) {
+        std::vector<Prism::SkinnedMeshRendererComponent*> result;
+        std::vector<Prism::Entity> children = GetChildren(recursive);
+
+        for (Prism::Entity& child : children)
+        {
+            Prism::SkinnedMeshRendererComponent* comp = child.GetSkinnedMeshRenderer();
             if (comp != nullptr) result.push_back(comp);
         }
         return result;
@@ -402,13 +422,27 @@ namespace Prism
         return nullptr; // Not found in any parent
     }
 
-    Prism::RenderComponent* Entity::GetRenderableInParent() {
+    Prism::MeshRendererComponent* Entity::GetMeshRendererInParent() {
         Prism::Entity current = this->GetParent();
 
         // Walk up the tree until we hit the root
         while (current.IsValid())
         {
-            Prism::RenderComponent* comp = current.GetRenderable();
+            Prism::MeshRendererComponent* comp = current.GetMeshRenderer();
+            if (comp != nullptr) return comp;
+            
+            current = current.GetParent(); // Move up one level
+        }
+        return nullptr; // Not found in any parent
+    }
+
+    Prism::SkinnedMeshRendererComponent* Entity::GetSkinnedMeshRendererInParent() {
+        Prism::Entity current = this->GetParent();
+
+        // Walk up the tree until we hit the root
+        while (current.IsValid())
+        {
+            Prism::SkinnedMeshRendererComponent* comp = current.GetSkinnedMeshRenderer();
             if (comp != nullptr) return comp;
             
             current = current.GetParent(); // Move up one level
@@ -562,8 +596,11 @@ namespace Prism
     // Component Removers
     // ==========================================
 
-    void Entity::RemoveRenderable() {
-        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_RENDER);
+    void Entity::RemoveMeshRenderer() {
+        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_MESH_RENDERER);
+    }
+    void Entity::RemoveSkinnedMeshRenderer() {
+        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_SKINNED_MESH_RENDERER);
     }
     void Entity::RemoveRigidbody() {
         ::Entity_RemoveComponent(ToCore(*this), COMPONENT_RIGIDBODY);

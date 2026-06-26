@@ -83,7 +83,8 @@ void Entity_UnbindScript(Entity entity, void* target_instance_data);
 void Entity_SetName(Entity entity, const char* name);
 void Entity_SetTag(Entity entity, const char* name);
 void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, Vector3 scale);
-void Entity_AddRenderable(Entity entity, Mesh* mesh, Material* material);
+void Entity_AddMeshRenderer(Entity entity, Mesh* mesh, Material* material);
+void Entity_AddSkinnedMeshRenderer(Entity entity, SkinnedMesh* mesh, Material* material, uint32_t animator_id);
 void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ);
 void Entity_AddLight(Entity entity, LightType type, Color color);
 void Entity_AddColliderBox(Entity entity, Vector3 extents, bool is_trigger);
@@ -108,7 +109,8 @@ void Bridge_SpawnScript(Entity raw_e, const char* class_name, struct cJSON* json
 const char* Entity_GetName(Entity entity);
 const char* Entity_GetTag(Entity entity);
 Transform* Entity_GetTransform(Entity entity);
-RenderComponent* Entity_GetRenderable(Entity entity);
+MeshRendererComponent* Entity_GetMeshRenderer(Entity entity);
+SkinnedMeshRendererComponent* Entity_GetSkinnedMeshRenderer(Entity entity);
 Mesh* Entity_GetMesh(Entity entity);
 CameraComponent* Entity_GetCamera(Entity entity);
 LightComponent* Entity_GetLight(Entity entity);
@@ -170,6 +172,7 @@ void Collider_SetConvex(Entity entity, bool is_convex);
 
 
 // --- Camera setters and functions ---
+void Camera_RecalculateProjectionIfNeeded(CameraComponent* cam);
 Ray Camera_ScreenPointToRay(CameraComponent* cam, Transform* cam_transform, float mouse_x, float mouse_y);
 Vector2 Camera_WorldToScreenPoint(CameraComponent* cam, Transform* cam_transform, Vector3 world_pos);
 void Camera_SetFOV(CameraComponent* cam, float FOV);
@@ -179,7 +182,7 @@ void Camera_SetFOV(CameraComponent* cam, float FOV);
 
 // --- Renderable setters ---
 
-void Renderable_SetMaterial(RenderComponent* r, Material* material);
+void MeshRenderer_SetMaterial(MeshRendererComponent* r, Material* material);
 
 
 

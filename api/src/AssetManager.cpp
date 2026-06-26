@@ -58,6 +58,13 @@ namespace Prism
         ::Model* c_model = static_cast<::Model*>(m_Handle);
         return c_model->node_count;
     }
+
+    bool Model::IsMeshSkinned(uint32_t index) const {
+        if (!IsValid()) return 0;
+        ::Model* c_model = static_cast<::Model*>(m_Handle);
+        return c_model->nodes[index].is_skinned;
+    }
+
     Prism::Mesh Model::GetMesh(uint32_t index) const {
         if (!IsValid()) return Prism::Mesh(nullptr);
         ::Model* c_model = static_cast<::Model*>(m_Handle);
@@ -65,6 +72,15 @@ namespace Prism
             return Prism::Mesh(nullptr);
         }
         return Prism::Mesh(c_model->nodes[index].mesh);
+    }
+
+    Prism::SkinnedMesh Model::GetSkinnedMesh(uint32_t index) const {
+        if (!IsValid()) return Prism::SkinnedMesh(nullptr);
+        ::Model* c_model = static_cast<::Model*>(m_Handle);
+        if (index >= c_model->node_count) {
+            return Prism::SkinnedMesh(nullptr);
+        }
+        return Prism::SkinnedMesh(c_model->nodes[index].mesh);
     }
 
 

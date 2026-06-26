@@ -17,7 +17,8 @@ namespace Prism
     struct RaycastHit;
 
     struct Transform;
-    struct RenderComponent;
+    struct MeshRendererComponent;
+    struct SkinnedMeshRendererComponent;
     struct RigidbodyComponent;
     struct ColliderComponent;
     struct CameraComponent;
@@ -82,7 +83,8 @@ namespace Prism
         
         std::string SetName(const std::string& name);
         Prism::Transform* AddTransform(const Vector3& pos, const Quaternion& rot, const Vector3& scale);
-        Prism::RenderComponent* AddRenderable(Prism::Mesh mesh, Prism::Material material);
+        Prism::MeshRendererComponent* AddMeshRenderer(Prism::Mesh mesh, Prism::Material material);
+        Prism::SkinnedMeshRendererComponent* AddSkinnedMeshRenderer(Prism::SkinnedMesh mesh, Prism::Material material, Prism::Entity root_animator = Prism::Entity());
         Prism::CameraComponent* AddCamera(float fovDegrees);
         Prism::LightComponent* AddLight(Prism::LightType type, const Prism::Color& color);
         Prism::RigidbodyComponent* AddRigidbody(float mass);
@@ -102,7 +104,8 @@ namespace Prism
         
         std::string GetName();
         Prism::Transform* GetTransform();
-        Prism::RenderComponent* GetRenderable();
+        Prism::MeshRendererComponent* GetMeshRenderer();
+        Prism::SkinnedMeshRendererComponent* GetSkinnedMeshRenderer();
         Prism::RigidbodyComponent* GetRigidbody();
         Prism::ColliderComponent* GetCollider();
         Prism::CameraComponent* GetCamera();
@@ -119,7 +122,8 @@ namespace Prism
         // --- Component Hierarchy Getters ---
 
         std::vector<Prism::Transform*> GetTransformsInChildren(bool recursive = true);
-        std::vector<Prism::RenderComponent*> GetRenderablesInChildren(bool recursive = true);
+        std::vector<Prism::MeshRendererComponent*> GetMeshRenderersInChildren(bool recursive = true);
+        std::vector<Prism::SkinnedMeshRendererComponent*> GetSkinnedMeshRenderersInChildren(bool recursive = true);
         std::vector<Prism::RigidbodyComponent*> GetRigidbodiesInChildren(bool recursive = true);
         std::vector<Prism::ColliderComponent*> GetCollidersInChildren(bool recursive = true);
         std::vector<Prism::CameraComponent*> GetCamerasInChildren(bool recursive = true);
@@ -133,7 +137,8 @@ namespace Prism
         
         
         Prism::Transform* GetTransformInParent();
-        Prism::RenderComponent* GetRenderableInParent();
+        Prism::MeshRendererComponent* GetMeshRendererInParent();
+        Prism::SkinnedMeshRendererComponent* GetSkinnedMeshRendererInParent();
         Prism::RigidbodyComponent* GetRigidbodyInParent();
         Prism::ColliderComponent* GetColliderInParent();
         Prism::CameraComponent* GetCameraInParent();
@@ -149,7 +154,8 @@ namespace Prism
 
         // --- Component Removers ---
 
-        void RemoveRenderable();
+        void RemoveMeshRenderer();
+        void RemoveSkinnedMeshRenderer();
         void RemoveRigidbody();
         void RemoveCollider();
         void RemoveCamera();

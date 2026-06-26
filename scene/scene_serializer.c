@@ -132,11 +132,29 @@ bool Scene_Save(Scene* scene, const char* filepath)
         }
 
 
-        // --- Save Renderables ---
-        if (scene->component_masks[i] & COMPONENT_RENDER)
+        // --- Save Mesh Renderers ---
+        if (scene->component_masks[i] & COMPONENT_MESH_RENDERER)
         {
-            RenderComponent* r = &scene->renderables[i];
-            cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "render");
+            MeshRendererComponent* r = &scene->mesh_renderers[i];
+            cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "mesh_renderer");
+
+            cJSON_AddStringToObject(comp_obj, "mesh_name", r->mesh->name);
+
+            if (r->material && r->material->diffuse_texture)
+            {
+                cJSON_AddStringToObject(comp_obj, "texture_name", r->material->diffuse_texture->name);
+                cJSON_AddItemToObject(comp_obj, "tint", SaveColor(r->material->properties.tint_color));
+                cJSON_AddNumberToObject(comp_obj, "shininess", r->material->properties.shininess);
+                cJSON_AddNumberToObject(comp_obj, "specular_strength", r->material->properties.specular_strength);
+            }
+        }
+
+
+        // --- Save Skinned Mesh Renderers ---
+        if (scene->component_masks[i] & COMPONENT_SKINNED_MESH_RENDERER)
+        {
+            SkinnedMeshRendererComponent* r = &scene->skinned_mesh_renderers[i];
+            cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "skinned_mesh_renderer");
 
             cJSON_AddStringToObject(comp_obj, "mesh_name", r->mesh->name);
 
@@ -348,14 +366,34 @@ bool Scene_Load(Scene* scene, const char* filepath)
 
 
         // --- Load Renderables ---
-        if (mask & COMPONENT_RENDER)
+        if (mask & COMPONENT_MESH_RENDERER)
         {
-            cJSON* comp_obj = cJSON_GetObjectItemCaseSensitive(entity_json, "render");
-            RenderComponent* r = &scene->renderables[id];
+            cJSON* comp_obj = cJSON_GetObjectItemCaseSensitive(entity_json, "mesh_renderer");
+            MeshRendererComponent* r = &scene->mesh_renderers[id];
             
             cJSON* mesh_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "mesh_name");
 
             r->mesh = Asset_GetMeshByName(mesh_name->valuestring);
+            
+            cJSON* tex_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "texture_name");
+            Texture* tex = tex_name ? Asset_GetTextureByName(tex_name->valuestring) : NULL;
+            
+            r->material = Asset_CreateMaterial(NULL, tex);
+            
+            cJSON* tint = cJSON_GetObjectItemCaseSensitive(comp_obj, "tint");
+            if (tint) r->material->properties.tint_color = LoadColor(tint);
+        }
+
+
+        // --- Load Renderables ---
+        if (mask & COMPONENT_SKINNED_MESH_RENDERER)
+        {
+            cJSON* comp_obj = cJSON_GetObjectItemCaseSensitive(entity_json, "skinned_mesh_renderer");
+            SkinnedMeshRendererComponent* r = &scene->skinned_mesh_renderers[id];
+            
+            cJSON* mesh_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "mesh_name");
+
+            r->mesh = Asset_GetSkinnedMeshByName(mesh_name->valuestring);
             
             cJSON* tex_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "texture_name");
             Texture* tex = tex_name ? Asset_GetTextureByName(tex_name->valuestring) : NULL;

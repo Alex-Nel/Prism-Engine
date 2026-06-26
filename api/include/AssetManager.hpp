@@ -23,13 +23,8 @@ namespace Prism
     public:
         Model(void* raw_model = nullptr) : m_Handle(raw_model) {}
 
-        void* GetRawModel() const {
-            return m_Handle;
-        }
-
-        bool IsValid() const {
-            return m_Handle != nullptr;
-        }
+        void* GetRawModel() const { return m_Handle; }
+        bool IsValid() const { return m_Handle != nullptr; }
 
         void* GetRawSkeleton() const;
         uint32_t GetAnimationCount() const;
@@ -37,7 +32,9 @@ namespace Prism
         Prism::AnimationClip GetAnimation(const std::string& name) const;
         Prism::Material GetMaterial(uint32_t mesh_index) const;
         uint32_t GetMeshCount() const;
+        bool IsMeshSkinned(uint32_t index) const;
         Prism::Mesh GetMesh(uint32_t index) const;
+        Prism::SkinnedMesh GetSkinnedMesh(uint32_t index) const;
     };
 
 

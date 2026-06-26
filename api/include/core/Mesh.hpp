@@ -25,14 +25,33 @@ namespace Prism
         Vector3 normal;
         Vector2 uv;
 
+
+        // --- Constructors ---   
+
+        Vertex3D();
+        Vertex3D(const Prism::Vector3& pos, const Prism::Vector3& norm, const Prism::Vector2& tex);
+    };
+
+
+
+    // ==========================================
+    // Vertex3DSkinned Wrapper
+    // ==========================================
+
+    struct PRISM_API Vertex3DSkinned
+    {
+        Vector3 position;
+        Vector3 normal;
+        Vector2 uv;
+
         int bone_ids[4];
         float bone_weights[4];
 
 
         // --- Constructors ---   
 
-        Vertex3D();
-        Vertex3D(const Prism::Vector3& pos, const Prism::Vector3& norm, const Prism::Vector2& tex);
+        Vertex3DSkinned();
+        Vertex3DSkinned(const Prism::Vector3& pos, const Prism::Vector3& norm, const Prism::Vector2& tex);
     };
 
 
@@ -112,13 +131,26 @@ namespace Prism
     public:
         Mesh(void* raw_mesh = nullptr) : m_Handle(raw_mesh) {}
 
-        void* GetRaw() const {
-            return m_Handle;
-        }
+        void* GetRaw() const { return m_Handle; }
+        bool IsValid() const { return m_Handle != nullptr; }
+    };
 
-        bool IsValid() const {
-            return m_Handle != nullptr;
-        }
+
+
+    // ==========================================
+    // Skinned Mesh Wrapper
+    // ==========================================
+
+    class PRISM_API SkinnedMesh
+    {    
+    private:
+        void* m_Handle;
+        
+    public:
+        SkinnedMesh(void* raw_mesh = nullptr) : m_Handle(raw_mesh) {}
+        
+        void* GetRaw() const { return m_Handle; }
+        bool IsValid() const { return m_Handle != nullptr; }
     };
 
 

@@ -6,15 +6,15 @@
 
 
 
-// Sets a vertex to a safe, un-animated state
-void Vertex_SetDefaultBones(Vertex3D* v)
-{
-    for (int i = 0; i < MAX_BONE_INFLUENCE; i++)
-    {
-        v->bone_ids[i] = -1;   // -1 means "No bone affects this slot"
-        v->bone_weights[i] = 0.0f; // 0 influence
-    }
-}
+// // Sets a vertex to a safe, un-animated state
+// void Vertex_SetDefaultBones(Vertex3D* v)
+// {
+//     for (int i = 0; i < MAX_BONE_INFLUENCE; i++)
+//     {
+//         v->bone_ids[i] = -1;   // -1 means "No bone affects this slot"
+//         v->bone_weights[i] = 0.0f; // 0 influence
+//     }
+// }
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

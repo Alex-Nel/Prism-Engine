@@ -14,7 +14,9 @@
 // A single part of a model
 typedef struct ModelNode
 {
+    bool is_skinned;
     Mesh* mesh;
+    SkinnedMesh* skinned_mesh;
     Material* material;
 } ModelNode;
 
@@ -91,6 +93,7 @@ void Asset_UpdateDynamicMesh(Mesh* mesh, Vertex3D* vertices, uint32_t vertex_cou
 
 Model* Asset_GetModelByName(const char* name);
 Mesh* Asset_GetMeshByName(const char* name);
+SkinnedMesh* Asset_GetSkinnedMeshByName(const char* name);
 Texture* Asset_GetTextureByName(const char* name);
 
 

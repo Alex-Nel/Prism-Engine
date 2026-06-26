@@ -361,8 +361,6 @@ void Engine_RenderScene(Scene* scene)
 
     // --- Execute render pass per camera ---
 
-    uint32_t required_mesh_mask = COMPONENT_TRANSFORM | COMPONENT_RENDER;
-
     for (uint32_t c = 0; c < camera_count; c++)
     {
         uint32_t cam_id = active_cameras[c].entity_id;
@@ -385,19 +383,26 @@ void Engine_RenderScene(Scene* scene)
         // Build Camera Matrices
         Vector3 global_pos = Transform_GetGlobalPosition(cam_transform);
         packet.view_matrix = Matrix4Inverse(cam_transform->world_matrix);
-        packet.projection_matrix = Matrix4Perspective(
-            cam_comp->fov,
-            (float)(Platform_GetWindowWidth(engine.window))/(float)(Platform_GetWindowHeight(engine.window)),
-            cam_comp->nearZ, cam_comp->farZ
-        );
+
+        // Force camera to sync
+        Camera_RecalculateProjectionIfNeeded(cam_comp);
+        packet.projection_matrix = cam_comp->projection_matrix;
         packet.camera_pos = global_pos;
 
-        packet.has_skybox = (cam_comp->clear_flags == CLEAR_COLOR_AND_DEPTH) ? scene->has_skybox : false;
+        if (cam_comp->clear_flags == CLEAR_COLOR_AND_DEPTH)
+            packet.has_skybox = scene->has_skybox;
+        else
+            packet.has_skybox = false;
 
         // Start pass
         Render_BeginFrame(engine.renderer, &packet);
 
-        // Submit meshes for this camera only
+
+
+        // --- Submit static meshes for this camera only ---
+
+        uint32_t required_mesh_mask = COMPONENT_TRANSFORM | COMPONENT_MESH_RENDERER;
+        
         for (uint32_t i = 0; i < MAX_ENTITIES; i++)
         {
             if (!scene->is_active_in_hierarchy[i])
@@ -405,40 +410,71 @@ void Engine_RenderScene(Scene* scene)
 
             if ((scene->component_masks[i] & required_mesh_mask) == required_mesh_mask)
             {
-                RenderComponent* rc = &scene->renderables[i];
+                MeshRendererComponent* rc = &scene->mesh_renderers[i];
+
+                if (!rc->is_active || !rc->mesh || !rc->material)
+                    continue;
 
                 if ((rc->layer_mask & cam_comp->culling_masks) == 0)
                     continue;
+                
+                Transform* t = &scene->transforms[i];
 
-                if (rc->mesh && rc->material)
-                {
-                    Transform* t = &scene->transforms[i];
-
-                    Matrix4* bone_ptr = NULL;
-
-                    // Check if the entity has an animator or if it's parent has an animator
-                    if (scene->component_masks[i] & COMPONENT_ANIMATOR)
-                    {
-                        bone_ptr = scene->animators[i].final_bone_matrices;
-                    }
-                    else if (t->parent_id != 0 && t->parent_id != ENTITY_NONE)
-                    {
-                        if (scene->component_masks[t->parent_id] & COMPONENT_ANIMATOR)
-                        {
-                            bone_ptr = scene->animators[t->parent_id].final_bone_matrices;
-                        }
-                    }
-
-
-                    Render_Submit(engine.renderer, rc->mesh->gpu_handle, rc->material->shader->gpu_handle,
-                                    rc->material->diffuse_texture->gpu_handle, rc->material->properties,
-                                    t->world_matrix, bone_ptr, false, 0.0f);
-                }
+                Render_Submit(engine.renderer, rc->mesh->gpu_handle, rc->material->shader->gpu_handle,
+                                rc->material->diffuse_texture->gpu_handle, rc->material->properties,
+                                t->world_matrix, NULL, false, 0.0f);
             }
         }
 
 
+
+        // --- Submit skinned meshes for this camera only ---
+
+        uint32_t required_skinned_mask = COMPONENT_TRANSFORM | COMPONENT_SKINNED_MESH_RENDERER;
+
+        for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+        {
+            if (!scene->is_active_in_hierarchy[i])
+                continue;
+
+            if ((scene->component_masks[i] & required_skinned_mask) == required_skinned_mask)
+            {
+                SkinnedMeshRendererComponent* rc = &scene->skinned_mesh_renderers[i];
+
+                if (!rc->is_active || !rc->mesh || !rc->material)
+                    continue;
+
+                if ((rc->layer_mask & cam_comp->culling_masks) == 0)
+                    continue;
+
+                Transform* t = &scene->transforms[i];
+                Matrix4* bone_ptr = NULL;
+
+                // Grab the explicit Animator Entity that drives this mesh
+                uint32_t anim_id = rc->root_animator_entity_id;
+                
+                // If it points to a parent/root entity, get its bones
+                if (anim_id != 0 && anim_id != ENTITY_NONE)
+                {
+                    if (scene->component_masks[anim_id] & COMPONENT_ANIMATOR)
+                        bone_ptr = scene->animators[anim_id].final_bone_matrices;
+                }
+                // Fallback: If the Animator is on this exact same entity
+                else if (scene->component_masks[i] & COMPONENT_ANIMATOR)
+                {
+                    bone_ptr = scene->animators[i].final_bone_matrices;
+                }
+
+                Render_Submit(engine.renderer, rc->mesh->gpu_handle, rc->material->shader->gpu_handle,
+                              rc->material->diffuse_texture->gpu_handle, rc->material->properties,
+                              t->world_matrix, bone_ptr, false, 0.0f);
+            }
+        }
+
+
+
         // --- Submit Line Renderers ---
+
         uint32_t required_line_mask = COMPONENT_TRANSFORM | COMPONENT_LINE_RENDERER;
 
         for (uint32_t i = 0; i < MAX_ENTITIES; i++)
