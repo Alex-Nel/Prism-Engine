@@ -112,7 +112,7 @@ void Scene_Clear(Scene* scene)
 // Gets the position data from a Matrix4
 static inline Vector3 Matrix4GetPosition(Matrix4 m)
 {
-    return (Vector3){ m.m12, m.m13, m.m14 };
+    return (Vector3){ m.m03, m.m13, m.m23 };
 }
 
 
@@ -897,7 +897,7 @@ void Scene_UpdateBoneAttachments(Scene* scene)
         Matrix4 final_matrix = Matrix4Multiply(scaled_bone, attachment->local_offset);
         
         // We set the LOCAL values, and treat it as a root entity (no parent).
-        t->local_position = (Vector3){ final_matrix.m12, final_matrix.m13, final_matrix.m14 };
+        t->local_position = (Vector3){ final_matrix.m03, final_matrix.m13, final_matrix.m23 };
         t->local_rotation = QuaternionFromMatrix(final_matrix);
         
         // Mark as dirty so the Physics System knows to fix the colliders

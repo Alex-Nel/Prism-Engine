@@ -191,9 +191,9 @@ Vector3 Transform_GetGlobalPosition(Transform* t)
     // Extract the global position straight from world matrix
     // (Assuming column-major Matrix4 structure)
     return (Vector3){
-        t->world_matrix.m12,
+        t->world_matrix.m03,
         t->world_matrix.m13,
-        t->world_matrix.m14
+        t->world_matrix.m23
     };
 }
 
@@ -206,9 +206,9 @@ Vector3 Transform_GetGlobalScale(Transform* t)
 
     // Scale is the magnitude (length) of the first 3 column vectors in the matrix
     Vector3 scale;
-    scale.x = sqrtf(t->world_matrix.m0 * t->world_matrix.m0 + t->world_matrix.m1 * t->world_matrix.m1 + t->world_matrix.m2 * t->world_matrix.m2);
-    scale.y = sqrtf(t->world_matrix.m4 * t->world_matrix.m4 + t->world_matrix.m5 * t->world_matrix.m5 + t->world_matrix.m6 * t->world_matrix.m6);
-    scale.z = sqrtf(t->world_matrix.m8 * t->world_matrix.m8 + t->world_matrix.m9 * t->world_matrix.m9 + t->world_matrix.m10 * t->world_matrix.m10);
+    scale.x = sqrtf(t->world_matrix.m00 * t->world_matrix.m00 + t->world_matrix.m10 * t->world_matrix.m10 + t->world_matrix.m20 * t->world_matrix.m20);
+    scale.y = sqrtf(t->world_matrix.m01 * t->world_matrix.m01 + t->world_matrix.m11 * t->world_matrix.m11 + t->world_matrix.m21 * t->world_matrix.m21);
+    scale.z = sqrtf(t->world_matrix.m02 * t->world_matrix.m02 + t->world_matrix.m12 * t->world_matrix.m12 + t->world_matrix.m22 * t->world_matrix.m22);
     
     return scale;
 }
@@ -240,9 +240,9 @@ Vector3 Transform_GetForwardVector(Transform* t)
 
     // Extract the Z axis column
     Vector3 forward = {
-        -t->world_matrix.m8, 
-        -t->world_matrix.m9, 
-        -t->world_matrix.m10
+        -t->world_matrix.m02, 
+        -t->world_matrix.m12, 
+        -t->world_matrix.m22
     };
 
     // Normalize vector
@@ -271,9 +271,9 @@ Vector3 Transform_GetRightVector(Transform* t)
 
     // Extract the X axis column
     Vector3 right = {
-        t->world_matrix.m0, 
-        t->world_matrix.m1, 
-        t->world_matrix.m2
+        t->world_matrix.m00, 
+        t->world_matrix.m10, 
+        t->world_matrix.m20
     };
 
     // Normalize vector
@@ -298,9 +298,9 @@ Vector3 Transform_GetUpVector(Transform* t)
 
     // Extract the Y axis column
     Vector3 up = {
-        t->world_matrix.m4, 
-        t->world_matrix.m5, 
-        t->world_matrix.m6
+        t->world_matrix.m01, 
+        t->world_matrix.m11, 
+        t->world_matrix.m21
     };
 
     // Normalize vector

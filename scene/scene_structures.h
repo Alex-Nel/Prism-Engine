@@ -11,7 +11,7 @@
 
 
 
-#define MAX_ENTITIES 65536
+#define MAX_ENTITIES 8192
 #define MAX_NAME_LENGTH 256
 #define MAX_SCRIPTS_PER_ENTITY 64
 #define MAX_COLLISION_OVERLAPS 16
@@ -359,7 +359,7 @@ typedef struct AnimatorComponent
     bool is_playing;
     float playback_speed;
 
-    Matrix4 final_bone_matrices[MAX_BONES];
+    Matrix4* final_bone_matrices;
 } AnimatorComponent;
 
 

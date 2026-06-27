@@ -182,10 +182,10 @@ static Matrix4 AssimpToColumnMatrix(struct aiMatrix4x4 m)
 {
     Matrix4 m_out;
     
-    m_out.m0 = m.a1; m_out.m4 = m.a2; m_out.m8 = m.a3; m_out.m12 = m.a4;
-    m_out.m1 = m.b1; m_out.m5 = m.b2; m_out.m9 = m.b3; m_out.m13 = m.b4;
-    m_out.m2 = m.c1; m_out.m6 = m.c2; m_out.m10= m.c3; m_out.m14 = m.c4;
-    m_out.m3 = m.d1; m_out.m7 = m.d2; m_out.m11= m.d3; m_out.m15 = m.d4;
+    m_out.m00 = m.a1; m_out.m01 = m.a2; m_out.m02 = m.a3; m_out.m03 = m.a4;
+    m_out.m10 = m.b1; m_out.m11 = m.b2; m_out.m12 = m.b3; m_out.m13 = m.b4;
+    m_out.m20 = m.c1; m_out.m21 = m.c2; m_out.m22 = m.c3; m_out.m23 = m.c4;
+    m_out.m30 = m.d1; m_out.m31 = m.d2; m_out.m32 = m.d3; m_out.m33 = m.d4;
     
     return m_out;
 }
@@ -541,6 +541,15 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
             sub_mesh->index_count = actual_index_count;
             sub_mesh->local_bounds = CalculateAABB_Skinned(vertices, vertex_count);
 
+            // TODO: Make animations change the local bounds of AABB's
+            // Inflate bounds for animations to prevent premature culling
+            sub_mesh->local_bounds.min.x *= 2.0f;
+            sub_mesh->local_bounds.min.y *= 2.0f;
+            sub_mesh->local_bounds.min.z *= 2.0f;
+            sub_mesh->local_bounds.max.x *= 2.0f;
+            sub_mesh->local_bounds.max.y *= 2.0f;
+            sub_mesh->local_bounds.max.z *= 2.0f;
+
             skinned_mesh_count++;
             new_model->nodes[m].skinned_mesh = sub_mesh;
             new_model->nodes[m].mesh = NULL;
@@ -567,9 +576,9 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
                 // Apply node transformation directly to geometry if rigid
                 if (!has_animations) {
                     v.position = Matrix4MultiplyVector3(node_transform, raw_pos);
-                    v.normal.x = node_transform.m0 * raw_norm.x + node_transform.m4 * raw_norm.y + node_transform.m8 * raw_norm.z;
-                    v.normal.y = node_transform.m1 * raw_norm.x + node_transform.m5 * raw_norm.y + node_transform.m9 * raw_norm.z;
-                    v.normal.z = node_transform.m2 * raw_norm.x + node_transform.m6 * raw_norm.y + node_transform.m10 * raw_norm.z;
+                    v.normal.x = node_transform.m00 * raw_norm.x + node_transform.m01 * raw_norm.y + node_transform.m02 * raw_norm.z;
+                    v.normal.y = node_transform.m10 * raw_norm.x + node_transform.m11 * raw_norm.y + node_transform.m12 * raw_norm.z;
+                    v.normal.z = node_transform.m20 * raw_norm.x + node_transform.m21 * raw_norm.y + node_transform.m22 * raw_norm.z;
 
                     float length = sqrtf(v.normal.x*v.normal.x + v.normal.y*v.normal.y + v.normal.z*v.normal.z);
                     if (length > 0.0001f) {

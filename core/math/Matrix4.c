@@ -15,7 +15,7 @@ Matrix4 Matrix4Identity()
 {
     Matrix4 m = {0};
     
-    m.m0 = 1.0f; m.m5 = 1.0f; m.m10 = 1.0f; m.m15 = 1.0f;
+    m.m00 = 1.0f; m.m11 = 1.0f; m.m22 = 1.0f; m.m33 = 1.0f;
 
     return m;
 }
@@ -29,29 +29,29 @@ Matrix4 Matrix4Multiply(Matrix4 A, Matrix4 B)
 {
     Matrix4 out;
 
+    // Column 0
+    out.m00 = A.m00*B.m00 + A.m01*B.m10 + A.m02*B.m20 + A.m03*B.m30;
+    out.m10 = A.m10*B.m00 + A.m11*B.m10 + A.m12*B.m20 + A.m13*B.m30;
+    out.m20 = A.m20*B.m00 + A.m21*B.m10 + A.m22*B.m20 + A.m23*B.m30;
+    out.m30 = A.m30*B.m00 + A.m31*B.m10 + A.m32*B.m20 + A.m33*B.m30;
+
     // Column 1
-    out.m0  = A.m0*B.m0  + A.m4*B.m1  + A.m8*B.m2  + A.m12*B.m3;
-    out.m1  = A.m1*B.m0  + A.m5*B.m1  + A.m9*B.m2  + A.m13*B.m3;
-    out.m2  = A.m2*B.m0  + A.m6*B.m1  + A.m10*B.m2 + A.m14*B.m3;
-    out.m3  = A.m3*B.m0  + A.m7*B.m1  + A.m11*B.m2 + A.m15*B.m3;
+    out.m01 = A.m00*B.m01 + A.m01*B.m11 + A.m02*B.m21 + A.m03*B.m31;
+    out.m11 = A.m10*B.m01 + A.m11*B.m11 + A.m12*B.m21 + A.m13*B.m31;
+    out.m21 = A.m20*B.m01 + A.m21*B.m11 + A.m22*B.m21 + A.m23*B.m31;
+    out.m31 = A.m30*B.m01 + A.m31*B.m11 + A.m32*B.m21 + A.m33*B.m31;
 
     // Column 2
-    out.m4  = A.m0*B.m4  + A.m4*B.m5  + A.m8*B.m6  + A.m12*B.m7;
-    out.m5  = A.m1*B.m4  + A.m5*B.m5  + A.m9*B.m6  + A.m13*B.m7;
-    out.m6  = A.m2*B.m4  + A.m6*B.m5  + A.m10*B.m6 + A.m14*B.m7;
-    out.m7  = A.m3*B.m4  + A.m7*B.m5  + A.m11*B.m6 + A.m15*B.m7;
+    out.m02 = A.m00*B.m02 + A.m01*B.m12 + A.m02*B.m22 + A.m03*B.m32;
+    out.m12 = A.m10*B.m02 + A.m11*B.m12 + A.m12*B.m22 + A.m13*B.m32;
+    out.m22 = A.m20*B.m02 + A.m21*B.m12 + A.m22*B.m22 + A.m23*B.m32;
+    out.m32 = A.m30*B.m02 + A.m31*B.m12 + A.m32*B.m22 + A.m33*B.m32;
 
     // Column 3
-    out.m8  = A.m0*B.m8  + A.m4*B.m9  + A.m8*B.m10 + A.m12*B.m11;
-    out.m9  = A.m1*B.m8  + A.m5*B.m9  + A.m9*B.m10 + A.m13*B.m11;
-    out.m10 = A.m2*B.m8  + A.m6*B.m9  + A.m10*B.m10+ A.m14*B.m11;
-    out.m11 = A.m3*B.m8  + A.m7*B.m9  + A.m11*B.m10+ A.m15*B.m11;
-
-    // Column 4
-    out.m12 = A.m0*B.m12 + A.m4*B.m13 + A.m8*B.m14 + A.m12*B.m15;
-    out.m13 = A.m1*B.m12 + A.m5*B.m13 + A.m9*B.m14 + A.m13*B.m15;
-    out.m14 = A.m2*B.m12 + A.m6*B.m13 + A.m10*B.m14+ A.m14*B.m15;
-    out.m15 = A.m3*B.m12 + A.m7*B.m13 + A.m11*B.m14+ A.m15*B.m15;
+    out.m03 = A.m00*B.m03 + A.m01*B.m13 + A.m02*B.m23 + A.m03*B.m33;
+    out.m13 = A.m10*B.m03 + A.m11*B.m13 + A.m12*B.m23 + A.m13*B.m33;
+    out.m23 = A.m20*B.m03 + A.m21*B.m13 + A.m22*B.m23 + A.m23*B.m33;
+    out.m33 = A.m30*B.m03 + A.m31*B.m13 + A.m32*B.m23 + A.m33*B.m33;
 
     return out;
 }
@@ -67,12 +67,12 @@ Matrix4 Matrix4Perspective(float fovRadians, float aspect, float nearZ, float fa
     // float tanHalfFov = tanf(fovRadians / 2.0f);
     float t = tanf(fovRadians * 0.5f);
     
-    m.m0 = 1.0f / (aspect * t);
-    m.m5 = 1.0f / (t);
-    m.m10 = -(farZ + nearZ) / (farZ - nearZ);
-    m.m11 = -1.0f;
-    m.m14 = -(2.0f * farZ * nearZ) / (farZ - nearZ);
-    m.m15 = 0.0f;
+    m.m00 = 1.0f / (aspect * t);
+    m.m11 = 1.0f / (t);
+    m.m22 = -(farZ + nearZ) / (farZ - nearZ);
+    m.m32 = -1.0f;
+    m.m23 = -(2.0f * farZ * nearZ) / (farZ - nearZ);
+    m.m33 = 0.0f;
     
     return m;
 }
@@ -90,17 +90,17 @@ Matrix4 Matrix4FromQuaternion(Quaternion q)
     float xy = q.x * q.y; float xz = q.x * q.z; float yz = q.y * q.z;
     float wx = q.w * q.x; float wy = q.w * q.y; float wz = q.w * q.z;
 
-    m.m0 = 1.0f - 2.0f * (yy + zz);
-    m.m1 = 2.0f * (xy + wz);
-    m.m2 = 2.0f * (xz - wy);
+    m.m00 = 1.0f - 2.0f * (yy + zz);
+    m.m10 = 2.0f * (xy + wz);
+    m.m20 = 2.0f * (xz - wy);
 
-    m.m4 = 2.0f * (xy - wz);
-    m.m5 = 1.0f - 2.0f * (xx + zz);
-    m.m6 = 2.0f * (yz + wx);
+    m.m01 = 2.0f * (xy - wz);
+    m.m11 = 1.0f - 2.0f * (xx + zz);
+    m.m21 = 2.0f * (yz + wx);
 
-    m.m8 = 2.0f * (xz + wy);
-    m.m9 = 2.0f * (yz - wx);
-    m.m10 = 1.0f - 2.0f * (xx + yy);
+    m.m02 = 2.0f * (xz + wy);
+    m.m12 = 2.0f * (yz - wx);
+    m.m22 = 1.0f - 2.0f * (xx + yy);
 
     return m;
 }
@@ -148,14 +148,14 @@ Matrix4 Matrix4Transpose(Matrix4 m)
 {
     Matrix4 r = m;
 
-    r.m1  = m.m4;  r.m4  = m.m1;
-    r.m2  = m.m8;  r.m8  = m.m2;
-    r.m3  = m.m12; r.m12 = m.m3;
+    r.m10 = m.m01; r.m01 = m.m10;
+    r.m20 = m.m02; r.m02 = m.m20;
+    r.m30 = m.m03; r.m03 = m.m30;
 
-    r.m6  = m.m9;  r.m9  = m.m6;
-    r.m7  = m.m13; r.m13 = m.m7;
+    r.m21 = m.m12; r.m12 = m.m21;
+    r.m31 = m.m13; r.m13 = m.m31;
 
-    r.m11 = m.m14; r.m14 = m.m11;
+    r.m32 = m.m23; r.m23 = m.m32;
 
     return r;
 }
@@ -173,13 +173,13 @@ Matrix4 Matrix4LookAt(Vector3 eye, Vector3 target, Vector3 up)
 
     Matrix4 m = Matrix4Identity();
 
-    m.m0 = s.x;  m.m4 = s.y;  m.m8  = s.z;
-    m.m1 = u.x;  m.m5 = u.y;  m.m9  = u.z;
-    m.m2 = -f.x; m.m6 = -f.y; m.m10 = -f.z;
+    m.m00 = s.x;  m.m01 = s.y;  m.m02 = s.z;
+    m.m10 = u.x;  m.m11 = u.y;  m.m12 = u.z;
+    m.m20 = -f.x; m.m21 = -f.y; m.m22 = -f.z;
 
-    m.m12 = -Vector3Dot(s, eye);
+    m.m03 = -Vector3Dot(s, eye);
     m.m13 = -Vector3Dot(u, eye);
-    m.m14 =  Vector3Dot(f, eye);
+    m.m23 =  Vector3Dot(f, eye);
 
     return m;
 }
@@ -193,13 +193,13 @@ Matrix4 Matrix4Ortho(float left, float right, float bottom, float top, float nea
 {
     Matrix4 m = Matrix4Identity();
 
-    m.m0  = 2.0f / (right - left);
-    m.m5  = 2.0f / (top - bottom);
-    m.m10 = -2.0f / (farZ - nearZ);
+    m.m00  = 2.0f / (right - left);
+    m.m11 = 2.0f / (top - bottom);
+    m.m22 = -2.0f / (farZ - nearZ);
 
-    m.m12 = -(right + left) / (right - left);
+    m.m03 = -(right + left) / (right - left);
     m.m13 = -(top + bottom) / (top - bottom);
-    m.m14 = -(farZ + nearZ) / (farZ - nearZ);
+    m.m23 = -(farZ + nearZ) / (farZ - nearZ);
 
     return m;
 }
@@ -214,128 +214,130 @@ Matrix4 Matrix4Inverse(Matrix4 m)
     Matrix4 inv;
     float det;
 
-    inv.m0 = m.m5  * m.m10 * m.m15 - 
-             m.m5  * m.m11 * m.m14 - 
-             m.m9  * m.m6  * m.m15 + 
-             m.m9  * m.m7  * m.m14 +
-             m.m13 * m.m6  * m.m11 - 
-             m.m13 * m.m7  * m.m10;
+    inv.m00 = m.m11 * m.m22 * m.m33 - 
+              m.m11 * m.m32 * m.m23 - 
+              m.m12 * m.m21 * m.m33 + 
+              m.m12 * m.m31 * m.m23 +
+              m.m13 * m.m21 * m.m32 - 
+              m.m13 * m.m31 * m.m22;
 
-    inv.m4 = -m.m4  * m.m10 * m.m15 + 
-              m.m4  * m.m11 * m.m14 + 
-              m.m8  * m.m6  * m.m15 - 
-              m.m8  * m.m7  * m.m14 - 
-              m.m12 * m.m6  * m.m11 + 
-              m.m12 * m.m7  * m.m10;
+    inv.m01 = -m.m01 * m.m22 * m.m33 + 
+               m.m01 * m.m32 * m.m23 + 
+               m.m02 * m.m21 * m.m33 - 
+               m.m02 * m.m31 * m.m23 - 
+               m.m03 * m.m21 * m.m32 + 
+               m.m03 * m.m31 * m.m22;
 
-    inv.m8 = m.m4  * m.m9 * m.m15 - 
-             m.m4  * m.m11 * m.m13 - 
-             m.m8  * m.m5 * m.m15 + 
-             m.m8  * m.m7 * m.m13 + 
-             m.m12 * m.m5 * m.m11 - 
-             m.m12 * m.m7 * m.m9;
+    inv.m02 = m.m01 * m.m12 * m.m33 - 
+              m.m01 * m.m32 * m.m13 - 
+              m.m02 * m.m11 * m.m33 + 
+              m.m02 * m.m31 * m.m13 + 
+              m.m03 * m.m11 * m.m32 - 
+              m.m03 * m.m31 * m.m12;
 
-    inv.m12 = -m.m4  * m.m9 * m.m14 + 
-               m.m4  * m.m10 * m.m13 +
-               m.m8  * m.m5 * m.m14 - 
-               m.m8  * m.m6 * m.m13 - 
-               m.m12 * m.m5 * m.m10 + 
-               m.m12 * m.m6 * m.m9;
+    inv.m03 = -m.m01 * m.m12 * m.m23 + 
+               m.m01 * m.m22 * m.m13 +
+               m.m02 * m.m11 * m.m23 - 
+               m.m02 * m.m21 * m.m13 - 
+               m.m03 * m.m11 * m.m22 + 
+               m.m03 * m.m21 * m.m12;
 
-    inv.m1 = -m.m1  * m.m10 * m.m15 + 
-              m.m1  * m.m11 * m.m14 + 
-              m.m9  * m.m2 * m.m15 - 
-              m.m9  * m.m3 * m.m14 - 
-              m.m13 * m.m2 * m.m11 + 
-              m.m13 * m.m3 * m.m10;
+    inv.m10 = -m.m10 * m.m22 * m.m33 + 
+               m.m10 * m.m32 * m.m23 + 
+               m.m12 * m.m20 * m.m33 - 
+               m.m12 * m.m30 * m.m23 - 
+               m.m13 * m.m20 * m.m32 + 
+               m.m13 * m.m30 * m.m22;
 
-    inv.m5 = m.m0  * m.m10 * m.m15 - 
-             m.m0  * m.m11 * m.m14 - 
-             m.m8  * m.m2 * m.m15 + 
-             m.m8  * m.m3 * m.m14 + 
-             m.m12 * m.m2 * m.m11 - 
-             m.m12 * m.m3 * m.m10;
+    inv.m11 = m.m00 * m.m22 * m.m33 - 
+              m.m00 * m.m32 * m.m23 - 
+              m.m02 * m.m20 * m.m33 + 
+              m.m02 * m.m30 * m.m23 + 
+              m.m03 * m.m20 * m.m32 - 
+              m.m03 * m.m30 * m.m22;
 
-    inv.m9 = -m.m0  * m.m9 * m.m15 + 
-              m.m0  * m.m11 * m.m13 + 
-              m.m8  * m.m1 * m.m15 - 
-              m.m8  * m.m3 * m.m13 - 
-              m.m12 * m.m1 * m.m11 + 
-              m.m12 * m.m3 * m.m9;
+    inv.m12 = -m.m00 * m.m12 * m.m33 + 
+               m.m00 * m.m32 * m.m13 + 
+               m.m02 * m.m10 * m.m33 - 
+               m.m02 * m.m30 * m.m13 - 
+               m.m03 * m.m10 * m.m32 + 
+               m.m03 * m.m30 * m.m12;
 
-    inv.m13 = m.m0  * m.m9 * m.m14 - 
-              m.m0  * m.m10 * m.m13 - 
-              m.m8  * m.m1 * m.m14 + 
-              m.m8  * m.m2 * m.m13 + 
-              m.m12 * m.m1 * m.m10 - 
-              m.m12 * m.m2 * m.m9;
+    inv.m13 = m.m00 * m.m12 * m.m23 - 
+              m.m00 * m.m22 * m.m13 - 
+              m.m02 * m.m10 * m.m23 + 
+              m.m02 * m.m20 * m.m13 + 
+              m.m03 * m.m10 * m.m22 - 
+              m.m03 * m.m20 * m.m12;
 
-    inv.m2 = m.m1  * m.m6 * m.m15 - 
-             m.m1  * m.m7 * m.m14 - 
-             m.m5  * m.m2 * m.m15 + 
-             m.m5  * m.m3 * m.m14 + 
-             m.m13 * m.m2 * m.m7 - 
-             m.m13 * m.m3 * m.m6;
+    inv.m20 = m.m10 * m.m21 * m.m33 - 
+              m.m10 * m.m31 * m.m23 - 
+              m.m11 * m.m20 * m.m33 + 
+              m.m11 * m.m30 * m.m23 + 
+              m.m13 * m.m20 * m.m31 - 
+              m.m13 * m.m30 * m.m21;
 
-    inv.m6 = -m.m0  * m.m6 * m.m15 + 
-              m.m0  * m.m7 * m.m14 + 
-              m.m4  * m.m2 * m.m15 - 
-              m.m4  * m.m3 * m.m14 - 
-              m.m12 * m.m2 * m.m7 + 
-              m.m12 * m.m3 * m.m6;
+    inv.m21 = -m.m00 * m.m21 * m.m33 + 
+               m.m00 * m.m31 * m.m23 + 
+               m.m01 * m.m20 * m.m33 - 
+               m.m01 * m.m30 * m.m23 - 
+               m.m03 * m.m20 * m.m31 + 
+               m.m03 * m.m30 * m.m21;
 
-    inv.m10 = m.m0  * m.m5 * m.m15 - 
-              m.m0  * m.m7 * m.m13 - 
-              m.m4  * m.m1 * m.m15 + 
-              m.m4  * m.m3 * m.m13 + 
-              m.m12 * m.m1 * m.m7 - 
-              m.m12 * m.m3 * m.m5;
+    inv.m22 = m.m00 * m.m11 * m.m33 - 
+              m.m00 * m.m31 * m.m13 - 
+              m.m01 * m.m10 * m.m33 + 
+              m.m01 * m.m30 * m.m13 + 
+              m.m03 * m.m10 * m.m31 - 
+              m.m03 * m.m30 * m.m11;
 
-    inv.m14 = -m.m0  * m.m5 * m.m14 + 
-               m.m0  * m.m6 * m.m13 + 
-               m.m4  * m.m1 * m.m14 - 
-               m.m4  * m.m2 * m.m13 - 
-               m.m12 * m.m1 * m.m6 + 
-               m.m12 * m.m2 * m.m5;
+    inv.m23 = -m.m00 * m.m11 * m.m23 + 
+               m.m00 * m.m21 * m.m13 + 
+               m.m01 * m.m10 * m.m23 - 
+               m.m01 * m.m20 * m.m13 - 
+               m.m03 * m.m10 * m.m21 + 
+               m.m03 * m.m20 * m.m11;
 
-    inv.m3 = -m.m1 * m.m6 * m.m11 + 
-              m.m1 * m.m7 * m.m10 + 
-              m.m5 * m.m2 * m.m11 - 
-              m.m5 * m.m3 * m.m10 - 
-              m.m9 * m.m2 * m.m7 + 
-              m.m9 * m.m3 * m.m6;
+    inv.m30 = -m.m10 * m.m21 * m.m32 + 
+               m.m10 * m.m31 * m.m22 + 
+               m.m11 * m.m20 * m.m32 - 
+               m.m11 * m.m30 * m.m22 - 
+               m.m12 * m.m20 * m.m31 + 
+               m.m12 * m.m30 * m.m21;
 
-    inv.m7 = m.m0 * m.m6 * m.m11 - 
-             m.m0 * m.m7 * m.m10 - 
-             m.m4 * m.m2 * m.m11 + 
-             m.m4 * m.m3 * m.m10 + 
-             m.m8 * m.m2 * m.m7 - 
-             m.m8 * m.m3 * m.m6;
+    inv.m31 = m.m00 * m.m21 * m.m32 - 
+              m.m00 * m.m31 * m.m22 - 
+              m.m01 * m.m20 * m.m32 + 
+              m.m01 * m.m30 * m.m22 + 
+              m.m02 * m.m20 * m.m31 - 
+              m.m02 * m.m30 * m.m21;
 
-    inv.m11 = -m.m0 * m.m5 * m.m11 + 
-               m.m0 * m.m7 * m.m9 + 
-               m.m4 * m.m1 * m.m11 - 
-               m.m4 * m.m3 * m.m9 - 
-               m.m8 * m.m1 * m.m7 + 
-               m.m8 * m.m3 * m.m5;
+    inv.m32 = -m.m00 * m.m11 * m.m32 + 
+               m.m00 * m.m31 * m.m12 + 
+               m.m01 * m.m10 * m.m32 - 
+               m.m01 * m.m30 * m.m12 - 
+               m.m02 * m.m10 * m.m31 + 
+               m.m02 * m.m30 * m.m11;
 
-    inv.m15 = m.m0 * m.m5 * m.m10 - 
-              m.m0 * m.m6 * m.m9 - 
-              m.m4 * m.m1 * m.m10 + 
-              m.m4 * m.m2 * m.m9 + 
-              m.m8 * m.m1 * m.m6 - 
-              m.m8 * m.m2 * m.m5;
+    inv.m33 = m.m00 * m.m11 * m.m22 - 
+              m.m00 * m.m21 * m.m12 - 
+              m.m01 * m.m10 * m.m22 + 
+              m.m01 * m.m20 * m.m12 + 
+              m.m02 * m.m10 * m.m21 - 
+              m.m02 * m.m20 * m.m11;
 
-    det = m.m0 * inv.m0 + m.m1 * inv.m4 + m.m2 * inv.m8 + m.m3 * inv.m12;
+    det = m.m00 * inv.m00 + m.m10 * inv.m01 + m.m20 * inv.m02 + m.m30 * inv.m03;
 
-    if (det == 0) {
+    if (det == 0)
+    {
         // Return identity if the matrix can't be inverted
         return (Matrix4){ 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
     }
 
     det = 1.0f / det;
 
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i < 16; i++)
+    {
         ((float*)&inv)[i] *= det;
     }
 
@@ -350,9 +352,9 @@ Matrix4 Matrix4Inverse(Matrix4 m)
 Matrix4 Matrix4Translate(Vector3 t)
 {
     Matrix4 m = Matrix4Identity();
-    m.m12 = t.x;
+    m.m03 = t.x;
     m.m13 = t.y;
-    m.m14 = t.z;
+    m.m23 = t.z;
 
     return m;
 }
@@ -365,9 +367,9 @@ Matrix4 Matrix4Translate(Vector3 t)
 Matrix4 Matrix4Scale(Vector3 s)
 {
     Matrix4 m = Matrix4Identity();
-    m.m0 = s.x;
-    m.m5 = s.y;
-    m.m10 = s.z;
+    m.m00 = s.x;
+    m.m11 = s.y;
+    m.m22 = s.z;
 
     return m;
 }
@@ -381,8 +383,8 @@ Matrix4 Matrix4RotateX(float r)
 {
     Matrix4 m = Matrix4Identity();
     float c = cosf(r), s = sinf(r);
-    m.m5 = c;  m.m9  = -s;
-    m.m6 = s;  m.m10 = c;
+    m.m11 = c;  m.m12 = -s;
+    m.m21 = s;  m.m22 = c;
 
     return m;
 }
@@ -396,9 +398,9 @@ Vector3 Matrix4MultiplyVector3(Matrix4 m, Vector3 v)
 {
     Vector3 out;
 
-    out.x = m.m0 * v.x + m.m4 * v.y + m.m8  * v.z + m.m12;
-    out.y = m.m1 * v.x + m.m5 * v.y + m.m9  * v.z + m.m13;
-    out.z = m.m2 * v.x + m.m6 * v.y + m.m10 * v.z + m.m14;
+    out.x = m.m00 * v.x + m.m01 * v.y + m.m02 * v.z + m.m03;
+    out.y = m.m10 * v.x + m.m11 * v.y + m.m12 * v.z + m.m13;
+    out.z = m.m20 * v.x + m.m21 * v.y + m.m22 * v.z + m.m23;
 
     return out;
 }
@@ -412,10 +414,10 @@ Vector4 Matrix4MultiplyVector4(Matrix4 m, Vector4 v)
 {
     Vector4 result;
 
-    result.x = m.m0*v.x + m.m4*v.y + m.m8*v.z  + m.m12*v.w;
-    result.y = m.m1*v.x + m.m5*v.y + m.m9*v.z  + m.m13*v.w;
-    result.z = m.m2*v.x + m.m6*v.y + m.m10*v.z + m.m14*v.w;
-    result.w = m.m3*v.x + m.m7*v.y + m.m11*v.z + m.m15*v.w;
+    result.x = m.m00*v.x + m.m01*v.y + m.m02*v.z + m.m03*v.w;
+    result.y = m.m10*v.x + m.m11*v.y + m.m12*v.z + m.m13*v.w;
+    result.z = m.m20*v.x + m.m21*v.y + m.m22*v.z + m.m23*v.w;
+    result.w = m.m30*v.x + m.m31*v.y + m.m32*v.z + m.m33*v.w;
     
     return result;
 }
@@ -430,9 +432,9 @@ Quaternion QuaternionFromMatrix(Matrix4 m)
     Quaternion q;
     
     // 1. Extract the scale squared
-    float sx = m.m0 * m.m0 + m.m1 * m.m1 + m.m2 * m.m2;
-    float sy = m.m4 * m.m4 + m.m5 * m.m5 + m.m6 * m.m6;
-    float sz = m.m8 * m.m8 + m.m9 * m.m9 + m.m10 * m.m10;
+    float sx = m.m00 * m.m00 + m.m10 * m.m10 + m.m20 * m.m20;
+    float sy = m.m01 * m.m01 + m.m11 * m.m11 + m.m21 * m.m21;
+    float sz = m.m02 * m.m02 + m.m12 * m.m12 + m.m22 * m.m22;
 
     // 2. Normalize the matrix axes to strip the scale out
     // (We add a tiny epsilon to prevent dividing by zero if scale is 0)
@@ -440,9 +442,9 @@ Quaternion QuaternionFromMatrix(Matrix4 m)
     float inv_sy = 1.0f / sqrtf(sy + 0.00001f);
     float inv_sz = 1.0f / sqrtf(sz + 0.00001f);
 
-    float m00 = m.m0 * inv_sx, m01 = m.m4 * inv_sy, m02 = m.m8 * inv_sz;
-    float m10 = m.m1 * inv_sx, m11 = m.m5 * inv_sy, m12 = m.m9 * inv_sz;
-    float m20 = m.m2 * inv_sx, m21 = m.m6 * inv_sy, m22 = m.m10 * inv_sz;
+    float m00 = m.m00 * inv_sx, m01 = m.m01 * inv_sy, m02 = m.m02 * inv_sz;
+    float m10 = m.m10 * inv_sx, m11 = m.m11 * inv_sy, m12 = m.m12 * inv_sz;
+    float m20 = m.m20 * inv_sx, m21 = m.m21 * inv_sy, m22 = m.m22 * inv_sz;
 
     // 3. The Shoemake Algorithm
     float trace = m00 + m11 + m22;

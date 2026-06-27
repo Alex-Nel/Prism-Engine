@@ -25,6 +25,35 @@ typedef struct PrismEngine
 typedef void (*EngineUpdateCallback)(void);
 
 
+
+
+
+// --- Structures for frustum culling ---
+
+typedef struct FrustumPlane
+{
+    Vector3 normal;
+    float distance;
+} FrustumPlane;
+
+typedef struct Frustum
+{
+    FrustumPlane planes[6];
+} Frustum;
+
+
+
+
+// Extracts the 6 planes from a view-projection matrix
+Frustum Frustum_ExtractFromMatrix(Matrix4 vp);
+
+// Checks if a sphere is inside the frustum
+bool Frustum_ContainsAABB(Frustum* frustum, AABB local_aabb, Matrix4 world_matrix);
+
+
+
+
+
 // Initializes Platform, Core, and Render systems
 bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t window_height, uint32_t target_fps, GraphicsAPI api);
 

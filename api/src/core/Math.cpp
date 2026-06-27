@@ -171,17 +171,17 @@ namespace Prism
     // Helper to bridge our Matrix4 to ::Matrix4
     static inline ::Matrix4 ToCore(const Matrix4& m) {
         return ::Matrix4 {
-            m.m0, m.m1, m.m2, m.m3,
-            m.m4, m.m5, m.m6, m.m7,
-            m.m8, m.m9, m.m10, m.m11,
-            m.m12, m.m13, m.m14, m.m15 };
+            m.m00, m.m10, m.m20, m.m30,
+            m.m01, m.m11, m.m21, m.m31,
+            m.m02, m.m12, m.m22, m.m32,
+            m.m03, m.m13, m.m23, m.m33 };
     }
     static inline Matrix4 FromCore(const ::Matrix4& raw) {
         Matrix4 m;
-        m.m0 = raw.m0; m.m1 = raw.m1; m.m2 = raw.m2; m.m3 = raw.m3;
-        m.m4 = raw.m4; m.m5 = raw.m5; m.m6 = raw.m6; m.m7 = raw.m7;
-        m.m8 = raw.m8; m.m9 = raw.m9; m.m10 = raw.m10; m.m11 = raw.m11;
-        m.m12 = raw.m12; m.m13 = raw.m13; m.m14 = raw.m14; m.m15 = raw.m15;
+        m.m00 = raw.m00; m.m10 = raw.m10; m.m20 = raw.m20; m.m30 = raw.m30;
+        m.m01 = raw.m01; m.m11 = raw.m11; m.m21 = raw.m21; m.m31 = raw.m31;
+        m.m02 = raw.m02; m.m12 = raw.m12; m.m22 = raw.m22; m.m32 = raw.m32;
+        m.m03 = raw.m03; m.m13 = raw.m13; m.m23 = raw.m23; m.m33 = raw.m33;
         return m;
     }
 

@@ -8,10 +8,10 @@
 // A 4x4 matrix
 typedef struct Matrix4
 {
-    float m0, m1, m2,  m3;
-    float m4, m5, m6,  m7;
-    float m8, m9, m10, m11;
-    float m12, m13, m14, m15;
+    float m00, m10, m20, m30;
+    float m01, m11, m21, m31;
+    float m02, m12, m22, m32;
+    float m03, m13, m23, m33;
 } Matrix4;
 
 

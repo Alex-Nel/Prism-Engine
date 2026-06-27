@@ -24,10 +24,10 @@ namespace Prism
     }
     static inline ::Matrix4 MatToCore(const Prism::Matrix4& m) {
         ::Matrix4 c_M = ::Matrix4{
-            m.m0, m.m1, m.m2, m.m3,
-            m.m4, m.m5, m.m6, m.m7,
-            m.m8, m.m9, m.m10, m.m11,
-            m.m12, m.m13, m.m14, m.m15,
+            m.m00, m.m10, m.m20, m.m30,
+            m.m01, m.m11, m.m21, m.m31,
+            m.m02, m.m12, m.m22, m.m32,
+            m.m03, m.m13, m.m23, m.m33,
         };
         return c_M;
     }

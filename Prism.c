@@ -394,6 +394,11 @@ void Engine_RenderScene(Scene* scene)
         else
             packet.has_skybox = false;
 
+
+        // Calculate the frustum for this camera
+        Matrix4 view_proj = Matrix4Multiply(packet.projection_matrix, packet.view_matrix);
+        Frustum cam_frustum = Frustum_ExtractFromMatrix(view_proj);
+
         // Start pass
         Render_BeginFrame(engine.renderer, &packet);
 
@@ -419,6 +424,10 @@ void Engine_RenderScene(Scene* scene)
                     continue;
                 
                 Transform* t = &scene->transforms[i];
+
+                // Skip if its outside the frustum
+                if (!Frustum_ContainsAABB(&cam_frustum, rc->mesh->local_bounds, t->world_matrix))
+                    continue;
 
                 Render_Submit(engine.renderer, rc->mesh->gpu_handle, rc->material->shader->gpu_handle,
                                 rc->material->diffuse_texture->gpu_handle, rc->material->properties,
@@ -448,6 +457,11 @@ void Engine_RenderScene(Scene* scene)
                     continue;
 
                 Transform* t = &scene->transforms[i];
+
+                // Skip if its outside the frustum
+                if (!Frustum_ContainsAABB(&cam_frustum, rc->mesh->local_bounds, t->world_matrix))
+                    continue;
+
                 Matrix4* bone_ptr = NULL;
 
                 // Grab the explicit Animator Entity that drives this mesh
@@ -547,11 +561,9 @@ void Engine_RenderScene(Scene* scene)
                 float aspect_y = 1.0f; // Keep Y standard, scale X to match
 
                 // Create a temporary matrix that scales the 1x1 quad to the correct aspect ratio
-                Matrix4 aspect_matrix;
-                aspect_matrix.m0 = aspect_x;
-                aspect_matrix.m5 = aspect_y;
-                aspect_matrix.m10 = 1.0f;
-                aspect_matrix.m15 = 1.0f;
+                Matrix4 aspect_matrix = Matrix4Identity();
+                aspect_matrix.m00 = aspect_x;
+                aspect_matrix.m11 = aspect_y;
                 
                 // Multiply the Entity's World Matrix by the Aspect Matrix
                 Matrix4 final_sprite_matrix = Matrix4Multiply(t->world_matrix, aspect_matrix);
@@ -658,4 +670,144 @@ void Engine_SetTargetFPS(uint32_t fps)
 uint32_t Engine_GetTargetFPS()
 {
     return Time_GetTargetFPS();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// --- Frustum Function ---
+
+
+
+// Normalizes the plane equation so the normal has a length of 1
+static inline void NormalizePlane(FrustumPlane* p) 
+{
+    float length = sqrtf(p->normal.x * p->normal.x + p->normal.y * p->normal.y + p->normal.z * p->normal.z);
+    
+    if (length > 0.0001f)
+    {
+        p->normal.x /= length;
+        p->normal.y /= length;
+        p->normal.z /= length;
+        p->distance /= length;
+    }
+}
+
+
+
+
+
+// Extracts the 6 planes from a view-projection matrix
+Frustum Frustum_ExtractFromMatrix(Matrix4 vp)
+{
+    Frustum f;
+
+    // Left Plane (Row 3 + Row 0)
+    f.planes[0].normal.x = vp.m30 + vp.m00;
+    f.planes[0].normal.y = vp.m31 + vp.m01;
+    f.planes[0].normal.z = vp.m32 + vp.m02;
+    f.planes[0].distance = vp.m33 + vp.m03;
+
+    // Right Plane (Column 3 - Row 0)
+    f.planes[1].normal.x = vp.m30 - vp.m00;
+    f.planes[1].normal.y = vp.m31 - vp.m01;
+    f.planes[1].normal.z = vp.m32 - vp.m02;
+    f.planes[1].distance = vp.m33 - vp.m03;
+
+    // Bottom Plane (Row 3 + Row 1)
+    f.planes[2].normal.x = vp.m30 + vp.m10;
+    f.planes[2].normal.y = vp.m31 + vp.m11;
+    f.planes[2].normal.z = vp.m32 + vp.m12;
+    f.planes[2].distance = vp.m33 + vp.m13;
+
+    // Top Plane (Row 3 - Row 1)
+    f.planes[3].normal.x = vp.m30 - vp.m10;
+    f.planes[3].normal.y = vp.m31 - vp.m11;
+    f.planes[3].normal.z = vp.m32 - vp.m12;
+    f.planes[3].distance = vp.m33 - vp.m13;
+
+    // Near Plane (Row 3 + Row 2)
+    f.planes[4].normal.x = vp.m30 + vp.m20;
+    f.planes[4].normal.y = vp.m31 + vp.m21;
+    f.planes[4].normal.z = vp.m32 + vp.m22;
+    f.planes[4].distance = vp.m33 + vp.m23;
+
+    // Far Plane (Row 3 - Row 2)
+    f.planes[5].normal.x = vp.m30 - vp.m20;
+    f.planes[5].normal.y = vp.m31 - vp.m21;
+    f.planes[5].normal.z = vp.m32 - vp.m22;
+    f.planes[5].distance = vp.m33 - vp.m23;
+
+    // Normalize all planes
+    for (int i = 0; i < 6; i++)
+        NormalizePlane(&f.planes[i]);
+
+    return f;
+}
+
+
+
+
+
+// Checks if a sphere is inside the frustum
+bool Frustum_ContainsAABB(Frustum* frustum, AABB local_aabb, Matrix4 world_matrix)
+{
+    // Calculate local center and extents (half-sizes)
+    Vector3 center_local = {
+        (local_aabb.max.x + local_aabb.min.x) * 0.5f,
+        (local_aabb.max.y + local_aabb.min.y) * 0.5f,
+        (local_aabb.max.z + local_aabb.min.z) * 0.5f
+    };
+
+    Vector3 extents_local = {
+        (local_aabb.max.x - local_aabb.min.x) * 0.5f,
+        (local_aabb.max.y - local_aabb.min.y) * 0.5f,
+        (local_aabb.max.z - local_aabb.min.z) * 0.5f
+    };
+
+    // Transform the local center into a global center
+    Vector3 center_world;
+    center_world.x = world_matrix.m00 * center_local.x + world_matrix.m01 * center_local.y + world_matrix.m02 * center_local.z + world_matrix.m03;
+    center_world.y = world_matrix.m10 * center_local.x + world_matrix.m11 * center_local.y + world_matrix.m12 * center_local.z + world_matrix.m13;
+    center_world.z = world_matrix.m20 * center_local.x + world_matrix.m21 * center_local.y + world_matrix.m22 * center_local.z + world_matrix.m23;
+
+    // Transform the local extents into global extents (Uses absolute rotation/scale values)
+    Vector3 extents_world;
+    extents_world.x = fabsf(world_matrix.m00) * extents_local.x + fabsf(world_matrix.m01) * extents_local.y + fabsf(world_matrix.m02) * extents_local.z;
+    extents_world.y = fabsf(world_matrix.m10) * extents_local.x + fabsf(world_matrix.m11) * extents_local.y + fabsf(world_matrix.m12) * extents_local.z;
+    extents_world.z = fabsf(world_matrix.m20) * extents_local.x + fabsf(world_matrix.m21) * extents_local.y + fabsf(world_matrix.m22) * extents_local.z;
+
+    // Test the generated World AABB against the 6 planes
+    for (int i = 0; i < 6; i++) 
+    {
+        FrustumPlane plane = frustum->planes[i];
+
+        // Compute the "radius" of the AABB along this specific plane's normal
+        float r = extents_world.x * fabsf(plane.normal.x) +
+                  extents_world.y * fabsf(plane.normal.y) +
+                  extents_world.z * fabsf(plane.normal.z);
+
+        // Compute distance from the center of the AABB to the plane
+        float d = plane.normal.x * center_world.x +
+                  plane.normal.y * center_world.y +
+                  plane.normal.z * center_world.z +
+                  plane.distance;
+
+        // If the distance is less than -r, the box is completely behind the plane
+        if (d < -r)
+            return false;
+    }
+
+    return true; // The box is visible
 }

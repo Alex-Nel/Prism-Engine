@@ -513,7 +513,8 @@ void Entity_RemoveRigidbody(Entity entity)
 // Remove a specified component from an entity
 void Entity_RemoveComponent(Entity entity, ComponentMask component)
 {
-    if (!Entity_IsValid(entity)) return;
+    if (!Entity_IsValid(entity))
+        return;
 
     // Call respective functions depending on whether a rigidbody or collider is removed
     if (component & COMPONENT_COLLIDER)
@@ -529,11 +530,25 @@ void Entity_RemoveComponent(Entity entity, ComponentMask component)
         
         component &= ~COMPONENT_RIGIDBODY;
     }
+
+
+    // Cleanup dynamic memory for an animator component
+    if (component & COMPONENT_ANIMATOR)
+    {
+        AnimatorComponent* anim = &entity.scene->animators[entity.id];
+
+        if (anim->final_bone_matrices != NULL)
+        {
+            free(anim->final_bone_matrices);
+            anim->final_bone_matrices = NULL;
+        }
+    }
     
-    // The bitwise magic:
+
+    // The bitwise operation:
     // If the mask is 1111 (Has everything) and we want to remove 0010 (Transform):
     // ~0010 becomes 1101. 
-    // 1111 AND 1101 = 1101 (Transform is now safely removed!)
+    // 1111 AND 1101 = 1101 (Transform is now removed)
     entity.scene->component_masks[entity.id] &= ~component;
 }
 
@@ -1020,7 +1035,11 @@ void Entity_AddAnimator(Entity entity, void* raw_skeleton, void* raw_clip)
     anim->is_playing = true;
     anim->playback_speed = 1.0f;
 
-    // Safety fallback: Initialize all matrices to Identity
+    // Allocate the memory if it doesn't already exist
+    if (anim->final_bone_matrices == NULL)
+        anim->final_bone_matrices = malloc(sizeof(Matrix4) * MAX_BONES);
+
+    // Initialize all matrices to Identity
     for (int i = 0; i < MAX_BONES; i++)
         anim->final_bone_matrices[i] = Matrix4Identity();
 }
