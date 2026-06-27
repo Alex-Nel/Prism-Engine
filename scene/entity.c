@@ -762,6 +762,7 @@ void Entity_AddLight(Entity entity, LightType type, Color color)
     light->quadratic = 0.032f;
     light->inner_cut_off = 12.5f;
     light->outer_cut_off = 17.5f;
+    light->shadow_box_size = (type == LIGHT_DIRECTIONAL) ? 20.0f : 0.0f;
     
     entity.scene->component_masks[entity.id] |= COMPONENT_LIGHT;
 }

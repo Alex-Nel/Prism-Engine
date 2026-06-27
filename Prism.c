@@ -274,7 +274,8 @@ void Engine_RenderScene(Scene* scene)
 
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
     {
-        if (!scene->is_active_in_hierarchy[i]) continue;
+        if (!scene->is_active_in_hierarchy[i])
+            continue;
 
         if ((scene->component_masks[i] & light_mask) == light_mask)
         {    
@@ -290,6 +291,7 @@ void Engine_RenderScene(Scene* scene)
                 active_dir_lights[directional_count].color = l->color;
                 active_dir_lights[directional_count].intensity = l->intensity;
                 active_dir_lights[directional_count].ambient_strength = l->ambient_strength;
+                active_dir_lights[directional_count].shadow_box_size = l->shadow_box_size;
                 directional_count++;
             }
             else if (l->type == LIGHT_POINT && point_count < MAX_RESOURCES)
@@ -330,6 +332,127 @@ void Engine_RenderScene(Scene* scene)
     packet.has_skybox = scene->has_skybox;
     packet.skybox_texture = scene->skybox.texture->gpu_handle;
     packet.skybox_shader = scene->skybox.shader->gpu_handle;
+
+
+
+    // --- Shadow Pass ---
+
+    if (directional_count > 0)
+    {
+        // Calculate the Sun's View-Projection Matrix
+        Vector3 light_dir = active_dir_lights[0].direction;
+        
+        // Read per-light shadow settings (falls back to a normal default if unset).
+        float shadow_box_size = active_dir_lights[0].shadow_box_size;
+        if (shadow_box_size <= 0.0f)
+            shadow_box_size = 20.0f;
+
+        // Center the box slightly ahead of the camera so the visible area is well covered.
+        Transform* main_cam_t = &scene->transforms[scene->main_camera_id];
+        Vector3 cam_pos = Transform_GetGlobalPosition(main_cam_t);
+        Vector3 cam_fwd = Transform_GetForwardVector(main_cam_t);
+
+        Vector3 center = {
+            cam_pos.x + cam_fwd.x * shadow_box_size * 0.5f,
+            cam_pos.y + cam_fwd.y * shadow_box_size * 0.5f,
+            cam_pos.z + cam_fwd.z * shadow_box_size * 0.5f
+        };
+
+        // Pull the virtual light back along its ray so all casters fall within the depth range.
+        float light_distance = 80.0f;
+
+        // Stable up vector (avoid degeneracy when the light points nearly straight up/down).
+        Vector3 up = (fabsf(light_dir.y) > 0.99f) ? (Vector3){0.0f, 0.0f, 1.0f} : (Vector3){0.0f, 1.0f, 0.0f};
+
+        // World-space size of one shadow texel (drives both snapping and the bias).
+        float texel_world_size = (2.0f * shadow_box_size) / (float)SHADOW_MAP_RESOLUTION;
+
+        // --- Texel snapping ---
+        Matrix4 light_basis = Matrix4LookAt((Vector3){0.0f, 0.0f, 0.0f}, light_dir, up);
+        Vector4 center_ls = Matrix4MultiplyVector4(light_basis, (Vector4){center.x, center.y, center.z, 1.0f});
+        center_ls.x = floorf(center_ls.x / texel_world_size) * texel_world_size;
+        center_ls.y = floorf(center_ls.y / texel_world_size) * texel_world_size;
+
+        // Rotate the snapped center back into world space
+        Vector4 snapped = Matrix4MultiplyVector4(Matrix4Transpose(light_basis), center_ls);
+        Vector3 center_snapped = { snapped.x, snapped.y, snapped.z };
+
+        Vector3 light_pos = {
+            center_snapped.x - light_dir.x * light_distance,
+            center_snapped.y - light_dir.y * light_distance,
+            center_snapped.z - light_dir.z * light_distance
+        };
+
+        Matrix4 light_view = Matrix4LookAt(light_pos, center_snapped, up);
+        Matrix4 light_proj = Matrix4Ortho(-shadow_box_size, shadow_box_size, -shadow_box_size, shadow_box_size, 0.1f, 2.0f * light_distance);
+        
+        packet.light_space_matrix = Matrix4Multiply(light_proj, light_view);
+
+        // World-space size of one shadow texel, for the fragment shader's normal-offset bias.
+        packet.shadow_texel_world_size = texel_world_size;
+
+        // Begin Shadow Pass
+        Render_BeginShadowPass(engine.renderer, &packet);
+
+        // Get the shadow shaders (static + skinned variants)
+        ShaderHandle shadow_shader = Asset_GetDefaultShadowShader()->gpu_handle;
+        ShaderHandle skinned_shadow_shader = Asset_GetDefaultSkinnedShadowShader()->gpu_handle;
+
+        // Submit Static Meshes for Shadows
+        uint32_t req_mesh_mask = COMPONENT_TRANSFORM | COMPONENT_MESH_RENDERER;
+        for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+        {
+            if (!scene->is_active_in_hierarchy[i])
+                continue;
+            
+            if ((scene->component_masks[i] & req_mesh_mask) == req_mesh_mask)
+            {
+                MeshRendererComponent* rc = &scene->mesh_renderers[i];
+                if (!rc->is_active || !rc->mesh)
+                    continue;
+
+                Transform* t = &scene->transforms[i];
+                // Pass NULL for texture and default props, the shadow shader ignores them!
+                Render_Submit(engine.renderer, rc->mesh->gpu_handle, shadow_shader,
+                              (TextureHandle){0}, (MaterialProperties){0},
+                              t->world_matrix, NULL, false, 0.0f);
+            }
+        }
+
+        // Submit Skinned Meshes for Shadows
+        uint32_t req_skin_mask = COMPONENT_TRANSFORM | COMPONENT_SKINNED_MESH_RENDERER;
+        for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+        {
+            if (!scene->is_active_in_hierarchy[i])
+                continue;
+
+            if ((scene->component_masks[i] & req_skin_mask) == req_skin_mask)
+            {
+                SkinnedMeshRendererComponent* rc = &scene->skinned_mesh_renderers[i];
+                if (!rc->is_active || !rc->mesh)
+                    continue;
+
+                Transform* t = &scene->transforms[i];
+                Matrix4* bone_ptr = NULL;
+                uint32_t anim_id = rc->root_animator_entity_id;
+                
+                if (anim_id != 0 && anim_id != ENTITY_NONE && (scene->component_masks[anim_id] & COMPONENT_ANIMATOR))
+                    bone_ptr = scene->animators[anim_id].final_bone_matrices;
+                else if (scene->component_masks[i] & COMPONENT_ANIMATOR)
+                    bone_ptr = scene->animators[i].final_bone_matrices;
+
+                // Use the skinned shadow shader so the cast shadow follows the live pose.
+                // If there are no bones, fall back to the static shader (bind pose).
+                ShaderHandle caster_shader = (bone_ptr != NULL) ? skinned_shadow_shader : shadow_shader;
+
+                Render_Submit(engine.renderer, rc->mesh->gpu_handle, caster_shader,
+                              (TextureHandle){0}, (MaterialProperties){0},
+                              t->world_matrix, bone_ptr, false, 0.0f);
+            }
+        }
+
+        Render_EndShadowPass(engine.renderer);
+    }
 
 
 
@@ -398,6 +521,9 @@ void Engine_RenderScene(Scene* scene)
         // Calculate the frustum for this camera
         Matrix4 view_proj = Matrix4Multiply(packet.projection_matrix, packet.view_matrix);
         Frustum cam_frustum = Frustum_ExtractFromMatrix(view_proj);
+
+        packet.window_width = cam->viewport_width;
+        packet.window_height = cam->viewport_height;
 
         // Start pass
         Render_BeginFrame(engine.renderer, &packet);

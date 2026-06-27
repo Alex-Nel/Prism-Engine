@@ -130,6 +130,8 @@ namespace Prism
         float inner_cut_off;
         float outer_cut_off;
 
+        float shadow_box_size;
+
 
         void SetActive(bool active) { this->is_active = active; }
         bool IsActive() const { return this->is_active; }
@@ -141,6 +143,8 @@ namespace Prism
         void SetAmbientStrength(float ambient_strength);
         void SetAttenuation(float constant, float linear, float quadratic);
         void SetSpotAngles(float inner_cutoff_degrees, float outer_cutoff_degrees);
+        void SetShadowBoxSize(float half_extent);
+        float GetShadowBoxSize() const;
     };
 
 

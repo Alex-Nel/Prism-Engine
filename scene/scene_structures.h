@@ -255,6 +255,8 @@ typedef struct LightComponent
     // Spot light constraints (Represented in degrees)
     float inner_cut_off;
     float outer_cut_off;
+
+    float shadow_box_size;
 } LightComponent;
 
 

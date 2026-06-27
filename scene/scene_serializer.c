@@ -182,6 +182,7 @@ bool Scene_Save(Scene* scene, const char* filepath)
             cJSON_AddNumberToObject(comp_obj, "quadratic", l->quadratic);
             cJSON_AddNumberToObject(comp_obj, "inner_cut_off", l->inner_cut_off);
             cJSON_AddNumberToObject(comp_obj, "outer_cut_off", l->outer_cut_off);
+            cJSON_AddNumberToObject(comp_obj, "shadow_box_size", l->shadow_box_size);
         }
 
 
@@ -419,6 +420,8 @@ bool Scene_Load(Scene* scene, const char* filepath)
             l->quadratic = cJSON_GetObjectItemCaseSensitive(comp_obj, "quadratic")->valuedouble;
             l->inner_cut_off = cJSON_GetObjectItemCaseSensitive(comp_obj, "inner_cut_off")->valuedouble;
             l->outer_cut_off = cJSON_GetObjectItemCaseSensitive(comp_obj, "outer_cut_off")->valuedouble;
+            cJSON* shadow_box = cJSON_GetObjectItemCaseSensitive(comp_obj, "shadow_box_size");
+            l->shadow_box_size = shadow_box ? (float)shadow_box->valuedouble : ((l->type == LIGHT_DIRECTIONAL) ? 20.0f : 0.0f);
         }
 
 

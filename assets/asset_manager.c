@@ -57,6 +57,8 @@ static Texture* default_texture = NULL;
 static Shader* default_shader = NULL;
 static Shader* default_animated_shader = NULL;
 static Shader* default_skybox_shader = NULL;
+static Shader* default_shadow_shader = NULL;
+static Shader* default_skinned_shadow_shader = NULL;
 
 
 
@@ -1484,7 +1486,7 @@ Shader* Asset_GetDefaultAnimatedShader()
 
 
 
-// Create the default skybox shader
+// Returns the default skybox shader
 Shader* Asset_GetDefaultSkyboxShader()
 {
     // If already made return the handle
@@ -1497,6 +1499,45 @@ Shader* Asset_GetDefaultSkyboxShader()
     }
 
     return default_skybox_shader;
+}
+
+
+
+
+
+// Returns the default shader for shadow mapping
+Shader* Asset_GetDefaultShadowShader()
+{
+    // If already made return the handle
+    if (default_shadow_shader != NULL)
+        return default_shadow_shader;
+
+    if (shader_count < MAX_CACHED_SHADERS)
+    {
+        default_shadow_shader = Asset_LoadShader("ShadowDefault", "assets/shaders/shadow.vert", "assets/shaders/shadow.frag");
+    }
+
+    return default_shadow_shader;
+}
+
+
+
+
+
+// Returns the shadow shader for skinned (animated) models
+Shader* Asset_GetDefaultSkinnedShadowShader()
+{
+    // If already made return the handle
+    if (default_skinned_shadow_shader != NULL)
+        return default_skinned_shadow_shader;
+
+    if (shader_count < MAX_CACHED_SHADERS)
+    {
+        // Skinned vertex shader + the same depth-only fragment shader
+        default_skinned_shadow_shader = Asset_LoadShader("ShadowSkinned", "assets/shaders/shadow_skinned.vert", "assets/shaders/shadow.frag");
+    }
+
+    return default_skinned_shadow_shader;
 }
 
 

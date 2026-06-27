@@ -93,6 +93,12 @@ namespace Prism
         this->inner_cut_off = inner_cutoff_degrees;
         this->outer_cut_off = outer_cutoff_degrees;
     }
+    void LightComponent::SetShadowBoxSize(float half_extent) {
+        this->shadow_box_size = half_extent;
+    }
+    float LightComponent::GetShadowBoxSize() const {
+        return this->shadow_box_size;
+    }
 
 
 

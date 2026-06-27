@@ -6,7 +6,7 @@
 #include "math_core.h"
 
 #define MAX_NAME_LENGTH 256
-#define MAX_BONES 256
+#define MAX_BONES 128
 #define MAX_BONE_INFLUENCE 4
 
 

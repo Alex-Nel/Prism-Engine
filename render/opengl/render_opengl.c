@@ -12,11 +12,16 @@
 #define MAX_POINT_LIGHTS 8
 #define MAX_SPOT_LIGHTS 8
 
+#define SHADOW_WIDTH SHADOW_MAP_RESOLUTION
+#define SHADOW_HEIGHT SHADOW_MAP_RESOLUTION
+
 
 
 // Struct for a global render state
 typedef struct RenderState
 {
+    uint32_t window_width;
+    uint32_t window_height;
     Matrix4 view_matrix;
     Matrix4 projection_matrix;
     Vector3 camera_pos;
@@ -29,6 +34,9 @@ typedef struct RenderState
 
     SpotLightData spot_lights[MAX_SPOT_LIGHTS];
     uint32_t spot_light_count;
+
+    Matrix4 light_space_matrix;
+    float shadow_texel_world_size;
 
     bool has_skybox;
     TextureHandle skybox_texture;
@@ -95,6 +103,9 @@ typedef struct OpenGL_Backend
     RenderCommand command_queue[MAX_COMMANDS];
     uint32_t command_count;
 
+    GLuint depthMapFBO;
+    GLuint depthMapTexture;
+
     RenderState state;
 
     uint32_t skybox_vao;
@@ -143,6 +154,11 @@ static void OpenGL_Shutdown(Renderer* r)
 // Sets the size and position of the viewport
 static void OpenGL_SetViewport(Renderer* r, uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 {
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+
+    internal->state.window_width = width;
+    internal->state.window_height = height;
+
     glViewport(x, y, width, height);
 }
 
@@ -755,26 +771,120 @@ static void OpenGL_DestroyShader(Renderer* r, ShaderHandle shader)
 
 
 
+// Begins the shadow pass using a render packet
+static void OpenGL_BeginShadowPass(Renderer* r, const RenderPacket* packet)
+{
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    
+    // Store the light space matrix so the end pass can use it
+    internal->state.light_space_matrix = packet->light_space_matrix;
+    
+    // Reset the command queue for the shadow pass
+    internal->command_count = 0; 
+}
+
+
+
+
+
+// Ends the shadow pass and resets the state
+static void OpenGL_EndShadowPass(Renderer* r)
+{
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+
+    // Bind the FBO and adjust the viewport to the shadow map's resolution
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->depthMapFBO);
+    glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    // Render both faces into the depth map.
+    glDisable(GL_CULL_FACE);
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(2.0f, 4.0f);
+
+    uint32_t current_shader = 0;
+
+    // Execute the queue
+    for (uint32_t i = 0; i < internal->command_count; i++)
+    {
+        RenderCommand* cmd = &internal->command_queue[i];
+
+        if (!internal->mesh_pool[cmd->mesh.id].active || !internal->shader_pool[cmd->shader.id].active)
+            continue;
+
+        GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
+        GLShader* gl_shader = &internal->shader_pool[cmd->shader.id];
+
+        // Bind Shader & Light Space Matrix
+        if (current_shader != cmd->shader.id)
+        {
+            glUseProgram(gl_shader->program);
+            current_shader = cmd->shader.id;
+
+            GLint light_space_loc = glGetUniformLocation(gl_shader->program, "u_LightSpaceMatrix");
+            if (light_space_loc != -1)
+                glUniformMatrix4fv(light_space_loc, 1, GL_FALSE, (float*)&internal->state.light_space_matrix);
+        }
+
+        // Upload Model Matrix
+        GLint model_loc = glGetUniformLocation(gl_shader->program, "u_Model");
+        if (model_loc != -1)
+            glUniformMatrix4fv(model_loc, 1, GL_FALSE, (float*)&cmd->transform);
+
+        // Upload Bones (if Skinned Mesh)
+        GLint bone_loc = glGetUniformLocation(gl_shader->program, "u_BoneMatrices");
+        if (bone_loc != -1 && cmd->bone_matrices != NULL)
+            glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)cmd->bone_matrices);
+
+        // Draw Geometry
+        glBindVertexArray(gl_mesh->vao);
+        glDrawElements(GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
+    }
+
+    // Restore state
+    glBindFramebuffer(GL_FRAMEBUFFER, 0); // Back to the default window buffer
+    glDisable(GL_POLYGON_OFFSET_FILL);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+
+    // Clear the queue so the Main Camera Pass can start fresh
+    internal->command_count = 0;
+}
+
+
+
+
+
 // Sets the global camera matrices for the current frame
 static void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
+    internal->state.window_width = packet->window_width;
+    internal->state.window_height = packet->window_height;
+
     internal->state.view_matrix = packet->view_matrix;
     internal->state.projection_matrix = packet->projection_matrix;
     internal->state.camera_pos = packet->camera_pos;
+    internal->state.light_space_matrix = packet->light_space_matrix;
+    internal->state.shadow_texel_world_size = packet->shadow_texel_world_size;
 
-    // 1. Copy Directional Lights
+    // Bind the shadow map texture to texture unit 1
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, internal->depthMapTexture);
+    glActiveTexture(GL_TEXTURE0);
+
+    // Copy Directional Lights
     internal->state.dir_light_count = packet->dir_light_count;
     for (uint32_t i = 0; i < packet->dir_light_count; i++)
         internal->state.dir_lights[i] = packet->dir_lights[i];
 
-    // 2. Copy Point Lights
+    // Copy Point Lights
     internal->state.point_light_count = packet->point_light_count;
     for (uint32_t i = 0; i < packet->point_light_count; i++)
         internal->state.point_lights[i] = packet->point_lights[i];
         
-    // 3. Copy Spot Lights
+    // Copy Spot Lights
     internal->state.spot_light_count = packet->spot_light_count;
     for (uint32_t i = 0; i < packet->spot_light_count; i++)
         internal->state.spot_lights[i] = packet->spot_lights[i];
@@ -793,6 +903,7 @@ static void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
 static void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+
     // Return if the queue is full
     if (internal->command_count >= MAX_COMMANDS) return;
     
@@ -842,6 +953,8 @@ static void OpenGL_EndFrame(Renderer* r)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
+    glViewport(0, 0, internal->state.window_width, internal->state.window_height);
+
     // Sort the command queue
     qsort(internal->command_queue, internal->command_count, sizeof(RenderCommand), CompareRenderCommands);
 
@@ -884,6 +997,23 @@ static void OpenGL_EndFrame(Renderer* r)
             GLint proj_loc  = glGetUniformLocation(gl_shader->program, "u_Projection");
             glUniformMatrix4fv(view_loc, 1, GL_FALSE, (float*)&internal->state.view_matrix);
             glUniformMatrix4fv(proj_loc, 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+
+
+            // Map shadow uniforms
+            GLint light_space_loc = glGetUniformLocation(gl_shader->program, "u_LightSpaceMatrix");
+            if (light_space_loc != -1)
+                glUniformMatrix4fv(light_space_loc, 1, GL_FALSE, (float*)&internal->state.light_space_matrix);
+
+            // Tell the shader to look for the shadow map on Texture Unit 1
+            GLint shadow_map_loc = glGetUniformLocation(gl_shader->program, "shadowMap");
+            if (shadow_map_loc != -1)
+                glUniform1i(shadow_map_loc, 1);
+
+            // World-space size of one shadow texel (drives the normal-offset bias)
+            GLint shadow_texel_loc = glGetUniformLocation(gl_shader->program, "u_ShadowTexelSize");
+            if (shadow_texel_loc != -1)
+                glUniform1f(shadow_texel_loc, internal->state.shadow_texel_world_size);
+
 
             // Upload Camera Position
             GLint view_pos_loc  = glGetUniformLocation(gl_shader->program, "u_ViewPos");
@@ -1112,6 +1242,23 @@ static void OpenGL_EndFrame(Renderer* r)
                 glUniformMatrix4fv(view_loc, 1, GL_FALSE, (float*)&internal->state.view_matrix);
                 glUniformMatrix4fv(proj_loc, 1, GL_FALSE, (float*)&internal->state.projection_matrix);
 
+
+                // Map shadow uniforms
+                GLint light_space_loc = glGetUniformLocation(gl_shader->program, "u_LightSpaceMatrix");
+                if (light_space_loc != -1)
+                    glUniformMatrix4fv(light_space_loc, 1, GL_FALSE, (float*)&internal->state.light_space_matrix);
+
+                // Tell the shader to look for the shadow map on Texture Unit 1
+                GLint shadow_map_loc = glGetUniformLocation(gl_shader->program, "shadowMap");
+                if (shadow_map_loc != -1)
+                    glUniform1i(shadow_map_loc, 1);
+
+                // World-space size of one shadow texel (drives the normal-offset bias)
+                GLint shadow_texel_loc = glGetUniformLocation(gl_shader->program, "u_ShadowTexelSize");
+                if (shadow_texel_loc != -1)
+                    glUniform1f(shadow_texel_loc, internal->state.shadow_texel_world_size);
+
+
                 // Upload Camera Position
                 GLint view_pos_loc  = glGetUniformLocation(gl_shader->program, "u_ViewPos");
                 if (view_pos_loc != -1)  glUniform3fv(view_pos_loc, 1, (float*)&internal->state.camera_pos);
@@ -1329,6 +1476,41 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc)
     glBindVertexArray(0);
 
 
+
+    // Generate depth map buffers
+
+    glGenFramebuffers(1, &internal->depthMapFBO);
+    glGenTextures(1, &internal->depthMapTexture);
+
+    glBindTexture(GL_TEXTURE_2D, internal->depthMapTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+
+    // GL_LINEAR on a depth texture with a compare mode set gives free 2x2 hardware
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Enable the hardware depth comparison (returns "is this fragment lit?" per sample)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+
+    // Clamp to border so shadows don't repeat infinitely outside the scene
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+
+    // Attach texture to Framebuffer
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->depthMapFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, internal->depthMapTexture, 0);
+
+    // Tell OpenGL we are not writing colors to this buffer, only depth
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0); // Unbind back to default screen
+
+
+
+
     r->backend_internal_data = internal;
 
     r->api = GRAPHICS_API_OPENGL;
@@ -1352,6 +1534,9 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc)
     r->CreateSkinnedMesh = OpenGL_CreateSkinnedMesh;
     r->UpdateDynamicMesh = OpenGL_UpdateDynamicMesh;
 
+    r->BeginShadowPass = OpenGL_BeginShadowPass;
+    r->EndShadowPass = OpenGL_EndShadowPass;
+    
     r->BeginFrame = OpenGL_BeginFrame;
     r->Submit = OpenGL_Submit;
     r->EndFrame = OpenGL_EndFrame;

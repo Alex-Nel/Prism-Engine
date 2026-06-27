@@ -24,6 +24,9 @@ static void Headless_SetViewport(Renderer* r, uint32_t x, uint32_t y, uint32_t w
 static void Headless_SetClearColor(Renderer* r, float red, float green, float blue, float alpha) {}
 static void Headless_Clear(Renderer* r) {}
 
+static void Headless_BeginShadowPass(Renderer* r, const RenderPacket* packet) {}
+static void Headless_EndShadowPass(Renderer* r) {}
+
 static void Headless_BeginFrame(Renderer* r, const RenderPacket* packet) {}
 static void Headless_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance) {}
 static void Headless_EndFrame(Renderer* r) {}
@@ -108,6 +111,9 @@ Renderer* Headless_Init()
     r->CreateCubemap = Headless_CreateCubemap;
     r->CreateDynamicMesh = Headless_CreateDynamicMesh;
     r->UpdateDynamicMesh = Headless_UpdateDynamicMesh;
+
+    r->BeginShadowPass = Headless_BeginShadowPass;
+    r->EndShadowPass = Headless_EndShadowPass;
 
     r->BeginFrame = Headless_BeginFrame;
     r->Submit = Headless_Submit;

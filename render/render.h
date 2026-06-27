@@ -32,6 +32,7 @@ typedef struct DirectionalLightData
     Color color;
     float intensity;
     float ambient_strength;
+    float shadow_box_size;
 } DirectionalLightData;
 
 
@@ -74,6 +75,9 @@ typedef struct SpotLightData
 // Struct for a render packet to send to renderer
 typedef struct RenderPacket
 {
+    uint32_t window_width;
+    uint32_t window_height;
+
     Matrix4 view_matrix;
     Matrix4 projection_matrix;
     Vector3 camera_pos;
@@ -86,6 +90,9 @@ typedef struct RenderPacket
 
     SpotLightData* spot_lights; 
     uint32_t spot_light_count;
+
+    Matrix4 light_space_matrix;
+    float shadow_texel_world_size;
 
     bool has_skybox;
     TextureHandle skybox_texture;
@@ -105,6 +112,7 @@ typedef struct RenderPacket
 
 #define MAX_RESOURCES 1024
 #define MAX_COMMANDS 4096
+#define SHADOW_MAP_RESOLUTION 4096
 
 
 
@@ -125,17 +133,23 @@ typedef struct Renderer
 {
     GraphicsAPI api;
 
-    // Lifecycle
+    // --- Lifecycle ---
+    
     void (*Shutdown)(Renderer* r);
 
-    // State
+
+
+    // --- State ---
+
     void (*SetViewport)(Renderer* r, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
     void (*SetClearColor)(Renderer* renderer, float r, float g, float b, float a);
     void (*Clear)(Renderer* r);
     void (*ClearDepth)(Renderer* r);
 
 
-    // Resource Management
+
+    // --- Resource Management ---
+
     MeshHandle    (*CreateMesh)(Renderer* r, const Vertex3D* vertices, uint32_t v_count, const uint32_t* indices, uint32_t i_count);
     void          (*DestroyMesh)(Renderer* r, MeshHandle mesh);
     
@@ -150,7 +164,11 @@ typedef struct Renderer
     MeshHandle (*CreateSkinnedMesh)(Renderer* r, const Vertex3DSkinned* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count);
     void (*UpdateDynamicMesh)(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
 
-    // Command Submission
+
+
+    // --- Command Submission ---
+    void (*BeginShadowPass)(Renderer* r, const RenderPacket* packet);
+    void (*EndShadowPass)(Renderer* r);
     void (*BeginFrame)(Renderer* r, const RenderPacket* packet);
     void (*Submit)(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance);
     void (*EndFrame)(Renderer* r);
@@ -303,6 +321,20 @@ static inline void Render_UpdateDynamicMesh(Renderer* r, MeshHandle handle, Vert
 
 
 
+
+// Starts the shadow pass of the render pipeline
+static inline void Render_BeginShadowPass(Renderer* r, const RenderPacket* packet)
+{
+    if (r && r->BeginShadowPass)
+        r->BeginShadowPass(r, packet);
+}
+
+// Ends the shadow pass of the render pipeline
+static inline void Render_EndShadowPass(Renderer* r)
+{
+    if (r && r->EndShadowPass)
+        r->EndShadowPass(r);
+}
 
 // Sets the global camera matrices for the current frame
 static inline void Render_BeginFrame(Renderer* r, const RenderPacket* packet)
