@@ -17,6 +17,7 @@
 #define MAX_COLLISION_OVERLAPS 16
 #define MAX_MATERIAL_SLOTS 256
 #define MAX_LINE_POINTS 1024
+#define SHADOW_CASCADE_COUNT_DEFAULT 1
 
 
 
@@ -206,6 +207,8 @@ typedef struct SkinnedMeshRendererComponent
 
     uint32_t layer_mask; // Only one layer mask
 
+    AABB pose_bounds; // Updated each frame for frustum culling
+
     uint32_t root_animator_entity_id;
 } SkinnedMeshRendererComponent;
 
@@ -257,6 +260,10 @@ typedef struct LightComponent
     float outer_cut_off;
 
     float shadow_box_size;
+    uint8_t shadow_cascade_count; // 1 = single map (default) | 2-4 = CSM slices up to shadow_max_distance
+    float shadow_max_distance;
+    float cascade_split_lambda;   // 0 = uniform, 1 = logarithmic, 0.5 = practical
+    float cascade_blend_fraction; // 0..1 slice fraction cross-faded at each split (CSM only)
 } LightComponent;
 
 

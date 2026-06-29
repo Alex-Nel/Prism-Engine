@@ -4,6 +4,7 @@
 #define MAX_DIR_LIGHTS 4
 #define MAX_POINT_LIGHTS 8
 #define MAX_SPOT_LIGHTS 8
+#define MAX_SHADOW_CASCADES 4
 
 
 
@@ -12,7 +13,6 @@ out vec4 FragColor;
 in vec2 TexCoord;
 in vec3 v_Normal;
 in vec3 v_FragPos;
-// in vec4 FragPosLightSpace;
 
 
 // --- Global Uniforms ---
@@ -72,6 +72,7 @@ struct SpotLight {
 #define MAX_DIR_LIGHTS 4
 #define MAX_POINT_LIGHTS 8
 #define MAX_SPOT_LIGHTS 8
+#define MAX_SHADOW_CASCADES 4
 
 
 uniform DirLight u_DirLights[MAX_DIR_LIGHTS];
@@ -84,9 +85,14 @@ uniform SpotLight u_SpotLights[MAX_SPOT_LIGHTS];
 uniform int u_SpotLightCount;
 
 // Comparison sampler: hardware does the depth test + bilinear PCF per tap.
-uniform sampler2DShadow shadowMap;
-uniform mat4 u_LightSpaceMatrix;   // light view-projection (set on this program by the renderer)
-uniform float u_ShadowTexelSize;   // world-space size of one shadow-map texel
+uniform sampler2DArrayShadow shadowMap;
+uniform mat4 u_LightSpaceMatrices[MAX_SHADOW_CASCADES];
+uniform float u_ShadowTexelSizes[MAX_SHADOW_CASCADES];
+uniform float u_CascadeSplits[MAX_SHADOW_CASCADES - 1];
+uniform int u_ShadowCascadeCount;
+uniform mat4 u_View;
+uniform float u_ShadowCameraNear;
+uniform float u_CascadeBlendFraction;
 
 
 
@@ -94,48 +100,118 @@ uniform float u_ShadowTexelSize;   // world-space size of one shadow-map texel
 // Lighting Calculations
 // ==========================================
 
+float GetViewDepth(vec3 fragPos)
+{
+    return -(u_View * vec4(fragPos, 1.0)).z;
+}
+
+
+
+// Selects a shadow cascade from a fragment position
+int SelectShadowCascade(float viewDepth)
+{
+    if (u_ShadowCascadeCount <= 1)
+        return 0;
+
+    for (int i = 0; i < MAX_SHADOW_CASCADES - 1; ++i)
+    {
+        if (i >= u_ShadowCascadeCount - 1)
+            break;
+        if (viewDepth < u_CascadeSplits[i])
+            return i;
+    }
+
+    return u_ShadowCascadeCount - 1;
+}
+
+
+
 // Calculates if the pixel is in shadow (0.0 = bright, 1.0 = shadowed)
-float ShadowCalculation(vec3 fragPos, vec3 normal, vec3 lightDir)
+float SampleCascadeShadow(int cascade, vec3 fragPos, vec3 normal, vec3 lightDir)
 {
     float NdotL = max(dot(normal, lightDir), 0.0);
-
-    // Normal-offset bias: only push surfaces that face the light. Interior/back-facing
-    // pixels get zero offset, which prevents pushing samples through roof/wall seams
-    // and leaking light onto the top edges of interior geometry.
     float slope = clamp(1.0 - NdotL, 0.0, 1.0);
-    vec3 offsetPos = fragPos + normal * (u_ShadowTexelSize * NdotL * (0.5 + 2.0 * slope));
+    float texelSize = u_ShadowTexelSizes[cascade];
 
-    vec4 fragPosLightSpace = u_LightSpaceMatrix * vec4(offsetPos, 1.0);
+    // Bounds check before bias — bias can push edge pixels outside the map UV range.
+    vec4 baseLightSpace = u_LightSpaceMatrices[cascade] * vec4(fragPos, 1.0);
+    vec3 baseCoords = baseLightSpace.xyz / baseLightSpace.w;
+    baseCoords = baseCoords * 0.5 + 0.5;
+    if (baseCoords.x < 0.0 || baseCoords.x > 1.0 ||
+        baseCoords.y < 0.0 || baseCoords.y > 1.0 ||
+        baseCoords.z > 1.0)
+        return 1.0;
 
-    // Perspective divide (-1..1), then remap to [0,1] texture space
+    vec3 offsetPos = fragPos + normal * (texelSize * NdotL * (0.5 + 2.0 * slope));
+
+    vec4 fragPosLightSpace = u_LightSpaceMatrices[cascade] * vec4(offsetPos, 1.0);
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     projCoords = projCoords * 0.5 + 0.5;
 
-    // Outside the shadow frustum: treat as lit (border color handles XY; this catches Z)
-    if(projCoords.z > 1.0) return 0.0;
+    // Outside this cascade's XY frustum — return -1 so the caller can try another cascade.
+    if (projCoords.z > 1.0)
+        return 1.0;
 
-    // Slope-scaled depth bias in NDC space. Caster-side glPolygonOffset handles most
-    // acne, so this can stay small and avoids pulling compare depth past roof geometry.
     float compareDepth = projCoords.z - max(0.0005 * slope, 0.0001);
 
-    // --- Hardware PCF ---
-    // shadowMap is a comparison sampler with GL_LINEAR, so each tap already does a
-    // 2x2 bilinear depth comparison. Looping a 3x3 grid of taps yields a smooth,
-    // effectively ~6x6 filtered penumbra instead of hard, blocky stair-stepped edges.
     float shadow = 0.0;
-    vec2 texelSize = 1.0 / vec2(textureSize(shadowMap, 0));
-    for(int x = -1; x <= 1; ++x) {
-        for(int y = -1; y <= 1; ++y) {
-            // texture() on a sampler2DShadow returns the fraction of samples that are LIT
-            float lit = texture(shadowMap, vec3(projCoords.xy + vec2(x, y) * texelSize, compareDepth));
+    float sampleCount = 0.0;
+    vec2 texelSizeUV = 1.0 / vec2(textureSize(shadowMap, 0).xy);
+    for (int x = -1; x <= 1; ++x)
+    {
+        for (int y = -1; y <= 1; ++y)
+        {
+            vec2 sampleUV = projCoords.xy + vec2(x, y) * texelSizeUV;
+            
+            // Never fetch the border color (configured as "lit") — that causes edge light leaks.
+            if (sampleUV.x < 0.0 || sampleUV.x > 1.0 ||
+                sampleUV.y < 0.0 || sampleUV.y > 1.0)
+                continue;
+            
+            float lit = texture(shadowMap, vec4(sampleUV, float(cascade), compareDepth));
             shadow += 1.0 - lit;
-        }    
+            sampleCount += 1.0;
+        }
     }
-    shadow /= 9.0;
     
+    if (sampleCount < 0.5)
+        return 1.0;
+
+    return shadow / sampleCount;
+}
+
+
+
+// Calculates if the pixel is in shadow (0.0 = bright, 1.0 = shadowed)
+float ShadowCalculation(vec3 fragPos, vec3 normal, vec3 lightDir)
+{
+    if (u_ShadowCascadeCount <= 1)
+        return SampleCascadeShadow(0, fragPos, normal, lightDir);
+
+    float viewDepth = GetViewDepth(fragPos);
+    int cascade = SelectShadowCascade(viewDepth);
+    float shadow = SampleCascadeShadow(cascade, fragPos, normal, lightDir);
+
+    if (cascade >= u_ShadowCascadeCount - 1)
+        return shadow;
+
+    float splitFar = u_CascadeSplits[cascade];
+    float splitNear = (cascade == 0) ? u_ShadowCameraNear : u_CascadeSplits[cascade - 1];
+    float sliceDepth = splitFar - splitNear;
+    float blendRange = sliceDepth * u_CascadeBlendFraction;
+    float blendStart = splitFar - blendRange;
+
+    if (viewDepth > blendStart)
+    {
+        float t = smoothstep(blendStart, splitFar, viewDepth);
+        float nextShadow = SampleCascadeShadow(cascade + 1, fragPos, normal, lightDir);
+        shadow = mix(shadow, nextShadow, t);
+    }
 
     return shadow;
 }
+
+
 
 
 

@@ -33,6 +33,7 @@ void Scene_FixedUpdateScripts(Scene* scene);
 void Scene_UpdateAudio(Scene* scene);
 void Scene_UpdateLineRenderers(Scene* scene);
 void Scene_UpdateAnimators(Scene* scene, float delta_time);
+void Scene_UpdateSkinnedMeshBounds(Scene* scene);
 void Scene_UpdateBoneAttachments(Scene* scene);
 void Scene_UpdateTransforms(Scene* scene);
 void Scene_SyncPhysicsPreSim(Scene* scene);

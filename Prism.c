@@ -292,6 +292,10 @@ void Engine_RenderScene(Scene* scene)
                 active_dir_lights[directional_count].intensity = l->intensity;
                 active_dir_lights[directional_count].ambient_strength = l->ambient_strength;
                 active_dir_lights[directional_count].shadow_box_size = l->shadow_box_size;
+                active_dir_lights[directional_count].shadow_cascade_count = l->shadow_cascade_count;
+                active_dir_lights[directional_count].shadow_max_distance = l->shadow_max_distance;
+                active_dir_lights[directional_count].cascade_split_lambda = l->cascade_split_lambda;
+                active_dir_lights[directional_count].cascade_blend_fraction = l->cascade_blend_fraction;
                 directional_count++;
             }
             else if (l->type == LIGHT_POINT && point_count < MAX_RESOURCES)
@@ -339,57 +343,126 @@ void Engine_RenderScene(Scene* scene)
 
     if (directional_count > 0)
     {
-        // Calculate the Sun's View-Projection Matrix
-        Vector3 light_dir = active_dir_lights[0].direction;
-        
-        // Read per-light shadow settings (falls back to a normal default if unset).
-        float shadow_box_size = active_dir_lights[0].shadow_box_size;
-        if (shadow_box_size <= 0.0f)
-            shadow_box_size = 20.0f;
+        DirectionalLightData* shadow_light = &active_dir_lights[0];
+        Vector3 light_dir = shadow_light->direction;
 
-        // Center the box slightly ahead of the camera so the visible area is well covered.
         Transform* main_cam_t = &scene->transforms[scene->main_camera_id];
+        CameraComponent* main_cam = &scene->cameras[scene->main_camera_id];
         Vector3 cam_pos = Transform_GetGlobalPosition(main_cam_t);
         Vector3 cam_fwd = Transform_GetForwardVector(main_cam_t);
+        Vector3 cam_right = Transform_GetRightVector(main_cam_t);
+        Vector3 cam_up = Transform_GetUpVector(main_cam_t);
 
-        Vector3 center = {
-            cam_pos.x + cam_fwd.x * shadow_box_size * 0.5f,
-            cam_pos.y + cam_fwd.y * shadow_box_size * 0.5f,
-            cam_pos.z + cam_fwd.z * shadow_box_size * 0.5f
-        };
+        packet.camera_forward = cam_fwd;
 
-        // Pull the virtual light back along its ray so all casters fall within the depth range.
+        Camera_RecalculateProjectionIfNeeded(main_cam);
+        packet.shadow_camera_near = main_cam->nearZ;
+        packet.cascade_blend_fraction = shadow_light->cascade_blend_fraction;
+        if (packet.cascade_blend_fraction <= 0.0f)
+            packet.cascade_blend_fraction = 0.12f;
+        if (packet.cascade_blend_fraction > 0.5f)
+            packet.cascade_blend_fraction = 0.5f;
+
         float light_distance = 80.0f;
-
-        // Stable up vector (avoid degeneracy when the light points nearly straight up/down).
         Vector3 up = (fabsf(light_dir.y) > 0.99f) ? (Vector3){0.0f, 0.0f, 1.0f} : (Vector3){0.0f, 1.0f, 0.0f};
 
-        // World-space size of one shadow texel (drives both snapping and the bias).
-        float texel_world_size = (2.0f * shadow_box_size) / (float)SHADOW_MAP_RESOLUTION;
+        uint32_t cascade_count = shadow_light->shadow_cascade_count;
+        if (cascade_count < 1)
+            cascade_count = 1;
+        if (cascade_count > MAX_SHADOW_CASCADES)
+            cascade_count = MAX_SHADOW_CASCADES;
 
-        // --- Texel snapping ---
-        Matrix4 light_basis = Matrix4LookAt((Vector3){0.0f, 0.0f, 0.0f}, light_dir, up);
-        Vector4 center_ls = Matrix4MultiplyVector4(light_basis, (Vector4){center.x, center.y, center.z, 1.0f});
-        center_ls.x = floorf(center_ls.x / texel_world_size) * texel_world_size;
-        center_ls.y = floorf(center_ls.y / texel_world_size) * texel_world_size;
+        packet.shadow_cascade_count = cascade_count;
 
-        // Rotate the snapped center back into world space
-        Vector4 snapped = Matrix4MultiplyVector4(Matrix4Transpose(light_basis), center_ls);
-        Vector3 center_snapped = { snapped.x, snapped.y, snapped.z };
+        if (cascade_count <= 1)
+        {
+            // --- Single shadow map (original camera-following ortho box) ---
+            float shadow_box_size = shadow_light->shadow_box_size;
+            if (shadow_box_size <= 0.0f)
+                shadow_box_size = 20.0f;
+            
+            Vector3 center = {
+                cam_pos.x + cam_fwd.x * shadow_box_size * 0.5f,
+                cam_pos.y + cam_fwd.y * shadow_box_size * 0.5f,
+                cam_pos.z + cam_fwd.z * shadow_box_size * 0.5f
+            };
 
-        Vector3 light_pos = {
-            center_snapped.x - light_dir.x * light_distance,
-            center_snapped.y - light_dir.y * light_distance,
-            center_snapped.z - light_dir.z * light_distance
-        };
+            float texel_world_size = (2.0f * shadow_box_size) / (float)SHADOW_MAP_RESOLUTION;
 
-        Matrix4 light_view = Matrix4LookAt(light_pos, center_snapped, up);
-        Matrix4 light_proj = Matrix4Ortho(-shadow_box_size, shadow_box_size, -shadow_box_size, shadow_box_size, 0.1f, 2.0f * light_distance);
-        
-        packet.light_space_matrix = Matrix4Multiply(light_proj, light_view);
+            Matrix4 light_basis = Matrix4LookAt((Vector3){0.0f, 0.0f, 0.0f}, light_dir, up);
+            Vector4 center_ls = Matrix4MultiplyVector4(light_basis, (Vector4){center.x, center.y, center.z, 1.0f});
+            center_ls.x = floorf(center_ls.x / texel_world_size) * texel_world_size;
+            center_ls.y = floorf(center_ls.y / texel_world_size) * texel_world_size;
 
-        // World-space size of one shadow texel, for the fragment shader's normal-offset bias.
-        packet.shadow_texel_world_size = texel_world_size;
+            Vector4 snapped = Matrix4MultiplyVector4(Matrix4Transpose(light_basis), center_ls);
+            Vector3 center_snapped = { snapped.x, snapped.y, snapped.z };
+
+            Vector3 light_pos = {
+                center_snapped.x - light_dir.x * light_distance,
+                center_snapped.y - light_dir.y * light_distance,
+                center_snapped.z - light_dir.z * light_distance
+            };
+
+            Matrix4 light_view = Matrix4LookAt(light_pos, center_snapped, up);
+            Matrix4 light_proj = Matrix4Ortho(-shadow_box_size, shadow_box_size,
+                                              -shadow_box_size, shadow_box_size,
+                                              0.1f, 2.0f * light_distance);
+
+            packet.light_space_matrices[0] = Matrix4Multiply(light_proj, light_view);
+            packet.shadow_texel_world_sizes[0] = texel_world_size;
+        }
+        else
+        {
+            // --- Cascaded shadow maps ---
+            Camera_RecalculateProjectionIfNeeded(main_cam);
+            float aspect = (float)main_cam->viewport_width / (float)main_cam->viewport_height;
+            if (aspect <= 0.0f)
+                aspect = 1.0f;
+
+            float cam_near = main_cam->nearZ;
+            float shadow_far = shadow_light->shadow_max_distance;
+            if (shadow_far <= cam_near)
+                shadow_far = cam_near + 1.0f;
+            if (shadow_far > main_cam->farZ)
+                shadow_far = main_cam->farZ;
+
+            float split_lambda = shadow_light->cascade_split_lambda;
+            if (split_lambda < 0.0f)
+                split_lambda = 0.0f;
+            if (split_lambda > 1.0f)
+                split_lambda = 1.0f;
+
+            float splits[MAX_SHADOW_CASCADES - 1];
+            for (uint32_t i = 1; i < cascade_count; i++)
+            {
+                float p = (float)i / (float)cascade_count;
+                float log_split = cam_near * powf(shadow_far / cam_near, p);
+                float uni_split = cam_near + (shadow_far - cam_near) * p;
+                splits[i - 1] = uni_split * (1.0f - split_lambda) + log_split * split_lambda;
+                packet.cascade_splits[i - 1] = splits[i - 1];
+            }
+
+            // cam->fov is stored in radians
+            float tan_half = tanf(main_cam->fov * 0.5f);
+
+            for (uint32_t c = 0; c < cascade_count; c++)
+            {
+                float split_near = (c == 0) ? cam_near : splits[c - 1];
+                float split_far  = (c == cascade_count - 1) ? shadow_far : splits[c];
+
+                // Extend the rendered frustum slightly past the split so the next cascade has overlapping shadow data for a smooth cross-fade in the shader.
+                float slice_depth = split_far - split_near;
+                float corner_far = split_far;
+                if (c < cascade_count - 1)
+                    corner_far = split_far + slice_depth * packet.cascade_blend_fraction;
+
+                Vector3 corners[8];
+                BuildFrustumSliceCorners(cam_pos, cam_fwd, cam_right, cam_up, aspect, tan_half, split_near, corner_far, corners);
+
+                ComputeCascadeLightMatrix(corners, light_dir, up, light_distance, &packet.light_space_matrices[c], &packet.shadow_texel_world_sizes[c]);
+            }
+        }
+
 
         // Begin Shadow Pass
         Render_BeginShadowPass(engine.renderer, &packet);
@@ -584,10 +657,6 @@ void Engine_RenderScene(Scene* scene)
 
                 Transform* t = &scene->transforms[i];
 
-                // Skip if its outside the frustum
-                if (!Frustum_ContainsAABB(&cam_frustum, rc->mesh->local_bounds, t->world_matrix))
-                    continue;
-
                 Matrix4* bone_ptr = NULL;
 
                 // Grab the explicit Animator Entity that drives this mesh
@@ -604,6 +673,10 @@ void Engine_RenderScene(Scene* scene)
                 {
                     bone_ptr = scene->animators[i].final_bone_matrices;
                 }
+
+                // Use cached pose bounds for frustum culling
+                if (!Frustum_ContainsAABB(&cam_frustum, rc->pose_bounds, t->world_matrix))
+                    continue;
 
                 Render_Submit(engine.renderer, rc->mesh->gpu_handle, rc->material->shader->gpu_handle,
                               rc->material->diffuse_texture->gpu_handle, rc->material->properties,
@@ -936,4 +1009,112 @@ bool Frustum_ContainsAABB(Frustum* frustum, AABB local_aabb, Matrix4 world_matri
     }
 
     return true; // The box is visible
+}
+
+
+
+
+
+// Builds a texel-snapped light-space matrix that fully contains the eight frustum corners of one cascade slice
+void ComputeCascadeLightMatrix(const Vector3 corners[8], Vector3 light_dir, Vector3 up, float light_distance, Matrix4* out_light_space, float* out_texel_world_size)
+{
+    Vector3 center = {0.0f, 0.0f, 0.0f};
+    for (int k = 0; k < 8; k++)
+    {
+        center.x += corners[k].x;
+        center.y += corners[k].y;
+        center.z += corners[k].z;
+    }
+    center.x *= 0.125f;
+    center.y *= 0.125f;
+    center.z *= 0.125f;
+
+    Vector3 light_pos = {
+        center.x - light_dir.x * light_distance,
+        center.y - light_dir.y * light_distance,
+        center.z - light_dir.z * light_distance
+    };
+    Matrix4 light_view = Matrix4LookAt(light_pos, center, up);
+
+    float min_x = FLT_MAX, max_x = -FLT_MAX;
+    float min_y = FLT_MAX, max_y = -FLT_MAX;
+
+    for (int k = 0; k < 8; k++)
+    {
+        Vector4 ls = Matrix4MultiplyVector4(light_view, (Vector4){corners[k].x, corners[k].y, corners[k].z, 1.0f});
+        if (ls.x < min_x) min_x = ls.x;
+        if (ls.x > max_x) max_x = ls.x;
+        if (ls.y < min_y) min_y = ls.y;
+        if (ls.y > max_y) max_y = ls.y;
+    }
+
+    float texel_world_size = fmaxf(max_x - min_x, max_y - min_y) / (float)SHADOW_MAP_RESOLUTION;
+    if (texel_world_size <= 0.0f)
+        texel_world_size = 0.001f;
+
+    // Snap XY bounds outward to whole texels so shadows stay stable when the camera moves.
+    min_x = floorf(min_x / texel_world_size) * texel_world_size;
+    min_y = floorf(min_y / texel_world_size) * texel_world_size;
+    max_x = ceilf(max_x / texel_world_size) * texel_world_size;
+    max_y = ceilf(max_y / texel_world_size) * texel_world_size;
+
+    // Pull visible geometry away from the shadow-map UV edges (reduces PCF border leaks).
+    float edge_margin = texel_world_size * 4.0f;
+    min_x -= edge_margin;
+    min_y -= edge_margin;
+    max_x += edge_margin;
+    max_y += edge_margin;
+
+    Matrix4 light_proj = Matrix4Ortho(min_x, max_x, min_y, max_y, 0.1f, 2.0f * light_distance);
+    *out_light_space = Matrix4Multiply(light_proj, light_view);
+    *out_texel_world_size = texel_world_size;
+}
+
+
+
+
+
+// Builds the eight world-space corners of a camera frustum slice.
+void BuildFrustumSliceCorners(Vector3 cam_pos, Vector3 cam_fwd, Vector3 cam_right, Vector3 cam_up, float aspect, float tan_half, float split_near, float split_far, Vector3 corners[8])
+{
+    float near_h = split_near * tan_half;
+    float near_w = near_h * aspect;
+    float far_h = split_far * tan_half;
+    float far_w = far_h * aspect;
+
+    Vector3 near_center = {
+        cam_pos.x + cam_fwd.x * split_near,
+        cam_pos.y + cam_fwd.y * split_near,
+        cam_pos.z + cam_fwd.z * split_near
+    };
+    Vector3 far_center = {
+        cam_pos.x + cam_fwd.x * split_far,
+        cam_pos.y + cam_fwd.y * split_far,
+        cam_pos.z + cam_fwd.z * split_far
+    };
+
+    corners[0] = (Vector3){ near_center.x - cam_right.x * near_w - cam_up.x * near_h,
+                            near_center.y - cam_right.y * near_w - cam_up.y * near_h,
+                            near_center.z - cam_right.z * near_w - cam_up.z * near_h };
+    corners[1] = (Vector3){ near_center.x + cam_right.x * near_w - cam_up.x * near_h,
+                            near_center.y + cam_right.y * near_w - cam_up.y * near_h,
+                            near_center.z + cam_right.z * near_w - cam_up.z * near_h };
+    corners[2] = (Vector3){ near_center.x + cam_right.x * near_w + cam_up.x * near_h,
+                            near_center.y + cam_right.y * near_w + cam_up.y * near_h,
+                            near_center.z + cam_right.z * near_w + cam_up.z * near_h };
+    corners[3] = (Vector3){ near_center.x - cam_right.x * near_w + cam_up.x * near_h,
+                            near_center.y - cam_right.y * near_w + cam_up.y * near_h,
+                            near_center.z - cam_right.z * near_w + cam_up.z * near_h };
+    corners[4] = (Vector3){ far_center.x - cam_right.x * far_w - cam_up.x * far_h,
+                            far_center.y - cam_right.y * far_w - cam_up.y * far_h,
+                            far_center.z - cam_right.z * far_w - cam_up.z * far_h };
+    corners[5] = (Vector3){ far_center.x + cam_right.x * far_w - cam_up.x * far_h,
+                            far_center.y + cam_right.y * far_w - cam_up.y * far_h,
+                            far_center.z + cam_right.z * far_w - cam_up.z * far_h };
+    corners[6] = (Vector3){ far_center.x + cam_right.x * far_w + cam_up.x * far_h,
+                            far_center.y + cam_right.y * far_w + cam_up.y * far_h,
+                            far_center.z + cam_right.z * far_w + cam_up.z * far_h };
+    corners[7] = (Vector3){ far_center.x - cam_right.x * far_w + cam_up.x * far_h,
+                            far_center.y - cam_right.y * far_w + cam_up.y * far_h,
+                            far_center.z - cam_right.z * far_w + cam_up.z * far_h };
 }

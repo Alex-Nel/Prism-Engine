@@ -132,6 +132,12 @@ namespace Prism
 
         float shadow_box_size;
 
+        // Cascaded shadow maps (directional lights only).
+        uint8_t shadow_cascade_count;
+        float shadow_max_distance;
+        float cascade_split_lambda;
+        float cascade_blend_fraction;
+
 
         void SetActive(bool active) { this->is_active = active; }
         bool IsActive() const { return this->is_active; }
@@ -143,8 +149,17 @@ namespace Prism
         void SetAmbientStrength(float ambient_strength);
         void SetAttenuation(float constant, float linear, float quadratic);
         void SetSpotAngles(float inner_cutoff_degrees, float outer_cutoff_degrees);
+
         void SetShadowBoxSize(float half_extent);
         float GetShadowBoxSize() const;
+
+        void SetCascadedShadows(uint8_t cascade_count, float max_distance, float split_lambda = 0.5f, float blend_fraction = 0.12f);
+        void SetCascadeBlendFraction(float fraction) { this->cascade_blend_fraction = fraction; }
+        void DisableCascadedShadows();
+        uint8_t GetShadowCascadeCount() const;
+        float GetShadowMaxDistance() const; 
+        float GetCascadeSplitLambda() const;
+        float GetCascadeBlendFraction() const;
     };
 
 

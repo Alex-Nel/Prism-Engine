@@ -9,14 +9,13 @@ layout (location = 4) in vec4 aWeights;
 uniform mat4 u_Model;
 uniform mat4 u_LightSpaceMatrix;
 
-// Must stay in sync with MAX_BONES in core/mesh_core.h and animated.vert.
+
 const int MAX_BONES = 128;
 uniform mat4 u_BoneMatrices[MAX_BONES];
 
 void main()
 {
-    // Skin the vertex into its animated pose so the shadow matches the visible mesh,
-    // instead of casting the static bind ("T") pose.
+    // Skin the vertex into its animated pose so the shadow matches the visible mesh
     vec4 totalPosition = vec4(0.0);
     for (int i = 0; i < 4; i++)
     {

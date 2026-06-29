@@ -377,6 +377,9 @@ void Scene_Update(Scene* scene)
 
     // Update animation timelines
     Scene_UpdateAnimators(scene, Time_DeltaTime());
+    
+    // Cache pose bounds for skinned meshes
+    Scene_UpdateSkinnedMeshBounds(scene);
 
     // Update all transforms in the scene
     Scene_UpdateTransforms(scene);
@@ -848,6 +851,60 @@ void Scene_UpdateAnimators(Scene* scene, float delta_time)
         // Update any skeletal animations
         if (anim->skeleton && anim->skeleton->bone_count > 0)
             CalculateBoneTransform(anim->skeleton->root_node, Matrix4Identity(), anim);
+    }
+}
+
+
+
+
+
+// Resolved bone matrices of a skinned mesh
+static Matrix4* ResolveSkinnedMeshBones(Scene* scene, uint32_t renderer_entity_id, SkinnedMeshRendererComponent* rc)
+{
+    uint32_t anim_id = rc->root_animator_entity_id;
+
+    if (anim_id != 0 && anim_id != ENTITY_NONE)
+    {
+        if (scene->component_masks[anim_id] & COMPONENT_ANIMATOR)
+            return scene->animators[anim_id].final_bone_matrices;
+    }
+    else if (scene->component_masks[renderer_entity_id] & COMPONENT_ANIMATOR)
+    {
+        return scene->animators[renderer_entity_id].final_bone_matrices;
+    }
+
+    return NULL;
+}
+
+
+
+
+
+// Update the AABB bounds of skinned meshes
+void Scene_UpdateSkinnedMeshBounds(Scene* scene)
+{
+    if (!scene)
+        return;
+
+    uint32_t required_mask = COMPONENT_SKINNED_MESH_RENDERER;
+
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i])
+            continue;
+
+        if ((scene->component_masks[i] & required_mask) != required_mask)
+            continue;
+
+        SkinnedMeshRendererComponent* rc = &scene->skinned_mesh_renderers[i];
+        if (!rc->is_active || !rc->mesh)
+            continue;
+
+        Matrix4* bone_ptr = ResolveSkinnedMeshBones(scene, i, rc);
+        if (bone_ptr != NULL)
+            rc->pose_bounds = SkinnedMesh_ComputePoseAABB(rc->mesh, bone_ptr);
+        else
+            rc->pose_bounds = rc->mesh->local_bounds;
     }
 }
 

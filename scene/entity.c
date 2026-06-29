@@ -709,6 +709,7 @@ void Entity_AddSkinnedMeshRenderer(Entity entity, SkinnedMesh* mesh, Material* m
     r->mesh = mesh;
     r->material = material;
     r->layer_mask = 1; // 1 is the default layer (layer 0)
+    r->pose_bounds = mesh ? mesh->local_bounds : (AABB){ {0, 0, 0}, {0, 0, 0} };
     r->root_animator_entity_id = animator_id;
 
     entity.scene->component_masks[entity.id] |= COMPONENT_SKINNED_MESH_RENDERER;
@@ -763,6 +764,10 @@ void Entity_AddLight(Entity entity, LightType type, Color color)
     light->inner_cut_off = 12.5f;
     light->outer_cut_off = 17.5f;
     light->shadow_box_size = (type == LIGHT_DIRECTIONAL) ? 20.0f : 0.0f;
+    light->shadow_cascade_count = SHADOW_CASCADE_COUNT_DEFAULT;
+    light->shadow_max_distance = 100.0f;
+    light->cascade_split_lambda = 0.5f;
+    light->cascade_blend_fraction = 0.12f;
     
     entity.scene->component_masks[entity.id] |= COMPONENT_LIGHT;
 }

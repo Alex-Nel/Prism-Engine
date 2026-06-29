@@ -28,32 +28,6 @@ typedef void (*EngineUpdateCallback)(void);
 
 
 
-// --- Structures for frustum culling ---
-
-typedef struct FrustumPlane
-{
-    Vector3 normal;
-    float distance;
-} FrustumPlane;
-
-typedef struct Frustum
-{
-    FrustumPlane planes[6];
-} Frustum;
-
-
-
-
-// Extracts the 6 planes from a view-projection matrix
-Frustum Frustum_ExtractFromMatrix(Matrix4 vp);
-
-// Checks if a sphere is inside the frustum
-bool Frustum_ContainsAABB(Frustum* frustum, AABB local_aabb, Matrix4 world_matrix);
-
-
-
-
-
 // Initializes Platform, Core, and Render systems
 bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t window_height, uint32_t target_fps, GraphicsAPI api);
 
@@ -86,6 +60,46 @@ bool Engine_IsMouseCaptured();
 void Engine_SetTargetFPS(uint32_t fps);
 // Returns the current target FPS
 uint32_t Engine_GetTargetFPS();
+
+
+
+
+
+
+
+
+
+
+// --- Structures for frustum culling ---
+
+typedef struct FrustumPlane
+{
+    Vector3 normal;
+    float distance;
+} FrustumPlane;
+
+typedef struct Frustum
+{
+    FrustumPlane planes[6];
+} Frustum;
+
+
+
+
+// Extracts the 6 planes from a view-projection matrix
+Frustum Frustum_ExtractFromMatrix(Matrix4 vp);
+
+// Checks if a sphere is inside the frustum
+bool Frustum_ContainsAABB(Frustum* frustum, AABB local_aabb, Matrix4 world_matrix);
+
+// Builds a texel-snapped light-space matrix that fully contains the eight frustum corners of one cascade slice
+void ComputeCascadeLightMatrix(const Vector3 corners[8], Vector3 light_dir, Vector3 up, float light_distance, Matrix4* out_light_space, float* out_texel_world_size);
+
+// Builds the eight world-space corners of a camera frustum slice.
+void BuildFrustumSliceCorners(Vector3 cam_pos, Vector3 cam_fwd, Vector3 cam_right, Vector3 cam_up, float aspect, float tan_half, float split_near, float split_far, Vector3 corners[8]);
+
+
+
 
 
 #endif

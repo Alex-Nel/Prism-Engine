@@ -134,6 +134,31 @@ static AABB CalculateAABB_Skinned(const Vertex3DSkinned* vertices, uint32_t vert
 
 
 
+// Expands an AABB symmetrically around its center (used as bind-pose fallback padding).
+static AABB InflateAABBFromCenter(AABB bounds, float factor)
+{
+    Vector3 center = {
+        (bounds.min.x + bounds.max.x) * 0.5f,
+        (bounds.min.y + bounds.max.y) * 0.5f,
+        (bounds.min.z + bounds.max.z) * 0.5f
+    };
+
+    Vector3 half = {
+        (bounds.max.x - bounds.min.x) * 0.5f * factor,
+        (bounds.max.y - bounds.min.y) * 0.5f * factor,
+        (bounds.max.z - bounds.min.z) * 0.5f * factor
+    };
+
+    AABB out;
+    out.min = (Vector3){ center.x - half.x, center.y - half.y, center.z - half.z };
+    out.max = (Vector3){ center.x + half.x, center.y + half.y, center.z + half.z };
+    return out;
+}
+
+
+
+
+
 // Creates a texture from memory
 static Texture* Asset_CreateTextureFromMemory(const char* name, const unsigned char* buffer, int length)
 {
@@ -545,12 +570,7 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
 
             // TODO: Make animations change the local bounds of AABB's
             // Inflate bounds for animations to prevent premature culling
-            sub_mesh->local_bounds.min.x *= 2.0f;
-            sub_mesh->local_bounds.min.y *= 2.0f;
-            sub_mesh->local_bounds.min.z *= 2.0f;
-            sub_mesh->local_bounds.max.x *= 2.0f;
-            sub_mesh->local_bounds.max.y *= 2.0f;
-            sub_mesh->local_bounds.max.z *= 2.0f;
+            sub_mesh->local_bounds = InflateAABBFromCenter(sub_mesh->local_bounds, 2.0f);
 
             skinned_mesh_count++;
             new_model->nodes[m].skinned_mesh = sub_mesh;

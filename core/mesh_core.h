@@ -238,8 +238,8 @@ typedef struct Skeleton
 
 
 
-// Sets a vertex to a safe, un-animated state
-// void Vertex_SetDefaultBones(Vertex3D* v);
+// Builds a model-space AABB from the current skinned pose
+AABB SkinnedMesh_ComputePoseAABB(const SkinnedMesh* mesh, const Matrix4* bone_matrices);
 
 
 

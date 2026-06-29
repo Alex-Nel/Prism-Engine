@@ -183,6 +183,10 @@ bool Scene_Save(Scene* scene, const char* filepath)
             cJSON_AddNumberToObject(comp_obj, "inner_cut_off", l->inner_cut_off);
             cJSON_AddNumberToObject(comp_obj, "outer_cut_off", l->outer_cut_off);
             cJSON_AddNumberToObject(comp_obj, "shadow_box_size", l->shadow_box_size);
+            cJSON_AddNumberToObject(comp_obj, "shadow_cascade_count", l->shadow_cascade_count);
+            cJSON_AddNumberToObject(comp_obj, "shadow_max_distance", l->shadow_max_distance);
+            cJSON_AddNumberToObject(comp_obj, "cascade_split_lambda", l->cascade_split_lambda);
+            cJSON_AddNumberToObject(comp_obj, "cascade_blend_fraction", l->cascade_blend_fraction);
         }
 
 
@@ -422,6 +426,14 @@ bool Scene_Load(Scene* scene, const char* filepath)
             l->outer_cut_off = cJSON_GetObjectItemCaseSensitive(comp_obj, "outer_cut_off")->valuedouble;
             cJSON* shadow_box = cJSON_GetObjectItemCaseSensitive(comp_obj, "shadow_box_size");
             l->shadow_box_size = shadow_box ? (float)shadow_box->valuedouble : ((l->type == LIGHT_DIRECTIONAL) ? 20.0f : 0.0f);
+            cJSON* cascade_count = cJSON_GetObjectItemCaseSensitive(comp_obj, "shadow_cascade_count");
+            l->shadow_cascade_count = cascade_count ? (uint8_t)cascade_count->valuedouble : SHADOW_CASCADE_COUNT_DEFAULT;
+            cJSON* max_dist = cJSON_GetObjectItemCaseSensitive(comp_obj, "shadow_max_distance");
+            l->shadow_max_distance = max_dist ? (float)max_dist->valuedouble : 100.0f;
+            cJSON* split_lambda = cJSON_GetObjectItemCaseSensitive(comp_obj, "cascade_split_lambda");
+            l->cascade_split_lambda = split_lambda ? (float)split_lambda->valuedouble : 0.5f;
+            cJSON* blend_fraction = cJSON_GetObjectItemCaseSensitive(comp_obj, "cascade_blend_fraction");
+            l->cascade_blend_fraction = blend_fraction ? (float)blend_fraction->valuedouble : 0.12f;
         }
 
 

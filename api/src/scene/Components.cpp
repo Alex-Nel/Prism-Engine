@@ -100,6 +100,32 @@ namespace Prism
         return this->shadow_box_size;
     }
 
+    void LightComponent::SetCascadedShadows(uint8_t cascade_count, float max_distance, float split_lambda, float blend_fraction) {
+        if (cascade_count < 2)
+            cascade_count = 2;
+        if (cascade_count > 4)
+            cascade_count = 4;
+        this->shadow_cascade_count = cascade_count;
+        this->shadow_max_distance = max_distance;
+        this->cascade_split_lambda = split_lambda;
+        this->cascade_blend_fraction = blend_fraction;
+    }
+    void LightComponent::DisableCascadedShadows() {
+        this->shadow_cascade_count = 1;
+    }
+    uint8_t LightComponent::GetShadowCascadeCount() const {
+        return this->shadow_cascade_count;
+    }
+    float LightComponent::GetShadowMaxDistance() const {
+        return this->shadow_max_distance;
+    }
+    float LightComponent::GetCascadeSplitLambda() const {
+        return this->cascade_split_lambda;
+    }
+    float LightComponent::GetCascadeBlendFraction() const {
+        return this->cascade_blend_fraction;
+    }
+
 
 
     // ==========================================

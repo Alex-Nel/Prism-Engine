@@ -8,13 +8,9 @@ uniform mat4 u_Model;
 uniform mat4 u_View;
 uniform mat4 u_Projection;
 
-// uniform mat4 u_LightSpaceMatrix;
-
 out vec2 TexCoord;
 out vec3 v_Normal;
 out vec3 v_FragPos;
-
-// out vec4 FragPosLightSpace;
 
 
 
@@ -25,9 +21,6 @@ void main()
 
    // Pass the UVs straight through to the fragment shader
    TexCoord = aTexCoords;
-
-   // Calculate where this vertex sits from the light's perspective
-   // FragPosLightSpace = u_LightSpaceMatrix * vec4(v_FragPos, 1.0);
    
    // gl_Position = u_Projection * u_View * u_Model * vec4(aPos, 1.0);
    gl_Position = u_Projection * u_View * vec4(v_FragPos, 1.0);

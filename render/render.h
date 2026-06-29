@@ -11,6 +11,25 @@
 
 
 
+
+// Used for invalid handles
+#define RENDER_INVALID_HANDLE 0
+
+
+
+// --- Internal data pool limits ---
+
+#define MAX_RESOURCES 1024
+#define MAX_COMMANDS 4096
+
+#define SHADOW_MAP_RESOLUTION 2048
+#define MAX_SHADOW_CASCADES 4
+#define SHADOW_CASCADE_COUNT_DEFAULT 1
+
+
+
+
+
 // Enum for different graphics API's
 typedef enum GraphicsAPI
 {
@@ -33,6 +52,10 @@ typedef struct DirectionalLightData
     float intensity;
     float ambient_strength;
     float shadow_box_size;
+    uint8_t shadow_cascade_count;   // 1 = single shadow map; 2-4 = cascaded shadow maps
+    float shadow_max_distance;      // max shadow range from camera (CSM only)
+    float cascade_split_lambda;     // 0 = uniform splits, 1 = logarithmic, 0.5 = practical
+    float cascade_blend_fraction;   // 0..1 slice fraction cross-faded at each split (CSM only)
 } DirectionalLightData;
 
 
@@ -91,28 +114,19 @@ typedef struct RenderPacket
     SpotLightData* spot_lights; 
     uint32_t spot_light_count;
 
-    Matrix4 light_space_matrix;
-    float shadow_texel_world_size;
+    uint32_t shadow_cascade_count;
+    Matrix4 light_space_matrices[MAX_SHADOW_CASCADES];
+    float shadow_texel_world_sizes[MAX_SHADOW_CASCADES];
+    float cascade_splits[MAX_SHADOW_CASCADES - 1]; // distance along camera forward
+    Vector3 camera_forward; // main camera forward (cascade selection in shader)
+    float shadow_camera_near;      // camera near plane (CSM blend region sizing)
+    float cascade_blend_fraction;  // 0..1 fraction of each slice used to cross-fade
 
     bool has_skybox;
     TextureHandle skybox_texture;
     ShaderHandle skybox_shader;
 } RenderPacket;
 
-
-
-
-
-// Used for invalid handles
-#define RENDER_INVALID_HANDLE 0
-
-
-
-// --- Internal data pool limits ---
-
-#define MAX_RESOURCES 1024
-#define MAX_COMMANDS 4096
-#define SHADOW_MAP_RESOLUTION 4096
 
 
 
