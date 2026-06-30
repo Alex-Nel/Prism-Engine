@@ -918,8 +918,6 @@ static void OpenGL_EndShadowPass(Renderer* r)
 
     // Render both faces into the depth map
     glDisable(GL_CULL_FACE);
-    glEnable(GL_POLYGON_OFFSET_FILL);
-    glPolygonOffset(2.0f, 4.0f);
 
     for (uint32_t c = 0; c < cascade_count; c++)
     {
@@ -931,7 +929,6 @@ static void OpenGL_EndShadowPass(Renderer* r)
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glDisable(GL_POLYGON_OFFSET_FILL);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
 
@@ -1553,9 +1550,11 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc)
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
     
-    // CLAMP_TO_EDGE avoids fetching the border color during PCF. Avoids edge pixels becoming falsely lit.
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    // Use CLAMP_TO_BORDER so anything outside the cascade frustum is ignored
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    glTexParameterfv(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BORDER_COLOR, borderColor);
 
     glBindFramebuffer(GL_FRAMEBUFFER, internal->depthMapFBO);
     glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, internal->depthMapTexture, 0, 0);

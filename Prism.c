@@ -451,13 +451,17 @@ void Engine_RenderScene(Scene* scene)
                 float split_far  = (c == cascade_count - 1) ? shadow_far : splits[c];
 
                 // Extend the rendered frustum slightly past the split so the next cascade has overlapping shadow data for a smooth cross-fade in the shader.
-                float slice_depth = split_far - split_near;
-                float corner_far = split_far;
-                if (c < cascade_count - 1)
-                    corner_far = split_far + slice_depth * packet.cascade_blend_fraction;
+                if (c > 0)
+                {
+                    float prev_near = (c == 1) ? cam_near : splits[c - 2];
+                    float prev_slice = splits[c - 1] - prev_near;
+                    split_near -= prev_slice * packet.cascade_blend_fraction;
+                    if (split_near < cam_near)
+                        split_near = cam_near;
+                }
 
                 Vector3 corners[8];
-                BuildFrustumSliceCorners(cam_pos, cam_fwd, cam_right, cam_up, aspect, tan_half, split_near, corner_far, corners);
+                BuildFrustumSliceCorners(cam_pos, cam_fwd, cam_right, cam_up, aspect, tan_half, split_near, split_far, corners);
 
                 ComputeCascadeLightMatrix(corners, light_dir, up, light_distance, &packet.light_space_matrices[c], &packet.shadow_texel_world_sizes[c]);
             }

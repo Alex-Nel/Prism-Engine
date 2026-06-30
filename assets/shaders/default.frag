@@ -126,46 +126,58 @@ int SelectShadowCascade(float viewDepth)
 
 
 
+// True when fragPos projects inside this cascade's shadow-map XY frustum (before bias).
+bool CascadeCoversFragment(int cascade, vec3 fragPos)
+{
+    vec4 lightSpace = u_LightSpaceMatrices[cascade] * vec4(fragPos, 1.0);
+    vec3 coords = lightSpace.xyz / lightSpace.w;
+    coords = coords * 0.5 + 0.5;
+    return coords.x >= 0.0 && coords.x <= 1.0 && coords.y >= 0.0 && coords.y <= 1.0 && coords.z <= 1.0;
+}
+
+
+
 // Calculates if the pixel is in shadow (0.0 = bright, 1.0 = shadowed)
 float SampleCascadeShadow(int cascade, vec3 fragPos, vec3 normal, vec3 lightDir)
 {
     float NdotL = max(dot(normal, lightDir), 0.0);
-    float slope = clamp(1.0 - NdotL, 0.0, 1.0);
     float texelSize = u_ShadowTexelSizes[cascade];
 
-    // Bounds check before bias — bias can push edge pixels outside the map UV range.
-    vec4 baseLightSpace = u_LightSpaceMatrices[cascade] * vec4(fragPos, 1.0);
-    vec3 baseCoords = baseLightSpace.xyz / baseLightSpace.w;
-    baseCoords = baseCoords * 0.5 + 0.5;
-    if (baseCoords.x < 0.0 || baseCoords.x > 1.0 ||
-        baseCoords.y < 0.0 || baseCoords.y > 1.0 ||
-        baseCoords.z > 1.0)
+    if (!CascadeCoversFragment(cascade, fragPos))
         return 1.0;
 
-    vec3 offsetPos = fragPos + normal * (texelSize * NdotL * (0.5 + 2.0 * slope));
+    // Increase offset as the surface becomes perpendicular to the light
+    float offsetScale = clamp(1.0 - NdotL, 0.0, 1.0);
+    
+    // Calculate offset, but cap it to 0.08 units to prevent far cascades from pushing the sample through zero-thickness quads
+    float calculatedOffset = texelSize * offsetScale * 1.5;
+    vec3 offsetPos = fragPos + normal * min(calculatedOffset, 0.08);
 
     vec4 fragPosLightSpace = u_LightSpaceMatrices[cascade] * vec4(offsetPos, 1.0);
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     projCoords = projCoords * 0.5 + 0.5;
 
-    // Outside this cascade's XY frustum — return -1 so the caller can try another cascade.
     if (projCoords.z > 1.0)
         return 1.0;
 
-    float compareDepth = projCoords.z - max(0.0005 * slope, 0.0001);
 
+    // Scale slightly by texelSize so larger cascades get slightly more bias.
+    float zBias = max(0.0005 * offsetScale, 0.0002) + (texelSize * 0.0002);
+    float compareDepth = projCoords.z - zBias;
+
+    // --- Hardware PCF ---
     float shadow = 0.0;
     float sampleCount = 0.0;
-    vec2 texelSizeUV = 1.0 / vec2(textureSize(shadowMap, 0).xy);
+    vec2 texelSizeUV = (1.0 / vec2(textureSize(shadowMap, 0).xy)) * 0.5;
+    
     for (int x = -1; x <= 1; ++x)
     {
         for (int y = -1; y <= 1; ++y)
         {
             vec2 sampleUV = projCoords.xy + vec2(x, y) * texelSizeUV;
             
-            // Never fetch the border color (configured as "lit") — that causes edge light leaks.
-            if (sampleUV.x < 0.0 || sampleUV.x > 1.0 ||
-                sampleUV.y < 0.0 || sampleUV.y > 1.0)
+            // Skip samples that fall completely outside the cascade UV bounds
+            if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0)
                 continue;
             
             float lit = texture(shadowMap, vec4(sampleUV, float(cascade), compareDepth));
@@ -174,8 +186,7 @@ float SampleCascadeShadow(int cascade, vec3 fragPos, vec3 normal, vec3 lightDir)
         }
     }
     
-    if (sampleCount < 0.5)
-        return 1.0;
+    if (sampleCount < 0.5) return 1.0;
 
     return shadow / sampleCount;
 }
@@ -201,7 +212,7 @@ float ShadowCalculation(vec3 fragPos, vec3 normal, vec3 lightDir)
     float blendRange = sliceDepth * u_CascadeBlendFraction;
     float blendStart = splitFar - blendRange;
 
-    if (viewDepth > blendStart)
+    if (viewDepth > blendStart && CascadeCoversFragment(cascade + 1, fragPos))
     {
         float t = smoothstep(blendStart, splitFar, viewDepth);
         float nextShadow = SampleCascadeShadow(cascade + 1, fragPos, normal, lightDir);
