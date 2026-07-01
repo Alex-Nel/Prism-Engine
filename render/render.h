@@ -7,6 +7,7 @@
 #include "../core/math_core.h"
 #include "../core/mesh_core.h"
 #include "../core/log.h"
+#include "../core/io_core.h"
 
 
 
@@ -122,6 +123,8 @@ typedef struct RenderPacket
     float shadow_camera_near;      // camera near plane (CSM blend region sizing)
     float cascade_blend_fraction;  // 0..1 fraction of each slice used to cross-fade
 
+    bool enable_ssao;
+
     bool has_skybox;
     TextureHandle skybox_texture;
     ShaderHandle skybox_shader;
@@ -202,7 +205,7 @@ typedef void* (*Render_LoadProcFn)(const char* name);
 
 
 // Initializes a renderer with a specified graphics API
-Renderer* Render_Init(GraphicsAPI api, Render_LoadProcFn load_proc);
+Renderer* Render_Init(GraphicsAPI api, Render_LoadProcFn load_proc, uint32_t init_width, uint32_t init_height);
 
 // Shuts down the renderer
 static inline void Render_Shutdown(Renderer* r)

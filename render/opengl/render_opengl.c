@@ -43,9 +43,10 @@ typedef struct RenderState
     uint32_t shadow_cascade_count;
     float cascade_blend_fraction;
 
+    bool enable_ssao;
+
     bool has_skybox;
     TextureHandle skybox_texture;
-    ShaderHandle skybox_shader;
 } RenderState;
 
 
@@ -99,6 +100,59 @@ typedef struct RenderCommand
 
 
 
+// --- Sub-Systems for the render pipeline---
+
+typedef struct GL_ForwardPipeline
+{
+    ShaderHandle default_shader;
+    ShaderHandle animated_shader;
+} GL_ForwardPipeline;
+
+
+typedef struct GL_ShadowPipeline
+{
+    GLuint depthMapFBO;
+    GLuint depthMapTextureArray;
+    ShaderHandle static_shader;
+    ShaderHandle skinned_shader;
+} GL_ShadowPipeline;
+
+
+typedef struct GL_SSAOPipeline
+{
+    GLuint gBufferFBO;
+    GLuint gPosition;
+    GLuint gNormal;
+    GLuint gDepth;
+
+    GLuint ssaoFBO;
+    GLuint ssaoBlurFBO;
+    GLuint ssaoColorBuffer;
+    GLuint ssaoColorBufferBlur;
+
+    Vector3 kernel[64];
+    GLuint noiseTexture;
+    GLuint fallbackWhiteTexture;
+
+    ShaderHandle g_buffer_shader;
+    ShaderHandle g_buffer_skinned_shader;
+    ShaderHandle ssao_shader;
+    ShaderHandle blur_shader;
+} GL_SSAOPipeline;
+
+
+typedef struct GL_SkyboxPipeline
+{
+    uint32_t vao;
+    uint32_t vbo;
+    ShaderHandle default_shader;
+} GL_SkyboxPipeline;
+
+
+
+
+
+// The main backend of the OpenGL renderer
 typedef struct OpenGL_Backend
 {
     GLMesh mesh_pool[MAX_RESOURCES];
@@ -108,13 +162,15 @@ typedef struct OpenGL_Backend
     RenderCommand command_queue[MAX_COMMANDS];
     uint32_t command_count;
 
-    GLuint depthMapFBO;
-    GLuint depthMapTexture;
-
+    uint32_t quad_vao;
+    uint32_t quad_vbo;
+    
     RenderState state;
 
-    uint32_t skybox_vao;
-    uint32_t skybox_vbo;
+    GL_ForwardPipeline forward;
+    GL_ShadowPipeline shadow;
+    GL_SSAOPipeline   ssao;
+    GL_SkyboxPipeline skybox;
 } OpenGL_Backend;
 
 
@@ -161,8 +217,30 @@ static void OpenGL_SetViewport(Renderer* r, uint32_t x, uint32_t y, uint32_t wid
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
-    internal->state.window_width = width;
-    internal->state.window_height = height;
+    // Prevent redundant reallocations if the size hasn't actually changed
+    if (internal->state.window_width != width || internal->state.window_height != height)
+    {
+        internal->state.window_width = width;
+        internal->state.window_height = height;
+
+        // Resize G-Buffer Textures
+        glBindTexture(GL_TEXTURE_2D, internal->ssao.gPosition);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
+
+        glBindTexture(GL_TEXTURE_2D, internal->ssao.gNormal);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
+
+        // Resize G-Buffer Depth Renderbuffer
+        glBindRenderbuffer(GL_RENDERBUFFER, internal->ssao.gDepth);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
+
+        // Resize SSAO Textures
+        glBindTexture(GL_TEXTURE_2D, internal->ssao.ssaoColorBuffer);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, width, height, 0, GL_RED, GL_FLOAT, NULL);
+
+        glBindTexture(GL_TEXTURE_2D, internal->ssao.ssaoColorBufferBlur);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, width, height, 0, GL_RED, GL_FLOAT, NULL);
+    }
 
     glViewport(x, y, width, height);
 }
@@ -776,6 +854,155 @@ static void OpenGL_DestroyShader(Renderer* r, ShaderHandle shader)
 
 
 
+// Helper function to compile an internal engine shader from raw source code strings
+static ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const char* name, const char* vertex_src, const char* fragment_src)
+{
+    // Find a free slot in the backend's shader pool
+    uint32_t slot = 0;
+    for (uint32_t i = 1; i < MAX_RESOURCES; i++)
+    {
+        if (!internal->shader_pool[i].active)
+        {
+            slot = i;
+            break;
+        }
+    }
+    
+    if (slot == 0)
+    {
+        Log_Error("Failed to allocate internal shader: %s (Pool full)", name);
+        return (ShaderHandle){0};
+    }
+
+    // Compile Vertex Shader
+    GLuint vertex = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vertex, 1, &vertex_src, NULL);
+    glCompileShader(vertex);
+    
+    int success;
+    char infoLog[512];
+    glGetShaderiv(vertex, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(vertex, 512, NULL, infoLog);
+        Log_Error("Internal Vertex Shader Compilation Failed (%s):\n%s", name, infoLog);
+    }
+
+    // Compile Fragment Shader
+    GLuint fragment = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fragment, 1, &fragment_src, NULL);
+    glCompileShader(fragment);
+    
+    glGetShaderiv(fragment, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(fragment, 512, NULL, infoLog);
+        Log_Error("Internal Fragment Shader Compilation Failed (%s):\n%s", name, infoLog);
+    }
+
+    // Link Program
+    GLuint program = glCreateProgram();
+    glAttachShader(program, vertex);
+    glAttachShader(program, fragment);
+    glLinkProgram(program);
+    
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if (!success) {
+        glGetProgramInfoLog(program, 512, NULL, infoLog);
+        Log_Error("Internal Shader Linking Failed (%s):\n%s", name, infoLog);
+        glDeleteProgram(program);
+        return (ShaderHandle){0};
+    }
+
+    // Cleanup
+    glDeleteShader(vertex);
+    glDeleteShader(fragment);
+
+    // Store in backend
+    internal->shader_pool[slot].program = program;
+    internal->shader_pool[slot].active = true;
+
+    return (ShaderHandle){slot};
+}
+
+
+
+
+
+// Helper to read files and compile an internal shader
+static ShaderHandle OpenGL_CompileInternalShaderFromFile(OpenGL_Backend* internal, const char* name, const char* vert_path, const char* frag_path)
+{
+    char* vert_src = IO_ReadTextFile(vert_path);
+    char* frag_src = IO_ReadTextFile(frag_path);
+
+    if (!vert_src || !frag_src) {
+        if (vert_src) free(vert_src);
+        if (frag_src) free(frag_src);
+        return (ShaderHandle){0};
+    }
+
+    // Call the compiler function we made previously
+    ShaderHandle handle = OpenGL_CompileInternalShader(internal, name, vert_src, frag_src);
+
+    free(vert_src);
+    free(frag_src);
+
+    return handle;
+}
+
+
+
+
+
+static void OpenGL_InitPipelines(OpenGL_Backend* internal)
+{
+    // 1. Forward Pipeline (Main Lit Shaders)
+    internal->forward.default_shader = OpenGL_CompileInternalShaderFromFile(internal, "Default", "assets/shaders/default.vert", "assets/shaders/default.frag");
+    internal->forward.animated_shader = OpenGL_CompileInternalShaderFromFile(internal, "Animated", "assets/shaders/animated.vert", "assets/shaders/default.frag");
+
+    // 2. Shadow Pipeline
+    internal->shadow.static_shader = OpenGL_CompileInternalShaderFromFile(internal, "Shadow Static", "assets/shaders/shadow.vert", "assets/shaders/shadow.frag");
+    internal->shadow.skinned_shader = OpenGL_CompileInternalShaderFromFile(internal, "Shadow Skinned", "assets/shaders/shadow_skinned.vert", "assets/shaders/shadow.frag");
+
+    // 3. Skybox Pipeline
+    internal->skybox.default_shader = OpenGL_CompileInternalShaderFromFile(internal, "Skybox", "assets/shaders/skybox_default.vert", "assets/shaders/skybox_default.frag");
+
+    // 4. SSAO Pipeline
+    internal->ssao.g_buffer_shader = OpenGL_CompileInternalShaderFromFile(internal, "G-Buffer", "assets/shaders/g_buffer.vert", "assets/shaders/g_buffer.frag");
+    internal->ssao.g_buffer_skinned_shader = OpenGL_CompileInternalShaderFromFile(internal, "G-Buffer Skinned", "assets/shaders/g_buffer_skinned.vert", "assets/shaders/g_buffer.frag");
+    internal->ssao.ssao_shader = OpenGL_CompileInternalShaderFromFile(internal, "SSAO Compute", "assets/shaders/ssao.vert", "assets/shaders/ssao.frag");
+    internal->ssao.blur_shader = OpenGL_CompileInternalShaderFromFile(internal, "SSAO Blur", "assets/shaders/ssao.vert", "assets/shaders/ssao_blur.frag");
+
+}
+
+
+
+
+
+// Restores the default window framebuffer for forward rendering.
+static void OpenGL_BindDefaultFramebuffer(void)
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDrawBuffer(GL_BACK);
+    glReadBuffer(GL_BACK);
+}
+
+
+
+// Binds the SSAO result (or a white fallback when SSAO is disabled).
+static void OpenGL_BindSSAOTexture(OpenGL_Backend* internal, GLuint program)
+{
+    GLint ssao_loc = glGetUniformLocation(program, "ssaoMap");
+    if (ssao_loc == -1)
+        return;
+
+    glUniform1i(ssao_loc, 2);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, internal->state.enable_ssao ? internal->ssao.ssaoColorBufferBlur : internal->ssao.fallbackWhiteTexture);
+}
+
+
+
+
+
 // Copies shadow-map state from a render packet into the backend.
 static void OpenGL_CopyShadowState(RenderState* state, const RenderPacket* packet)
 {
@@ -842,6 +1069,14 @@ static void OpenGL_UploadShadowUniforms(GLuint program, const RenderState* state
     loc = glGetUniformLocation(program, "u_CameraForward");
     if (loc != -1)
         glUniform3fv(loc, 1, (float*)&state->camera_forward);
+
+    loc = glGetUniformLocation(program, "u_ShadowMaxDistance");
+    if (loc != -1)
+    {
+        // If there are no directional lights, fallback to a safe 200.0f units
+        float max_dist = (state->dir_light_count > 0) ? state->dir_lights[0].shadow_max_distance : 200.0f;
+        glUniform1f(loc, max_dist);
+    }
 }
 
 
@@ -857,16 +1092,19 @@ static void OpenGL_DrawShadowQueue(OpenGL_Backend* internal, const Matrix4* ligh
     {
         RenderCommand* cmd = &internal->command_queue[i];
 
-        if (!internal->mesh_pool[cmd->mesh.id].active || !internal->shader_pool[cmd->shader.id].active)
+        if (!internal->mesh_pool[cmd->mesh.id].active)
             continue;
 
         GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
-        GLShader* gl_shader = &internal->shader_pool[cmd->shader.id];
 
-        if (current_shader != cmd->shader.id)
+        // Dynamically select the internal shadow shader based on skeleton presence
+        ShaderHandle target_shader = (cmd->bone_matrices != NULL) ? internal->shadow.skinned_shader : internal->shadow.static_shader;
+        GLShader* gl_shader = &internal->shader_pool[target_shader.id];
+
+        if (current_shader != target_shader.id)
         {
             glUseProgram(gl_shader->program);
-            current_shader = cmd->shader.id;
+            current_shader = target_shader.id;
 
             GLint light_space_loc = glGetUniformLocation(gl_shader->program, "u_LightSpaceMatrix");
             if (light_space_loc != -1)
@@ -914,20 +1152,24 @@ static void OpenGL_EndShadowPass(Renderer* r)
     if (cascade_count < 1)
         cascade_count = 1;
 
-    glBindFramebuffer(GL_FRAMEBUFFER, internal->depthMapFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->shadow.depthMapFBO);
 
     // Render both faces into the depth map
     glDisable(GL_CULL_FACE);
 
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(1.0f, 1.0f);
+
     for (uint32_t c = 0; c < cascade_count; c++)
     {
-        glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, internal->depthMapTexture, 0, c);
+        glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, internal->shadow.depthMapTextureArray, 0, c);
         glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
         glClear(GL_DEPTH_BUFFER_BIT);
 
         OpenGL_DrawShadowQueue(internal, &internal->state.light_space_matrices[c]);
     }
 
+    glDisable(GL_POLYGON_OFFSET_FILL);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
@@ -954,7 +1196,7 @@ static void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
 
     // Bind the shadow map texture array to texture unit 1
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D_ARRAY, internal->depthMapTexture);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, internal->shadow.depthMapTextureArray);
     glActiveTexture(GL_TEXTURE0);
 
     // Copy Directional Lights
@@ -974,8 +1216,11 @@ static void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
 
     internal->state.has_skybox = packet->has_skybox;
     internal->state.skybox_texture = packet->skybox_texture;
-    internal->state.skybox_shader = packet->skybox_shader;
+    internal->state.enable_ssao = packet->enable_ssao;
     
+    if (packet->skybox_shader.id != 0)
+        internal->skybox.default_shader = packet->skybox_shader;
+
     // Reset the queue for the new frame
     internal->command_count = 0;
 }
@@ -1059,21 +1304,152 @@ static void OpenGL_EndFrame(Renderer* r)
         }
     }
 
-    // Render opaque objects
+
+    // Geometry pre-pass (g-buffer)
+    if (internal->state.enable_ssao && internal->ssao.g_buffer_shader.id != 0 &&
+        internal->ssao.ssao_shader.id != 0 && internal->ssao.blur_shader.id != 0)
+    {
+        glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.gBufferFBO);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // Clear to black
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        
+        // Track G-Buffer shader to avoid redundant uploads
+        uint32_t current_g_shader = 0;
+
+        for (uint32_t i = 0; i < transparent_start_idx; i++)
+        {
+            RenderCommand* cmd = &internal->command_queue[i];
+            if (!internal->mesh_pool[cmd->mesh.id].active) continue;
+
+            GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
+
+            // Dynamically select static vs skinned G-Buffer shader
+            ShaderHandle target_g_handle = (cmd->bone_matrices != NULL) ? internal->ssao.g_buffer_skinned_shader : internal->ssao.g_buffer_shader;
+            GLShader* g_prog = &internal->shader_pool[target_g_handle.id];
+
+            if (current_g_shader != target_g_handle.id)
+            {
+                glUseProgram(g_prog->program);
+                current_g_shader = target_g_handle.id;
+
+                GLint view_loc = glGetUniformLocation(g_prog->program, "u_View");
+                GLint proj_loc = glGetUniformLocation(g_prog->program, "u_Projection");
+                glUniformMatrix4fv(view_loc, 1, GL_FALSE, (float*)&internal->state.view_matrix);
+                glUniformMatrix4fv(proj_loc, 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+            }
+
+            // Upload Model Matrix
+            GLint model_loc = glGetUniformLocation(g_prog->program, "u_Model");
+            glUniformMatrix4fv(model_loc, 1, GL_FALSE, (float*)&cmd->transform);
+
+            // Upload Bones
+            GLint bone_loc = glGetUniformLocation(g_prog->program, "u_BoneMatrices");
+            if (bone_loc != -1 && cmd->bone_matrices != NULL)
+                glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)cmd->bone_matrices);
+
+            glBindVertexArray(gl_mesh->vao);
+            glDrawElements(GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
+        }
+
+
+
+        // SSAO Pass
+
+        glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.ssaoFBO);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        GLuint ssao_prog = internal->shader_pool[internal->ssao.ssao_shader.id].program;
+        glUseProgram(ssao_prog);
+
+        // Upload Matrices & Settings
+        glUniformMatrix4fv(glGetUniformLocation(ssao_prog, "projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+        glUniform1i(glGetUniformLocation(ssao_prog, "kernelSize"), 16);
+        glUniform1f(glGetUniformLocation(ssao_prog, "radius"), 0.5f); // Tweak this for AO distance!
+        glUniform1f(glGetUniformLocation(ssao_prog, "bias"), 0.025f);
+
+        // Upload the Kernel Array
+        for (int k = 0; k < 64; ++k)
+        {
+            char var_name[32];
+            sprintf(var_name, "samples[%d]", k);
+            glUniform3fv(glGetUniformLocation(ssao_prog, var_name), 1, (float*)&internal->ssao.kernel[k]);
+        }
+
+        // Upload Noise Scale (Tile the 4x4 noise texture across the screen)
+        float noise_x = (float)internal->state.window_width / 4.0f;
+        float noise_y = (float)internal->state.window_height / 4.0f;
+        glUniform2f(glGetUniformLocation(ssao_prog, "noiseScale"), noise_x, noise_y);
+
+        // Bind G-Buffer Textures
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, internal->ssao.gPosition);
+        glUniform1i(glGetUniformLocation(ssao_prog, "gPosition"), 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, internal->ssao.gNormal);
+        glUniform1i(glGetUniformLocation(ssao_prog, "gNormal"), 1);
+
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, internal->ssao.noiseTexture);
+        glUniform1i(glGetUniformLocation(ssao_prog, "texNoise"), 2);
+
+        // Draw Screen Quad
+        glBindVertexArray(internal->quad_vao);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+
+
+        // SSAO Blur Pass
+        
+        glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.ssaoBlurFBO);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        GLuint blur_prog = internal->shader_pool[internal->ssao.blur_shader.id].program;
+        glUseProgram(blur_prog);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, internal->ssao.ssaoColorBuffer);
+        glUniform1i(glGetUniformLocation(blur_prog, "ssaoInput"), 0);
+
+        glBindVertexArray(internal->quad_vao);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        glBindVertexArray(0);
+
+
+        OpenGL_BindDefaultFramebuffer();
+    }
+
+    OpenGL_BindDefaultFramebuffer();
+
+
+
+    // --- Render opaque objects ---
     for (uint32_t i = 0; i < transparent_start_idx; i++)
     {
         RenderCommand* cmd = &internal->command_queue[i];
 
-        if (!internal->mesh_pool[cmd->mesh.id].active || !internal->shader_pool[cmd->shader.id].active)
+        if (!internal->mesh_pool[cmd->mesh.id].active)
             continue;
 
         GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
-        GLShader* gl_shader = &internal->shader_pool[cmd->shader.id];
 
-        if (current_shader != cmd->shader.id)
+        ShaderHandle target_handle = cmd->shader;
+
+        // If the material didn't have a shader, use the internal pipeline default
+        if (target_handle.id == 0)
+            target_handle = (cmd->bone_matrices != NULL) ? internal->forward.animated_shader : internal->forward.default_shader;
+
+        // Now pull the actual OpenGL shader using the resolved handle
+        GLShader* gl_shader = &internal->shader_pool[target_handle.id];
+
+        // Ensure that the fallback shader actually exists
+        if (!gl_shader->active)
+            continue;
+
+        if (current_shader != target_handle.id)
         {
             glUseProgram(gl_shader->program);
-            current_shader = cmd->shader.id;
+            current_shader = target_handle.id;
 
             // Upload Camera Matrices
             GLint view_loc  = glGetUniformLocation(gl_shader->program, "u_View");
@@ -1083,6 +1459,12 @@ static void OpenGL_EndFrame(Renderer* r)
 
 
             OpenGL_UploadShadowUniforms(gl_shader->program, &internal->state);
+
+            OpenGL_BindSSAOTexture(internal, gl_shader->program);
+
+            GLint enable_ssao_loc = glGetUniformLocation(gl_shader->program, "u_EnableSSAO");
+            if (enable_ssao_loc != -1)
+                glUniform1i(enable_ssao_loc, internal->state.enable_ssao ? 1 : 0);
 
 
             // Upload Camera Position
@@ -1228,6 +1610,10 @@ static void OpenGL_EndFrame(Renderer* r)
         glDrawElements(GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
     }
 
+
+    glDepthFunc(GL_LESS);
+
+
     if (blending_enabled)
     {
         glDisable(GL_BLEND);
@@ -1239,10 +1625,10 @@ static void OpenGL_EndFrame(Renderer* r)
     // Draw Skybox if it exists
     if (internal->state.has_skybox)
     {   
-        uint32_t shader_id = internal->state.skybox_shader.id;
+        uint32_t shader_id = internal->skybox.default_shader.id;
         uint32_t tex_id = internal->state.skybox_texture.id;
 
-        if (shader_id != 0 || tex_id != 0)
+        if (shader_id != 0 && tex_id != 0)
         {
             // Change depth func so it draws at max depth (1.0)
             glDepthFunc(GL_LEQUAL);
@@ -1268,7 +1654,7 @@ static void OpenGL_EndFrame(Renderer* r)
             if (skybox_loc != -1) glUniform1i(skybox_loc, 0);
             
             // Draw all 36 vertices
-            glBindVertexArray(internal->skybox_vao);
+            glBindVertexArray(internal->skybox.vao);
             glDrawArrays(GL_TRIANGLES, 0, 36); 
             glBindVertexArray(0);
             
@@ -1295,16 +1681,29 @@ static void OpenGL_EndFrame(Renderer* r)
         for (uint32_t i = transparent_start_idx; i < internal->command_count; i++)
         {
             RenderCommand* cmd = &internal->command_queue[i];
-            if (!internal->mesh_pool[cmd->mesh.id].active || !internal->shader_pool[cmd->shader.id].active)
+
+            if (!internal->mesh_pool[cmd->mesh.id].active)
                 continue;
 
             GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
-            GLShader* gl_shader = &internal->shader_pool[cmd->shader.id];
 
-            if (current_shader != cmd->shader.id)
+            ShaderHandle target_handle = cmd->shader;
+        
+            // If the material didn't have a shader, use the internal pipeline default!
+            if (target_handle.id == 0)
+                target_handle = (cmd->bone_matrices != NULL) ? internal->forward.animated_shader : internal->forward.default_shader;
+
+            // Now pull the actual OpenGL shader using the resolved handle
+            GLShader* gl_shader = &internal->shader_pool[target_handle.id];
+
+            // Ensure the fallback shader actually exists and compiled properly
+            if (!gl_shader->active)
+                continue;
+
+            if (current_shader != target_handle.id)
             {
                 glUseProgram(gl_shader->program);
-                current_shader = cmd->shader.id;
+                current_shader = target_handle.id;
 
                 // Upload Camera Matrices
                 GLint view_loc  = glGetUniformLocation(gl_shader->program, "u_View");
@@ -1314,6 +1713,12 @@ static void OpenGL_EndFrame(Renderer* r)
 
 
                 OpenGL_UploadShadowUniforms(gl_shader->program, &internal->state);
+
+                OpenGL_BindSSAOTexture(internal, gl_shader->program);
+
+                GLint enable_ssao_loc = glGetUniformLocation(gl_shader->program, "u_EnableSSAO");
+                if (enable_ssao_loc != -1)
+                    glUniform1i(enable_ssao_loc, internal->state.enable_ssao ? 1 : 0);
 
 
                 // Upload Camera Position
@@ -1471,7 +1876,7 @@ static void OpenGL_EndFrame(Renderer* r)
 
 
 // OpenGL Initialization function
-Renderer* OpenGL_Init(Render_LoadProcFn load_proc)
+Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t init_height)
 {
     Renderer* r = malloc(sizeof(Renderer));
     if (!r)
@@ -1481,6 +1886,9 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc)
 
     OpenGL_Backend* internal = malloc(sizeof(OpenGL_Backend));
     memset(internal, 0, sizeof(OpenGL_Backend));
+
+    internal->state.window_width = init_width;
+    internal->state.window_height = init_height;
 
 
     // Initialize data pools
@@ -1523,10 +1931,10 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc)
          1.0f, -1.0f, -1.0f,  -1.0f, -1.0f,  1.0f,   1.0f, -1.0f,  1.0f
     };
 
-    glGenVertexArrays(1, &internal->skybox_vao);
-    glGenBuffers(1, &internal->skybox_vbo);
-    glBindVertexArray(internal->skybox_vao);
-    glBindBuffer(GL_ARRAY_BUFFER, internal->skybox_vbo);
+    glGenVertexArrays(1, &internal->skybox.vao);
+    glGenBuffers(1, &internal->skybox.vbo);
+    glBindVertexArray(internal->skybox.vao);
+    glBindBuffer(GL_ARRAY_BUFFER, internal->skybox.vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices, GL_STATIC_DRAW);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
@@ -1534,12 +1942,36 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc)
 
 
 
+    // Generate Screen Quad
+    float quadVertices[] = {
+        // positions   // texCoords
+        -1.0f,  1.0f,  0.0f, 1.0f,
+        -1.0f, -1.0f,  0.0f, 0.0f,
+        1.0f, -1.0f,  1.0f, 0.0f,
+
+        -1.0f,  1.0f,  0.0f, 1.0f,
+        1.0f, -1.0f,  1.0f, 0.0f,
+        1.0f,  1.0f,  1.0f, 1.0f
+    };
+    glGenVertexArrays(1, &internal->quad_vao);
+    glGenBuffers(1, &internal->quad_vbo);
+    glBindVertexArray(internal->quad_vao);
+    glBindBuffer(GL_ARRAY_BUFFER, internal->quad_vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+    glBindVertexArray(0);
+
+
+
     // Generate depth map buffers
 
-    glGenFramebuffers(1, &internal->depthMapFBO);
-    glGenTextures(1, &internal->depthMapTexture);
+    glGenFramebuffers(1, &internal->shadow.depthMapFBO);
+    glGenTextures(1, &internal->shadow.depthMapTextureArray);
 
-    glBindTexture(GL_TEXTURE_2D_ARRAY, internal->depthMapTexture);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, internal->shadow.depthMapTextureArray);
     glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT24, SHADOW_WIDTH, SHADOW_HEIGHT, MAX_SHADOW_CASCADES, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
 
     // GL_LINEAR on a depth texture with a compare mode set gives free 2x2 hardware
@@ -1556,13 +1988,138 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc)
     float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
     glTexParameterfv(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BORDER_COLOR, borderColor);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, internal->depthMapFBO);
-    glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, internal->depthMapTexture, 0, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->shadow.depthMapFBO);
+    glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, internal->shadow.depthMapTextureArray, 0, 0);
 
     // Tell OpenGL we are not writing colors to this buffer, only depth
     glDrawBuffer(GL_NONE);
     glReadBuffer(GL_NONE);
     glBindFramebuffer(GL_FRAMEBUFFER, 0); // Unbind back to default screen
+
+
+
+    // --- Generate G-Buffer ---
+
+    uint32_t win_w = init_width;
+    uint32_t win_h = init_height;
+
+    glGenFramebuffers(1, &internal->ssao.gBufferFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.gBufferFBO);
+
+    // Position color buffer (use RGBA16F for GPU alignment)
+    glGenTextures(1, &internal->ssao.gPosition);
+    glBindTexture(GL_TEXTURE_2D, internal->ssao.gPosition);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, win_w, win_h, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, internal->ssao.gPosition, 0);
+
+    // Normal color buffer
+    glGenTextures(1, &internal->ssao.gNormal);
+    glBindTexture(GL_TEXTURE_2D, internal->ssao.gNormal);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, win_w, win_h, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, internal->ssao.gNormal, 0);
+
+    // Tell OpenGL which color attachments we'll use (of this framebuffer) for rendering 
+    uint32_t attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+    glDrawBuffers(2, attachments);
+
+    // Create and attach depth buffer (renderbuffer)
+    glGenRenderbuffers(1, &internal->ssao.gDepth);
+    glBindRenderbuffer(GL_RENDERBUFFER, internal->ssao.gDepth);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, win_w, win_h);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, internal->ssao.gDepth);
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        Log_Error("G-Buffer Framebuffer not complete!");
+
+    // --- Generate SSAO FBOs ---
+    glGenFramebuffers(1, &internal->ssao.ssaoFBO);  
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.ssaoFBO);
+    glGenTextures(1, &internal->ssao.ssaoColorBuffer);
+    glBindTexture(GL_TEXTURE_2D, internal->ssao.ssaoColorBuffer);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, win_w/2, win_h/2, 0, GL_RED, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, internal->ssao.ssaoColorBuffer, 0);
+
+    glGenFramebuffers(1, &internal->ssao.ssaoBlurFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.ssaoBlurFBO);
+    glGenTextures(1, &internal->ssao.ssaoColorBufferBlur);
+    glBindTexture(GL_TEXTURE_2D, internal->ssao.ssaoColorBufferBlur);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, win_w/2, win_h/2, 0, GL_RED, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, internal->ssao.ssaoColorBufferBlur, 0);
+
+
+
+    // Pre-fill SSAO buffers with white (1.0 = no occlusion) so the lit pass is safe before the first compute.
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.ssaoFBO);
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.ssaoBlurFBO);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // 1x1 white texture used when SSAO is disabled in the forward pass.
+    float ssao_fallback = 1.0f;
+    glGenTextures(1, &internal->ssao.fallbackWhiteTexture);
+    glBindTexture(GL_TEXTURE_2D, internal->ssao.fallbackWhiteTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, 1, 1, 0, GL_RED, GL_FLOAT, &ssao_fallback);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+
+
+    // --- Generate SSAO Kernel & Noise Texture ---
+    for (int i = 0; i < 64; ++i)
+    {
+        Vector3 sample = {
+            ((float)rand() / (float)RAND_MAX) * 2.0f - 1.0f,
+            ((float)rand() / (float)RAND_MAX) * 2.0f - 1.0f,
+            ((float)rand() / (float)RAND_MAX) // Z is 0 to 1 to form a hemisphere
+        };
+        sample = Vector3Normalize(sample);
+        
+        // Push samples closer to the origin for better occlusion results
+        float scale = (float)i / 64.0f;
+        scale = 0.1f + (scale * scale) * (1.0f - 0.1f); // Lerp
+        
+        sample.x *= scale;
+        sample.y *= scale;
+        sample.z *= scale;
+        internal->ssao.kernel[i] = sample;
+    }
+
+    float ssaoNoise[16 * 4];
+    for (int i = 0; i < 16; i++)
+    {
+        ssaoNoise[i * 4 + 0] = ((float)rand() / (float)RAND_MAX) * 2.0f - 1.0f;
+        ssaoNoise[i * 4 + 1] = ((float)rand() / (float)RAND_MAX) * 2.0f - 1.0f;
+        ssaoNoise[i * 4 + 2] = 0.0f;
+        ssaoNoise[i * 4 + 3] = 0.0f;
+    }
+    
+    glGenTextures(1, &internal->ssao.noiseTexture);
+    glBindTexture(GL_TEXTURE_2D, internal->ssao.noiseTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, 4, 4, 0, GL_RGBA, GL_FLOAT, ssaoNoise);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); // MUST repeat to tile over screen
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    OpenGL_BindDefaultFramebuffer();
+
+
+    // Initialize all pipelines
+    OpenGL_InitPipelines(internal);
 
 
 

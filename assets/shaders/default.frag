@@ -93,6 +93,9 @@ uniform int u_ShadowCascadeCount;
 uniform mat4 u_View;
 uniform float u_ShadowCameraNear;
 uniform float u_CascadeBlendFraction;
+uniform sampler2D ssaoMap;
+uniform bool u_EnableSSAO;
+uniform float u_ShadowMaxDistance;
 
 
 
@@ -140,35 +143,32 @@ bool CascadeCoversFragment(int cascade, vec3 fragPos)
 // Calculates if the pixel is in shadow (0.0 = bright, 1.0 = shadowed)
 float SampleCascadeShadow(int cascade, vec3 fragPos, vec3 normal, vec3 lightDir)
 {
-    float NdotL = max(dot(normal, lightDir), 0.0);
-    float texelSize = u_ShadowTexelSizes[cascade];
-
     if (!CascadeCoversFragment(cascade, fragPos))
-        return 1.0;
+        return 0.0;
 
-    // Increase offset as the surface becomes perpendicular to the light
+    float texelSize = u_ShadowTexelSizes[cascade];
+    float NdotL = max(dot(normal, lightDir), 0.0);
     float offsetScale = clamp(1.0 - NdotL, 0.0, 1.0);
-    
-    // Calculate offset, but cap it to 0.08 units to prevent far cascades from pushing the sample through zero-thickness quads
-    float calculatedOffset = texelSize * offsetScale * 1.5;
-    vec3 offsetPos = fragPos + normal * min(calculatedOffset, 0.08);
+
+    // Calculate how far to push the sample out along the normal
+    float calculatedOffset = texelSize * offsetScale * 2.0;
+
+    // Never let the offset exceed 0.05 meters, preventing it from piercing thin geometry!
+    calculatedOffset = min(calculatedOffset, 0.05);
+
+    vec3 offsetPos = fragPos + normal * calculatedOffset;
+
 
     vec4 fragPosLightSpace = u_LightSpaceMatrices[cascade] * vec4(offsetPos, 1.0);
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     projCoords = projCoords * 0.5 + 0.5;
 
     if (projCoords.z > 1.0)
-        return 1.0;
+        return 0.0;
 
-
-    // Scale slightly by texelSize so larger cascades get slightly more bias.
-    float zBias = max(0.0005 * offsetScale, 0.0002) + (texelSize * 0.0002);
-    float compareDepth = projCoords.z - zBias;
-
-    // --- Hardware PCF ---
+    
     float shadow = 0.0;
-    float sampleCount = 0.0;
-    vec2 texelSizeUV = (1.0 / vec2(textureSize(shadowMap, 0).xy)) * 0.5;
+    vec2 texelSizeUV = 1.0 / vec2(textureSize(shadowMap, 0).xy);
     
     for (int x = -1; x <= 1; ++x)
     {
@@ -179,16 +179,13 @@ float SampleCascadeShadow(int cascade, vec3 fragPos, vec3 normal, vec3 lightDir)
             // Skip samples that fall completely outside the cascade UV bounds
             if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0)
                 continue;
-            
-            float lit = texture(shadowMap, vec4(sampleUV, float(cascade), compareDepth));
+
+            float lit = texture(shadowMap, vec4(sampleUV, float(cascade), projCoords.z));
             shadow += 1.0 - lit;
-            sampleCount += 1.0;
         }
     }
     
-    if (sampleCount < 0.5) return 1.0;
-
-    return shadow / sampleCount;
+    return shadow / 9.0;
 }
 
 
@@ -219,6 +216,18 @@ float ShadowCalculation(vec3 fragPos, vec3 normal, vec3 lightDir)
         shadow = mix(shadow, nextShadow, t);
     }
 
+
+    // Fade shadows out in the distance
+    float distanceToCam = length(u_ViewPos - fragPos);
+    float fadeStart = max(u_ShadowMaxDistance - 30.0, 0.0); // Start fading 30 units before the edge
+    
+    if (distanceToCam > fadeStart) 
+    {
+        float fadeFactor = clamp((distanceToCam - fadeStart) / 30.0, 0.0, 1.0);
+        shadow = mix(shadow, 0.0, fadeFactor); // Blend shadow to 0.0 (fully lit)
+    }
+
+
     return shadow;
 }
 
@@ -230,7 +239,7 @@ float ShadowCalculation(vec3 fragPos, vec3 normal, vec3 lightDir)
 // Lighting Calculations
 // ==========================================
 
-vec3 CalcDirLight(DirLight light, vec3 normal, vec3 viewDir)
+vec3 CalcDirLight(DirLight light, vec3 normal, vec3 viewDir, float ao)
 {
     vec3 lightDir = normalize(-light.direction);
     
@@ -242,7 +251,7 @@ vec3 CalcDirLight(DirLight light, vec3 normal, vec3 viewDir)
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_Material.shininess);
     
     // Combine
-    vec3 ambient = light.ambientStrength * light.color * light.intensity;
+    vec3 ambient = light.ambientStrength * light.color * light.intensity * ao;
     vec3 diffuse = diff * light.color * light.intensity;
     vec3 specular = u_Material.specularStrength * spec * light.color * light.intensity;
 
@@ -314,13 +323,19 @@ void main()
     vec3 norm = normalize(v_Normal);
     vec3 viewDir = normalize(u_ViewPos - v_FragPos);
 
+    float ambientOcclusion = 1.0; 
+    if (u_EnableSSAO) {
+        vec2 screenUV = gl_FragCoord.xy / vec2(textureSize(ssaoMap, 0));
+        ambientOcclusion = texture(ssaoMap, screenUV).r;
+    }
+
     vec3 totalLight = vec3(0.0);
 
 
     // Accumulate directional lights
     for (int i = 0; i < MAX_DIR_LIGHTS; i++) {
         if (i >= u_DirLightCount) break;
-        totalLight += CalcDirLight(u_DirLights[i], norm, viewDir);
+        totalLight += CalcDirLight(u_DirLights[i], norm, viewDir, ambientOcclusion);
     }
 
     // 2. Accumulate Point Lights
@@ -339,7 +354,7 @@ void main()
     // Final Pixel Color
     vec4 texColor = texture(u_Material.diffuse, TexCoord);
     vec3 tintedAlbedo = texColor.rgb * u_Material.tint;
-    
+
     // Multiply the accumulated physical light by the tinted surface color
     FragColor = vec4(totalLight * tintedAlbedo, texColor.a);
 }

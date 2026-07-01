@@ -31,7 +31,7 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
         proc_addr = NULL;
     
     // Render Init
-    Renderer* renderer = Render_Init(api, proc_addr);
+    Renderer* renderer = Render_Init(api, proc_addr, window_width, window_height);
     if (!renderer)
     {
         Platform_Shutdown(engine.window);
@@ -334,8 +334,13 @@ void Engine_RenderScene(Scene* scene)
     packet.spot_light_count = spot_count;
 
     packet.has_skybox = scene->has_skybox;
-    packet.skybox_texture = scene->skybox.texture->gpu_handle;
-    packet.skybox_shader = scene->skybox.shader->gpu_handle;
+
+    if (scene->has_skybox && scene->skybox.texture)
+        packet.skybox_texture = scene->skybox.texture->gpu_handle;
+    if (scene->has_skybox && scene->skybox.shader)
+        packet.skybox_shader = scene->skybox.shader->gpu_handle;
+
+    packet.enable_ssao = true;
 
 
 
@@ -471,9 +476,9 @@ void Engine_RenderScene(Scene* scene)
         // Begin Shadow Pass
         Render_BeginShadowPass(engine.renderer, &packet);
 
-        // Get the shadow shaders (static + skinned variants)
-        ShaderHandle shadow_shader = Asset_GetDefaultShadowShader()->gpu_handle;
-        ShaderHandle skinned_shadow_shader = Asset_GetDefaultSkinnedShadowShader()->gpu_handle;
+        // --- Calculate global shadow culling distance ---
+        float cull_dist = shadow_light->shadow_max_distance + 50.0f; 
+        float cull_dist_sq = cull_dist * cull_dist;
 
         // Submit Static Meshes for Shadows
         uint32_t req_mesh_mask = COMPONENT_TRANSFORM | COMPONENT_MESH_RENDERER;
@@ -489,8 +494,16 @@ void Engine_RenderScene(Scene* scene)
                     continue;
 
                 Transform* t = &scene->transforms[i];
-                // Pass NULL for texture and default props, the shadow shader ignores them!
-                Render_Submit(engine.renderer, rc->mesh->gpu_handle, shadow_shader,
+
+                Vector3 obj_pos = Transform_GetGlobalPosition(t);
+                float dx = obj_pos.x - cam_pos.x;
+                float dy = obj_pos.y - cam_pos.y;
+                float dz = obj_pos.z - cam_pos.z;
+                if ((dx*dx + dy*dy + dz*dz) > cull_dist_sq)
+                    continue; // Too far to cast a visible shadow.
+
+                // Pass NULL for texture and default props, the shadow shader ignores them
+                Render_Submit(engine.renderer, rc->mesh->gpu_handle, (ShaderHandle){0},
                               (TextureHandle){0}, (MaterialProperties){0},
                               t->world_matrix, NULL, false, 0.0f);
             }
@@ -510,6 +523,14 @@ void Engine_RenderScene(Scene* scene)
                     continue;
 
                 Transform* t = &scene->transforms[i];
+
+                Vector3 obj_pos = Transform_GetGlobalPosition(t);
+                float dx = obj_pos.x - cam_pos.x;
+                float dy = obj_pos.y - cam_pos.y;
+                float dz = obj_pos.z - cam_pos.z;
+                if ((dx*dx + dy*dy + dz*dz) > cull_dist_sq)
+                    continue; // Too far to cast a visible shadow.
+
                 Matrix4* bone_ptr = NULL;
                 uint32_t anim_id = rc->root_animator_entity_id;
                 
@@ -517,12 +538,9 @@ void Engine_RenderScene(Scene* scene)
                     bone_ptr = scene->animators[anim_id].final_bone_matrices;
                 else if (scene->component_masks[i] & COMPONENT_ANIMATOR)
                     bone_ptr = scene->animators[i].final_bone_matrices;
+                    
 
-                // Use the skinned shadow shader so the cast shadow follows the live pose.
-                // If there are no bones, fall back to the static shader (bind pose).
-                ShaderHandle caster_shader = (bone_ptr != NULL) ? skinned_shadow_shader : shadow_shader;
-
-                Render_Submit(engine.renderer, rc->mesh->gpu_handle, caster_shader,
+                Render_Submit(engine.renderer, rc->mesh->gpu_handle, (ShaderHandle){0},
                               (TextureHandle){0}, (MaterialProperties){0},
                               t->world_matrix, bone_ptr, false, 0.0f);
             }
@@ -632,7 +650,10 @@ void Engine_RenderScene(Scene* scene)
                 if (!Frustum_ContainsAABB(&cam_frustum, rc->mesh->local_bounds, t->world_matrix))
                     continue;
 
-                Render_Submit(engine.renderer, rc->mesh->gpu_handle, rc->material->shader->gpu_handle,
+                // Grab the custom shader if it exists, otherwise pass {0}
+                ShaderHandle shader = (rc->material->shader) ? rc->material->shader->gpu_handle : (ShaderHandle){0};
+
+                Render_Submit(engine.renderer, rc->mesh->gpu_handle, shader,
                                 rc->material->diffuse_texture->gpu_handle, rc->material->properties,
                                 t->world_matrix, NULL, false, 0.0f);
             }
@@ -682,7 +703,10 @@ void Engine_RenderScene(Scene* scene)
                 if (!Frustum_ContainsAABB(&cam_frustum, rc->pose_bounds, t->world_matrix))
                     continue;
 
-                Render_Submit(engine.renderer, rc->mesh->gpu_handle, rc->material->shader->gpu_handle,
+                // Grab the custom shader if it exists, otherwise pass {0}
+                ShaderHandle shader = (rc->material->shader) ? rc->material->shader->gpu_handle : (ShaderHandle){0};
+
+                Render_Submit(engine.renderer, rc->mesh->gpu_handle, shader,
                               rc->material->diffuse_texture->gpu_handle, rc->material->properties,
                               t->world_matrix, bone_ptr, false, 0.0f);
             }
