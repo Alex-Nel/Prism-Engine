@@ -227,17 +227,447 @@ void Engine_SetClearColor(float red, float green, float blue, float alpha)
 
 
 
-// Small struct to sort cameras before rendering
-typedef struct ActiveCamera
-{
-    uint32_t entity_id;
-    int render_order;
-} ActiveCamera;
+
+
+
+
+
+
+
+
+
 
 // Sorting function for cameras (lowest order renders first)
-int CompareCameraOrder(const void* a, const void* b)
+static int CompareCameraOrder(const void* a, const void* b)
 {
     return ((ActiveCamera*)a)->render_order - ((ActiveCamera*)b)->render_order;
+}
+
+
+
+
+
+// Gathers all the lights in a scene and puts them in a render packet
+void Engine_GatherSceneLights(Scene* scene, RenderPacket* packet, DirectionalLightData* dir_lights, PointLightData* point_lights, SpotLightData* spot_lights)
+{
+    uint32_t dir_count = 0, point_count = 0, spot_count = 0;
+    uint32_t light_mask = COMPONENT_TRANSFORM | COMPONENT_LIGHT;
+    float pi = 3.14159265359f;
+
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i] || (scene->component_masks[i] & light_mask) != light_mask)
+            continue;
+
+        Transform* t = &scene->transforms[i];
+        LightComponent* l = &scene->lights[i];
+
+        if (!l->is_active)
+            continue;
+
+        if (l->type == LIGHT_DIRECTIONAL && dir_count < MAX_RESOURCES)
+        {
+            dir_lights[dir_count].direction = Transform_GetForwardVector(t);
+            dir_lights[dir_count].color = l->color;
+            dir_lights[dir_count].intensity = l->intensity;
+            dir_lights[dir_count].ambient_strength = l->ambient_strength;
+            dir_lights[dir_count].shadow_box_size = l->shadow_box_size;
+            dir_lights[dir_count].shadow_cascade_count = l->shadow_cascade_count;
+            dir_lights[dir_count].shadow_max_distance = l->shadow_max_distance;
+            dir_lights[dir_count].cascade_split_lambda = l->cascade_split_lambda;
+            dir_lights[dir_count].cascade_blend_fraction = l->cascade_blend_fraction;
+            dir_count++;
+        }
+        else if (l->type == LIGHT_POINT && point_count < MAX_RESOURCES)
+        {
+            point_lights[point_count].position = Transform_GetGlobalPosition(t);
+            point_lights[point_count].color = l->color;
+            point_lights[point_count].intensity = l->intensity;
+            point_lights[point_count].constant = l->constant;
+            point_lights[point_count].linear = l->linear;
+            point_lights[point_count].quadratic = l->quadratic;
+            point_count++;
+        }
+        else if (l->type == LIGHT_SPOT && spot_count < MAX_RESOURCES)
+        {
+            spot_lights[spot_count].position = Transform_GetGlobalPosition(t);
+            spot_lights[spot_count].direction = Transform_GetForwardVector(t);
+            spot_lights[spot_count].color = l->color;
+            spot_lights[spot_count].intensity = l->intensity;
+            spot_lights[spot_count].constant = l->constant;
+            spot_lights[spot_count].linear = l->linear;
+            spot_lights[spot_count].quadratic = l->quadratic;
+            spot_lights[spot_count].inner_cut_off = cosf(l->inner_cut_off * (pi / 180.0f));
+            spot_lights[spot_count].outer_cut_off = cosf(l->outer_cut_off * (pi / 180.0f));
+            spot_count++;
+        }
+    }
+
+    packet->dir_lights = dir_lights;
+    packet->dir_light_count = dir_count;
+    packet->point_lights = point_lights;
+    packet->point_light_count = point_count;
+    packet->spot_lights = spot_lights;
+    packet->spot_light_count = spot_count;
+}
+
+
+
+
+
+// Executes the shadow pass of the rendering pipeline with a rendering packet
+void Engine_ExecuteShadowPass(Scene* scene, RenderPacket* packet)
+{
+    DirectionalLightData* shadow_light = &packet->dir_lights[0];
+    Vector3 light_dir = shadow_light->direction;
+
+    Transform* main_cam_t = &scene->transforms[scene->main_camera_id];
+    CameraComponent* main_cam = &scene->cameras[scene->main_camera_id];
+    Vector3 cam_pos = Transform_GetGlobalPosition(main_cam_t);
+    Vector3 cam_fwd = Transform_GetForwardVector(main_cam_t);
+    Vector3 cam_right = Transform_GetRightVector(main_cam_t);
+    Vector3 cam_up = Transform_GetUpVector(main_cam_t);
+
+    packet->camera_forward = cam_fwd;
+
+    Camera_RecalculateProjectionIfNeeded(main_cam);
+    
+    packet->shadow_camera_near = main_cam->nearZ;
+    packet->cascade_blend_fraction = shadow_light->cascade_blend_fraction;
+    
+    if (packet->cascade_blend_fraction <= 0.0f)
+        packet->cascade_blend_fraction = 0.12f;
+    
+    if (packet->cascade_blend_fraction > 0.5f)
+        packet->cascade_blend_fraction = 0.5f;
+
+    float light_distance = 80.0f;
+    Vector3 up;
+    if (fabsf(light_dir.y) > 0.99f)
+        up = (Vector3){0.0f, 0.0f, 1.0f};
+    else
+        up = (Vector3){0.0f, 1.0f, 0.0f};
+
+    uint32_t cascade_count = shadow_light->shadow_cascade_count;
+    if (cascade_count < 1)
+        cascade_count = 1;
+    if (cascade_count > MAX_SHADOW_CASCADES)
+        cascade_count = MAX_SHADOW_CASCADES;
+    
+    packet->shadow_cascade_count = cascade_count;
+
+
+    // If the cascade count is 1 or 0, use only one shadow map
+    if (cascade_count <= 1)
+    {
+        float shadow_box_size = shadow_light->shadow_box_size;
+        if (shadow_box_size <= 0.0f)
+            shadow_box_size = 20.0f;
+
+        Vector3 center = {
+            cam_pos.x + cam_fwd.x * shadow_box_size * 0.5f,
+            cam_pos.y + cam_fwd.y * shadow_box_size * 0.5f,
+            cam_pos.z + cam_fwd.z * shadow_box_size * 0.5f
+        };
+        float texel_world_size = (2.0f * shadow_box_size) / (float)SHADOW_MAP_RESOLUTION;
+
+        Matrix4 light_basis = Matrix4LookAt((Vector3){0.0f, 0.0f, 0.0f}, light_dir, up);
+        Vector4 center_ls = Matrix4MultiplyVector4(light_basis, (Vector4){center.x, center.y, center.z, 1.0f});
+        center_ls.x = floorf(center_ls.x / texel_world_size) * texel_world_size;
+        center_ls.y = floorf(center_ls.y / texel_world_size) * texel_world_size;
+
+        Vector4 snapped = Matrix4MultiplyVector4(Matrix4Transpose(light_basis), center_ls);
+        Vector3 center_snapped = { snapped.x, snapped.y, snapped.z };
+
+        Vector3 light_pos = {
+            center_snapped.x - light_dir.x * light_distance,
+            center_snapped.y - light_dir.y * light_distance,
+            center_snapped.z - light_dir.z * light_distance
+        };
+
+        Matrix4 light_view = Matrix4LookAt(light_pos, center_snapped, up);
+        Matrix4 light_proj = Matrix4Ortho(-shadow_box_size, shadow_box_size,
+                                          -shadow_box_size, shadow_box_size,
+                                          0.1f, 2.0f * light_distance);
+
+        packet->light_space_matrices[0] = Matrix4Multiply(light_proj, light_view);
+        packet->shadow_texel_world_sizes[0] = texel_world_size;
+    }
+    // Separate shadow map into specified number of shadow cascades
+    else
+    {
+        float aspect = (float)main_cam->viewport_width / (float)main_cam->viewport_height;
+        if (aspect <= 0.0f)
+            aspect = 1.0f;
+
+        float cam_near = main_cam->nearZ;
+        float shadow_far = shadow_light->shadow_max_distance;
+        if (shadow_far <= cam_near)
+            shadow_far = cam_near + 1.0f;
+        if (shadow_far > main_cam->farZ)
+            shadow_far = main_cam->farZ;
+
+        float split_lambda = shadow_light->cascade_split_lambda;
+        if (split_lambda < 0.0f)
+            split_lambda = 0.0f;
+        if (split_lambda > 1.0f)
+            split_lambda = 1.0f;
+
+        float splits[MAX_SHADOW_CASCADES - 1];
+        for (uint32_t i = 1; i < cascade_count; i++)
+        {
+            float p = (float)i / (float)cascade_count;
+            float log_split = cam_near * powf(shadow_far / cam_near, p);
+            float uni_split = cam_near + (shadow_far - cam_near) * p;
+            splits[i - 1] = uni_split * (1.0f - split_lambda) + log_split * split_lambda;
+            packet->cascade_splits[i - 1] = splits[i - 1];
+        }
+
+        // cam->fov is stored in radians
+        float tan_half = tanf(main_cam->fov * 0.5f);
+
+        for (uint32_t c = 0; c < cascade_count; c++)
+        {
+            float split_near;
+            if (c == 0)
+                split_near = cam_near;
+            else
+                split_near = splits[c - 1];
+
+            float split_far;
+            if (c == cascade_count - 1)
+                split_far = shadow_far;
+            else
+                split_far = splits[c];
+
+            if (c > 0)
+            {
+                float prev_near;
+                if (c == 1)
+                    prev_near = cam_near;
+                else
+                    prev_near = splits[c - 2];
+
+                float prev_slice = splits[c - 1] - prev_near;
+                split_near -= prev_slice * packet->cascade_blend_fraction;
+                if (split_near < cam_near)
+                    split_near = cam_near;
+            }
+
+            Vector3 corners[8];
+            BuildFrustumSliceCorners(cam_pos, cam_fwd, cam_right, cam_up, aspect, tan_half, split_near, split_far, corners);
+            ComputeCascadeLightMatrix(corners, light_dir, up, light_distance, &packet->light_space_matrices[c], &packet->shadow_texel_world_sizes[c]);
+        }
+    }
+
+    // Begin Shadow Pass
+    Render_BeginShadowPass(engine.renderer, packet);
+
+    float cull_dist = shadow_light->shadow_max_distance + 50.0f; 
+    float cull_dist_sq = cull_dist * cull_dist;
+
+
+    // Submit shadows for Static Meshes
+    uint32_t req_mesh_mask = COMPONENT_TRANSFORM | COMPONENT_MESH_RENDERER;
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i] || (scene->component_masks[i] & req_mesh_mask) != req_mesh_mask)
+            continue;
+
+        MeshRendererComponent* rc = &scene->mesh_renderers[i];
+        if (!rc->is_active || !rc->mesh)
+            continue;
+
+        Transform* t = &scene->transforms[i];
+        Vector3 obj_pos = Transform_GetGlobalPosition(t);
+        float dx = obj_pos.x - cam_pos.x;
+        float dy = obj_pos.y - cam_pos.y;
+        float dz = obj_pos.z - cam_pos.z;
+        if ((dx*dx + dy*dy + dz*dz) > cull_dist_sq)
+            continue; // Too far to cast a visible shadow
+
+        Render_Submit(engine.renderer, rc->mesh->gpu_handle, (ShaderHandle){0}, (TextureHandle){0}, (MaterialProperties){0}, t->world_matrix, NULL, false, 0.0f);
+    }
+
+
+    // Submit shadows for Skinned Meshes
+    uint32_t req_skin_mask = COMPONENT_TRANSFORM | COMPONENT_SKINNED_MESH_RENDERER;
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i] || (scene->component_masks[i] & req_skin_mask) != req_skin_mask)
+            continue;
+
+        SkinnedMeshRendererComponent* rc = &scene->skinned_mesh_renderers[i];
+        if (!rc->is_active || !rc->mesh)
+            continue;
+
+        Transform* t = &scene->transforms[i];
+
+        Vector3 obj_pos = Transform_GetGlobalPosition(t);
+        float dx = obj_pos.x - cam_pos.x;
+        float dy = obj_pos.y - cam_pos.y;
+        float dz = obj_pos.z - cam_pos.z;
+        if ((dx*dx + dy*dy + dz*dz) > cull_dist_sq)
+            continue; // Too far to cast a visible shadow
+
+        Matrix4* bone_ptr = NULL;
+        uint32_t anim_id = rc->root_animator_entity_id;
+
+        if (anim_id != 0 && anim_id != ENTITY_NONE && (scene->component_masks[anim_id] & COMPONENT_ANIMATOR))
+            bone_ptr = scene->animators[anim_id].final_bone_matrices;
+        else if (scene->component_masks[i] & COMPONENT_ANIMATOR)
+            bone_ptr = scene->animators[i].final_bone_matrices;
+
+        Render_Submit(engine.renderer, rc->mesh->gpu_handle, (ShaderHandle){0}, (TextureHandle){0}, (MaterialProperties){0}, t->world_matrix, bone_ptr, false, 0.0f);
+    }
+
+    Render_EndShadowPass(engine.renderer);
+}
+
+
+
+
+
+// Gathers and sorts all cameras in a scene
+uint32_t Engine_GatherAndSortCameras(Scene* scene, ActiveCamera* active_cameras)
+{
+    uint32_t camera_count = 0;
+    uint32_t cam_mask = COMPONENT_TRANSFORM | COMPONENT_CAMERA;
+
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (scene->is_active_in_hierarchy[i] && (scene->component_masks[i] & cam_mask) == cam_mask)
+        {
+            if (scene->cameras[i].is_active)
+            {
+                active_cameras[camera_count].entity_id = i;
+                active_cameras[camera_count].render_order = scene->cameras[i].render_order;
+                camera_count++;
+            }
+        }
+    }
+
+    qsort(active_cameras, camera_count, sizeof(ActiveCamera), CompareCameraOrder);
+    
+    return camera_count;
+}
+
+
+
+
+
+// Submits all visible geometry to the renderer
+void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 cam_pos, uint32_t culling_masks)
+{
+    // --- Static Meshes ---
+    uint32_t req_mesh_mask = COMPONENT_TRANSFORM | COMPONENT_MESH_RENDERER;
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i] || (scene->component_masks[i] & req_mesh_mask) != req_mesh_mask)
+            continue;
+        
+        MeshRendererComponent* rc = &scene->mesh_renderers[i];
+        if (!rc->is_active || !rc->mesh || !rc->material || (rc->layer_mask & culling_masks) == 0)
+            continue;
+
+        Transform* t = &scene->transforms[i];
+        if (!Frustum_ContainsAABB(cam_frustum, rc->mesh->local_bounds, t->world_matrix))
+            continue;
+
+        ShaderHandle shader;
+        if (rc->material->shader)
+            shader = rc->material->shader->gpu_handle;
+        else
+            shader = (ShaderHandle){0};
+        
+        Render_Submit(engine.renderer, rc->mesh->gpu_handle, shader, rc->material->diffuse_texture->gpu_handle, rc->material->properties, t->world_matrix, NULL, false, 0.0f);
+    }
+
+
+
+    // --- Skinned Meshes ---
+    uint32_t req_skin_mask = COMPONENT_TRANSFORM | COMPONENT_SKINNED_MESH_RENDERER;
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i] || (scene->component_masks[i] & req_skin_mask) != req_skin_mask)
+            continue;
+
+        SkinnedMeshRendererComponent* rc = &scene->skinned_mesh_renderers[i];
+        if (!rc->is_active || !rc->mesh || !rc->material || (rc->layer_mask & culling_masks) == 0)
+            continue;
+
+        Transform* t = &scene->transforms[i];
+        if (!Frustum_ContainsAABB(cam_frustum, rc->pose_bounds, t->world_matrix))
+            continue;
+
+        Matrix4* bone_ptr = NULL;
+        uint32_t anim_id = rc->root_animator_entity_id;
+
+        if (anim_id != 0 && anim_id != ENTITY_NONE && (scene->component_masks[anim_id] & COMPONENT_ANIMATOR))
+            bone_ptr = scene->animators[anim_id].final_bone_matrices;
+        else if (scene->component_masks[i] & COMPONENT_ANIMATOR)
+            bone_ptr = scene->animators[i].final_bone_matrices;
+
+        ShaderHandle shader;
+        if (rc->material->shader)
+            shader = rc->material->shader->gpu_handle;
+        else
+            shader = (ShaderHandle){0};
+        
+        Render_Submit(engine.renderer, rc->mesh->gpu_handle, shader, rc->material->diffuse_texture->gpu_handle, rc->material->properties, t->world_matrix, bone_ptr, false, 0.0f);
+    }
+
+
+
+    // --- Line Renderers ---
+    uint32_t req_line_mask = COMPONENT_TRANSFORM | COMPONENT_LINE_RENDERER;
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i] || (scene->component_masks[i] & req_line_mask) != req_line_mask)
+            continue;
+        
+        LineRendererComponent* line = &scene->line_renderers[i];
+        if (!line->is_active || line->point_count < 2 || !line->dynamic_mesh || !line->material)
+            continue;
+
+        MaterialProperties local_props = line->material->properties;
+        local_props.tint_color = line->color;
+
+        Render_Submit(engine.renderer, line->dynamic_mesh->gpu_handle, line->material->shader->gpu_handle, line->material->diffuse_texture->gpu_handle, local_props, Matrix4Identity(), NULL, false, 0.0f);
+    }
+
+
+
+    // --- Sprite Renderers ---
+    uint32_t req_sprite_mask = COMPONENT_TRANSFORM | COMPONENT_SPRITE_RENDERER;
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i] || (scene->component_masks[i] & req_sprite_mask) != req_sprite_mask)
+            continue;
+        
+        SpriteRendererComponent* sprite = &scene->sprite_renderers[i];
+        if (!sprite->is_active || !sprite->quad || !sprite->material)
+            continue;
+
+        Transform* t = &scene->transforms[i];
+
+        Vector3 sprite_pos = Transform_GetGlobalPosition(t);
+        float dx = cam_pos.x - sprite_pos.x;
+        float dy = cam_pos.y - sprite_pos.y;
+        float dz = cam_pos.z - sprite_pos.z;
+        float dist_sq = (dx * dx) + (dy * dy) + (dz * dz);
+
+        MaterialProperties local_props = sprite->material->properties;
+        local_props.tint_color = sprite->color;
+
+        float aspect_x = (float)sprite->material->diffuse_texture->width / (float)sprite->material->diffuse_texture->height;
+        Matrix4 aspect_matrix = Matrix4Identity();
+        aspect_matrix.m00 = aspect_x;
+        
+        Matrix4 final_sprite_matrix = Matrix4Multiply(t->world_matrix, aspect_matrix);
+
+        Render_Submit(engine.renderer, sprite->quad->gpu_handle, sprite->material->shader->gpu_handle, sprite->material->diffuse_texture->gpu_handle, local_props, final_sprite_matrix, NULL, true, dist_sq);
+    }
 }
 
 
@@ -258,337 +688,46 @@ void Engine_RenderScene(Scene* scene)
 
     // Make an empty render packet to send to the renderer
     RenderPacket packet = {0};
+    packet.enable_ssao = true;
+    packet.has_skybox = scene->has_skybox;
+
+    if (scene->has_skybox)
+    {
+        if (scene->skybox.texture)
+            packet.skybox_texture = scene->skybox.texture->gpu_handle;
+        if (scene->skybox.shader)
+            packet.skybox_shader = scene->skybox.shader->gpu_handle;
+    }
 
     // --- Get all Point Lights from the ECS ---
     DirectionalLightData active_dir_lights[MAX_RESOURCES];
     PointLightData active_point_lights[MAX_RESOURCES];
     SpotLightData active_spot_lights[MAX_RESOURCES];
 
-    uint32_t directional_count = 0;
-    uint32_t point_count = 0;
-    uint32_t spot_count = 0;
 
-    uint32_t light_mask = COMPONENT_TRANSFORM | COMPONENT_LIGHT;
+    // Fille the packet with all the lights in the scene
+    Engine_GatherSceneLights(scene, &packet, active_dir_lights, active_point_lights, active_spot_lights);
 
-    float pi = 3.14159265359f;
-
-    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
-    {
-        if (!scene->is_active_in_hierarchy[i])
-            continue;
-
-        if ((scene->component_masks[i] & light_mask) == light_mask)
-        {    
-            Transform* t = &scene->transforms[i];
-            LightComponent* l = &scene->lights[i];
-
-            if (!l->is_active)
-                continue;
-
-            if (l->type == LIGHT_DIRECTIONAL && directional_count < MAX_RESOURCES)
-            {
-                active_dir_lights[directional_count].direction = Transform_GetForwardVector(t);
-                active_dir_lights[directional_count].color = l->color;
-                active_dir_lights[directional_count].intensity = l->intensity;
-                active_dir_lights[directional_count].ambient_strength = l->ambient_strength;
-                active_dir_lights[directional_count].shadow_box_size = l->shadow_box_size;
-                active_dir_lights[directional_count].shadow_cascade_count = l->shadow_cascade_count;
-                active_dir_lights[directional_count].shadow_max_distance = l->shadow_max_distance;
-                active_dir_lights[directional_count].cascade_split_lambda = l->cascade_split_lambda;
-                active_dir_lights[directional_count].cascade_blend_fraction = l->cascade_blend_fraction;
-                directional_count++;
-            }
-            else if (l->type == LIGHT_POINT && point_count < MAX_RESOURCES)
-            {
-                active_point_lights[point_count].position = Transform_GetGlobalPosition(t);
-                active_point_lights[point_count].color = l->color;
-                active_point_lights[point_count].intensity = l->intensity;
-                active_point_lights[point_count].constant = l->constant;
-                active_point_lights[point_count].linear = l->linear;
-                active_point_lights[point_count].quadratic = l->quadratic;
-                point_count++;
-            }
-            else if (l->type == LIGHT_SPOT && spot_count < MAX_RESOURCES)
-            {
-                active_spot_lights[spot_count].position = Transform_GetGlobalPosition(t);
-                active_spot_lights[spot_count].direction = Transform_GetForwardVector(t);
-                active_spot_lights[spot_count].color = l->color;
-                active_spot_lights[spot_count].intensity = l->intensity;
-                active_spot_lights[spot_count].constant = l->constant;
-                active_spot_lights[spot_count].linear = l->linear;
-                active_spot_lights[spot_count].quadratic = l->quadratic;
-                active_spot_lights[spot_count].inner_cut_off = cosf(l->inner_cut_off * (pi / 180.0f));
-                active_spot_lights[spot_count].outer_cut_off = cosf(l->outer_cut_off * (pi / 180.0f));
-                spot_count++;
-            }
-        }
-    }
-
-    packet.dir_lights = active_dir_lights;
-    packet.dir_light_count = directional_count;
-
-    packet.point_lights = active_point_lights;
-    packet.point_light_count = point_count;
-
-    packet.spot_lights = active_spot_lights;
-    packet.spot_light_count = spot_count;
-
-    packet.has_skybox = scene->has_skybox;
-
-    if (scene->has_skybox && scene->skybox.texture)
-        packet.skybox_texture = scene->skybox.texture->gpu_handle;
-    if (scene->has_skybox && scene->skybox.shader)
-        packet.skybox_shader = scene->skybox.shader->gpu_handle;
-
-    packet.enable_ssao = true;
-
-
-
-    // --- Shadow Pass ---
-
-    if (directional_count > 0)
-    {
-        DirectionalLightData* shadow_light = &active_dir_lights[0];
-        Vector3 light_dir = shadow_light->direction;
-
-        Transform* main_cam_t = &scene->transforms[scene->main_camera_id];
-        CameraComponent* main_cam = &scene->cameras[scene->main_camera_id];
-        Vector3 cam_pos = Transform_GetGlobalPosition(main_cam_t);
-        Vector3 cam_fwd = Transform_GetForwardVector(main_cam_t);
-        Vector3 cam_right = Transform_GetRightVector(main_cam_t);
-        Vector3 cam_up = Transform_GetUpVector(main_cam_t);
-
-        packet.camera_forward = cam_fwd;
-
-        Camera_RecalculateProjectionIfNeeded(main_cam);
-        packet.shadow_camera_near = main_cam->nearZ;
-        packet.cascade_blend_fraction = shadow_light->cascade_blend_fraction;
-        if (packet.cascade_blend_fraction <= 0.0f)
-            packet.cascade_blend_fraction = 0.12f;
-        if (packet.cascade_blend_fraction > 0.5f)
-            packet.cascade_blend_fraction = 0.5f;
-
-        float light_distance = 80.0f;
-        Vector3 up = (fabsf(light_dir.y) > 0.99f) ? (Vector3){0.0f, 0.0f, 1.0f} : (Vector3){0.0f, 1.0f, 0.0f};
-
-        uint32_t cascade_count = shadow_light->shadow_cascade_count;
-        if (cascade_count < 1)
-            cascade_count = 1;
-        if (cascade_count > MAX_SHADOW_CASCADES)
-            cascade_count = MAX_SHADOW_CASCADES;
-
-        packet.shadow_cascade_count = cascade_count;
-
-        if (cascade_count <= 1)
-        {
-            // --- Single shadow map (original camera-following ortho box) ---
-            float shadow_box_size = shadow_light->shadow_box_size;
-            if (shadow_box_size <= 0.0f)
-                shadow_box_size = 20.0f;
-            
-            Vector3 center = {
-                cam_pos.x + cam_fwd.x * shadow_box_size * 0.5f,
-                cam_pos.y + cam_fwd.y * shadow_box_size * 0.5f,
-                cam_pos.z + cam_fwd.z * shadow_box_size * 0.5f
-            };
-
-            float texel_world_size = (2.0f * shadow_box_size) / (float)SHADOW_MAP_RESOLUTION;
-
-            Matrix4 light_basis = Matrix4LookAt((Vector3){0.0f, 0.0f, 0.0f}, light_dir, up);
-            Vector4 center_ls = Matrix4MultiplyVector4(light_basis, (Vector4){center.x, center.y, center.z, 1.0f});
-            center_ls.x = floorf(center_ls.x / texel_world_size) * texel_world_size;
-            center_ls.y = floorf(center_ls.y / texel_world_size) * texel_world_size;
-
-            Vector4 snapped = Matrix4MultiplyVector4(Matrix4Transpose(light_basis), center_ls);
-            Vector3 center_snapped = { snapped.x, snapped.y, snapped.z };
-
-            Vector3 light_pos = {
-                center_snapped.x - light_dir.x * light_distance,
-                center_snapped.y - light_dir.y * light_distance,
-                center_snapped.z - light_dir.z * light_distance
-            };
-
-            Matrix4 light_view = Matrix4LookAt(light_pos, center_snapped, up);
-            Matrix4 light_proj = Matrix4Ortho(-shadow_box_size, shadow_box_size,
-                                              -shadow_box_size, shadow_box_size,
-                                              0.1f, 2.0f * light_distance);
-
-            packet.light_space_matrices[0] = Matrix4Multiply(light_proj, light_view);
-            packet.shadow_texel_world_sizes[0] = texel_world_size;
-        }
-        else
-        {
-            // --- Cascaded shadow maps ---
-            Camera_RecalculateProjectionIfNeeded(main_cam);
-            float aspect = (float)main_cam->viewport_width / (float)main_cam->viewport_height;
-            if (aspect <= 0.0f)
-                aspect = 1.0f;
-
-            float cam_near = main_cam->nearZ;
-            float shadow_far = shadow_light->shadow_max_distance;
-            if (shadow_far <= cam_near)
-                shadow_far = cam_near + 1.0f;
-            if (shadow_far > main_cam->farZ)
-                shadow_far = main_cam->farZ;
-
-            float split_lambda = shadow_light->cascade_split_lambda;
-            if (split_lambda < 0.0f)
-                split_lambda = 0.0f;
-            if (split_lambda > 1.0f)
-                split_lambda = 1.0f;
-
-            float splits[MAX_SHADOW_CASCADES - 1];
-            for (uint32_t i = 1; i < cascade_count; i++)
-            {
-                float p = (float)i / (float)cascade_count;
-                float log_split = cam_near * powf(shadow_far / cam_near, p);
-                float uni_split = cam_near + (shadow_far - cam_near) * p;
-                splits[i - 1] = uni_split * (1.0f - split_lambda) + log_split * split_lambda;
-                packet.cascade_splits[i - 1] = splits[i - 1];
-            }
-
-            // cam->fov is stored in radians
-            float tan_half = tanf(main_cam->fov * 0.5f);
-
-            for (uint32_t c = 0; c < cascade_count; c++)
-            {
-                float split_near = (c == 0) ? cam_near : splits[c - 1];
-                float split_far  = (c == cascade_count - 1) ? shadow_far : splits[c];
-
-                // Extend the rendered frustum slightly past the split so the next cascade has overlapping shadow data for a smooth cross-fade in the shader.
-                if (c > 0)
-                {
-                    float prev_near = (c == 1) ? cam_near : splits[c - 2];
-                    float prev_slice = splits[c - 1] - prev_near;
-                    split_near -= prev_slice * packet.cascade_blend_fraction;
-                    if (split_near < cam_near)
-                        split_near = cam_near;
-                }
-
-                Vector3 corners[8];
-                BuildFrustumSliceCorners(cam_pos, cam_fwd, cam_right, cam_up, aspect, tan_half, split_near, split_far, corners);
-
-                ComputeCascadeLightMatrix(corners, light_dir, up, light_distance, &packet.light_space_matrices[c], &packet.shadow_texel_world_sizes[c]);
-            }
-        }
-
-
-        // Begin Shadow Pass
-        Render_BeginShadowPass(engine.renderer, &packet);
-
-        // --- Calculate global shadow culling distance ---
-        float cull_dist = shadow_light->shadow_max_distance + 50.0f; 
-        float cull_dist_sq = cull_dist * cull_dist;
-
-        // Submit Static Meshes for Shadows
-        uint32_t req_mesh_mask = COMPONENT_TRANSFORM | COMPONENT_MESH_RENDERER;
-        for (uint32_t i = 0; i < MAX_ENTITIES; i++)
-        {
-            if (!scene->is_active_in_hierarchy[i])
-                continue;
-            
-            if ((scene->component_masks[i] & req_mesh_mask) == req_mesh_mask)
-            {
-                MeshRendererComponent* rc = &scene->mesh_renderers[i];
-                if (!rc->is_active || !rc->mesh)
-                    continue;
-
-                Transform* t = &scene->transforms[i];
-
-                Vector3 obj_pos = Transform_GetGlobalPosition(t);
-                float dx = obj_pos.x - cam_pos.x;
-                float dy = obj_pos.y - cam_pos.y;
-                float dz = obj_pos.z - cam_pos.z;
-                if ((dx*dx + dy*dy + dz*dz) > cull_dist_sq)
-                    continue; // Too far to cast a visible shadow.
-
-                // Pass NULL for texture and default props, the shadow shader ignores them
-                Render_Submit(engine.renderer, rc->mesh->gpu_handle, (ShaderHandle){0},
-                              (TextureHandle){0}, (MaterialProperties){0},
-                              t->world_matrix, NULL, false, 0.0f);
-            }
-        }
-
-        // Submit Skinned Meshes for Shadows
-        uint32_t req_skin_mask = COMPONENT_TRANSFORM | COMPONENT_SKINNED_MESH_RENDERER;
-        for (uint32_t i = 0; i < MAX_ENTITIES; i++)
-        {
-            if (!scene->is_active_in_hierarchy[i])
-                continue;
-
-            if ((scene->component_masks[i] & req_skin_mask) == req_skin_mask)
-            {
-                SkinnedMeshRendererComponent* rc = &scene->skinned_mesh_renderers[i];
-                if (!rc->is_active || !rc->mesh)
-                    continue;
-
-                Transform* t = &scene->transforms[i];
-
-                Vector3 obj_pos = Transform_GetGlobalPosition(t);
-                float dx = obj_pos.x - cam_pos.x;
-                float dy = obj_pos.y - cam_pos.y;
-                float dz = obj_pos.z - cam_pos.z;
-                if ((dx*dx + dy*dy + dz*dz) > cull_dist_sq)
-                    continue; // Too far to cast a visible shadow.
-
-                Matrix4* bone_ptr = NULL;
-                uint32_t anim_id = rc->root_animator_entity_id;
-                
-                if (anim_id != 0 && anim_id != ENTITY_NONE && (scene->component_masks[anim_id] & COMPONENT_ANIMATOR))
-                    bone_ptr = scene->animators[anim_id].final_bone_matrices;
-                else if (scene->component_masks[i] & COMPONENT_ANIMATOR)
-                    bone_ptr = scene->animators[i].final_bone_matrices;
-                    
-
-                Render_Submit(engine.renderer, rc->mesh->gpu_handle, (ShaderHandle){0},
-                              (TextureHandle){0}, (MaterialProperties){0},
-                              t->world_matrix, bone_ptr, false, 0.0f);
-            }
-        }
-
-        Render_EndShadowPass(engine.renderer);
-    }
-
-
-
-    // --- Gather and sort camera ---
-
-    ActiveCamera active_cameras[MAX_ENTITIES];
-    uint32_t camera_count = 0;
-    uint32_t cam_mask = COMPONENT_TRANSFORM | COMPONENT_CAMERA;
-
-    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
-    {
-        if (!scene->is_active_in_hierarchy[i])
-            continue;
-        
-        if ((scene->component_masks[i] & cam_mask) == cam_mask)
-        {
-            if (scene->cameras[i].is_active)
-            {
-                active_cameras[camera_count].entity_id = i;
-                active_cameras[camera_count].render_order = scene->cameras[i].render_order;
-                camera_count++;
-            }
-        }
-    }
-
-    qsort(active_cameras, camera_count, sizeof(ActiveCamera), CompareCameraOrder);
+    // If there are directional lights, render all shadows
+    if (packet.dir_light_count > 0)
+        Engine_ExecuteShadowPass(scene, &packet);
     
 
+    // Gather and sort cameras
+    ActiveCamera active_cameras[MAX_ENTITIES];
+    uint32_t camera_count = Engine_GatherAndSortCameras(scene, active_cameras);
 
-    // --- Execute render pass per camera ---
 
+    // Execute render pass per camera
     for (uint32_t c = 0; c < camera_count; c++)
     {
         uint32_t cam_id = active_cameras[c].entity_id;
         Transform* cam_transform = &scene->transforms[cam_id];
         CameraComponent* cam_comp = &scene->cameras[cam_id];
 
-        // Clear the screen based on this camera's flags
+        // Clear Screen
         if (cam_comp->clear_flags == CLEAR_COLOR_AND_DEPTH)
         {
-            // Sets background color and wipes depth
             Color bg = scene->skybox.background_color;
             Render_SetClearColor(engine.renderer, bg.r, bg.g, bg.b, bg.a);
             Render_Clear(engine.renderer);
@@ -598,213 +737,26 @@ void Engine_RenderScene(Scene* scene)
             Render_ClearDepth(engine.renderer);
         }
 
-        // Build Camera Matrices
+        // Setup Camera Matrices
         Vector3 global_pos = Transform_GetGlobalPosition(cam_transform);
         packet.view_matrix = Matrix4Inverse(cam_transform->world_matrix);
-
-        // Force camera to sync
         Camera_RecalculateProjectionIfNeeded(cam_comp);
         packet.projection_matrix = cam_comp->projection_matrix;
         packet.camera_pos = global_pos;
-
-        if (cam_comp->clear_flags == CLEAR_COLOR_AND_DEPTH)
-            packet.has_skybox = scene->has_skybox;
-        else
-            packet.has_skybox = false;
-
-
-        // Calculate the frustum for this camera
-        Matrix4 view_proj = Matrix4Multiply(packet.projection_matrix, packet.view_matrix);
-        Frustum cam_frustum = Frustum_ExtractFromMatrix(view_proj);
-
+        packet.has_skybox = (cam_comp->clear_flags == CLEAR_COLOR_AND_DEPTH) ? scene->has_skybox : false;
         packet.window_width = cam->viewport_width;
         packet.window_height = cam->viewport_height;
 
-        // Start pass
+        Matrix4 view_proj = Matrix4Multiply(packet.projection_matrix, packet.view_matrix);
+        Frustum cam_frustum = Frustum_ExtractFromMatrix(view_proj);
+
+        // Begin Forward Pass
         Render_BeginFrame(engine.renderer, &packet);
 
+        // Submit all visible geometry
+        Engine_SubmitVisibleGeometry(scene, &cam_frustum, global_pos, cam_comp->culling_masks);
 
-
-        // --- Submit static meshes for this camera only ---
-
-        uint32_t required_mesh_mask = COMPONENT_TRANSFORM | COMPONENT_MESH_RENDERER;
-        
-        for (uint32_t i = 0; i < MAX_ENTITIES; i++)
-        {
-            if (!scene->is_active_in_hierarchy[i])
-                continue;
-
-            if ((scene->component_masks[i] & required_mesh_mask) == required_mesh_mask)
-            {
-                MeshRendererComponent* rc = &scene->mesh_renderers[i];
-
-                if (!rc->is_active || !rc->mesh || !rc->material)
-                    continue;
-
-                if ((rc->layer_mask & cam_comp->culling_masks) == 0)
-                    continue;
-                
-                Transform* t = &scene->transforms[i];
-
-                // Skip if its outside the frustum
-                if (!Frustum_ContainsAABB(&cam_frustum, rc->mesh->local_bounds, t->world_matrix))
-                    continue;
-
-                // Grab the custom shader if it exists, otherwise pass {0}
-                ShaderHandle shader = (rc->material->shader) ? rc->material->shader->gpu_handle : (ShaderHandle){0};
-
-                Render_Submit(engine.renderer, rc->mesh->gpu_handle, shader,
-                                rc->material->diffuse_texture->gpu_handle, rc->material->properties,
-                                t->world_matrix, NULL, false, 0.0f);
-            }
-        }
-
-
-
-        // --- Submit skinned meshes for this camera only ---
-
-        uint32_t required_skinned_mask = COMPONENT_TRANSFORM | COMPONENT_SKINNED_MESH_RENDERER;
-
-        for (uint32_t i = 0; i < MAX_ENTITIES; i++)
-        {
-            if (!scene->is_active_in_hierarchy[i])
-                continue;
-
-            if ((scene->component_masks[i] & required_skinned_mask) == required_skinned_mask)
-            {
-                SkinnedMeshRendererComponent* rc = &scene->skinned_mesh_renderers[i];
-
-                if (!rc->is_active || !rc->mesh || !rc->material)
-                    continue;
-
-                if ((rc->layer_mask & cam_comp->culling_masks) == 0)
-                    continue;
-
-                Transform* t = &scene->transforms[i];
-
-                Matrix4* bone_ptr = NULL;
-
-                // Grab the explicit Animator Entity that drives this mesh
-                uint32_t anim_id = rc->root_animator_entity_id;
-                
-                // If it points to a parent/root entity, get its bones
-                if (anim_id != 0 && anim_id != ENTITY_NONE)
-                {
-                    if (scene->component_masks[anim_id] & COMPONENT_ANIMATOR)
-                        bone_ptr = scene->animators[anim_id].final_bone_matrices;
-                }
-                // Fallback: If the Animator is on this exact same entity
-                else if (scene->component_masks[i] & COMPONENT_ANIMATOR)
-                {
-                    bone_ptr = scene->animators[i].final_bone_matrices;
-                }
-
-                // Use cached pose bounds for frustum culling
-                if (!Frustum_ContainsAABB(&cam_frustum, rc->pose_bounds, t->world_matrix))
-                    continue;
-
-                // Grab the custom shader if it exists, otherwise pass {0}
-                ShaderHandle shader = (rc->material->shader) ? rc->material->shader->gpu_handle : (ShaderHandle){0};
-
-                Render_Submit(engine.renderer, rc->mesh->gpu_handle, shader,
-                              rc->material->diffuse_texture->gpu_handle, rc->material->properties,
-                              t->world_matrix, bone_ptr, false, 0.0f);
-            }
-        }
-
-
-
-        // --- Submit Line Renderers ---
-
-        uint32_t required_line_mask = COMPONENT_TRANSFORM | COMPONENT_LINE_RENDERER;
-
-        for (uint32_t i = 0; i < MAX_ENTITIES; i++)
-        {
-            if (!scene->is_active_in_hierarchy[i])
-                continue;
-
-            if ((scene->component_masks[i] & required_line_mask) == required_line_mask)
-            {
-                LineRendererComponent* line = &scene->line_renderers[i];
-
-                if (!line->is_active || line->point_count < 2)
-                    continue;
-
-                // Ensure the dynamic mesh and material exist
-                if (line->dynamic_mesh && line->material)
-                {
-                    // TODO: Add a layer_mask to LineRendererComponents
-                    // if ((line->layer_mask & cam_comp->culling_masks) == 0) continue;
-
-                    MaterialProperties local_props = line->material->properties;
-    
-                    // 2. Override the tint on the copy ONLY
-                    local_props.tint_color = line->color;
-
-                    Render_Submit(engine.renderer, line->dynamic_mesh->gpu_handle, 
-                                  line->material->shader->gpu_handle,
-                                  line->material->diffuse_texture->gpu_handle, 
-                                  local_props,
-                                  Matrix4Identity(), NULL, false, 0.0f);
-                }
-            }
-        }
-
-
-
-        // --- Submit Sprite Renderers ---
-        uint32_t required_sprite_mask = COMPONENT_TRANSFORM | COMPONENT_SPRITE_RENDERER;
-
-        for (uint32_t i = 0; i < MAX_ENTITIES; i++)
-        {
-            if (!scene->is_active_in_hierarchy[i])
-                continue;
-
-            if ((scene->component_masks[i] & required_sprite_mask) == required_sprite_mask)
-            {
-                SpriteRendererComponent* sprite = &scene->sprite_renderers[i];
-                if (!sprite->is_active || !sprite->quad || !sprite->material)
-                    continue;
-
-                Transform* t = &scene->transforms[i];
-
-                // Calculate squared distance from the camera for Alpha Sorting!
-                Vector3 sprite_pos = Transform_GetGlobalPosition(t);
-                float dx = global_pos.x - sprite_pos.x; // global_pos is the camera position from earlier in the function
-                float dy = global_pos.y - sprite_pos.y;
-                float dz = global_pos.z - sprite_pos.z;
-                float dist_sq = (dx * dx) + (dy * dy) + (dz * dz);
-
-                MaterialProperties local_props = sprite->material->properties;
-                local_props.tint_color = sprite->color;
-
-
-                // Get the width/height of the texture
-                float tex_w = (float)sprite->material->diffuse_texture->width;
-                float tex_h = (float)sprite->material->diffuse_texture->height;
-                
-                // Calculate aspect ratio. e.g., A tall texture might be 0.5 ratio.
-                float aspect_x = tex_w / tex_h;
-                float aspect_y = 1.0f; // Keep Y standard, scale X to match
-
-                // Create a temporary matrix that scales the 1x1 quad to the correct aspect ratio
-                Matrix4 aspect_matrix = Matrix4Identity();
-                aspect_matrix.m00 = aspect_x;
-                aspect_matrix.m11 = aspect_y;
-                
-                // Multiply the Entity's World Matrix by the Aspect Matrix
-                Matrix4 final_sprite_matrix = Matrix4Multiply(t->world_matrix, aspect_matrix);
-
-
-                Render_Submit(engine.renderer, sprite->quad->gpu_handle,
-                              sprite->material->shader->gpu_handle,
-                              sprite->material->diffuse_texture->gpu_handle,
-                              local_props, final_sprite_matrix, NULL, true, dist_sq);
-            }
-        }
-
-
-        // End pass
+        // End Forward Pass
         Render_EndFrame(engine.renderer);
     }
 }

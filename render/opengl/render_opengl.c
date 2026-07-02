@@ -347,6 +347,16 @@ static uint8_t* OpenGL_RotatePixels90CCW(const uint8_t* src, int w, int h, int c
 
 
 
+
+
+
+
+
+
+
+
+
+
 // Uploads vertex and index data to the GPU and returns a handle
 static MeshHandle OpenGL_CreateMesh(Renderer* r, const Vertex3D* vertices, uint32_t vertex_count, const uint32_t* indices,  uint32_t index_count)
 {
@@ -854,6 +864,11 @@ static void OpenGL_DestroyShader(Renderer* r, ShaderHandle shader)
 
 
 
+
+
+
+
+
 // Helper function to compile an internal engine shader from raw source code strings
 static ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const char* name, const char* vertex_src, const char* fragment_src)
 {
@@ -882,7 +897,8 @@ static ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const
     int success;
     char infoLog[512];
     glGetShaderiv(vertex, GL_COMPILE_STATUS, &success);
-    if (!success) {
+    if (!success)
+    {
         glGetShaderInfoLog(vertex, 512, NULL, infoLog);
         Log_Error("Internal Vertex Shader Compilation Failed (%s):\n%s", name, infoLog);
     }
@@ -893,7 +909,8 @@ static ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const
     glCompileShader(fragment);
     
     glGetShaderiv(fragment, GL_COMPILE_STATUS, &success);
-    if (!success) {
+    if (!success)
+    {
         glGetShaderInfoLog(fragment, 512, NULL, infoLog);
         Log_Error("Internal Fragment Shader Compilation Failed (%s):\n%s", name, infoLog);
     }
@@ -905,7 +922,8 @@ static ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const
     glLinkProgram(program);
     
     glGetProgramiv(program, GL_LINK_STATUS, &success);
-    if (!success) {
+    if (!success)
+    {
         glGetProgramInfoLog(program, 512, NULL, infoLog);
         Log_Error("Internal Shader Linking Failed (%s):\n%s", name, infoLog);
         glDeleteProgram(program);
@@ -972,6 +990,21 @@ static void OpenGL_InitPipelines(OpenGL_Backend* internal)
     internal->ssao.blur_shader = OpenGL_CompileInternalShaderFromFile(internal, "SSAO Blur", "assets/shaders/ssao.vert", "assets/shaders/ssao_blur.frag");
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1181,6 +1214,21 @@ static void OpenGL_EndShadowPass(Renderer* r)
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // Sets the global camera matrices for the current frame
 static void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
 {
@@ -1227,6 +1275,8 @@ static void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
 
 
 
+
+
 // Adds an object to the draw queue
 static void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance)
 {
@@ -1246,6 +1296,8 @@ static void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, Tex
         depth_distance
     };
 }
+
+
 
 
 
@@ -1276,6 +1328,292 @@ static int CompareRenderCommands(const void* a, const void* b)
 
 
 
+
+
+// Extracts the string formatting for lights
+static void OpenGL_UploadLightUniforms(GLuint program, const RenderState* state)
+{
+    char uniform_name[64];
+
+    // --- Upload Directional Lights ---
+    glUniform1i(glGetUniformLocation(program, "u_DirLightCount"), state->dir_light_count);
+    for (uint32_t j = 0; j < state->dir_light_count; j++)
+    {
+        const DirectionalLightData* dl = &state->dir_lights[j];
+        sprintf(uniform_name, "u_DirLights[%d].direction", j);
+        glUniform3fv(glGetUniformLocation(program, uniform_name), 1, (float*)&dl->direction);
+        sprintf(uniform_name, "u_DirLights[%d].color", j);
+        glUniform3fv(glGetUniformLocation(program, uniform_name), 1, (float*)&dl->color);
+        sprintf(uniform_name, "u_DirLights[%d].intensity", j);
+        glUniform1f(glGetUniformLocation(program, uniform_name), dl->intensity);
+        sprintf(uniform_name, "u_DirLights[%d].ambientStrength", j); 
+        glUniform1f(glGetUniformLocation(program, uniform_name), dl->ambient_strength);
+    }
+
+
+    // --- Upload Point Lights ---
+    glUniform1i(glGetUniformLocation(program, "u_PointLightCount"), state->point_light_count);
+    for (uint32_t j = 0; j < state->point_light_count; j++)
+    {
+        const PointLightData* pl = &state->point_lights[j];
+        sprintf(uniform_name, "u_PointLights[%d].position", j);
+        glUniform3fv(glGetUniformLocation(program, uniform_name), 1, (float*)&pl->position);
+        sprintf(uniform_name, "u_PointLights[%d].color", j);
+        glUniform3fv(glGetUniformLocation(program, uniform_name), 1, (float*)&pl->color);
+        sprintf(uniform_name, "u_PointLights[%d].intensity", j);
+        glUniform1f(glGetUniformLocation(program, uniform_name), pl->intensity);
+        sprintf(uniform_name, "u_PointLights[%d].constant", j);
+        glUniform1f(glGetUniformLocation(program, uniform_name), pl->constant);
+        sprintf(uniform_name, "u_PointLights[%d].linear", j);
+        glUniform1f(glGetUniformLocation(program, uniform_name), pl->linear);
+        sprintf(uniform_name, "u_PointLights[%d].quadratic", j);
+        glUniform1f(glGetUniformLocation(program, uniform_name), pl->quadratic);
+    }
+
+
+    // --- Upload Spot Lights ---
+    glUniform1i(glGetUniformLocation(program, "u_SpotLightCount"), state->spot_light_count);
+    for (uint32_t j = 0; j < state->spot_light_count; j++)
+    {
+        const SpotLightData* sl = &state->spot_lights[j];
+        sprintf(uniform_name, "u_SpotLights[%d].position", j);
+        glUniform3fv(glGetUniformLocation(program, uniform_name), 1, (float*)&sl->position);
+        sprintf(uniform_name, "u_SpotLights[%d].direction", j);
+        glUniform3fv(glGetUniformLocation(program, uniform_name), 1, (float*)&sl->direction);
+        sprintf(uniform_name, "u_SpotLights[%d].color", j);
+        glUniform3fv(glGetUniformLocation(program, uniform_name), 1, (float*)&sl->color);
+        sprintf(uniform_name, "u_SpotLights[%d].intensity", j);
+        glUniform1f(glGetUniformLocation(program, uniform_name), sl->intensity);
+        sprintf(uniform_name, "u_SpotLights[%d].constant", j);
+        glUniform1f(glGetUniformLocation(program, uniform_name), sl->constant);
+        sprintf(uniform_name, "u_SpotLights[%d].linear", j);
+        glUniform1f(glGetUniformLocation(program, uniform_name), sl->linear);
+        sprintf(uniform_name, "u_SpotLights[%d].quadratic", j);
+        glUniform1f(glGetUniformLocation(program, uniform_name), sl->quadratic);
+        sprintf(uniform_name, "u_SpotLights[%d].cutOff", j);
+        glUniform1f(glGetUniformLocation(program, uniform_name), sl->inner_cut_off);
+        sprintf(uniform_name, "u_SpotLights[%d].outerCutOff", j);
+        glUniform1f(glGetUniformLocation(program, uniform_name), sl->outer_cut_off);
+    }
+}
+
+
+
+
+
+// Executes the geometry pre-pass for SSAO
+static void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.gBufferFBO);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    uint32_t current_g_shader = 0;
+
+    for (uint32_t i = 0; i < opaque_count; i++)
+    {
+        RenderCommand* cmd = &internal->command_queue[i];
+        if (!internal->mesh_pool[cmd->mesh.id].active)
+            continue;
+
+        ShaderHandle target_g_handle = (cmd->bone_matrices != NULL) ? internal->ssao.g_buffer_skinned_shader : internal->ssao.g_buffer_shader;
+        GLShader* g_prog = &internal->shader_pool[target_g_handle.id];
+
+        if (current_g_shader != target_g_handle.id)
+        {
+            glUseProgram(g_prog->program);
+            current_g_shader = target_g_handle.id;
+
+            glUniformMatrix4fv(glGetUniformLocation(g_prog->program, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
+            glUniformMatrix4fv(glGetUniformLocation(g_prog->program, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+        }
+
+        glUniformMatrix4fv(glGetUniformLocation(g_prog->program, "u_Model"), 1, GL_FALSE, (float*)&cmd->transform);
+
+        GLint bone_loc = glGetUniformLocation(g_prog->program, "u_BoneMatrices");
+        if (bone_loc != -1 && cmd->bone_matrices != NULL)
+            glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)cmd->bone_matrices);
+
+        GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
+        glBindVertexArray(gl_mesh->vao);
+        glDrawElements(GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
+    }
+}
+
+
+
+
+
+// Computes and blurs the SSAO texture
+static void ExecuteSSAOPass(OpenGL_Backend* internal)
+{
+    // --- Compute Pass ---
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.ssaoFBO);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    GLuint ssao_prog = internal->shader_pool[internal->ssao.ssao_shader.id].program;
+    glUseProgram(ssao_prog);
+
+    glUniformMatrix4fv(glGetUniformLocation(ssao_prog, "projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+    glUniform1i(glGetUniformLocation(ssao_prog, "kernelSize"), 16);
+    glUniform1f(glGetUniformLocation(ssao_prog, "radius"), 0.5f);
+    glUniform1f(glGetUniformLocation(ssao_prog, "bias"), 0.025f);
+
+    for (int k = 0; k < 64; ++k)
+    {
+        char var_name[32];
+        sprintf(var_name, "samples[%d]", k);
+        glUniform3fv(glGetUniformLocation(ssao_prog, var_name), 1, (float*)&internal->ssao.kernel[k]);
+    }
+
+    glUniform2f(glGetUniformLocation(ssao_prog, "noiseScale"), (float)internal->state.window_width / 4.0f, (float)internal->state.window_height / 4.0f);
+
+    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, internal->ssao.gPosition); glUniform1i(glGetUniformLocation(ssao_prog, "gPosition"), 0);
+    glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, internal->ssao.gNormal); glUniform1i(glGetUniformLocation(ssao_prog, "gNormal"), 1);
+    glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, internal->ssao.noiseTexture); glUniform1i(glGetUniformLocation(ssao_prog, "texNoise"), 2);
+
+    glBindVertexArray(internal->quad_vao);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    // --- Blur Pass ---
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.ssaoBlurFBO);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    GLuint blur_prog = internal->shader_pool[internal->ssao.blur_shader.id].program;
+    glUseProgram(blur_prog);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, internal->ssao.ssaoColorBuffer);
+    glUniform1i(glGetUniformLocation(blur_prog, "ssaoInput"), 0);
+
+    glBindVertexArray(internal->quad_vao);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
+}
+
+
+
+
+
+// Executes a forward rendering loop (used for both Opaque and Transparent batches)
+static void OpenGL_RenderCommandBatch(OpenGL_Backend* internal, uint32_t start_idx, uint32_t end_idx)
+{
+    uint32_t current_shader = 0;
+    uint32_t current_texture = 0;
+
+    for (uint32_t i = start_idx; i < end_idx; i++)
+    {
+        RenderCommand* cmd = &internal->command_queue[i];
+        if (!internal->mesh_pool[cmd->mesh.id].active)
+            continue;
+
+        ShaderHandle target_handle = cmd->shader;
+        if (target_handle.id == 0)
+            target_handle = (cmd->bone_matrices != NULL) ? internal->forward.animated_shader : internal->forward.default_shader;
+
+        GLShader* gl_shader = &internal->shader_pool[target_handle.id];
+        if (!gl_shader->active)
+            continue;
+
+        if (current_shader != target_handle.id)
+        {
+            glUseProgram(gl_shader->program);
+            current_shader = target_handle.id;
+
+            glUniformMatrix4fv(glGetUniformLocation(gl_shader->program, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
+            glUniformMatrix4fv(glGetUniformLocation(gl_shader->program, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+            glUniform3fv(glGetUniformLocation(gl_shader->program, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
+
+            OpenGL_UploadShadowUniforms(gl_shader->program, &internal->state);
+            OpenGL_BindSSAOTexture(internal, gl_shader->program);
+
+            GLint enable_ssao_loc = glGetUniformLocation(gl_shader->program, "u_EnableSSAO");
+            if (enable_ssao_loc != -1)
+                glUniform1i(enable_ssao_loc, internal->state.enable_ssao ? 1 : 0);
+
+            OpenGL_UploadLightUniforms(gl_shader->program, &internal->state);
+        }
+
+        if (current_texture != cmd->texture.id)
+        {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->texture.id].id);
+            current_texture = cmd->texture.id;
+        }
+
+        glUniformMatrix4fv(glGetUniformLocation(gl_shader->program, "u_Model"), 1, GL_FALSE, (float*)&cmd->transform);
+        glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.diffuse"), 0);
+        glUniform3fv(glGetUniformLocation(gl_shader->program, "u_Material.tint"), 1, (float*)&cmd->mat_props.tint_color);
+        glUniform1f(glGetUniformLocation(gl_shader->program, "u_Material.shininess"), cmd->mat_props.shininess);
+        glUniform1f(glGetUniformLocation(gl_shader->program, "u_Material.specularStrength"), cmd->mat_props.specular_strength);
+
+        GLint bone_loc = glGetUniformLocation(gl_shader->program, "u_BoneMatrices");
+        if (bone_loc != -1)
+        {
+            if (cmd->bone_matrices != NULL)
+            {
+                glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)cmd->bone_matrices);
+            }
+            else
+            {
+                static Matrix4 identity_bones[MAX_BONES];
+                static bool initialized = false;
+                if (!initialized)
+                {
+                    for (int b = 0; b < MAX_BONES; b++) identity_bones[b] = Matrix4Identity();
+                    initialized = true;
+                }
+                glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)identity_bones);
+            }
+        }
+
+        GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
+        glBindVertexArray(gl_mesh->vao);
+        glDrawElements(GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
+    }
+}
+
+
+
+
+
+// Renders the Skybox
+static void OpenGL_DrawSkybox(OpenGL_Backend* internal)
+{
+    uint32_t shader_id = internal->skybox.default_shader.id;
+    uint32_t tex_id = internal->state.skybox_texture.id;
+
+    if (shader_id != 0 && tex_id != 0)
+    {
+        glDepthFunc(GL_LEQUAL);
+        glDisable(GL_CULL_FACE);
+
+        GLuint prog = internal->shader_pool[shader_id].program;
+        glUseProgram(prog);
+        
+        glUniformMatrix4fv(glGetUniformLocation(prog, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
+        glUniformMatrix4fv(glGetUniformLocation(prog, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+        
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, internal->texture_pool[internal->state.skybox_texture.id].id);
+
+        GLint skybox_loc = glGetUniformLocation(prog, "u_Skybox");
+        if (skybox_loc != -1)
+            glUniform1i(skybox_loc, 0);
+        
+        glBindVertexArray(internal->skybox.vao);
+        glDrawArrays(GL_TRIANGLES, 0, 36); 
+        glBindVertexArray(0);
+        
+        glDepthFunc(GL_LESS);
+        glEnable(GL_CULL_FACE);
+    }
+}
+
+
+
+
+
 // Sorts the queue, binds the state, and executes the actual GPU draw calls
 static void OpenGL_EndFrame(Renderer* r)
 {
@@ -1286,14 +1624,7 @@ static void OpenGL_EndFrame(Renderer* r)
     // Sort the command queue
     qsort(internal->command_queue, internal->command_count, sizeof(RenderCommand), CompareRenderCommands);
 
-    // Track current state to avoid redundant binds
-    uint32_t current_shader = 0;
-    uint32_t current_texture = 0;
-
-    bool blending_enabled = false;
-
-    glEnable(GL_CULL_FACE);
-
+    // Find where the transparent commands begin
     uint32_t transparent_start_idx = internal->command_count;
     for (uint32_t i = 0; i < internal->command_count; i++)
     {
@@ -1304,564 +1635,34 @@ static void OpenGL_EndFrame(Renderer* r)
         }
     }
 
+    glEnable(GL_CULL_FACE);
 
-    // Geometry pre-pass (g-buffer)
+    
+    // SSAO Pre-Passes
     if (internal->state.enable_ssao && internal->ssao.g_buffer_shader.id != 0 &&
         internal->ssao.ssao_shader.id != 0 && internal->ssao.blur_shader.id != 0)
     {
-        glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.gBufferFBO);
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // Clear to black
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        
-        // Track G-Buffer shader to avoid redundant uploads
-        uint32_t current_g_shader = 0;
-
-        for (uint32_t i = 0; i < transparent_start_idx; i++)
-        {
-            RenderCommand* cmd = &internal->command_queue[i];
-            if (!internal->mesh_pool[cmd->mesh.id].active) continue;
-
-            GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
-
-            // Dynamically select static vs skinned G-Buffer shader
-            ShaderHandle target_g_handle = (cmd->bone_matrices != NULL) ? internal->ssao.g_buffer_skinned_shader : internal->ssao.g_buffer_shader;
-            GLShader* g_prog = &internal->shader_pool[target_g_handle.id];
-
-            if (current_g_shader != target_g_handle.id)
-            {
-                glUseProgram(g_prog->program);
-                current_g_shader = target_g_handle.id;
-
-                GLint view_loc = glGetUniformLocation(g_prog->program, "u_View");
-                GLint proj_loc = glGetUniformLocation(g_prog->program, "u_Projection");
-                glUniformMatrix4fv(view_loc, 1, GL_FALSE, (float*)&internal->state.view_matrix);
-                glUniformMatrix4fv(proj_loc, 1, GL_FALSE, (float*)&internal->state.projection_matrix);
-            }
-
-            // Upload Model Matrix
-            GLint model_loc = glGetUniformLocation(g_prog->program, "u_Model");
-            glUniformMatrix4fv(model_loc, 1, GL_FALSE, (float*)&cmd->transform);
-
-            // Upload Bones
-            GLint bone_loc = glGetUniformLocation(g_prog->program, "u_BoneMatrices");
-            if (bone_loc != -1 && cmd->bone_matrices != NULL)
-                glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)cmd->bone_matrices);
-
-            glBindVertexArray(gl_mesh->vao);
-            glDrawElements(GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
-        }
-
-
-
-        // SSAO Pass
-
-        glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.ssaoFBO);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        GLuint ssao_prog = internal->shader_pool[internal->ssao.ssao_shader.id].program;
-        glUseProgram(ssao_prog);
-
-        // Upload Matrices & Settings
-        glUniformMatrix4fv(glGetUniformLocation(ssao_prog, "projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
-        glUniform1i(glGetUniformLocation(ssao_prog, "kernelSize"), 16);
-        glUniform1f(glGetUniformLocation(ssao_prog, "radius"), 0.5f); // Tweak this for AO distance!
-        glUniform1f(glGetUniformLocation(ssao_prog, "bias"), 0.025f);
-
-        // Upload the Kernel Array
-        for (int k = 0; k < 64; ++k)
-        {
-            char var_name[32];
-            sprintf(var_name, "samples[%d]", k);
-            glUniform3fv(glGetUniformLocation(ssao_prog, var_name), 1, (float*)&internal->ssao.kernel[k]);
-        }
-
-        // Upload Noise Scale (Tile the 4x4 noise texture across the screen)
-        float noise_x = (float)internal->state.window_width / 4.0f;
-        float noise_y = (float)internal->state.window_height / 4.0f;
-        glUniform2f(glGetUniformLocation(ssao_prog, "noiseScale"), noise_x, noise_y);
-
-        // Bind G-Buffer Textures
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, internal->ssao.gPosition);
-        glUniform1i(glGetUniformLocation(ssao_prog, "gPosition"), 0);
-
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, internal->ssao.gNormal);
-        glUniform1i(glGetUniformLocation(ssao_prog, "gNormal"), 1);
-
-        glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, internal->ssao.noiseTexture);
-        glUniform1i(glGetUniformLocation(ssao_prog, "texNoise"), 2);
-
-        // Draw Screen Quad
-        glBindVertexArray(internal->quad_vao);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
-
-
-
-        // SSAO Blur Pass
-        
-        glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.ssaoBlurFBO);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        GLuint blur_prog = internal->shader_pool[internal->ssao.blur_shader.id].program;
-        glUseProgram(blur_prog);
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, internal->ssao.ssaoColorBuffer);
-        glUniform1i(glGetUniformLocation(blur_prog, "ssaoInput"), 0);
-
-        glBindVertexArray(internal->quad_vao);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
-        glBindVertexArray(0);
-
-
-        OpenGL_BindDefaultFramebuffer();
+        ExecuteGBufferPass(internal, transparent_start_idx);
+        ExecuteSSAOPass(internal);
     }
 
     OpenGL_BindDefaultFramebuffer();
 
+    OpenGL_RenderCommandBatch(internal, 0, transparent_start_idx);
 
-
-    // --- Render opaque objects ---
-    for (uint32_t i = 0; i < transparent_start_idx; i++)
-    {
-        RenderCommand* cmd = &internal->command_queue[i];
-
-        if (!internal->mesh_pool[cmd->mesh.id].active)
-            continue;
-
-        GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
-
-        ShaderHandle target_handle = cmd->shader;
-
-        // If the material didn't have a shader, use the internal pipeline default
-        if (target_handle.id == 0)
-            target_handle = (cmd->bone_matrices != NULL) ? internal->forward.animated_shader : internal->forward.default_shader;
-
-        // Now pull the actual OpenGL shader using the resolved handle
-        GLShader* gl_shader = &internal->shader_pool[target_handle.id];
-
-        // Ensure that the fallback shader actually exists
-        if (!gl_shader->active)
-            continue;
-
-        if (current_shader != target_handle.id)
-        {
-            glUseProgram(gl_shader->program);
-            current_shader = target_handle.id;
-
-            // Upload Camera Matrices
-            GLint view_loc  = glGetUniformLocation(gl_shader->program, "u_View");
-            GLint proj_loc  = glGetUniformLocation(gl_shader->program, "u_Projection");
-            glUniformMatrix4fv(view_loc, 1, GL_FALSE, (float*)&internal->state.view_matrix);
-            glUniformMatrix4fv(proj_loc, 1, GL_FALSE, (float*)&internal->state.projection_matrix);
-
-
-            OpenGL_UploadShadowUniforms(gl_shader->program, &internal->state);
-
-            OpenGL_BindSSAOTexture(internal, gl_shader->program);
-
-            GLint enable_ssao_loc = glGetUniformLocation(gl_shader->program, "u_EnableSSAO");
-            if (enable_ssao_loc != -1)
-                glUniform1i(enable_ssao_loc, internal->state.enable_ssao ? 1 : 0);
-
-
-            // Upload Camera Position
-            GLint view_pos_loc  = glGetUniformLocation(gl_shader->program, "u_ViewPos");
-            if (view_pos_loc != -1)  glUniform3fv(view_pos_loc, 1, (float*)&internal->state.camera_pos);
-
-            char uniform_name[64];
-
-            // --- Upload Directional Lights ---
-            glUniform1i(glGetUniformLocation(gl_shader->program, "u_DirLightCount"), internal->state.dir_light_count);
-            for (uint32_t j = 0; j < internal->state.dir_light_count; j++)
-            {
-                DirectionalLightData* dl = &internal->state.dir_lights[j];
-                
-                sprintf(uniform_name, "u_DirLights[%d].direction", j);
-                glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&dl->direction);
-                
-                sprintf(uniform_name, "u_DirLights[%d].color", j);
-                glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&dl->color);
-                
-                sprintf(uniform_name, "u_DirLights[%d].intensity", j);
-                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), dl->intensity);
-
-                sprintf(uniform_name, "u_DirLights[%d].ambientStrength", j); // GLSL camelCase!
-                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), dl->ambient_strength);
-            }
-
-            // --- Upload Point Lights ---
-            glUniform1i(glGetUniformLocation(gl_shader->program, "u_PointLightCount"), internal->state.point_light_count);
-            for (uint32_t j = 0; j < internal->state.point_light_count; j++)
-            {
-                PointLightData* pl = &internal->state.point_lights[j];
-                
-                sprintf(uniform_name, "u_PointLights[%d].position", j);
-                glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&pl->position);
-                
-                sprintf(uniform_name, "u_PointLights[%d].color", j);
-                glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&pl->color);
-                
-                sprintf(uniform_name, "u_PointLights[%d].intensity", j);
-                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), pl->intensity);
-                
-                sprintf(uniform_name, "u_PointLights[%d].constant", j);
-                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), pl->constant);
-                
-                sprintf(uniform_name, "u_PointLights[%d].linear", j);
-                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), pl->linear);
-                
-                sprintf(uniform_name, "u_PointLights[%d].quadratic", j);
-                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), pl->quadratic);
-            }
-
-            // --- Upload Spot Lights ---
-            glUniform1i(glGetUniformLocation(gl_shader->program, "u_SpotLightCount"), internal->state.spot_light_count);
-            for (uint32_t j = 0; j < internal->state.spot_light_count; j++)
-            {
-                SpotLightData* sl = &internal->state.spot_lights[j];
-                
-                sprintf(uniform_name, "u_SpotLights[%d].position", j);
-                glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&sl->position);
-
-                sprintf(uniform_name, "u_SpotLights[%d].direction", j);
-                glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&sl->direction);
-                
-                sprintf(uniform_name, "u_SpotLights[%d].color", j);
-                glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&sl->color);
-                
-                sprintf(uniform_name, "u_SpotLights[%d].intensity", j);
-                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->intensity);
-                
-                sprintf(uniform_name, "u_SpotLights[%d].constant", j);
-                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->constant);
-                
-                sprintf(uniform_name, "u_SpotLights[%d].linear", j);
-                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->linear);
-                
-                sprintf(uniform_name, "u_SpotLights[%d].quadratic", j);
-                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->quadratic);
-
-                sprintf(uniform_name, "u_SpotLights[%d].cutOff", j); // GLSL camelCase!
-                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->inner_cut_off);
-
-                sprintf(uniform_name, "u_SpotLights[%d].outerCutOff", j); // GLSL camelCase!
-                glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->outer_cut_off);
-            }
-        }
-
-
-        if (current_texture != cmd->texture.id)
-        {
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->texture.id].id);
-            current_texture = cmd->texture.id;
-        }
-
-        // Upload Matrices
-        GLint model_loc = glGetUniformLocation(gl_shader->program, "u_Model");
-        
-        glUniformMatrix4fv(model_loc, 1, GL_FALSE, (float*)&cmd->transform);
-
-        GLint diff_loc = glGetUniformLocation(gl_shader->program, "u_Material.diffuse");
-        if (diff_loc != -1) glUniform1i(diff_loc, 0);
-
-        GLint tint_loc = glGetUniformLocation(gl_shader->program, "u_Material.tint");
-        if (tint_loc != -1) glUniform3fv(tint_loc, 1, (float*)&cmd->mat_props.tint_color);
-
-        GLint shine_loc = glGetUniformLocation(gl_shader->program, "u_Material.shininess");
-        if (shine_loc != -1) glUniform1f(shine_loc, cmd->mat_props.shininess);
-
-        GLint spec_loc = glGetUniformLocation(gl_shader->program, "u_Material.specularStrength");
-        if (spec_loc != -1) glUniform1f(spec_loc, cmd->mat_props.specular_strength);
-
-
-        // Upload bone matrices
-        GLint bone_loc = glGetUniformLocation(gl_shader->program, "u_BoneMatrices");
-        if (bone_loc != -1) 
-        {
-            if (cmd->bone_matrices != NULL) 
-            {
-                // Upload matrices to the Animator
-                glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)cmd->bone_matrices);
-            } 
-            else 
-            {
-                // If the shader wants bones but the object has none, give it Identity matrices
-                static Matrix4 identity_bones[MAX_BONES];
-                static bool initialized = false;
-                if (!initialized)
-                {
-                    for (int b = 0; b < MAX_BONES; b++)
-                        identity_bones[b] = Matrix4Identity();
-                        
-                    initialized = true;
-                }
-                
-                glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)identity_bones);
-            }
-        }
-        
-
-        // Draw
-        glBindVertexArray(gl_mesh->vao);
-        glDrawElements(GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
-    }
-
-
-    glDepthFunc(GL_LESS);
-
-
-    if (blending_enabled)
-    {
-        glDisable(GL_BLEND);
-        glDepthMask(GL_TRUE);
-    }
-
-    glBindVertexArray(0);
-
-    // Draw Skybox if it exists
     if (internal->state.has_skybox)
-    {   
-        uint32_t shader_id = internal->skybox.default_shader.id;
-        uint32_t tex_id = internal->state.skybox_texture.id;
-
-        if (shader_id != 0 && tex_id != 0)
-        {
-            // Change depth func so it draws at max depth (1.0)
-            glDepthFunc(GL_LEQUAL);
-            glDisable(GL_CULL_FACE);
-    
-            GLuint prog = internal->shader_pool[shader_id].program;
-            glUseProgram(prog);
-            
-            // Upload Camera Matrices
-            GLint view_loc = glGetUniformLocation(prog, "u_View");
-            GLint proj_loc = glGetUniformLocation(prog, "u_Projection");
-            
-            glUniformMatrix4fv(view_loc, 1, GL_FALSE, (float*)&internal->state.view_matrix);
-            glUniformMatrix4fv(proj_loc, 1, GL_FALSE, (float*)&internal->state.projection_matrix);
-            
-            // Bind the Cubemap from the Texture Pool
-            uint32_t gl_tex_id = internal->texture_pool[internal->state.skybox_texture.id].id;
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_CUBE_MAP, gl_tex_id);
-    
-            // If your shader explicitly names the sampler, bind it
-            GLint skybox_loc = glGetUniformLocation(prog, "u_Skybox");
-            if (skybox_loc != -1) glUniform1i(skybox_loc, 0);
-            
-            // Draw all 36 vertices
-            glBindVertexArray(internal->skybox.vao);
-            glDrawArrays(GL_TRIANGLES, 0, 36); 
-            glBindVertexArray(0);
-            
-            // Restore default depth testing
-            glDepthFunc(GL_LESS);
-            glEnable(GL_CULL_FACE);
-        }
-
-        // Reset current shader and texture before rendering transparent geometry
-        current_shader = 0;
-        current_texture = 0;
-    }
+        OpenGL_DrawSkybox(internal);
 
 
-
+    // Main Forward Pass (Transparent Geometry)
     if (transparent_start_idx < internal->command_count)
     {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glDepthMask(GL_FALSE); // Protect depth buffer from transparent overlap
-
         glDisable(GL_CULL_FACE);
 
-        for (uint32_t i = transparent_start_idx; i < internal->command_count; i++)
-        {
-            RenderCommand* cmd = &internal->command_queue[i];
-
-            if (!internal->mesh_pool[cmd->mesh.id].active)
-                continue;
-
-            GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
-
-            ShaderHandle target_handle = cmd->shader;
-        
-            // If the material didn't have a shader, use the internal pipeline default!
-            if (target_handle.id == 0)
-                target_handle = (cmd->bone_matrices != NULL) ? internal->forward.animated_shader : internal->forward.default_shader;
-
-            // Now pull the actual OpenGL shader using the resolved handle
-            GLShader* gl_shader = &internal->shader_pool[target_handle.id];
-
-            // Ensure the fallback shader actually exists and compiled properly
-            if (!gl_shader->active)
-                continue;
-
-            if (current_shader != target_handle.id)
-            {
-                glUseProgram(gl_shader->program);
-                current_shader = target_handle.id;
-
-                // Upload Camera Matrices
-                GLint view_loc  = glGetUniformLocation(gl_shader->program, "u_View");
-                GLint proj_loc  = glGetUniformLocation(gl_shader->program, "u_Projection");
-                glUniformMatrix4fv(view_loc, 1, GL_FALSE, (float*)&internal->state.view_matrix);
-                glUniformMatrix4fv(proj_loc, 1, GL_FALSE, (float*)&internal->state.projection_matrix);
-
-
-                OpenGL_UploadShadowUniforms(gl_shader->program, &internal->state);
-
-                OpenGL_BindSSAOTexture(internal, gl_shader->program);
-
-                GLint enable_ssao_loc = glGetUniformLocation(gl_shader->program, "u_EnableSSAO");
-                if (enable_ssao_loc != -1)
-                    glUniform1i(enable_ssao_loc, internal->state.enable_ssao ? 1 : 0);
-
-
-                // Upload Camera Position
-                GLint view_pos_loc  = glGetUniformLocation(gl_shader->program, "u_ViewPos");
-                if (view_pos_loc != -1)  glUniform3fv(view_pos_loc, 1, (float*)&internal->state.camera_pos);
-
-                char uniform_name[64];
-
-                // --- Upload Directional Lights ---
-                glUniform1i(glGetUniformLocation(gl_shader->program, "u_DirLightCount"), internal->state.dir_light_count);
-                for (uint32_t j = 0; j < internal->state.dir_light_count; j++)
-                {
-                    DirectionalLightData* dl = &internal->state.dir_lights[j];
-                    
-                    sprintf(uniform_name, "u_DirLights[%d].direction", j);
-                    glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&dl->direction);
-                    
-                    sprintf(uniform_name, "u_DirLights[%d].color", j);
-                    glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&dl->color);
-                    
-                    sprintf(uniform_name, "u_DirLights[%d].intensity", j);
-                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), dl->intensity);
-
-                    sprintf(uniform_name, "u_DirLights[%d].ambientStrength", j); // GLSL camelCase!
-                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), dl->ambient_strength);
-                }
-
-                // --- Upload Point Lights ---
-                glUniform1i(glGetUniformLocation(gl_shader->program, "u_PointLightCount"), internal->state.point_light_count);
-                for (uint32_t j = 0; j < internal->state.point_light_count; j++)
-                {
-                    PointLightData* pl = &internal->state.point_lights[j];
-                    
-                    sprintf(uniform_name, "u_PointLights[%d].position", j);
-                    glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&pl->position);
-                    
-                    sprintf(uniform_name, "u_PointLights[%d].color", j);
-                    glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&pl->color);
-                    
-                    sprintf(uniform_name, "u_PointLights[%d].intensity", j);
-                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), pl->intensity);
-                    
-                    sprintf(uniform_name, "u_PointLights[%d].constant", j);
-                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), pl->constant);
-                    
-                    sprintf(uniform_name, "u_PointLights[%d].linear", j);
-                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), pl->linear);
-                    
-                    sprintf(uniform_name, "u_PointLights[%d].quadratic", j);
-                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), pl->quadratic);
-                }
-
-                // --- Upload Spot Lights ---
-                glUniform1i(glGetUniformLocation(gl_shader->program, "u_SpotLightCount"), internal->state.spot_light_count);
-                for (uint32_t j = 0; j < internal->state.spot_light_count; j++)
-                {
-                    SpotLightData* sl = &internal->state.spot_lights[j];
-                    
-                    sprintf(uniform_name, "u_SpotLights[%d].position", j);
-                    glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&sl->position);
-
-                    sprintf(uniform_name, "u_SpotLights[%d].direction", j);
-                    glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&sl->direction);
-                    
-                    sprintf(uniform_name, "u_SpotLights[%d].color", j);
-                    glUniform3fv(glGetUniformLocation(gl_shader->program, uniform_name), 1, (float*)&sl->color);
-                    
-                    sprintf(uniform_name, "u_SpotLights[%d].intensity", j);
-                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->intensity);
-                    
-                    sprintf(uniform_name, "u_SpotLights[%d].constant", j);
-                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->constant);
-                    
-                    sprintf(uniform_name, "u_SpotLights[%d].linear", j);
-                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->linear);
-                    
-                    sprintf(uniform_name, "u_SpotLights[%d].quadratic", j);
-                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->quadratic);
-
-                    sprintf(uniform_name, "u_SpotLights[%d].cutOff", j); // GLSL camelCase!
-                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->inner_cut_off);
-
-                    sprintf(uniform_name, "u_SpotLights[%d].outerCutOff", j); // GLSL camelCase!
-                    glUniform1f(glGetUniformLocation(gl_shader->program, uniform_name), sl->outer_cut_off);
-                }
-            }
-
-
-            if (current_texture != cmd->texture.id)
-            {
-                glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->texture.id].id);
-                current_texture = cmd->texture.id;
-            }
-
-            // Upload Matrices
-            GLint model_loc = glGetUniformLocation(gl_shader->program, "u_Model");
-            
-            glUniformMatrix4fv(model_loc, 1, GL_FALSE, (float*)&cmd->transform);
-
-            GLint diff_loc = glGetUniformLocation(gl_shader->program, "u_Material.diffuse");
-            if (diff_loc != -1) glUniform1i(diff_loc, 0);
-
-            GLint tint_loc = glGetUniformLocation(gl_shader->program, "u_Material.tint");
-            if (tint_loc != -1) glUniform3fv(tint_loc, 1, (float*)&cmd->mat_props.tint_color);
-
-            GLint shine_loc = glGetUniformLocation(gl_shader->program, "u_Material.shininess");
-            if (shine_loc != -1) glUniform1f(shine_loc, cmd->mat_props.shininess);
-
-            GLint spec_loc = glGetUniformLocation(gl_shader->program, "u_Material.specularStrength");
-            if (spec_loc != -1) glUniform1f(spec_loc, cmd->mat_props.specular_strength);
-
-
-            // Upload bone matrices
-            GLint bone_loc = glGetUniformLocation(gl_shader->program, "u_BoneMatrices");
-            if (bone_loc != -1) 
-            {
-                if (cmd->bone_matrices != NULL) 
-                {
-                    // Upload matrices to the Animator
-                    glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)cmd->bone_matrices);
-                } 
-                else 
-                {
-                    // If the shader wants bones but the object has none, give it Identity matrices
-                    static Matrix4 identity_bones[MAX_BONES];
-                    static bool initialized = false;
-                    if (!initialized)
-                    {
-                        for (int b = 0; b < MAX_BONES; b++)
-                            identity_bones[b] = Matrix4Identity();
-                            
-                        initialized = true;
-                    }
-                    
-                    glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)identity_bones);
-                }
-            }   
-
-            // Draw
-            glBindVertexArray(gl_mesh->vao);
-            glDrawElements(GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
-        }
+        OpenGL_RenderCommandBatch(internal, transparent_start_idx, internal->command_count);
 
         glDisable(GL_BLEND);
         glDepthMask(GL_TRUE); // Restore depth writing
@@ -1870,6 +1671,16 @@ static void OpenGL_EndFrame(Renderer* r)
 
     glBindVertexArray(0);
 }
+
+
+
+
+
+
+
+
+
+
 
 
 
