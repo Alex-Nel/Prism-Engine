@@ -70,7 +70,7 @@ namespace Prism
 
         // --- Material Management ---
         
-        static Material CreateMaterial(Shader shader, Texture diffuse);
+        static Material CreateMaterial(Texture diffuse);
 
 
         // --- Built-In Assets ---
@@ -80,7 +80,5 @@ namespace Prism
         static Mesh GetBuiltinSphere();
         
         static Texture GetDefaultTexture();
-        static Shader GetDefaultShader();
-        static Shader GetDefaultSkyboxShader();
     };
 }

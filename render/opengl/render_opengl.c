@@ -8,9 +8,9 @@
 
 
 
-#define MAX_DIR_LIGHTS 4
-#define MAX_POINT_LIGHTS 8
-#define MAX_SPOT_LIGHTS 8
+#define MAX_DIR_LIGHTS 32
+#define MAX_POINT_LIGHTS 32
+#define MAX_SPOT_LIGHTS 32
 
 #define SHADOW_WIDTH SHADOW_MAP_RESOLUTION
 #define SHADOW_HEIGHT SHADOW_MAP_RESOLUTION
@@ -108,6 +108,11 @@ typedef struct GL_ForwardPipeline
     ShaderHandle animated_shader;
 } GL_ForwardPipeline;
 
+typedef struct GL_DeferredPipeline
+{
+    ShaderHandle deferred_shader;
+} GL_DeferredPipeline;
+
 
 typedef struct GL_ShadowPipeline
 {
@@ -124,6 +129,7 @@ typedef struct GL_SSAOPipeline
     GLuint gPosition;
     GLuint gNormal;
     GLuint gDepth;
+    GLuint gAlbedoSpec;
 
     GLuint ssaoFBO;
     GLuint ssaoBlurFBO;
@@ -167,10 +173,11 @@ typedef struct OpenGL_Backend
     
     RenderState state;
 
-    GL_ForwardPipeline forward;
-    GL_ShadowPipeline shadow;
-    GL_SSAOPipeline   ssao;
-    GL_SkyboxPipeline skybox;
+    GL_ForwardPipeline  forward;
+    GL_DeferredPipeline deferred;
+    GL_ShadowPipeline   shadow;
+    GL_SSAOPipeline     ssao;
+    GL_SkyboxPipeline   skybox;
 } OpenGL_Backend;
 
 
@@ -230,16 +237,24 @@ static void OpenGL_SetViewport(Renderer* r, uint32_t x, uint32_t y, uint32_t wid
         glBindTexture(GL_TEXTURE_2D, internal->ssao.gNormal);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
 
+        glBindTexture(GL_TEXTURE_2D, internal->ssao.gAlbedoSpec);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
         // Resize G-Buffer Depth Renderbuffer
         glBindRenderbuffer(GL_RENDERBUFFER, internal->ssao.gDepth);
         glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
 
-        // Resize SSAO Textures
+        // Resize SSAO Textures (half resolution)
+        uint32_t ssao_w = width / 2;
+        uint32_t ssao_h = height / 2;
+        if (ssao_w < 1) ssao_w = 1;
+        if (ssao_h < 1) ssao_h = 1;
+
         glBindTexture(GL_TEXTURE_2D, internal->ssao.ssaoColorBuffer);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, width, height, 0, GL_RED, GL_FLOAT, NULL);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, ssao_w, ssao_h, 0, GL_RED, GL_FLOAT, NULL);
 
         glBindTexture(GL_TEXTURE_2D, internal->ssao.ssaoColorBufferBlur);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, width, height, 0, GL_RED, GL_FLOAT, NULL);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, ssao_w, ssao_h, 0, GL_RED, GL_FLOAT, NULL);
     }
 
     glViewport(x, y, width, height);
@@ -975,15 +990,18 @@ static void OpenGL_InitPipelines(OpenGL_Backend* internal)
     // 1. Forward Pipeline (Main Lit Shaders)
     internal->forward.default_shader = OpenGL_CompileInternalShaderFromFile(internal, "Default", "assets/shaders/default.vert", "assets/shaders/default.frag");
     internal->forward.animated_shader = OpenGL_CompileInternalShaderFromFile(internal, "Animated", "assets/shaders/animated.vert", "assets/shaders/default.frag");
+    
+    // 2. Deferred Pipeline
+    internal->deferred.deferred_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred", "assets/shaders/deferred_light.vert", "assets/shaders/deferred_light.frag");
 
-    // 2. Shadow Pipeline
+    // 3. Shadow Pipeline
     internal->shadow.static_shader = OpenGL_CompileInternalShaderFromFile(internal, "Shadow Static", "assets/shaders/shadow.vert", "assets/shaders/shadow.frag");
     internal->shadow.skinned_shader = OpenGL_CompileInternalShaderFromFile(internal, "Shadow Skinned", "assets/shaders/shadow_skinned.vert", "assets/shaders/shadow.frag");
 
-    // 3. Skybox Pipeline
-    internal->skybox.default_shader = OpenGL_CompileInternalShaderFromFile(internal, "Skybox", "assets/shaders/skybox_default.vert", "assets/shaders/skybox_default.frag");
+    // 4. Skybox Pipeline
+    internal->skybox.default_shader = OpenGL_CompileInternalShaderFromFile(internal, "Skybox", "assets/shaders/skybox.vert", "assets/shaders/skybox.frag");
 
-    // 4. SSAO Pipeline
+    // 5. SSAO Pipeline
     internal->ssao.g_buffer_shader = OpenGL_CompileInternalShaderFromFile(internal, "G-Buffer", "assets/shaders/g_buffer.vert", "assets/shaders/g_buffer.frag");
     internal->ssao.g_buffer_skinned_shader = OpenGL_CompileInternalShaderFromFile(internal, "G-Buffer Skinned", "assets/shaders/g_buffer_skinned.vert", "assets/shaders/g_buffer.frag");
     internal->ssao.ssao_shader = OpenGL_CompileInternalShaderFromFile(internal, "SSAO Compute", "assets/shaders/ssao.vert", "assets/shaders/ssao.frag");
@@ -1075,10 +1093,6 @@ static void OpenGL_UploadShadowUniforms(GLuint program, const RenderState* state
     loc = glGetUniformLocation(program, "u_ShadowCascadeCount");
     if (loc != -1)
         glUniform1i(loc, (GLint)state->shadow_cascade_count);
-
-    loc = glGetUniformLocation(program, "shadowMap");
-    if (loc != -1)
-        glUniform1i(loc, 1);
 
     loc = glGetUniformLocation(program, "u_ShadowTexelSizes");
     if (loc != -1)
@@ -1405,10 +1419,11 @@ static void OpenGL_UploadLightUniforms(GLuint program, const RenderState* state)
 static void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
 {
     glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.gBufferFBO);
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
     uint32_t current_g_shader = 0;
+    uint32_t current_texture = 999999;
 
     for (uint32_t i = 0; i < opaque_count; i++)
     {
@@ -1428,6 +1443,18 @@ static void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
             glUniformMatrix4fv(glGetUniformLocation(g_prog->program, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
         }
 
+        // BIND TEXTURE & MATERIAL PROPERTIES
+        if (current_texture != cmd->texture.id)
+        {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->texture.id].id);
+            current_texture = cmd->texture.id;
+        }
+        
+        glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.diffuse"), 0);
+        glUniform3fv(glGetUniformLocation(g_prog->program, "u_Material.tint"), 1, (float*)&cmd->mat_props.tint_color);
+        glUniform1f(glGetUniformLocation(g_prog->program, "u_Material.specularStrength"), cmd->mat_props.specular_strength);
+
         glUniformMatrix4fv(glGetUniformLocation(g_prog->program, "u_Model"), 1, GL_FALSE, (float*)&cmd->transform);
 
         GLint bone_loc = glGetUniformLocation(g_prog->program, "u_BoneMatrices");
@@ -1444,9 +1471,53 @@ static void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
 
 
 
+// Executes deferred lighting pass
+static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
+{
+    OpenGL_BindDefaultFramebuffer();
+
+    GLuint def_prog = internal->shader_pool[internal->deferred.deferred_shader.id].program;
+    glUseProgram(def_prog);
+
+    // Bind G-Buffer Textures
+    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, internal->ssao.gPosition); glUniform1i(glGetUniformLocation(def_prog, "gPosition"), 0);
+    glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, internal->ssao.gNormal); glUniform1i(glGetUniformLocation(def_prog, "gNormal"), 1);
+    glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, internal->ssao.gAlbedoSpec); glUniform1i(glGetUniformLocation(def_prog, "gAlbedoSpec"), 2);
+    
+    // Bind SSAO
+    glActiveTexture(GL_TEXTURE3); 
+    glBindTexture(GL_TEXTURE_2D, internal->state.enable_ssao ? internal->ssao.ssaoColorBufferBlur : internal->ssao.fallbackWhiteTexture); 
+    glUniform1i(glGetUniformLocation(def_prog, "ssaoMap"), 3);
+
+    // Bind Shadows
+    glActiveTexture(GL_TEXTURE4);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, internal->shadow.depthMapTextureArray);
+    glUniform1i(glGetUniformLocation(def_prog, "shadowMap"), 4);
+
+    // Upload Uniforms
+    glUniformMatrix4fv(glGetUniformLocation(def_prog, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
+    glUniform3fv(glGetUniformLocation(def_prog, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
+    glUniform1i(glGetUniformLocation(def_prog, "u_EnableSSAO"), internal->state.enable_ssao ? 1 : 0);
+    
+    OpenGL_UploadShadowUniforms(def_prog, &internal->state);
+    OpenGL_UploadLightUniforms(def_prog, &internal->state);
+
+    // Draw Screen Quad
+    glDisable(GL_DEPTH_TEST); // We don't need depth to draw a flat quad
+    glBindVertexArray(internal->quad_vao);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glEnable(GL_DEPTH_TEST);
+}
+
+
+
+
+
 // Computes and blurs the SSAO texture
 static void ExecuteSSAOPass(OpenGL_Backend* internal)
 {
+    glViewport(0, 0, internal->state.window_width / 2, internal->state.window_height / 2);
+
     // --- Compute Pass ---
     glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.ssaoFBO);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -1455,6 +1526,7 @@ static void ExecuteSSAOPass(OpenGL_Backend* internal)
     glUseProgram(ssao_prog);
 
     glUniformMatrix4fv(glGetUniformLocation(ssao_prog, "projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+    glUniformMatrix4fv(glGetUniformLocation(ssao_prog, "view"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
     glUniform1i(glGetUniformLocation(ssao_prog, "kernelSize"), 16);
     glUniform1f(glGetUniformLocation(ssao_prog, "radius"), 0.5f);
     glUniform1f(glGetUniformLocation(ssao_prog, "bias"), 0.025f);
@@ -1526,6 +1598,10 @@ static void OpenGL_RenderCommandBatch(OpenGL_Backend* internal, uint32_t start_i
 
             OpenGL_UploadShadowUniforms(gl_shader->program, &internal->state);
             OpenGL_BindSSAOTexture(internal, gl_shader->program);
+
+            glActiveTexture(GL_TEXTURE4);
+            glBindTexture(GL_TEXTURE_2D_ARRAY, internal->shadow.depthMapTextureArray);
+            glUniform1i(glGetUniformLocation(gl_shader->program, "shadowMap"), 4);
 
             GLint enable_ssao_loc = glGetUniformLocation(gl_shader->program, "u_EnableSSAO");
             if (enable_ssao_loc != -1)
@@ -1635,26 +1711,46 @@ static void OpenGL_EndFrame(Renderer* r)
         }
     }
 
+
+
+    // --- Deferred pipeline ---
+
     glEnable(GL_CULL_FACE);
 
+    // Generate the G_Buffer for opaque objects
+    ExecuteGBufferPass(internal, transparent_start_idx);
     
-    // SSAO Pre-Passes
+    // Calculate SSAO if enabled and shaders exist
     if (internal->state.enable_ssao && internal->ssao.g_buffer_shader.id != 0 &&
         internal->ssao.ssao_shader.id != 0 && internal->ssao.blur_shader.id != 0)
     {
-        ExecuteGBufferPass(internal, transparent_start_idx);
         ExecuteSSAOPass(internal);
     }
 
+    glViewport(0, 0, internal->state.window_width, internal->state.window_height);
+
+    // Deferred lighting pass
+    ExecuteDeferredLightingPass(internal);
+
+
+
+    // --- Forward pipeline (For Skybox and Transparent Geometry) ---
+
+    // Depth Blit. We must copy the exact depths from the G-Buffer onto the main screen 
+    // so the Skybox and Transparent objects know what to hide behind
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, internal->ssao.gBufferFBO);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    glBlitFramebuffer(0, 0, internal->state.window_width, internal->state.window_height,
+                      0, 0, internal->state.window_width, internal->state.window_height,
+                      GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+
     OpenGL_BindDefaultFramebuffer();
 
-    OpenGL_RenderCommandBatch(internal, 0, transparent_start_idx);
-
+    // Draw Skybox
     if (internal->state.has_skybox)
         OpenGL_DrawSkybox(internal);
 
-
-    // Main Forward Pass (Transparent Geometry)
+    // Draw transparents using the forward renderer
     if (transparent_start_idx < internal->command_count)
     {
         glEnable(GL_BLEND);
@@ -1830,14 +1926,22 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     // Normal color buffer
     glGenTextures(1, &internal->ssao.gNormal);
     glBindTexture(GL_TEXTURE_2D, internal->ssao.gNormal);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, win_w, win_h, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, win_w, win_h, 0, GL_RGBA, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, internal->ssao.gNormal, 0);
 
-    // Tell OpenGL which color attachments we'll use (of this framebuffer) for rendering 
-    uint32_t attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
-    glDrawBuffers(2, attachments);
+    // Albedo + Specular color buffer
+    glGenTextures(1, &internal->ssao.gAlbedoSpec);
+    glBindTexture(GL_TEXTURE_2D, internal->ssao.gAlbedoSpec);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, win_w, win_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, internal->ssao.gAlbedoSpec, 0);
+
+    // Tell OpenGL we now have THREE color attachments
+    uint32_t attachments[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
+    glDrawBuffers(3, attachments);
 
     // Create and attach depth buffer (renderbuffer)
     glGenRenderbuffers(1, &internal->ssao.gDepth);

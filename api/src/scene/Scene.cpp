@@ -89,8 +89,6 @@ namespace Prism
 
         if (custom_shader != nullptr)
             c_shader = static_cast<::Shader*>(custom_shader->GetRaw());
-        else
-            c_shader = ::Asset_GetDefaultSkyboxShader();
 
         ::Texture* c_tex = static_cast<::Texture*>(skybox_text->GetRaw());
 

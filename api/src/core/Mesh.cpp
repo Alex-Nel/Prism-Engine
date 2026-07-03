@@ -95,5 +95,19 @@ namespace Prism
         {
             Debug_Warning("Attempted to set specular strength on an invalid Material");
         }
-    }    
+    }
+
+    void Material::SetShader(Prism::Shader shader)
+    {
+        if (m_Handle != nullptr) 
+        {
+            ::Shader* raw_shader = static_cast<::Shader*>(shader.GetRaw());
+            ::Material* raw_mat = static_cast<::Material*>(m_Handle);
+            raw_mat->shader = raw_shader;
+        }
+        else
+        {
+            Debug_Warning("Attempted to set specular strength on an invalid Material");
+        }
+    }
 }

@@ -351,10 +351,10 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
     {
         struct aiMaterial* ai_mat = scene->mMaterials[i];
         Texture* tex_ptr = Asset_GetDefaultTexture(); // Fallback
-        Shader* model_shader = Asset_GetDefaultShader();
+        Shader* model_shader = NULL;
 
         if (scene->mNumAnimations > 0)
-            model_shader = Asset_GetDefaultAnimatedShader();
+            model_shader = NULL;
 
         // Ask Assimp if this material has a Diffuse Texture
         struct aiString tex_path;
@@ -930,10 +930,7 @@ Material* Asset_CreateMaterial(Shader* shader, Texture* diffuse)
     mat->id = id;
     mat->active = true;
 
-    if (shader == NULL)
-        mat->shader = Asset_GetDefaultShader();
-    else
-        mat->shader = shader;
+    mat->shader = shader;
     
     if (diffuse == NULL)
         mat->diffuse_texture = Asset_GetDefaultTexture();
@@ -1462,102 +1459,6 @@ Texture* Asset_GetDefaultTexture()
 
 
     return default_texture;
-}
-
-
-
-
-
-// Create the standard shader
-Shader* Asset_GetDefaultShader()
-{
-    // If already made return the handle
-    if (default_shader != NULL)
-        return default_shader;
-
-    if (shader_count < MAX_CACHED_SHADERS)
-    {
-        default_shader = Asset_LoadShader("Default", "assets/shaders/default.vert", "assets/shaders/default.frag");
-    }
-
-    return default_shader;
-}
-
-
-
-
-
-// Returns the default shader for animated models
-Shader* Asset_GetDefaultAnimatedShader()
-{
-    if (default_animated_shader != NULL)
-        return default_animated_shader;
-
-    if (shader_count < MAX_CACHED_SHADERS)
-    {
-        // Uses the new Animated Vertex Shader, but the same old Fragment Shader
-        default_animated_shader = Asset_LoadShader("AnimatedDefault", "assets/shaders/animated.vert", "assets/shaders/default.frag"); 
-    }
-
-    return default_animated_shader;
-}
-
-
-
-
-
-// Returns the default skybox shader
-Shader* Asset_GetDefaultSkyboxShader()
-{
-    // If already made return the handle
-    if (default_skybox_shader != NULL)
-        return default_skybox_shader;
-
-    if (shader_count < MAX_CACHED_SHADERS)
-    {
-        default_skybox_shader = Asset_LoadShader("SkyboxDefault", "assets/shaders/skybox_default.vert", "assets/shaders/skybox_default.frag");
-    }
-
-    return default_skybox_shader;
-}
-
-
-
-
-
-// Returns the default shader for shadow mapping
-Shader* Asset_GetDefaultShadowShader()
-{
-    // If already made return the handle
-    if (default_shadow_shader != NULL)
-        return default_shadow_shader;
-
-    if (shader_count < MAX_CACHED_SHADERS)
-    {
-        default_shadow_shader = Asset_LoadShader("ShadowDefault", "assets/shaders/shadow.vert", "assets/shaders/shadow.frag");
-    }
-
-    return default_shadow_shader;
-}
-
-
-
-
-
-// Returns the shadow shader for skinned (animated) models
-Shader* Asset_GetDefaultSkinnedShadowShader()
-{
-    // If already made return the handle
-    if (default_skinned_shadow_shader != NULL)
-        return default_skinned_shadow_shader;
-
-    if (shader_count < MAX_CACHED_SHADERS)
-    {
-        // Skinned vertex shader + the same depth-only fragment shader
-        default_skinned_shadow_shader = Asset_LoadShader("ShadowSkinned", "assets/shaders/shadow_skinned.vert", "assets/shaders/shadow.frag");
-    }
-
-    return default_skinned_shadow_shader;
 }
 
 

@@ -486,7 +486,7 @@ void Engine_ExecuteShadowPass(Scene* scene, RenderPacket* packet)
         if ((dx*dx + dy*dy + dz*dz) > cull_dist_sq)
             continue; // Too far to cast a visible shadow
 
-        Render_Submit(engine.renderer, rc->mesh->gpu_handle, (ShaderHandle){0}, (TextureHandle){0}, (MaterialProperties){0}, t->world_matrix, NULL, false, 0.0f);
+        Render_Submit(engine.renderer, rc->mesh->gpu_handle, DEFAULT_SHADER, DEFAULT_TEXTURE, (MaterialProperties){0}, t->world_matrix, NULL, false, 0.0f);
     }
 
 
@@ -518,7 +518,7 @@ void Engine_ExecuteShadowPass(Scene* scene, RenderPacket* packet)
         else if (scene->component_masks[i] & COMPONENT_ANIMATOR)
             bone_ptr = scene->animators[i].final_bone_matrices;
 
-        Render_Submit(engine.renderer, rc->mesh->gpu_handle, (ShaderHandle){0}, (TextureHandle){0}, (MaterialProperties){0}, t->world_matrix, bone_ptr, false, 0.0f);
+        Render_Submit(engine.renderer, rc->mesh->gpu_handle, DEFAULT_SHADER, DEFAULT_TEXTURE, (MaterialProperties){0}, t->world_matrix, bone_ptr, false, 0.0f);
     }
 
     Render_EndShadowPass(engine.renderer);
@@ -574,11 +574,9 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
         if (!Frustum_ContainsAABB(cam_frustum, rc->mesh->local_bounds, t->world_matrix))
             continue;
 
-        ShaderHandle shader;
-        if (rc->material->shader)
+        ShaderHandle shader = DEFAULT_SHADER;
+        if (rc->material->shader != NULL)
             shader = rc->material->shader->gpu_handle;
-        else
-            shader = (ShaderHandle){0};
         
         Render_Submit(engine.renderer, rc->mesh->gpu_handle, shader, rc->material->diffuse_texture->gpu_handle, rc->material->properties, t->world_matrix, NULL, false, 0.0f);
     }
@@ -608,11 +606,9 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
         else if (scene->component_masks[i] & COMPONENT_ANIMATOR)
             bone_ptr = scene->animators[i].final_bone_matrices;
 
-        ShaderHandle shader;
-        if (rc->material->shader)
+        ShaderHandle shader = DEFAULT_SHADER;
+        if (rc->material->shader != NULL)
             shader = rc->material->shader->gpu_handle;
-        else
-            shader = (ShaderHandle){0};
         
         Render_Submit(engine.renderer, rc->mesh->gpu_handle, shader, rc->material->diffuse_texture->gpu_handle, rc->material->properties, t->world_matrix, bone_ptr, false, 0.0f);
     }
@@ -633,7 +629,11 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
         MaterialProperties local_props = line->material->properties;
         local_props.tint_color = line->color;
 
-        Render_Submit(engine.renderer, line->dynamic_mesh->gpu_handle, line->material->shader->gpu_handle, line->material->diffuse_texture->gpu_handle, local_props, Matrix4Identity(), NULL, false, 0.0f);
+        ShaderHandle shader = DEFAULT_SHADER;
+        if (line->material->shader != NULL)
+            shader = line->material->shader->gpu_handle;
+
+        Render_Submit(engine.renderer, line->dynamic_mesh->gpu_handle, shader, line->material->diffuse_texture->gpu_handle, local_props, Matrix4Identity(), NULL, false, 0.0f);
     }
 
 
@@ -666,7 +666,11 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
         
         Matrix4 final_sprite_matrix = Matrix4Multiply(t->world_matrix, aspect_matrix);
 
-        Render_Submit(engine.renderer, sprite->quad->gpu_handle, sprite->material->shader->gpu_handle, sprite->material->diffuse_texture->gpu_handle, local_props, final_sprite_matrix, NULL, true, dist_sq);
+        ShaderHandle shader = DEFAULT_SHADER;
+        if (sprite->material->shader != NULL)
+            shader = sprite->material->shader->gpu_handle;
+
+        Render_Submit(engine.renderer, sprite->quad->gpu_handle, shader, sprite->material->diffuse_texture->gpu_handle, local_props, final_sprite_matrix, NULL, true, dist_sq);
     }
 }
 

@@ -66,14 +66,8 @@ Mesh* Asset_GetBuiltinSphere();
 
 
 
-// Functions to get a default texture and shader
-
+// Returns the default texture
 Texture* Asset_GetDefaultTexture();
-Shader* Asset_GetDefaultShader();
-Shader* Asset_GetDefaultAnimatedShader();
-Shader* Asset_GetDefaultSkyboxShader();
-Shader* Asset_GetDefaultShadowShader();
-Shader* Asset_GetDefaultSkinnedShadowShader();
 
 
 

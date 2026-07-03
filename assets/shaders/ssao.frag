@@ -7,26 +7,32 @@ uniform sampler2D gNormal;
 uniform sampler2D texNoise;
 
 uniform vec3 samples[64];
-uniform int kernelSize = 16; // Default to 64, can be lowered for performance
-uniform float radius = 0.15;  // How far the occlusion hemisphere reaches (TWEAK THIS)
-uniform float bias = 0.025;  // Prevents self-shadowing acne on flat surfaces
+uniform int kernelSize = 16;  // Default to 16, can be lowered for performance
+uniform float radius = 0.15;  // How far the occlusion hemisphere reaches
+uniform float bias = 0.025;   // Prevents self-shadowing acne on flat surfaces
 
-uniform mat4 projection;     // To project the samples back to the screen
-uniform vec2 noiseScale;     // ScreenRes / NoiseTextureRes (e.g. 1920/4.0, 1080/4.0)
+uniform mat4 projection;      // To project the samples back to the screen
+uniform mat4 view;
+uniform vec2 noiseScale;      // ScreenRes / NoiseTextureRes (e.g. 1920/4.0, 1080/4.0)
+
+
 
 void main()
 {
-    vec3 normal = texture(gNormal, TexCoords).xyz;
+    vec3 worldNormal = texture(gNormal, TexCoords).xyz;
     
     // If the normal is exactly 0,0,0 (the clear color), this is the sky. Do not calculate SSAO.
-    if (length(normal) < 0.1)
+    if (length(worldNormal) < 0.1)
     {
         FragColor = 1.0; // Fully lit
         return;
     }
     
-    normal = normalize(normal);
-    vec3 fragPos = texture(gPosition, TexCoords).xyz;
+    vec3 worldPos = texture(gPosition, TexCoords).xyz;
+
+    vec3 fragPos = (view * vec4(worldPos, 1.0)).xyz;
+    vec3 normal = normalize(mat3(view) * worldNormal);
+
     vec3 randomVec = normalize(texture(texNoise, TexCoords * noiseScale).xyz);
 
     // Create the TBN matrix to orient the hemisphere along the surface normal
@@ -43,23 +49,26 @@ void main()
 
         // Project sample position to screen space to look up the depth
         vec4 offset = vec4(samplePos, 1.0);
-        offset = projection * offset; 
-        offset.xyz /= offset.w; 
-        offset.xyz = offset.xyz * 0.5 + 0.5; 
+        offset = projection * offset;
+        offset.xyz /= offset.w;
+        offset.xyz = offset.xyz * 0.5 + 0.5;
+
+        // Read the world space position of the geometry we hit
+        vec3 sampleWorldPos = texture(gPosition, offset.xy).xyz;
 
         // Get depth of the geometry at this screen coordinate
-        float sampleDepth = texture(gPosition, offset.xy).z; 
+        float sampleDepth = (view * vec4(sampleWorldPos, 1.0)).z;
 
         float distance = abs(fragPos.z - sampleDepth);
         float rangeCheck = smoothstep(radius, radius * 0.5, distance);
         
-        // If the sampled depth is closer to the camera than our sample point, it is occluded!
+        // If the sampled depth is closer to the camera than our sample point, it is occluded
         occlusion += (sampleDepth >= samplePos.z + bias ? 1.0 : 0.0) * rangeCheck;           
     }
     
     // Invert the occlusion so 1.0 = Bright (Unoccluded) and 0.0 = Black (Occluded)
     occlusion = 1.0 - (occlusion / float(kernelSize));
     
-    // Optional: Raise to a power to increase contrast
+    // Raise to a power to increase contrast
     FragColor = pow(occlusion, 1.2); 
 }

@@ -142,8 +142,8 @@ namespace Prism
     // Material Management
     // ==========================================
     
-    Material AssetManager::CreateMaterial(Shader shader, Texture diffuse) {
-        ::Material* h = ::Asset_CreateMaterial((::Shader*)shader.GetRaw(), (::Texture*)diffuse.GetRaw());
+    Material AssetManager::CreateMaterial(Texture diffuse) {
+        ::Material* h = ::Asset_CreateMaterial(NULL, (::Texture*)diffuse.GetRaw());
         return Prism::Material(h);
     }
 
@@ -170,13 +170,5 @@ namespace Prism
     
     Texture AssetManager::GetDefaultTexture() {
         return Prism::Texture(::Asset_GetDefaultTexture());
-    }
-
-    Shader AssetManager::GetDefaultShader() {
-        return Prism::Shader(::Asset_GetDefaultShader());
-    }
-
-    Shader AssetManager::GetDefaultSkyboxShader() {
-        return Prism::Shader(::Asset_GetDefaultSkyboxShader());
     }
 }

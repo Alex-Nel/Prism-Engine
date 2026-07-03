@@ -225,6 +225,7 @@ namespace Prism
         void SetTintColor(const Prism::Color& color);
         void SetShininess(float shininess);
         void SetSpecularStrength(float strength);
+        void SetShader(Prism::Shader shader);
     };
 
 
