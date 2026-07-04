@@ -23,6 +23,8 @@ out vec2 TexCoord;
 out vec3 v_Normal;
 out vec3 v_FragPos;
 
+
+
 void main()
 {
     // Initialize empty accumulators
@@ -58,10 +60,13 @@ void main()
     // Pass the UVs straight through
     TexCoord = aTexCoords;
 
+    vec3 worldPos = vec3(u_Model * totalPosition);
+    v_FragPos = worldPos;
+
     // Calculate final World Position and World Normal for lighting
-    v_FragPos = vec3(u_Model * totalPosition);
-    v_Normal = mat3(u_Model) * totalNormal;
+    mat3 normalMatrix = mat3(transpose(inverse(u_Model)));
+    v_Normal = normalMatrix * totalNormal;
 
     // Calculate final Screen Position
-    gl_Position = u_Projection * u_View * vec4(v_FragPos, 1.0);
+    gl_Position = u_Projection * u_View * vec4(worldPos, 1.0);
 }

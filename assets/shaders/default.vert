@@ -16,12 +16,14 @@ out vec3 v_FragPos;
 
 void main()
 {
-   v_FragPos = vec3(u_Model * vec4(aPos, 1.0));
-   v_Normal = mat3(u_Model) * aNormal;
+   vec3 worldPos = vec3(u_Model * vec4(aPos, 1.0));
+   
+   v_FragPos = worldPos;
+
+   mat3 normalMatrix = mat3(transpose(inverse(u_Model)));
+   v_Normal = normalMatrix * aNormal;
 
    // Pass the UVs straight through to the fragment shader
    TexCoord = aTexCoords;
-   
-   // gl_Position = u_Projection * u_View * u_Model * vec4(aPos, 1.0);
-   gl_Position = u_Projection * u_View * vec4(v_FragPos, 1.0);
+   gl_Position = u_Projection * u_View * vec4(worldPos, 1.0);
 }

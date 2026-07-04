@@ -17,6 +17,15 @@ uniform vec2 noiseScale;      // ScreenRes / NoiseTextureRes (e.g. 1920/4.0, 108
 
 
 
+// Per-pixel rotation avoids the visible 4x4 block pattern from a tiled noise texture.
+float InterleavedGradientNoise(vec2 position)
+{
+    vec3 magic = vec3(0.06711056, 0.00583715, 52.9829189);
+    return fract(magic.z * fract(dot(position, magic.xy)));
+}
+
+
+
 void main()
 {
     vec3 worldNormal = texture(gNormal, TexCoords).xyz;
@@ -33,7 +42,8 @@ void main()
     vec3 fragPos = (view * vec4(worldPos, 1.0)).xyz;
     vec3 normal = normalize(mat3(view) * worldNormal);
 
-    vec3 randomVec = normalize(texture(texNoise, TexCoords * noiseScale).xyz);
+    float noiseAngle = InterleavedGradientNoise(gl_FragCoord.xy) * 6.28318530718;
+    vec3 randomVec = normalize(vec3(cos(noiseAngle), sin(noiseAngle), 0.0));
 
     // Create the TBN matrix to orient the hemisphere along the surface normal
     vec3 tangent = normalize(randomVec - normal * dot(randomVec, normal));

@@ -111,6 +111,12 @@ typedef struct GL_ForwardPipeline
 typedef struct GL_DeferredPipeline
 {
     ShaderHandle deferred_shader;
+    ShaderHandle volume_shader;
+    ShaderHandle spot_volume_shader;
+    uint32_t sphere_vao;
+    uint32_t sphere_vbo;
+    uint32_t sphere_ebo;
+    uint32_t sphere_index_count;
 } GL_DeferredPipeline;
 
 
@@ -232,7 +238,7 @@ static void OpenGL_SetViewport(Renderer* r, uint32_t x, uint32_t y, uint32_t wid
 
         // Resize G-Buffer Textures
         glBindTexture(GL_TEXTURE_2D, internal->ssao.gPosition);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
 
         glBindTexture(GL_TEXTURE_2D, internal->ssao.gNormal);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
@@ -993,6 +999,8 @@ static void OpenGL_InitPipelines(OpenGL_Backend* internal)
     
     // 2. Deferred Pipeline
     internal->deferred.deferred_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred", "assets/shaders/deferred_light.vert", "assets/shaders/deferred_light.frag");
+    internal->deferred.volume_shader = OpenGL_CompileInternalShaderFromFile(internal, "Volume", "assets/shaders/deferred_volume.vert", "assets/shaders/deferred_volume.frag");
+    internal->deferred.spot_volume_shader = OpenGL_CompileInternalShaderFromFile(internal, "Spot Volume", "assets/shaders/deferred_volume.vert", "assets/shaders/deferred_spot_volume.frag");
 
     // 3. Shadow Pipeline
     internal->shadow.static_shader = OpenGL_CompileInternalShaderFromFile(internal, "Shadow Static", "assets/shaders/shadow.vert", "assets/shaders/shadow.frag");
@@ -1006,7 +1014,6 @@ static void OpenGL_InitPipelines(OpenGL_Backend* internal)
     internal->ssao.g_buffer_skinned_shader = OpenGL_CompileInternalShaderFromFile(internal, "G-Buffer Skinned", "assets/shaders/g_buffer_skinned.vert", "assets/shaders/g_buffer.frag");
     internal->ssao.ssao_shader = OpenGL_CompileInternalShaderFromFile(internal, "SSAO Compute", "assets/shaders/ssao.vert", "assets/shaders/ssao.frag");
     internal->ssao.blur_shader = OpenGL_CompileInternalShaderFromFile(internal, "SSAO Blur", "assets/shaders/ssao.vert", "assets/shaders/ssao_blur.frag");
-
 }
 
 
@@ -1029,7 +1036,7 @@ static void OpenGL_InitPipelines(OpenGL_Backend* internal)
 
 
 // Restores the default window framebuffer for forward rendering.
-static void OpenGL_BindDefaultFramebuffer(void)
+static void OpenGL_BindDefaultFramebuffer()
 {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDrawBuffer(GL_BACK);
@@ -1415,6 +1422,31 @@ static void OpenGL_UploadLightUniforms(GLuint program, const RenderState* state)
 
 
 
+// Uploads only directional light uniforms
+static void OpenGL_UploadDirectionalLightUniforms(GLuint program, const RenderState* state)
+{
+    char uniform_name[64];
+
+    // --- Upload Directional Lights ---
+    glUniform1i(glGetUniformLocation(program, "u_DirLightCount"), state->dir_light_count);
+    for (uint32_t j = 0; j < state->dir_light_count; j++)
+    {
+        const DirectionalLightData* dl = &state->dir_lights[j];
+        sprintf(uniform_name, "u_DirLights[%d].direction", j);
+        glUniform3fv(glGetUniformLocation(program, uniform_name), 1, (float*)&dl->direction);
+        sprintf(uniform_name, "u_DirLights[%d].color", j);
+        glUniform3fv(glGetUniformLocation(program, uniform_name), 1, (float*)&dl->color);
+        sprintf(uniform_name, "u_DirLights[%d].intensity", j);
+        glUniform1f(glGetUniformLocation(program, uniform_name), dl->intensity);
+        sprintf(uniform_name, "u_DirLights[%d].ambientStrength", j); 
+        glUniform1f(glGetUniformLocation(program, uniform_name), dl->ambient_strength);
+    }
+}
+
+
+
+
+
 // Executes the geometry pre-pass for SSAO
 static void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
 {
@@ -1476,6 +1508,8 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
 {
     OpenGL_BindDefaultFramebuffer();
 
+    // --- Global pass ---
+
     GLuint def_prog = internal->shader_pool[internal->deferred.deferred_shader.id].program;
     glUseProgram(def_prog);
 
@@ -1483,29 +1517,144 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, internal->ssao.gPosition); glUniform1i(glGetUniformLocation(def_prog, "gPosition"), 0);
     glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, internal->ssao.gNormal); glUniform1i(glGetUniformLocation(def_prog, "gNormal"), 1);
     glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, internal->ssao.gAlbedoSpec); glUniform1i(glGetUniformLocation(def_prog, "gAlbedoSpec"), 2);
+    glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, internal->state.enable_ssao ? internal->ssao.ssaoColorBufferBlur : internal->ssao.fallbackWhiteTexture); glUniform1i(glGetUniformLocation(def_prog, "ssaoMap"), 3);
+    glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_2D_ARRAY, internal->shadow.depthMapTextureArray); glUniform1i(glGetUniformLocation(def_prog, "shadowMap"), 4);
     
-    // Bind SSAO
-    glActiveTexture(GL_TEXTURE3); 
-    glBindTexture(GL_TEXTURE_2D, internal->state.enable_ssao ? internal->ssao.ssaoColorBufferBlur : internal->ssao.fallbackWhiteTexture); 
-    glUniform1i(glGetUniformLocation(def_prog, "ssaoMap"), 3);
-
-    // Bind Shadows
-    glActiveTexture(GL_TEXTURE4);
-    glBindTexture(GL_TEXTURE_2D_ARRAY, internal->shadow.depthMapTextureArray);
-    glUniform1i(glGetUniformLocation(def_prog, "shadowMap"), 4);
-
     // Upload Uniforms
     glUniformMatrix4fv(glGetUniformLocation(def_prog, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
     glUniform3fv(glGetUniformLocation(def_prog, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
     glUniform1i(glGetUniformLocation(def_prog, "u_EnableSSAO"), internal->state.enable_ssao ? 1 : 0);
-    
-    OpenGL_UploadShadowUniforms(def_prog, &internal->state);
-    OpenGL_UploadLightUniforms(def_prog, &internal->state);
 
-    // Draw Screen Quad
-    glDisable(GL_DEPTH_TEST); // We don't need depth to draw a flat quad
+    OpenGL_UploadShadowUniforms(def_prog, &internal->state);
+
+    OpenGL_UploadDirectionalLightUniforms(def_prog, &internal->state);
+
+    glDisable(GL_DEPTH_TEST);
     glBindVertexArray(internal->quad_vao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
+
+
+
+    // --- Local Pass (point light volumes) ---
+
+    GLuint vol_prog = internal->shader_pool[internal->deferred.volume_shader.id].program;
+    glUseProgram(vol_prog);
+
+    // Re-bind G-Buffer to the new shader (0, 1, 2)
+    glUniform1i(glGetUniformLocation(vol_prog, "gPosition"), 0);
+    glUniform1i(glGetUniformLocation(vol_prog, "gNormal"), 1);
+    glUniform1i(glGetUniformLocation(vol_prog, "gAlbedoSpec"), 2);
+
+    glUniformMatrix4fv(glGetUniformLocation(vol_prog, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
+    glUniformMatrix4fv(glGetUniformLocation(vol_prog, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+    glUniform3fv(glGetUniformLocation(vol_prog, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
+    glUniform2f(glGetUniformLocation(vol_prog, "u_ScreenSize"), (float)internal->state.window_width, (float)internal->state.window_height);
+
+
+    // --- Additive Blending ---
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE);
+    glDisable(GL_CULL_FACE);
+
+    glBindVertexArray(internal->deferred.sphere_vao);
+
+    for (uint32_t i = 0; i < internal->state.point_light_count; i++)
+    {
+        PointLightData* pl = &internal->state.point_lights[i];
+
+        // Calculate physical light radius mathematically based on attenuation
+        float max_color = fmaxf(fmaxf(pl->color.r, pl->color.g), pl->color.b);
+        float radius = 50.0f; // Safe fallback if attenuation is 0
+        
+        if (pl->quadratic > 0.0001f)
+        {
+            radius = (-pl->linear + sqrtf(pl->linear * pl->linear - 4 * pl->quadratic * (pl->constant - (256.0f / 5.0f) * max_color))) / (2.0f * pl->quadratic);
+        }
+        else if (pl->linear > 0.0001f)
+        {
+            radius = ((256.0f / 5.0f) * max_color - pl->constant) / pl->linear;
+        }
+
+        float volume_radius = radius * 1.2f;
+
+        // Transform the Sphere (Scale -> Translate)
+        Matrix4 model = Matrix4Translate(pl->position);
+        model = Matrix4Multiply(model, Matrix4Scale((Vector3){volume_radius, volume_radius, volume_radius}));
+
+        glUniformMatrix4fv(glGetUniformLocation(vol_prog, "u_Model"), 1, GL_FALSE, (float*)&model);
+
+        // Upload exactly one light's data
+        glUniform3fv(glGetUniformLocation(vol_prog, "u_LightPos"), 1, (float*)&pl->position);
+        glUniform3fv(glGetUniformLocation(vol_prog, "u_LightColor"), 1, (float*)&pl->color);
+        glUniform1f(glGetUniformLocation(vol_prog, "u_Intensity"), pl->intensity);
+        glUniform1f(glGetUniformLocation(vol_prog, "u_Constant"), pl->constant);
+        glUniform1f(glGetUniformLocation(vol_prog, "u_Linear"), pl->linear);
+        glUniform1f(glGetUniformLocation(vol_prog, "u_Quadratic"), pl->quadratic);
+        glUniform1f(glGetUniformLocation(vol_prog, "u_Radius"), radius);
+
+        // Draw Sphere
+        glDrawElements(GL_TRIANGLES, internal->deferred.sphere_index_count, GL_UNSIGNED_INT, 0);
+    }
+
+
+
+    // --- Local Pass (spot light volumes) ---
+
+    GLuint spot_prog = internal->shader_pool[internal->deferred.spot_volume_shader.id].program;
+    glUseProgram(spot_prog);
+
+    glUniform1i(glGetUniformLocation(spot_prog, "gPosition"), 0);
+    glUniform1i(glGetUniformLocation(spot_prog, "gNormal"), 1);
+    glUniform1i(glGetUniformLocation(spot_prog, "gAlbedoSpec"), 2);
+    
+    glUniformMatrix4fv(glGetUniformLocation(spot_prog, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
+    glUniformMatrix4fv(glGetUniformLocation(spot_prog, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+    glUniform3fv(glGetUniformLocation(spot_prog, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
+    glUniform2f(glGetUniformLocation(spot_prog, "u_ScreenSize"), (float)internal->state.window_width, (float)internal->state.window_height);
+
+
+    for (uint32_t i = 0; i < internal->state.spot_light_count; i++)
+    {
+        SpotLightData* sl = &internal->state.spot_lights[i];
+
+        // Same physical radius calculation so the sphere encompasses the cone's reach
+        float max_color = fmaxf(fmaxf(sl->color.r, sl->color.g), sl->color.b);
+        float radius = 50.0f; // Safe fallback
+        
+        if (sl->quadratic > 0.0001f)
+        {
+            radius = (-sl->linear + sqrtf(sl->linear * sl->linear - 4 * sl->quadratic * (sl->constant - (256.0f / 5.0f) * max_color))) / (2.0f * sl->quadratic);
+        }
+        else if (sl->linear > 0.0001f)
+        {
+            radius = ((256.0f / 5.0f) * max_color - sl->constant) / sl->linear;
+        }
+
+        float volume_radius = radius * 1.2f;
+
+        Matrix4 model = Matrix4Translate(sl->position);
+        model = Matrix4Multiply(model, Matrix4Scale((Vector3){volume_radius, volume_radius, volume_radius}));
+
+        glUniformMatrix4fv(glGetUniformLocation(spot_prog, "u_Model"), 1, GL_FALSE, (float*)&model);
+
+        glUniform3fv(glGetUniformLocation(spot_prog, "u_LightPos"), 1, (float*)&sl->position);
+        glUniform3fv(glGetUniformLocation(spot_prog, "u_LightDir"), 1, (float*)&sl->direction);
+        glUniform3fv(glGetUniformLocation(spot_prog, "u_LightColor"), 1, (float*)&sl->color);
+        glUniform1f(glGetUniformLocation(spot_prog, "u_Intensity"), sl->intensity);
+        glUniform1f(glGetUniformLocation(spot_prog, "u_Constant"), sl->constant);
+        glUniform1f(glGetUniformLocation(spot_prog, "u_Linear"), sl->linear);
+        glUniform1f(glGetUniformLocation(spot_prog, "u_Quadratic"), sl->quadratic);
+        glUniform1f(glGetUniformLocation(spot_prog, "u_Radius"), radius);
+        glUniform1f(glGetUniformLocation(spot_prog, "u_CutOff"), sl->inner_cut_off);
+        glUniform1f(glGetUniformLocation(spot_prog, "u_OuterCutOff"), sl->outer_cut_off);
+
+        glDrawElements(GL_TRIANGLES, internal->deferred.sphere_index_count, GL_UNSIGNED_INT, 0);
+    }
+
+
+    // --- Restore pipeline defaults ---
+    glDisable(GL_BLEND);
+    glCullFace(GL_BACK);
     glEnable(GL_DEPTH_TEST);
 }
 
@@ -1772,6 +1921,65 @@ static void OpenGL_EndFrame(Renderer* r)
 
 
 
+// Generates a simple low-poly UV sphere for light volumes
+static void OpenGL_GenerateLightSphere(OpenGL_Backend* internal)
+{
+    const int rings = 32;
+    const int sectors = 32;
+    const float PI = 3.14159265359f;
+
+    float vertices[32 * 32 * 3];
+    uint32_t indices[32 * 32 * 6];
+    
+    int v = 0;
+    for (int r = 0; r < rings; ++r)
+    {
+        for (int s = 0; s < sectors; ++s)
+        {
+            float const y = sin(-PI/2.0f + PI * r / (float)(rings-1));
+            float const x = cos(2*PI * s / (float)(sectors-1)) * sin(PI * r / (float)(rings-1));
+            float const z = sin(2*PI * s / (float)(sectors-1)) * sin(PI * r / (float)(rings-1));
+
+            vertices[v++] = x; vertices[v++] = y; vertices[v++] = z;
+        }
+    }
+
+    int i = 0;
+
+    for (int r = 0; r < rings - 1; ++r)
+    {
+        for (int s = 0; s < sectors - 1; ++s)
+        {
+            indices[i++] = r * sectors + s;
+            indices[i++] = r * sectors + (s+1);
+            indices[i++] = (r+1) * sectors + (s+1);
+            indices[i++] = r * sectors + s;
+            indices[i++] = (r+1) * sectors + (s+1);
+            indices[i++] = (r+1) * sectors + s;
+        }
+    }
+
+    internal->deferred.sphere_index_count = i;
+
+    glGenVertexArrays(1, &internal->deferred.sphere_vao);
+    glGenBuffers(1, &internal->deferred.sphere_vbo);
+    glGenBuffers(1, &internal->deferred.sphere_ebo);
+
+    glBindVertexArray(internal->deferred.sphere_vao);
+    glBindBuffer(GL_ARRAY_BUFFER, internal->deferred.sphere_vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, internal->deferred.sphere_ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glBindVertexArray(0);
+}
+
+
+
+
+
 
 
 
@@ -1916,7 +2124,7 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     // Position color buffer (use RGBA16F for GPU alignment)
     glGenTextures(1, &internal->ssao.gPosition);
     glBindTexture(GL_TEXTURE_2D, internal->ssao.gPosition);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, win_w, win_h, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, win_w, win_h, 0, GL_RGBA, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -2031,6 +2239,10 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
     OpenGL_BindDefaultFramebuffer();
+
+
+    // Generate light spheres
+    OpenGL_GenerateLightSphere(internal);
 
 
     // Initialize all pipelines

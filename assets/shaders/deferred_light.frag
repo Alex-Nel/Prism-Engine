@@ -15,8 +15,6 @@ uniform vec3 u_ViewPos;
 
 // --- Arrays & Counts ---
 #define MAX_DIR_LIGHTS 32
-#define MAX_POINT_LIGHTS 32
-#define MAX_SPOT_LIGHTS 32
 #define MAX_SHADOW_CASCADES 4
 
 // Comparison sampler: hardware does the depth test + bilinear PCF per tap.
@@ -44,39 +42,11 @@ struct DirLight
     float ambientStrength;
 };
 
-struct PointLight
-{
-    vec3 position;
-    vec3 color;
-    float intensity;
-    float constant;
-    float linear;
-    float quadratic;
-};
-
-struct SpotLight
-{
-    vec3 position;
-    vec3 direction;
-    vec3 color;
-    float intensity;
-    float constant;
-    float linear;
-    float quadratic;
-    float cutOff;
-    float outerCutOff;
-};
-
 
 
 uniform DirLight u_DirLights[MAX_DIR_LIGHTS];
 uniform int u_DirLightCount;
 
-uniform PointLight u_PointLights[MAX_POINT_LIGHTS];
-uniform int u_PointLightCount;
-
-uniform SpotLight u_SpotLights[MAX_SPOT_LIGHTS];
-uniform int u_SpotLightCount;
 
 
 
@@ -128,6 +98,27 @@ bool CascadeCoversFragment(int cascade, vec3 fragPos)
 
 
 
+// Interleaved Gradient Noise (Produces cinematic dither instead of stripes)
+float InterleavedGradientNoise(vec2 positionScreen) 
+{
+    vec3 magic = vec3(0.06711056, 0.00583715, 52.9829189);
+    return fract(magic.z * fract(dot(positionScreen, magic.xy)));
+}
+
+
+
+// Vogel Disk (Perfect spiral distribution for blurring)
+vec2 VogelDiskSample(int sampleIndex, int samplesCount, float phi) 
+{
+    // float GoldenAngle = 2.4;
+    const float GoldenAngle = 2.39996323;
+    float r = sqrt(float(sampleIndex) + 0.5) / sqrt(float(samplesCount));
+    float theta = float(sampleIndex) * GoldenAngle + phi;
+    return vec2(r * cos(theta), r * sin(theta));
+}
+
+
+
 // Calculates if the pixel is in shadow (0.0 = bright, 1.0 = shadowed)
 float SampleCascadeShadow(int cascade, vec3 fragPos, vec3 normal, vec3 lightDir)
 {
@@ -136,16 +127,26 @@ float SampleCascadeShadow(int cascade, vec3 fragPos, vec3 normal, vec3 lightDir)
 
     float texelSize = u_ShadowTexelSizes[cascade];
     float NdotL = max(dot(normal, lightDir), 0.0);
-    float offsetScale = clamp(1.0 - NdotL, 0.0, 1.0);
+    
+    // Angle-Based Softness & Gentle Cascade Scaling
+    // If the sun is hitting at a grazing angle (NdotL is close to 0), the shadow pixels 
+    // are stretched massively. We dynamically increase the blur to hide the blockiness
+    float grazingMultiplier = pow(1.0 - NdotL, 2.0); 
+    float angleSoftness = 1.0 + (grazingMultiplier * 4.0);
+    
+    // Scale blur radius with cascade index so higher cascades get a wider filter kernel to eliminate blocky texel stair-steps
+    float cascadeSoftness = 1.0 + float(cascade) * 0.35;
+    float baseBlurRadius = 2.0 * cascadeSoftness;
+    float finalRadius = baseBlurRadius * angleSoftness;
 
-    // Calculate how far to push the sample out along the normal
-    float calculatedOffset = texelSize * offsetScale * 2.0;
-
-    // Never let the offset exceed 0.05 meters, preventing it from going through thin geometry
-    calculatedOffset = min(calculatedOffset, 0.05);
+    // Using true geometric slope (tan theta) instead of linear 1-NdotL prevents stripe acne in Cascade 0.
+    float slope = sqrt(max(1.0 - NdotL * NdotL, 0.0)) / max(NdotL, 0.05);
+    float offsetScale = clamp(slope, 0.2, 2.0);
+    float calculatedOffset = texelSize * offsetScale * finalRadius * 0.85;
+    
+    calculatedOffset = min(calculatedOffset, 1.0); 
 
     vec3 offsetPos = fragPos + normal * calculatedOffset;
-
 
     vec4 fragPosLightSpace = u_LightSpaceMatrices[cascade] * vec4(offsetPos, 1.0);
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
@@ -154,26 +155,29 @@ float SampleCascadeShadow(int cascade, vec3 fragPos, vec3 normal, vec3 lightDir)
     if (projCoords.z > 1.0)
         return 0.0;
 
-    
-    float shadow = 0.0;
     vec2 texelSizeUV = 1.0 / vec2(textureSize(shadowMap, 0).xy);
-    
-    for (int x = -1; x <= 1; ++x)
-    {
-        for (int y = -1; y <= 1; ++y)
-        {
-            vec2 sampleUV = projCoords.xy + vec2(x, y) * texelSizeUV;
-            
-            // Skip samples that fall completely outside the cascade UV bounds
-            if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0)
-                continue;
 
-            float lit = texture(shadowMap, vec4(sampleUV, float(cascade), projCoords.z));
-            shadow += 1.0 - lit;
-        }
+    // Generate seamless noise based on screen pixel
+    float noise = InterleavedGradientNoise(gl_FragCoord.xy);
+    float phi = noise * 6.28318530718; // 2 * PI
+
+    float shadow = 0.0;
+    int NUM_SAMPLES = 16;
+    
+    // 16-Tap Vogel Disk Blur
+    for(int i = 0; i < 16; i++) 
+    {
+        vec2 offset = VogelDiskSample(i, NUM_SAMPLES, phi) * texelSizeUV * finalRadius;
+        
+        vec2 sampleUV = projCoords.xy + offset;
+        if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0)
+            continue;
+
+        float lit = texture(shadowMap, vec4(sampleUV, float(cascade), projCoords.z));
+        shadow += 1.0 - lit;
     }
     
-    return shadow / 9.0;
+    return shadow / float(NUM_SAMPLES);
 }
 
 
@@ -246,59 +250,6 @@ vec3 CalcDirLight(DirLight light, vec3 normal, vec3 viewDir, float ao, vec3 albe
 
 
 
-vec3 CalcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir, float specStrength)
-{
-    vec3 lightDir = normalize(light.position - fragPos);
-    
-    // Diffuse
-    float diff = max(dot(normal, lightDir), 0.0);
-    
-    // Specular
-    vec3 reflectDir = reflect(-lightDir, normal);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
-    
-    // Attenuation
-    float distance = length(light.position - fragPos);
-    float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));    
-    
-    // Combine
-    vec3 diffuse = diff * light.color * light.intensity;
-    vec3 specular = specStrength * spec * light.color * light.intensity;
-    
-    return (diffuse + specular) * attenuation;
-}
-
-
-
-vec3 CalcSpotLight(SpotLight light, vec3 normal, vec3 fragPos, vec3 viewDir, float specStrength)
-{
-    vec3 lightDir = normalize(light.position - fragPos);
-    
-    // Diffuse
-    float diff = max(dot(normal, lightDir), 0.0);
-    
-    // Specular
-    vec3 reflectDir = reflect(-lightDir, normal);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
-    
-    // Attenuation
-    float distance = length(light.position - fragPos);
-    float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));    
-    
-    // Spotlight Soft Edges Intensity
-    float theta = dot(lightDir, normalize(-light.direction)); 
-    float epsilon = light.cutOff - light.outerCutOff;
-    float spotIntensity = clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);
-    
-    // Combine
-    vec3 diffuse = diff * light.color * light.intensity;
-    vec3 specular = specStrength * spec * light.color * light.intensity;
-    
-    return (diffuse + specular) * attenuation * spotIntensity;
-}
-
-
-
 
 
 
@@ -319,7 +270,8 @@ void main()
 
     // Read SSAO
     float ao = 1.0;
-    if (u_EnableSSAO) ao = texture(ssaoMap, TexCoords).r;
+    if (u_EnableSSAO)
+        ao = texture(ssaoMap, TexCoords).r;
 
     // Calculate Lighting
     vec3 viewDir = normalize(u_ViewPos - fragPos);
@@ -331,20 +283,6 @@ void main()
     {
         if (i >= u_DirLightCount) break;
         totalLight += CalcDirLight(u_DirLights[i], normal, viewDir, ao, albedo, specStrength, fragPos);
-    }
-
-    // Accumulate Point Lights
-    for (int i = 0; i < MAX_POINT_LIGHTS; i++)
-    {
-        if (i >= u_PointLightCount) break;
-        totalLight += CalcPointLight(u_PointLights[i], normal, fragPos, viewDir, specStrength);
-    }
-
-    // Accumulate Spot Lights
-    for (int i = 0; i < MAX_SPOT_LIGHTS; i++)
-    {
-        if (i >= u_SpotLightCount) break;
-        totalLight += CalcSpotLight(u_SpotLights[i], normal, fragPos, viewDir, specStrength);
     }
 
 

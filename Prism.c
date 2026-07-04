@@ -456,7 +456,60 @@ void Engine_ExecuteShadowPass(Scene* scene, RenderPacket* packet)
 
             Vector3 corners[8];
             BuildFrustumSliceCorners(cam_pos, cam_fwd, cam_right, cam_up, aspect, tan_half, split_near, split_far, corners);
-            ComputeCascadeLightMatrix(corners, light_dir, up, light_distance, &packet->light_space_matrices[c], &packet->shadow_texel_world_sizes[c]);
+
+
+            // --- Texel Snapping for cascades ---
+            
+            // Find the center of the frustum slice
+            Vector3 center = {0,0,0};
+            for (int k = 0; k < 8; k++) {
+                center.x += corners[k].x;
+                center.y += corners[k].y;
+                center.z += corners[k].z;
+            }
+            center.x /= 8.0f; center.y /= 8.0f; center.z /= 8.0f;
+
+            // Find the bounding sphere radius to keep the box size stable during camera rotation
+            float radius = 0.0f;
+            for (int k = 0; k < 8; k++) {
+                float dx = corners[k].x - center.x;
+                float dy = corners[k].y - center.y;
+                float dz = corners[k].z - center.z;
+                float dist = sqrtf(dx*dx + dy*dy + dz*dz);
+                if (dist > radius) radius = dist;
+            }
+            
+            // Round radius up to nearest 16 units to prevent micro-fluctuations
+            radius = ceilf(radius / 16.0f) * 16.0f;
+            
+            float shadow_box_size = radius; 
+            float texel_world_size = (2.0f * shadow_box_size) / (float)SHADOW_MAP_RESOLUTION;
+
+            // Snap the center to the texel grid
+            Matrix4 light_basis = Matrix4LookAt((Vector3){0.0f, 0.0f, 0.0f}, light_dir, up);
+            Vector4 center_ls = Matrix4MultiplyVector4(light_basis, (Vector4){center.x, center.y, center.z, 1.0f});
+            center_ls.x = floorf(center_ls.x / texel_world_size) * texel_world_size;
+            center_ls.y = floorf(center_ls.y / texel_world_size) * texel_world_size;
+
+            Vector4 snapped = Matrix4MultiplyVector4(Matrix4Transpose(light_basis), center_ls);
+            Vector3 center_snapped = { snapped.x, snapped.y, snapped.z };
+
+            Vector3 light_pos = {
+                center_snapped.x - light_dir.x * light_distance,
+                center_snapped.y - light_dir.y * light_distance,
+                center_snapped.z - light_dir.z * light_distance
+            };
+
+            Matrix4 light_view = Matrix4LookAt(light_pos, center_snapped, up);
+            Matrix4 light_proj = Matrix4Ortho(-shadow_box_size, shadow_box_size, -shadow_box_size, shadow_box_size, 0.1f, 2.0f * light_distance);
+
+            packet->light_space_matrices[c] = Matrix4Multiply(light_proj, light_view);
+            packet->shadow_texel_world_sizes[c] = texel_world_size;
+
+
+
+            // --- UNUSED (above method seems to work better) ---
+            // ComputeCascadeLightMatrix(corners, light_dir, up, light_distance, &packet->light_space_matrices[c], &packet->shadow_texel_world_sizes[c]);
         }
     }
 
@@ -999,6 +1052,7 @@ bool Frustum_ContainsAABB(Frustum* frustum, AABB local_aabb, Matrix4 world_matri
 
 
 
+// TODO - Deprecated function
 // Builds a texel-snapped light-space matrix that fully contains the eight frustum corners of one cascade slice
 void ComputeCascadeLightMatrix(const Vector3 corners[8], Vector3 light_dir, Vector3 up, float light_distance, Matrix4* out_light_space, float* out_texel_world_size)
 {

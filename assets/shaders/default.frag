@@ -321,6 +321,10 @@ void main()
 {
     // Pre-calculate vectors we will reuse
     vec3 norm = normalize(v_Normal);
+
+    if (!gl_FrontFacing)
+        norm = -norm;
+
     vec3 viewDir = normalize(u_ViewPos - v_FragPos);
 
     float ambientOcclusion = 1.0; 
@@ -333,20 +337,26 @@ void main()
 
 
     // Accumulate directional lights
-    for (int i = 0; i < MAX_DIR_LIGHTS; i++) {
-        if (i >= u_DirLightCount) break;
+    for (int i = 0; i < MAX_DIR_LIGHTS; i++)
+    {
+        if (i >= u_DirLightCount)
+            break;
         totalLight += CalcDirLight(u_DirLights[i], norm, viewDir, ambientOcclusion);
     }
 
     // 2. Accumulate Point Lights
-    for (int i = 0; i < MAX_POINT_LIGHTS; i++) {
-        if (i >= u_PointLightCount) break;
+    for (int i = 0; i < MAX_POINT_LIGHTS; i++)
+    {
+        if (i >= u_PointLightCount)
+            break;
         totalLight += CalcPointLight(u_PointLights[i], norm, v_FragPos, viewDir);
     }
 
     // 3. Accumulate Spot Lights
-    for (int i = 0; i < MAX_SPOT_LIGHTS; i++) {
-        if (i >= u_SpotLightCount) break;
+    for (int i = 0; i < MAX_SPOT_LIGHTS; i++)
+    {
+        if (i >= u_SpotLightCount)
+            break;
         totalLight += CalcSpotLight(u_SpotLights[i], norm, v_FragPos, viewDir);
     }
 
