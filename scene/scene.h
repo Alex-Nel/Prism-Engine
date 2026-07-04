@@ -48,6 +48,7 @@ void Scene_ShutdownPhysics(Scene* scene);
 void Scene_ProcessDestroyQueue(Scene* scene);
 void Scene_SetSkybox(Scene* scene, Texture* skybox_texture, Shader* skybox_shader);
 void Scene_RemoveSkybox(Scene* scene);
+void Scene_EnableSSAO(Scene* scene, bool enabled);
 bool Scene_Raycast(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hit, int collision_mask, bool hit_triggers);
 int Scene_RaycastAll(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hits, int max_hits, int collision_mask, bool hit_triggers);
 

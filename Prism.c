@@ -745,7 +745,7 @@ void Engine_RenderScene(Scene* scene)
 
     // Make an empty render packet to send to the renderer
     RenderPacket packet = {0};
-    packet.enable_ssao = true;
+    packet.enable_ssao = scene->enable_ssao;
     packet.has_skybox = scene->has_skybox;
 
     if (scene->has_skybox)

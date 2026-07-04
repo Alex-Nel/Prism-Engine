@@ -14,7 +14,7 @@ uniform bool u_EnableSSAO;
 uniform vec3 u_ViewPos;
 
 // --- Arrays & Counts ---
-#define MAX_DIR_LIGHTS 32
+#define MAX_DIR_LIGHTS 8
 #define MAX_SHADOW_CASCADES 4
 
 // Comparison sampler: hardware does the depth test + bilinear PCF per tap.
@@ -110,7 +110,6 @@ float InterleavedGradientNoise(vec2 positionScreen)
 // Vogel Disk (Perfect spiral distribution for blurring)
 vec2 VogelDiskSample(int sampleIndex, int samplesCount, float phi) 
 {
-    // float GoldenAngle = 2.4;
     const float GoldenAngle = 2.39996323;
     float r = sqrt(float(sampleIndex) + 0.5) / sqrt(float(samplesCount));
     float theta = float(sampleIndex) * GoldenAngle + phi;

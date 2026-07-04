@@ -56,6 +56,7 @@ void Scene_Init(Scene* scene)
     scene->skybox.texture = NULL;
     scene->skybox.shader = NULL;
     scene->has_skybox = false;
+    scene->enable_ssao = false;
 }
 
 
@@ -1402,6 +1403,19 @@ void Scene_RemoveSkybox(Scene* scene)
         return;
     
     scene->has_skybox = false;
+}
+
+
+
+
+
+// Enables Screen Space Ambient Occlusion for the scene
+void Scene_EnableSSAO(Scene* scene, bool enabled)
+{
+    if (!scene)
+        return;
+
+    scene->enable_ssao = enabled;
 }
 
 

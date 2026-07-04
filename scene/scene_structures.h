@@ -509,6 +509,7 @@ typedef struct Scene
 
     bool has_skybox;
     Skybox skybox;
+    bool enable_ssao;
 
 
     // Variables for entities to remove

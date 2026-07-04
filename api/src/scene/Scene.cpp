@@ -92,7 +92,7 @@ namespace Prism
 
         ::Texture* c_tex = static_cast<::Texture*>(skybox_text->GetRaw());
 
-        if (!c_tex || !c_shader)
+        if (!c_tex)
             Debug_Error("Failed to set skybox");
 
         ::Scene_SetSkybox(static_cast<::Scene*>(m_RawScene), c_tex, c_shader);
@@ -107,6 +107,10 @@ namespace Prism
 
     void Scene::RemoveSkybox() {
         ::Scene_RemoveSkybox(static_cast<::Scene*>(m_RawScene));
+    }
+
+    void Scene::EnableSSAO(bool enabled) {
+        ::Scene_EnableSSAO(static_cast<::Scene*>(m_RawScene), enabled);
     }
 
 
