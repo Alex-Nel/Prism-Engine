@@ -12,7 +12,8 @@
 #define MAX_POINT_LIGHTS 512
 #define MAX_SPOT_LIGHTS 512
 
-#define MAX_SHADOW_CASTING_SPOTLIGHTS 16
+#define MAX_SHADOW_CASTING_SPOTLIGHTS 8
+#define MAX_SHADOW_CASTING_POINT_LIGHTS 8
 
 #define SHADOW_WIDTH SHADOW_MAP_RESOLUTION
 #define SHADOW_HEIGHT SHADOW_MAP_RESOLUTION
@@ -63,6 +64,7 @@ typedef struct GLMesh
     GLuint vao;
     GLuint vbo;
     GLuint ebo;
+    float bounding_radius;
     uint32_t index_count;
     bool active;
 } GLMesh;
@@ -134,8 +136,13 @@ typedef struct GL_ShadowPipeline
     GLuint spotDepthMapFBO;
     GLuint spotDepthMapTextureArray;
 
+    GLuint pointDepthMapFBO;
+    GLuint pointDepthMaps[MAX_SHADOW_CASTING_POINT_LIGHTS];
+
     ShaderHandle static_shader;
     ShaderHandle skinned_shader;
+    ShaderHandle point_static_shader;
+    ShaderHandle point_skinned_shader;
 } GL_ShadowPipeline;
 
 
@@ -412,6 +419,21 @@ static MeshHandle OpenGL_CreateMesh(Renderer* r, const Vertex3D* vertices, uint3
     mesh->active = true;
     mesh->index_count = index_count;
 
+    float max_dist_sq = 0.0f;
+    for (uint32_t i = 0; i < vertex_count; i++)
+    {
+        float x = vertices[i].position.x;
+        float y = vertices[i].position.y;
+        float z = vertices[i].position.z;
+        
+        float dist_sq = (x * x) + (y * y) + (z * z);
+        
+        if (dist_sq > max_dist_sq)
+            max_dist_sq = dist_sq;
+    }
+
+    mesh->bounding_radius = sqrt(max_dist_sq);
+
     // Generate OpenGL buffers
     glGenVertexArrays(1, &mesh->vao);
     glGenBuffers(1, &mesh->vbo);
@@ -667,6 +689,21 @@ static MeshHandle OpenGL_CreateSkinnedMesh(Renderer* r, const Vertex3DSkinned* v
     mesh->active = true;
     mesh->index_count = index_count;
 
+    float max_dist_sq = 0.0f;
+    for (uint32_t i = 0; i < vertex_count; i++)
+    {
+        float x = vertices[i].position.x;
+        float y = vertices[i].position.y;
+        float z = vertices[i].position.z;
+        
+        float dist_sq = (x * x) + (y * y) + (z * z);
+        
+        if (dist_sq > max_dist_sq)
+            max_dist_sq = dist_sq;
+    }
+
+    mesh->bounding_radius = sqrt(max_dist_sq);
+
     // Generate OpenGL buffers
     glGenVertexArrays(1, &mesh->vao);
     glGenBuffers(1, &mesh->vbo);
@@ -901,7 +938,7 @@ static void OpenGL_DestroyShader(Renderer* r, ShaderHandle shader)
 
 
 // Helper function to compile an internal engine shader from raw source code strings
-static ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const char* name, const char* vertex_src, const char* fragment_src)
+static ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const char* name, const char* vertex_src, const char* geom_src, const char* fragment_src)
 {
     // Find a free slot in the backend's shader pool
     uint32_t slot = 0;
@@ -920,18 +957,34 @@ static ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const
         return (ShaderHandle){0};
     }
 
+    int success;
+    char infoLog[1024];
+
     // Compile Vertex Shader
     GLuint vertex = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vertex, 1, &vertex_src, NULL);
     glCompileShader(vertex);
     
-    int success;
-    char infoLog[512];
     glGetShaderiv(vertex, GL_COMPILE_STATUS, &success);
     if (!success)
     {
-        glGetShaderInfoLog(vertex, 512, NULL, infoLog);
+        glGetShaderInfoLog(vertex, 1024, NULL, infoLog);
         Log_Error("Internal Vertex Shader Compilation Failed (%s):\n%s", name, infoLog);
+    }
+
+    GLuint geometry = 0;
+    if (geom_src != NULL)
+    {
+        geometry = glCreateShader(GL_GEOMETRY_SHADER);
+        glShaderSource(geometry, 1, &geom_src, NULL);
+        glCompileShader(geometry);
+        
+        glGetShaderiv(geometry, GL_COMPILE_STATUS, &success);
+        if (!success)
+        {
+            glGetShaderInfoLog(geometry, 1024, NULL, infoLog);
+            Log_Error("Internal Geometry Shader Compilation Failed (%s):\n%s", name, infoLog);
+        }
     }
 
     // Compile Fragment Shader
@@ -942,27 +995,37 @@ static ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const
     glGetShaderiv(fragment, GL_COMPILE_STATUS, &success);
     if (!success)
     {
-        glGetShaderInfoLog(fragment, 512, NULL, infoLog);
+        glGetShaderInfoLog(fragment, 1024, NULL, infoLog);
         Log_Error("Internal Fragment Shader Compilation Failed (%s):\n%s", name, infoLog);
     }
 
     // Link Program
     GLuint program = glCreateProgram();
     glAttachShader(program, vertex);
+    if (geometry != 0)
+        glAttachShader(program, geometry); // Only attach if it exists
     glAttachShader(program, fragment);
     glLinkProgram(program);
     
     glGetProgramiv(program, GL_LINK_STATUS, &success);
     if (!success)
     {
-        glGetProgramInfoLog(program, 512, NULL, infoLog);
+        glGetProgramInfoLog(program, 1024, NULL, infoLog);
         Log_Error("Internal Shader Linking Failed (%s):\n%s", name, infoLog);
         glDeleteProgram(program);
+
+        // Clean up shaders
+        glDeleteShader(vertex);
+        if (geometry != 0) glDeleteShader(geometry);
+        glDeleteShader(fragment);
+
         return (ShaderHandle){0};
     }
 
     // Cleanup
     glDeleteShader(vertex);
+    if (geometry != 0)
+        glDeleteShader(geometry);
     glDeleteShader(fragment);
 
     // Store in backend
@@ -977,24 +1040,27 @@ static ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const
 
 
 // Helper to read files and compile an internal shader
-static ShaderHandle OpenGL_CompileInternalShaderFromFile(OpenGL_Backend* internal, const char* name, const char* vert_path, const char* frag_path)
+static ShaderHandle OpenGL_CompileInternalShaderFromFile(OpenGL_Backend* internal, const char* name, const char* vert_path, const char* geom_path, const char* frag_path)
 {
     char* vert_src = IO_ReadTextFile(vert_path);
     char* frag_src = IO_ReadTextFile(frag_path);
+    char* geom_src = geom_path ? IO_ReadTextFile(geom_path) : NULL;
 
-    if (!vert_src || !frag_src)
+    if (!vert_src || !frag_src || (geom_path && !geom_src))
     {
         if (vert_src) free(vert_src);
         if (frag_src) free(frag_src);
+        if (geom_src) free(geom_src);
 
         return (ShaderHandle){0};
     }
 
     // Call the compiler function we made previously
-    ShaderHandle handle = OpenGL_CompileInternalShader(internal, name, vert_src, frag_src);
+    ShaderHandle handle = OpenGL_CompileInternalShader(internal, name, vert_src, geom_src, frag_src);
 
     free(vert_src);
     free(frag_src);
+    if (geom_src) free(geom_src);
 
     return handle;
 }
@@ -1006,26 +1072,28 @@ static ShaderHandle OpenGL_CompileInternalShaderFromFile(OpenGL_Backend* interna
 static void OpenGL_InitPipelines(OpenGL_Backend* internal)
 {
     // 1. Forward Pipeline (Main Lit Shaders)
-    internal->forward.default_shader = OpenGL_CompileInternalShaderFromFile(internal, "Default", "assets/shaders/default.vert", "assets/shaders/default.frag");
-    internal->forward.animated_shader = OpenGL_CompileInternalShaderFromFile(internal, "Animated", "assets/shaders/animated.vert", "assets/shaders/default.frag");
+    internal->forward.default_shader = OpenGL_CompileInternalShaderFromFile(internal, "Default", "assets/shaders/default.vert", NULL, "assets/shaders/default.frag");
+    internal->forward.animated_shader = OpenGL_CompileInternalShaderFromFile(internal, "Animated", "assets/shaders/animated.vert", NULL, "assets/shaders/default.frag");
     
     // 2. Deferred Pipeline
-    internal->deferred.deferred_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred", "assets/shaders/deferred_light.vert", "assets/shaders/deferred_light.frag");
-    internal->deferred.volume_shader = OpenGL_CompileInternalShaderFromFile(internal, "Volume", "assets/shaders/deferred_volume.vert", "assets/shaders/deferred_volume.frag");
-    internal->deferred.spot_volume_shader = OpenGL_CompileInternalShaderFromFile(internal, "Spot Volume", "assets/shaders/deferred_volume.vert", "assets/shaders/deferred_spot_volume.frag");
+    internal->deferred.deferred_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred", "assets/shaders/deferred_light.vert", NULL, "assets/shaders/deferred_light.frag");
+    internal->deferred.volume_shader = OpenGL_CompileInternalShaderFromFile(internal, "Volume", "assets/shaders/deferred_volume.vert", NULL, "assets/shaders/deferred_volume.frag");
+    internal->deferred.spot_volume_shader = OpenGL_CompileInternalShaderFromFile(internal, "Spot Volume", "assets/shaders/deferred_volume.vert", NULL, "assets/shaders/deferred_spot_volume.frag");
 
     // 3. Shadow Pipeline
-    internal->shadow.static_shader = OpenGL_CompileInternalShaderFromFile(internal, "Shadow Static", "assets/shaders/shadow.vert", "assets/shaders/shadow.frag");
-    internal->shadow.skinned_shader = OpenGL_CompileInternalShaderFromFile(internal, "Shadow Skinned", "assets/shaders/shadow_skinned.vert", "assets/shaders/shadow.frag");
+    internal->shadow.static_shader = OpenGL_CompileInternalShaderFromFile(internal, "Shadow Static", "assets/shaders/shadow.vert", NULL, "assets/shaders/shadow.frag");
+    internal->shadow.skinned_shader = OpenGL_CompileInternalShaderFromFile(internal, "Shadow Skinned", "assets/shaders/shadow_skinned.vert", NULL, "assets/shaders/shadow.frag");
+    internal->shadow.point_static_shader = OpenGL_CompileInternalShaderFromFile(internal, "Shadow Point Static", "assets/shaders/shadow_point_static.vert", "assets/shaders/shadow_point.geom", "assets/shaders/shadow_point.frag");
+    internal->shadow.point_skinned_shader = OpenGL_CompileInternalShaderFromFile(internal, "Shadow Point Skinned", "assets/shaders/shadow_point_skinned.vert", "assets/shaders/shadow_point.geom", "assets/shaders/shadow_point.frag");
 
     // 4. Skybox Pipeline
-    internal->skybox.default_shader = OpenGL_CompileInternalShaderFromFile(internal, "Skybox", "assets/shaders/skybox.vert", "assets/shaders/skybox.frag");
+    internal->skybox.default_shader = OpenGL_CompileInternalShaderFromFile(internal, "Skybox", "assets/shaders/skybox.vert", NULL, "assets/shaders/skybox.frag");
 
     // 5. SSAO Pipeline
-    internal->ssao.g_buffer_shader = OpenGL_CompileInternalShaderFromFile(internal, "G-Buffer", "assets/shaders/g_buffer.vert", "assets/shaders/g_buffer.frag");
-    internal->ssao.g_buffer_skinned_shader = OpenGL_CompileInternalShaderFromFile(internal, "G-Buffer Skinned", "assets/shaders/g_buffer_skinned.vert", "assets/shaders/g_buffer.frag");
-    internal->ssao.ssao_shader = OpenGL_CompileInternalShaderFromFile(internal, "SSAO Compute", "assets/shaders/ssao.vert", "assets/shaders/ssao.frag");
-    internal->ssao.blur_shader = OpenGL_CompileInternalShaderFromFile(internal, "SSAO Blur", "assets/shaders/ssao.vert", "assets/shaders/ssao_blur.frag");
+    internal->ssao.g_buffer_shader = OpenGL_CompileInternalShaderFromFile(internal, "G-Buffer", "assets/shaders/g_buffer.vert", NULL, "assets/shaders/g_buffer.frag");
+    internal->ssao.g_buffer_skinned_shader = OpenGL_CompileInternalShaderFromFile(internal, "G-Buffer Skinned", "assets/shaders/g_buffer_skinned.vert", NULL, "assets/shaders/g_buffer.frag");
+    internal->ssao.ssao_shader = OpenGL_CompileInternalShaderFromFile(internal, "SSAO Compute", "assets/shaders/ssao.vert", NULL, "assets/shaders/ssao.frag");
+    internal->ssao.blur_shader = OpenGL_CompileInternalShaderFromFile(internal, "SSAO Blur", "assets/shaders/ssao.vert", NULL, "assets/shaders/ssao_blur.frag");
 }
 
 
@@ -1254,8 +1322,8 @@ static void OpenGL_EndShadowPass(Renderer* r)
         SpotLightData* sl = &internal->state.spot_lights[i];
 
         // Make the Perspective Projection for the Spotlight. We use the outer_cut_off (in degrees) * 2 to get the full FOV of the cone
-        float fov = sl->outer_cut_off * 2.0f; 
-        Matrix4 spotProj = Matrix4Perspective(fov, 1.0f, 0.1f, 100.0f); // Adjust 100.0f to max distance - TODO: investigate this
+        float fov_rad = (sl->outer_cut_off * 2.0f) * (3.14159265359f / 180.0f);
+        Matrix4 spotProj = Matrix4Perspective(fov_rad, 1.0f, 0.1f, 100.0f); // Adjust 100.0f to max distance - TODO: investigate this
 
         // Create the View Matrix
         Vector3 target = {
@@ -1282,6 +1350,116 @@ static void OpenGL_EndShadowPass(Renderer* r)
         OpenGL_DrawShadowQueue(internal, &internal->state.spot_light_matrices[shadow_spot_index]);
         
         shadow_spot_index++;
+    }
+
+
+
+    // --- Point Light Shadows ---
+
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->shadow.pointDepthMapFBO);
+    glViewport(0, 0, 1024, 1024);
+    
+    int shadow_point_index = 0; 
+    uint32_t current_point_shader = 0;
+
+    for (uint32_t i = 0; i < internal->state.point_light_count; i++)
+    {
+        if (shadow_point_index >= MAX_SHADOW_CASTING_POINT_LIGHTS)
+            break;
+        
+        // glFramebufferTexture allows the Geometry shader to route to the 6 faces via gl_Layer
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, internal->shadow.pointDepthMaps[shadow_point_index], 0);        
+        glClear(GL_DEPTH_BUFFER_BIT);
+
+        PointLightData* pl = &internal->state.point_lights[i];
+
+        // 90 Degree FOV forms a perfect box. Aspect ratio is 1.0f.
+        float fov_rad = 90.0f * (3.14159265359f / 180.0f);
+        Matrix4 shadowProj = Matrix4Perspective(fov_rad, 1.0f, 0.1f, 100.0f); // Adjust 100.0f to max distance
+        Vector3 pos = pl->position;
+
+        // The 6 directions of a Cubemap (Right, Left, Top, Bottom, Near, Far)
+        Matrix4 shadowTransforms[6];
+        shadowTransforms[0] = Matrix4Multiply(shadowProj, Matrix4LookAt(pos, (Vector3){pos.x + 1.0f, pos.y, pos.z}, (Vector3){0.0f, -1.0f, 0.0f}));
+        shadowTransforms[1] = Matrix4Multiply(shadowProj, Matrix4LookAt(pos, (Vector3){pos.x - 1.0f, pos.y, pos.z}, (Vector3){0.0f, -1.0f, 0.0f}));
+        shadowTransforms[2] = Matrix4Multiply(shadowProj, Matrix4LookAt(pos, (Vector3){pos.x, pos.y + 1.0f, pos.z}, (Vector3){0.0f,  0.0f,  1.0f}));
+        shadowTransforms[3] = Matrix4Multiply(shadowProj, Matrix4LookAt(pos, (Vector3){pos.x, pos.y - 1.0f, pos.z}, (Vector3){0.0f,  0.0f, -1.0f}));
+        shadowTransforms[4] = Matrix4Multiply(shadowProj, Matrix4LookAt(pos, (Vector3){pos.x, pos.y, pos.z + 1.0f}, (Vector3){0.0f, -1.0f, 0.0f}));
+        shadowTransforms[5] = Matrix4Multiply(shadowProj, Matrix4LookAt(pos, (Vector3){pos.x, pos.y, pos.z - 1.0f}, (Vector3){0.0f, -1.0f, 0.0f}));
+
+        // Get the radius of the light
+        float max_color = fmaxf(fmaxf(pl->color.r, pl->color.g), pl->color.b);
+        float light_radius = 50.0f; // Safe fallback if attenuation is 0
+        
+        if (pl->quadratic > 0.0001f)
+            light_radius = (-pl->linear + sqrtf(pl->linear * pl->linear - 4 * pl->quadratic * (pl->constant - (256.0f / 5.0f) * max_color))) / (2.0f * pl->quadratic);
+        else if (pl->linear > 0.0001f)
+            light_radius = ((256.0f / 5.0f) * max_color - pl->constant) / pl->linear;
+
+
+        // Draw the queue using our specialized point_shader
+        for (uint32_t c = 0; c < internal->command_count; c++)
+        {
+            RenderCommand* cmd = &internal->command_queue[c];
+            if (!internal->mesh_pool[cmd->mesh.id].active)
+                continue;
+
+                
+            // Extract Position from transform Matrix
+            Vector3 mesh_center = {
+                cmd->transform.m03, 
+                cmd->transform.m13, 
+                cmd->transform.m23
+            };
+
+            // Extract Max Scale by checking the magnitude of the X, Y, and Z axis vectors
+            float scale_x = sqrtf(cmd->transform.m00*cmd->transform.m00 + cmd->transform.m10*cmd->transform.m10 + cmd->transform.m20*cmd->transform.m20);
+            float scale_y = sqrtf(cmd->transform.m01*cmd->transform.m01 + cmd->transform.m11*cmd->transform.m11 + cmd->transform.m21*cmd->transform.m21);
+            float scale_z = sqrtf(cmd->transform.m02*cmd->transform.m02 + cmd->transform.m12*cmd->transform.m12 + cmd->transform.m22*cmd->transform.m22);
+            float max_scale = fmaxf(scale_x, fmaxf(scale_y, scale_z));
+
+            // Calculate final world-space radius
+            float world_bounding_radius = internal->mesh_pool[cmd->mesh.id].bounding_radius * max_scale;
+
+            // Calculate Distance
+            float dx = mesh_center.x - pos.x;
+            float dy = mesh_center.y - pos.y;
+            float dz = mesh_center.z - pos.z;
+            float dist = sqrtf(dx*dx + dy*dy + dz*dz);
+
+            // If the mesh is outside the light's reach, skip the Geometry Shader entirely
+            if (dist > (light_radius + world_bounding_radius))
+                continue;
+
+
+            ShaderHandle target_shader = internal->shadow.point_static_shader; 
+            if (cmd->bone_matrices != NULL) 
+                target_shader = internal->shadow.point_skinned_shader;
+
+            // If we swap shaders, we must re-upload the global light uniforms
+            if (current_point_shader != target_shader.id)
+            {
+                GLuint pt_prog = internal->shader_pool[target_shader.id].program;
+                glUseProgram(pt_prog);
+                current_point_shader = target_shader.id;
+
+                glUniformMatrix4fv(glGetUniformLocation(pt_prog, "u_ShadowMatrices"), 6, GL_FALSE, (float*)shadowTransforms);
+                glUniform3fv(glGetUniformLocation(pt_prog, "u_LightPos"), 1, (float*)&pos);
+                glUniform1f(glGetUniformLocation(pt_prog, "u_FarPlane"), 100.0f);
+            }
+
+            GLuint prog = internal->shader_pool[target_shader.id].program;
+            glUniformMatrix4fv(glGetUniformLocation(prog, "u_Model"), 1, GL_FALSE, (float*)&cmd->transform);
+            
+            GLint bone_loc = glGetUniformLocation(prog, "u_BoneMatrices");
+            if (bone_loc != -1 && cmd->bone_matrices != NULL)
+                glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)cmd->bone_matrices);
+
+            glBindVertexArray(internal->mesh_pool[cmd->mesh.id].vao);
+            glDrawElements(GL_TRIANGLES, internal->mesh_pool[cmd->mesh.id].index_count, GL_UNSIGNED_INT, 0);
+        }
+        
+        shadow_point_index++;
     }
 
 
@@ -1613,6 +1791,10 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     glUniform3fv(glGetUniformLocation(vol_prog, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
     glUniform2f(glGetUniformLocation(vol_prog, "u_ScreenSize"), (float)internal->state.window_width, (float)internal->state.window_height);
 
+    glActiveTexture(GL_TEXTURE6); 
+    // glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY, internal->shadow.pointDepthMapTextureArray);
+    glUniform1i(glGetUniformLocation(vol_prog, "pointShadowMap"), 6);
+
 
     // --- Additive Blending ---
     glEnable(GL_BLEND);
@@ -1621,9 +1803,15 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
 
     glBindVertexArray(internal->deferred.sphere_vao);
 
+    int shadow_point_index = 0;
     for (uint32_t i = 0; i < internal->state.point_light_count; i++)
     {
         PointLightData* pl = &internal->state.point_lights[i];
+
+        // glUniform1i(glGetUniformLocation(vol_prog, "u_ShadowIndex"), shadow_point_index);
+        if (shadow_point_index < MAX_SHADOW_CASTING_POINT_LIGHTS)
+            glBindTexture(GL_TEXTURE_CUBE_MAP, internal->shadow.pointDepthMaps[shadow_point_index]);
+        glUniform1f(glGetUniformLocation(vol_prog, "u_FarPlane"), 100.0f); // Match the projection matrix
 
         // Calculate physical light radius mathematically based on attenuation
         float max_color = fmaxf(fmaxf(pl->color.r, pl->color.g), pl->color.b);
@@ -1653,6 +1841,8 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
 
         // Draw Sphere
         glDrawElements(GL_TRIANGLES, internal->deferred.sphere_index_count, GL_UNSIGNED_INT, 0);
+
+        shadow_point_index++;
     }
 
 
@@ -1677,14 +1867,14 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     glUniform2f(glGetUniformLocation(spot_prog, "u_ScreenSize"), (float)internal->state.window_width, (float)internal->state.window_height);
 
 
-    int shadow_index = 0;
+    int shadow_spot_index = 0;
     for (uint32_t i = 0; i < internal->state.spot_light_count; i++)
     {
         SpotLightData* sl = &internal->state.spot_lights[i];
 
         // Upload the specific light-space matrix for this spotlight
-        glUniformMatrix4fv(glGetUniformLocation(spot_prog, "u_LightSpaceMatrix"), 1, GL_FALSE, (float*)&internal->state.spot_light_matrices[shadow_index]);
-        glUniform1i(glGetUniformLocation(spot_prog, "u_ShadowIndex"), shadow_index);
+        glUniformMatrix4fv(glGetUniformLocation(spot_prog, "u_LightSpaceMatrix"), 1, GL_FALSE, (float*)&internal->state.spot_light_matrices[shadow_spot_index]);
+        glUniform1i(glGetUniformLocation(spot_prog, "u_ShadowIndex"), shadow_spot_index);
 
         // Same physical radius calculation so the sphere encompasses the cone's reach
         float max_color = fmaxf(fmaxf(sl->color.r, sl->color.g), sl->color.b);
@@ -1715,7 +1905,7 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
 
         glDrawElements(GL_TRIANGLES, internal->deferred.sphere_index_count, GL_UNSIGNED_INT, 0);
 
-        shadow_index++;
+        shadow_spot_index++;
     }
 
 
@@ -2336,6 +2526,38 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
 
     // Generate light spheres
     OpenGL_GenerateLightSphere(internal);
+
+
+    // Generate Point Light Cubemap Array    
+    glGenFramebuffers(1, &internal->shadow.pointDepthMapFBO);
+    
+    for (int i = 0; i < MAX_SHADOW_CASTING_POINT_LIGHTS; i++)
+    {
+        glGenTextures(1, &internal->shadow.pointDepthMaps[i]);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, internal->shadow.pointDepthMaps[i]);
+        
+        // Allocate the 6 faces individually
+        for (unsigned int face = 0; face < 6; ++face)
+        {
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, 0, GL_DEPTH_COMPONENT24, 
+                         1024, 1024, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+        }
+        
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->shadow.pointDepthMapFBO);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 
 
     // Initialize all pipelines
