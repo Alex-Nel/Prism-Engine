@@ -12,6 +12,8 @@
 #define MAX_POINT_LIGHTS 512
 #define MAX_SPOT_LIGHTS 512
 
+#define MAX_SHADOW_CASTING_SPOTLIGHTS 16
+
 #define SHADOW_WIDTH SHADOW_MAP_RESOLUTION
 #define SHADOW_HEIGHT SHADOW_MAP_RESOLUTION
 
@@ -36,6 +38,8 @@ typedef struct RenderState
     uint32_t spot_light_count;
 
     Matrix4 light_space_matrices[MAX_SHADOW_CASCADES];
+    Matrix4 spot_light_matrices[MAX_SHADOW_CASTING_SPOTLIGHTS];
+
     float shadow_texel_world_sizes[MAX_SHADOW_CASCADES];
     float cascade_splits[MAX_SHADOW_CASCADES - 1];
     Vector3 camera_forward;
@@ -122,8 +126,14 @@ typedef struct GL_DeferredPipeline
 
 typedef struct GL_ShadowPipeline
 {
+    // Directional Light Cascades
     GLuint depthMapFBO;
     GLuint depthMapTextureArray;
+
+    // Spotlight shadows
+    GLuint spotDepthMapFBO;
+    GLuint spotDepthMapTextureArray;
+
     ShaderHandle static_shader;
     ShaderHandle skinned_shader;
 } GL_ShadowPipeline;
@@ -972,9 +982,11 @@ static ShaderHandle OpenGL_CompileInternalShaderFromFile(OpenGL_Backend* interna
     char* vert_src = IO_ReadTextFile(vert_path);
     char* frag_src = IO_ReadTextFile(frag_path);
 
-    if (!vert_src || !frag_src) {
+    if (!vert_src || !frag_src)
+    {
         if (vert_src) free(vert_src);
         if (frag_src) free(frag_src);
+
         return (ShaderHandle){0};
     }
 
@@ -1202,6 +1214,8 @@ static void OpenGL_EndShadowPass(Renderer* r)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
+    // --- Directional Light Cascades ---
+
     uint32_t cascade_count = internal->state.shadow_cascade_count;
     if (cascade_count < 1)
         cascade_count = 1;
@@ -1210,7 +1224,6 @@ static void OpenGL_EndShadowPass(Renderer* r)
 
     // Render both faces into the depth map
     glDisable(GL_CULL_FACE);
-
     glEnable(GL_POLYGON_OFFSET_FILL);
     glPolygonOffset(1.0f, 1.0f);
 
@@ -1222,6 +1235,56 @@ static void OpenGL_EndShadowPass(Renderer* r)
 
         OpenGL_DrawShadowQueue(internal, &internal->state.light_space_matrices[c]);
     }
+
+
+
+    // --- SpotLight Shadows ---
+
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->shadow.spotDepthMapFBO);
+    
+    // We only process up to the max limit for shadow-casting spotlights
+    int shadow_spot_index = 0; 
+    
+    for (uint32_t i = 0; i < internal->state.spot_light_count; i++)
+    {
+        if (shadow_spot_index >= MAX_SHADOW_CASTING_SPOTLIGHTS)
+            break; // Hard cap
+        
+        // TODO: In the future, check a `sl->casts_shadows` boolean here
+        SpotLightData* sl = &internal->state.spot_lights[i];
+
+        // Make the Perspective Projection for the Spotlight. We use the outer_cut_off (in degrees) * 2 to get the full FOV of the cone
+        float fov = sl->outer_cut_off * 2.0f; 
+        Matrix4 spotProj = Matrix4Perspective(fov, 1.0f, 0.1f, 100.0f); // Adjust 100.0f to max distance - TODO: investigate this
+
+        // Create the View Matrix
+        Vector3 target = {
+            sl->position.x + sl->direction.x,
+            sl->position.y + sl->direction.y,
+            sl->position.z + sl->direction.z
+        };
+
+        // If the light points straight down, use a different UP vector to prevent matrix singularity.
+        Vector3 up = {0.0f, 1.0f, 0.0f};
+        if (fabsf(sl->direction.y) > 0.99f)
+            up = (Vector3){0.0f, 0.0f, 1.0f};
+        
+        Matrix4 spotView = Matrix4LookAt(sl->position, target, up);
+        
+        // Save the matrix so we can pass it to the deferred shader later
+        internal->state.spot_light_matrices[shadow_spot_index] = Matrix4Multiply(spotProj, spotView);
+
+        // Render to the specific layer of the Texture Array
+        glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, internal->shadow.spotDepthMapTextureArray, 0, shadow_spot_index);
+        glViewport(0, 0, 1024, 1024);
+        glClear(GL_DEPTH_BUFFER_BIT);
+        
+        OpenGL_DrawShadowQueue(internal, &internal->state.spot_light_matrices[shadow_spot_index]);
+        
+        shadow_spot_index++;
+    }
+
+
 
     glDisable(GL_POLYGON_OFFSET_FILL);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -1475,7 +1538,7 @@ static void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
             glUniformMatrix4fv(glGetUniformLocation(g_prog->program, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
         }
 
-        // BIND TEXTURE & MATERIAL PROPERTIES
+        // Bind Texture and Material Properties
         if (current_texture != cmd->texture.id)
         {
             glActiveTexture(GL_TEXTURE0);
@@ -1567,13 +1630,9 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
         float radius = 50.0f; // Safe fallback if attenuation is 0
         
         if (pl->quadratic > 0.0001f)
-        {
             radius = (-pl->linear + sqrtf(pl->linear * pl->linear - 4 * pl->quadratic * (pl->constant - (256.0f / 5.0f) * max_color))) / (2.0f * pl->quadratic);
-        }
         else if (pl->linear > 0.0001f)
-        {
             radius = ((256.0f / 5.0f) * max_color - pl->constant) / pl->linear;
-        }
 
         float volume_radius = radius * 1.2f;
 
@@ -1606,6 +1665,11 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     glUniform1i(glGetUniformLocation(spot_prog, "gPosition"), 0);
     glUniform1i(glGetUniformLocation(spot_prog, "gNormal"), 1);
     glUniform1i(glGetUniformLocation(spot_prog, "gAlbedoSpec"), 2);
+
+    // Bind the spotlight shadow map array to texture unit 5
+    glActiveTexture(GL_TEXTURE5); 
+    glBindTexture(GL_TEXTURE_2D_ARRAY, internal->shadow.spotDepthMapTextureArray); 
+    glUniform1i(glGetUniformLocation(spot_prog, "spotShadowMap"), 5);
     
     glUniformMatrix4fv(glGetUniformLocation(spot_prog, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
     glUniformMatrix4fv(glGetUniformLocation(spot_prog, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
@@ -1613,22 +1677,23 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     glUniform2f(glGetUniformLocation(spot_prog, "u_ScreenSize"), (float)internal->state.window_width, (float)internal->state.window_height);
 
 
+    int shadow_index = 0;
     for (uint32_t i = 0; i < internal->state.spot_light_count; i++)
     {
         SpotLightData* sl = &internal->state.spot_lights[i];
+
+        // Upload the specific light-space matrix for this spotlight
+        glUniformMatrix4fv(glGetUniformLocation(spot_prog, "u_LightSpaceMatrix"), 1, GL_FALSE, (float*)&internal->state.spot_light_matrices[shadow_index]);
+        glUniform1i(glGetUniformLocation(spot_prog, "u_ShadowIndex"), shadow_index);
 
         // Same physical radius calculation so the sphere encompasses the cone's reach
         float max_color = fmaxf(fmaxf(sl->color.r, sl->color.g), sl->color.b);
         float radius = 50.0f; // Safe fallback
         
         if (sl->quadratic > 0.0001f)
-        {
             radius = (-sl->linear + sqrtf(sl->linear * sl->linear - 4 * sl->quadratic * (sl->constant - (256.0f / 5.0f) * max_color))) / (2.0f * sl->quadratic);
-        }
         else if (sl->linear > 0.0001f)
-        {
             radius = ((256.0f / 5.0f) * max_color - sl->constant) / sl->linear;
-        }
 
         float volume_radius = radius * 1.2f;
 
@@ -1649,6 +1714,8 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
         glUniform1f(glGetUniformLocation(spot_prog, "u_OuterCutOff"), sl->outer_cut_off);
 
         glDrawElements(GL_TRIANGLES, internal->deferred.sphere_index_count, GL_UNSIGNED_INT, 0);
+
+        shadow_index++;
     }
 
 
@@ -2081,7 +2148,7 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
 
 
 
-    // Generate depth map buffers
+    // Generate depth map buffers for directional lights
 
     glGenFramebuffers(1, &internal->shadow.depthMapFBO);
     glGenTextures(1, &internal->shadow.depthMapTextureArray);
@@ -2110,6 +2177,32 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     glDrawBuffer(GL_NONE);
     glReadBuffer(GL_NONE);
     glBindFramebuffer(GL_FRAMEBUFFER, 0); // Unbind back to default screen
+
+
+
+    // Generate spotlight depth map buffers
+    
+    glGenFramebuffers(1, &internal->shadow.spotDepthMapFBO);
+    glGenTextures(1, &internal->shadow.spotDepthMapTextureArray);
+
+    glBindTexture(GL_TEXTURE_2D_ARRAY, internal->shadow.spotDepthMapTextureArray);
+    // Spotlights cover a much smaller area, so a size of 1024 is enough.
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT24, 1024, 1024, MAX_SHADOW_CASTING_SPOTLIGHTS, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    
+    glTexParameterfv(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BORDER_COLOR, borderColor);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->shadow.spotDepthMapFBO);
+    glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, internal->shadow.spotDepthMapTextureArray, 0, 0);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 
 
