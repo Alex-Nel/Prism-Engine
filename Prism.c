@@ -276,6 +276,7 @@ void Engine_GatherSceneLights(Scene* scene, RenderPacket* packet, DirectionalLig
             dir_lights[dir_count].shadow_max_distance = l->shadow_max_distance;
             dir_lights[dir_count].cascade_split_lambda = l->cascade_split_lambda;
             dir_lights[dir_count].cascade_blend_fraction = l->cascade_blend_fraction;
+            dir_lights[dir_count].casts_shadows = l->casts_shadows;
             dir_count++;
         }
         else if (l->type == LIGHT_POINT && point_count < MAX_RESOURCES)
@@ -286,6 +287,7 @@ void Engine_GatherSceneLights(Scene* scene, RenderPacket* packet, DirectionalLig
             point_lights[point_count].constant = l->constant;
             point_lights[point_count].linear = l->linear;
             point_lights[point_count].quadratic = l->quadratic;
+            point_lights[point_count].casts_shadows = l->casts_shadows;
             point_count++;
         }
         else if (l->type == LIGHT_SPOT && spot_count < MAX_RESOURCES)
@@ -299,6 +301,7 @@ void Engine_GatherSceneLights(Scene* scene, RenderPacket* packet, DirectionalLig
             spot_lights[spot_count].quadratic = l->quadratic;
             spot_lights[spot_count].inner_cut_off = cosf(l->inner_cut_off * (pi / 180.0f));
             spot_lights[spot_count].outer_cut_off = cosf(l->outer_cut_off * (pi / 180.0f));
+            spot_lights[spot_count].casts_shadows = l->casts_shadows;
             spot_count++;
         }
     }
@@ -539,7 +542,8 @@ void Engine_ExecuteShadowPass(Scene* scene, RenderPacket* packet)
         if ((dx*dx + dy*dy + dz*dz) > cull_dist_sq)
             continue; // Too far to cast a visible shadow
 
-        Render_Submit(engine.renderer, rc->mesh->gpu_handle, DEFAULT_SHADER, DEFAULT_TEXTURE, (MaterialProperties){0}, t->world_matrix, NULL, false, 0.0f);
+        Render_Submit(engine.renderer, rc->mesh->gpu_handle, DEFAULT_SHADER, DEFAULT_TEXTURE, (MaterialProperties){0},
+                      t->world_matrix, NULL, false, 0.0f, rc->casts_shadows, rc->receives_shadows);
     }
 
 
@@ -571,7 +575,8 @@ void Engine_ExecuteShadowPass(Scene* scene, RenderPacket* packet)
         else if (scene->component_masks[i] & COMPONENT_ANIMATOR)
             bone_ptr = scene->animators[i].final_bone_matrices;
 
-        Render_Submit(engine.renderer, rc->mesh->gpu_handle, DEFAULT_SHADER, DEFAULT_TEXTURE, (MaterialProperties){0}, t->world_matrix, bone_ptr, false, 0.0f);
+        Render_Submit(engine.renderer, rc->mesh->gpu_handle, DEFAULT_SHADER, DEFAULT_TEXTURE, (MaterialProperties){0},
+                      t->world_matrix, bone_ptr, false, 0.0f, rc->casts_shadows, rc->receives_shadows);
     }
 
     Render_EndShadowPass(engine.renderer);
@@ -631,7 +636,8 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
         if (rc->material->shader != NULL)
             shader = rc->material->shader->gpu_handle;
         
-        Render_Submit(engine.renderer, rc->mesh->gpu_handle, shader, rc->material->diffuse_texture->gpu_handle, rc->material->properties, t->world_matrix, NULL, false, 0.0f);
+        Render_Submit(engine.renderer, rc->mesh->gpu_handle, shader, rc->material->diffuse_texture->gpu_handle, rc->material->properties,
+                      t->world_matrix, NULL, false, 0.0f, rc->casts_shadows, rc->receives_shadows);
     }
 
 
@@ -663,7 +669,8 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
         if (rc->material->shader != NULL)
             shader = rc->material->shader->gpu_handle;
         
-        Render_Submit(engine.renderer, rc->mesh->gpu_handle, shader, rc->material->diffuse_texture->gpu_handle, rc->material->properties, t->world_matrix, bone_ptr, false, 0.0f);
+        Render_Submit(engine.renderer, rc->mesh->gpu_handle, shader, rc->material->diffuse_texture->gpu_handle, rc->material->properties,
+                      t->world_matrix, bone_ptr, false, 0.0f, rc->casts_shadows, rc->receives_shadows);
     }
 
 
@@ -686,7 +693,8 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
         if (line->material->shader != NULL)
             shader = line->material->shader->gpu_handle;
 
-        Render_Submit(engine.renderer, line->dynamic_mesh->gpu_handle, shader, line->material->diffuse_texture->gpu_handle, local_props, Matrix4Identity(), NULL, false, 0.0f);
+        Render_Submit(engine.renderer, line->dynamic_mesh->gpu_handle, shader, line->material->diffuse_texture->gpu_handle,
+                      local_props, Matrix4Identity(), NULL, false, 0.0f, false, false);
     }
 
 
@@ -723,7 +731,8 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
         if (sprite->material->shader != NULL)
             shader = sprite->material->shader->gpu_handle;
 
-        Render_Submit(engine.renderer, sprite->quad->gpu_handle, shader, sprite->material->diffuse_texture->gpu_handle, local_props, final_sprite_matrix, NULL, true, dist_sq);
+        Render_Submit(engine.renderer, sprite->quad->gpu_handle, shader, sprite->material->diffuse_texture->gpu_handle,
+                      local_props, final_sprite_matrix, NULL, true, dist_sq, false, false);
     }
 }
 

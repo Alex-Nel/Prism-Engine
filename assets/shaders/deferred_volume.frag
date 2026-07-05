@@ -21,6 +21,7 @@ uniform float u_Quadratic;
 uniform float u_Radius;
 
 uniform samplerCubeShadow pointShadowMap;
+uniform int u_ShadowIndex;
 uniform float u_FarPlane;
 
 
@@ -48,6 +49,9 @@ vec3 sampleOffsetDirections[20] = vec3[] (
 // Calculates the shadow for a point light
 float CalculatePointShadow(vec3 fragPos)
 {
+    if (u_ShadowIndex < 0)
+        return 0.0;
+
     vec3 fragToLight = fragPos - u_LightPos;
     float currentDepth = length(fragToLight);
     
@@ -111,6 +115,8 @@ void main()
     float attenuation = 1.0 / (u_Constant + u_Linear * distance + u_Quadratic * (distance * distance));    
 
     float shadow = CalculatePointShadow(fragPos);
+    float receivesShadows = texture(gNormal, TexCoords).a;
+    shadow *= receivesShadows;
     
     vec3 diffuse = diff * u_LightColor * u_Intensity;
     vec3 specular = specStrength * spec * u_LightColor * u_Intensity;

@@ -50,6 +50,9 @@ vec2 VogelDiskSample(int sampleIndex, int samplesCount, float phi)
 // Calculates the spot shadow
 float CalculateSpotShadow(vec3 fragPos, vec3 normal, vec3 lightDir)
 {
+    if (u_ShadowIndex < 0)
+        return 0.0;
+
     // A standard perspective shadow bias
     float NdotL = max(dot(normal, lightDir), 0.0);
     float bias = max(0.005 * (1.0 - NdotL), 0.0005);
@@ -118,6 +121,8 @@ void main()
     float spotIntensity = clamp((theta - u_OuterCutOff) / epsilon, 0.0, 1.0);
 
     float shadow = CalculateSpotShadow(fragPos, normal, lightDir);
+    float receivesShadows = texture(gNormal, TexCoords).a;
+    shadow *= receivesShadows;
     
     vec3 diffuse = diff * u_LightColor * u_Intensity;
     vec3 specular = specStrength * spec * u_LightColor * u_Intensity;

@@ -16,13 +16,14 @@ struct Material
 };
 
 uniform Material u_Material;
+uniform float u_ReceiveShadows;
 
 
 
 void main()
 {    
     gPosition = vec4(WorldPos, 1.0);    
-    gNormal = vec4(normalize(WorldNormal), 1.0);
+    gNormal = vec4(normalize(WorldNormal), u_ReceiveShadows);
     
     // Albedo (RGB) and Specular (Alpha)
     vec4 texColor = texture(u_Material.diffuse, TexCoords);

@@ -138,6 +138,8 @@ namespace Prism
         float cascade_split_lambda;
         float cascade_blend_fraction;
 
+        bool casts_shadows;
+
 
         void SetActive(bool active) { this->is_active = active; }
         bool IsActive() const { return this->is_active; }
@@ -155,6 +157,7 @@ namespace Prism
 
         void SetCascadedShadows(uint8_t cascade_count, float max_distance, float split_lambda = 0.5f, float blend_fraction = 0.12f);
         void SetCascadeBlendFraction(float fraction) { this->cascade_blend_fraction = fraction; }
+        void SetCastsShadows(bool casts_shadows);
         void DisableCascadedShadows();
         uint8_t GetShadowCascadeCount() const;
         float GetShadowMaxDistance() const; 
@@ -175,6 +178,8 @@ namespace Prism
         void* raw_mesh_ptr;
         void* raw_material_ptr;
         uint32_t layer_mask;
+        bool casts_shadows;
+        bool receives_shadows;
 
 
         void SetActive(bool active) { this->is_active = active; }
@@ -183,6 +188,8 @@ namespace Prism
         void SetMaterial(Prism::Material material);
 
         void SetLayerMask(uint8_t mask);
+        void SetCastsShadow(bool casts_shadow);
+        void SetReceivesShadow(bool receives_shadow);
     };
 
 
@@ -198,6 +205,8 @@ namespace Prism
         void* raw_mesh_ptr;
         void* raw_material_ptr;
         uint32_t layer_mask;
+        bool casts_shadows;
+        bool receives_shadows;
         Prism::Entity root_animator;
 
 
@@ -207,6 +216,8 @@ namespace Prism
         void SetMaterial(Prism::Material material);
 
         void SetLayerMask(uint8_t mask);
+        void SetCastsShadow(bool casts_shadow);
+        void SetReceivesShadow(bool receives_shadow);
     };
 
 

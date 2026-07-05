@@ -110,6 +110,10 @@ namespace Prism
         this->cascade_split_lambda = split_lambda;
         this->cascade_blend_fraction = blend_fraction;
     }
+    void LightComponent::SetCastsShadows(bool casts_shadows) {
+        this->casts_shadows = casts_shadows;
+    }
+
     void LightComponent::DisableCascadedShadows() {
         this->shadow_cascade_count = 1;
     }
@@ -138,6 +142,12 @@ namespace Prism
     void MeshRendererComponent::SetLayerMask(uint8_t layer_index) {
         this->layer_mask = (1u << layer_index); // Sets the object to a specific layer (0 through 31)
     }
+    void MeshRendererComponent::SetCastsShadow(bool casts_shadow) {
+        this->casts_shadows = casts_shadow;
+    }
+    void MeshRendererComponent::SetReceivesShadow(bool receives_shadow) {
+        this->receives_shadows = receives_shadow;
+    }
 
 
 
@@ -150,6 +160,12 @@ namespace Prism
     }
     void SkinnedMeshRendererComponent::SetLayerMask(uint8_t layer_index) {
         this->layer_mask = (1u << layer_index); // Sets the object to a specific layer (0 through 31)
+    }
+    void SkinnedMeshRendererComponent::SetCastsShadow(bool casts_shadow) {
+        this->casts_shadows = casts_shadow;
+    }
+    void SkinnedMeshRendererComponent::SetReceivesShadow(bool receives_shadow) {
+        this->receives_shadows = receives_shadow;
     }
 
 

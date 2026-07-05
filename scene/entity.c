@@ -690,6 +690,8 @@ void Entity_AddMeshRenderer(Entity entity, Mesh* mesh, Material* material)
     r->mesh = mesh;
     r->material = material;
     r->layer_mask = 1; // 1 is the default layer (layer 0)
+    r->casts_shadows = true;
+    r->receives_shadows = true;
 
     entity.scene->component_masks[entity.id] |= COMPONENT_MESH_RENDERER;
 }
@@ -709,6 +711,8 @@ void Entity_AddSkinnedMeshRenderer(Entity entity, SkinnedMesh* mesh, Material* m
     r->mesh = mesh;
     r->material = material;
     r->layer_mask = 1; // 1 is the default layer (layer 0)
+    r->casts_shadows = true;
+    r->receives_shadows = true;
     r->pose_bounds = mesh ? mesh->local_bounds : (AABB){ {0, 0, 0}, {0, 0, 0} };
     r->root_animator_entity_id = animator_id;
 
@@ -768,6 +772,7 @@ void Entity_AddLight(Entity entity, LightType type, Color color)
     light->shadow_max_distance = 100.0f;
     light->cascade_split_lambda = 0.5f;
     light->cascade_blend_fraction = 0.12f;
+    light->casts_shadows = true;
     
     entity.scene->component_masks[entity.id] |= COMPONENT_LIGHT;
 }

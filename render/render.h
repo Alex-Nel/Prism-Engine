@@ -57,6 +57,7 @@ typedef struct DirectionalLightData
     float shadow_max_distance;      // max shadow range from camera (CSM only)
     float cascade_split_lambda;     // 0 = uniform splits, 1 = logarithmic, 0.5 = practical
     float cascade_blend_fraction;   // 0..1 slice fraction cross-faded at each split (CSM only)
+    bool casts_shadows;
 } DirectionalLightData;
 
 
@@ -72,6 +73,7 @@ typedef struct PointLightData
     float constant;
     float linear;
     float quadratic;
+    bool casts_shadows;
 } PointLightData;
 
 
@@ -90,6 +92,7 @@ typedef struct SpotLightData
     float quadratic;
     float inner_cut_off;
     float outer_cut_off;
+    bool casts_shadows;
 } SpotLightData;
 
 
@@ -187,7 +190,7 @@ typedef struct Renderer
     void (*BeginShadowPass)(Renderer* r, const RenderPacket* packet);
     void (*EndShadowPass)(Renderer* r);
     void (*BeginFrame)(Renderer* r, const RenderPacket* packet);
-    void (*Submit)(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance);
+    void (*Submit)(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows);
     void (*EndFrame)(Renderer* r);
 
     // Hidden implementation-specific data (e.g., SDL_GLContext or Vulkan Instance)
@@ -361,10 +364,10 @@ static inline void Render_BeginFrame(Renderer* r, const RenderPacket* packet)
 }
 
 // Adds an object to the draw queue
-static inline void Render_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance)
+static inline void Render_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows)
 {
     if (r && r->Submit)
-        r->Submit(r, mesh, shader, texture, mat_props, transform, bone_matrices, is_transparent, depth_distance);
+        r->Submit(r, mesh, shader, texture, mat_props, transform, bone_matrices, is_transparent, depth_distance, cast_shadows, receive_shadows);
 }
 
 // Sorts the queue, binds the state, and executes the actual GPU draw calls

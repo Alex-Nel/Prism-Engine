@@ -192,6 +192,8 @@ typedef struct MeshRendererComponent
     Material* material;
 
     uint32_t layer_mask; // Only one layer mask
+    bool casts_shadows;
+    bool receives_shadows;
 } MeshRendererComponent;
 
 
@@ -206,6 +208,8 @@ typedef struct SkinnedMeshRendererComponent
     Material* material;
 
     uint32_t layer_mask; // Only one layer mask
+    bool casts_shadows;
+    bool receives_shadows;
 
     AABB pose_bounds; // Updated each frame for frustum culling
 
@@ -264,6 +268,8 @@ typedef struct LightComponent
     float shadow_max_distance;
     float cascade_split_lambda;   // 0 = uniform, 1 = logarithmic, 0.5 = practical
     float cascade_blend_fraction; // 0..1 slice fraction cross-faded at each split (CSM only)
+    
+    bool casts_shadows;
 } LightComponent;
 
 

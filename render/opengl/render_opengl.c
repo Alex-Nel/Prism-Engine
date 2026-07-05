@@ -100,6 +100,8 @@ typedef struct RenderCommand
     Matrix4* bone_matrices;
     bool is_transparent;
     float depth_distance;
+    bool cast_shadows;
+    bool receive_shadows;
 } RenderCommand;
 
 
@@ -1229,6 +1231,9 @@ static void OpenGL_DrawShadowQueue(OpenGL_Backend* internal, const Matrix4* ligh
         if (!internal->mesh_pool[cmd->mesh.id].active)
             continue;
 
+        if (!cmd->cast_shadows)
+            continue;
+
         GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
 
         // Dynamically select the internal shadow shader based on skeleton presence
@@ -1318,8 +1323,10 @@ static void OpenGL_EndShadowPass(Renderer* r)
         if (shadow_spot_index >= MAX_SHADOW_CASTING_SPOTLIGHTS)
             break; // Hard cap
         
-        // TODO: In the future, check a `sl->casts_shadows` boolean here
         SpotLightData* sl = &internal->state.spot_lights[i];
+
+        if (!sl->casts_shadows)
+            continue;
 
         // Make the Perspective Projection for the Spotlight. We use the outer_cut_off (in degrees) * 2 to get the full FOV of the cone
         float fov_rad = (sl->outer_cut_off * 2.0f) * (3.14159265359f / 180.0f);
@@ -1366,12 +1373,15 @@ static void OpenGL_EndShadowPass(Renderer* r)
     {
         if (shadow_point_index >= MAX_SHADOW_CASTING_POINT_LIGHTS)
             break;
-        
+
+        PointLightData* pl = &internal->state.point_lights[i];
+
+        if (!pl->casts_shadows)
+            continue;
+
         // glFramebufferTexture allows the Geometry shader to route to the 6 faces via gl_Layer
         glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, internal->shadow.pointDepthMaps[shadow_point_index], 0);        
         glClear(GL_DEPTH_BUFFER_BIT);
-
-        PointLightData* pl = &internal->state.point_lights[i];
 
         // 90 Degree FOV forms a perfect box. Aspect ratio is 1.0f.
         float fov_rad = 90.0f * (3.14159265359f / 180.0f);
@@ -1401,10 +1411,14 @@ static void OpenGL_EndShadowPass(Renderer* r)
         for (uint32_t c = 0; c < internal->command_count; c++)
         {
             RenderCommand* cmd = &internal->command_queue[c];
+            
             if (!internal->mesh_pool[cmd->mesh.id].active)
                 continue;
 
-                
+            if (!cmd->cast_shadows)
+                continue;
+
+
             // Extract Position from transform Matrix
             Vector3 mesh_center = {
                 cmd->transform.m03, 
@@ -1540,7 +1554,7 @@ static void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
 
 
 // Adds an object to the draw queue
-static void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance)
+static void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
@@ -1555,7 +1569,9 @@ static void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, Tex
         transform,
         bone_matrices,
         is_transparent,
-        depth_distance
+        depth_distance,
+        cast_shadows,
+        receive_shadows
     };
 }
 
@@ -1610,6 +1626,8 @@ static void OpenGL_UploadLightUniforms(GLuint program, const RenderState* state)
         glUniform1f(glGetUniformLocation(program, uniform_name), dl->intensity);
         sprintf(uniform_name, "u_DirLights[%d].ambientStrength", j); 
         glUniform1f(glGetUniformLocation(program, uniform_name), dl->ambient_strength);
+        sprintf(uniform_name, "u_DirLights[%d].castsShadows", j);
+        glUniform1i(glGetUniformLocation(program, uniform_name), dl->casts_shadows ? 1 : 0);
     }
 
 
@@ -1630,6 +1648,8 @@ static void OpenGL_UploadLightUniforms(GLuint program, const RenderState* state)
         glUniform1f(glGetUniformLocation(program, uniform_name), pl->linear);
         sprintf(uniform_name, "u_PointLights[%d].quadratic", j);
         glUniform1f(glGetUniformLocation(program, uniform_name), pl->quadratic);
+        sprintf(uniform_name, "u_PointLights[%d].castsShadows", j);
+        glUniform1i(glGetUniformLocation(program, uniform_name), pl->casts_shadows ? 1 : 0);
     }
 
 
@@ -1656,6 +1676,8 @@ static void OpenGL_UploadLightUniforms(GLuint program, const RenderState* state)
         glUniform1f(glGetUniformLocation(program, uniform_name), sl->inner_cut_off);
         sprintf(uniform_name, "u_SpotLights[%d].outerCutOff", j);
         glUniform1f(glGetUniformLocation(program, uniform_name), sl->outer_cut_off);
+        sprintf(uniform_name, "u_SpotLights[%d].castsShadows", j);
+        glUniform1i(glGetUniformLocation(program, uniform_name), sl->casts_shadows ? 1 : 0);
     }
 }
 
@@ -1681,6 +1703,8 @@ static void OpenGL_UploadDirectionalLightUniforms(GLuint program, const RenderSt
         glUniform1f(glGetUniformLocation(program, uniform_name), dl->intensity);
         sprintf(uniform_name, "u_DirLights[%d].ambientStrength", j); 
         glUniform1f(glGetUniformLocation(program, uniform_name), dl->ambient_strength);
+        sprintf(uniform_name, "u_DirLights[%d].castsShadows", j);
+        glUniform1i(glGetUniformLocation(program, uniform_name), dl->casts_shadows ? 1 : 0);
     }
 }
 
@@ -1727,6 +1751,7 @@ static void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
         glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.diffuse"), 0);
         glUniform3fv(glGetUniformLocation(g_prog->program, "u_Material.tint"), 1, (float*)&cmd->mat_props.tint_color);
         glUniform1f(glGetUniformLocation(g_prog->program, "u_Material.specularStrength"), cmd->mat_props.specular_strength);
+        glUniform1f(glGetUniformLocation(g_prog->program, "u_ReceiveShadows"), cmd->receive_shadows ? 1.0f : 0.0f);
 
         glUniformMatrix4fv(glGetUniformLocation(g_prog->program, "u_Model"), 1, GL_FALSE, (float*)&cmd->transform);
 
@@ -1792,7 +1817,6 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     glUniform2f(glGetUniformLocation(vol_prog, "u_ScreenSize"), (float)internal->state.window_width, (float)internal->state.window_height);
 
     glActiveTexture(GL_TEXTURE6); 
-    // glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY, internal->shadow.pointDepthMapTextureArray);
     glUniform1i(glGetUniformLocation(vol_prog, "pointShadowMap"), 6);
 
 
@@ -1809,8 +1833,16 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
         PointLightData* pl = &internal->state.point_lights[i];
 
         // glUniform1i(glGetUniformLocation(vol_prog, "u_ShadowIndex"), shadow_point_index);
-        if (shadow_point_index < MAX_SHADOW_CASTING_POINT_LIGHTS)
+        if (pl->casts_shadows && shadow_point_index < MAX_SHADOW_CASTING_POINT_LIGHTS)
+        {
             glBindTexture(GL_TEXTURE_CUBE_MAP, internal->shadow.pointDepthMaps[shadow_point_index]);
+            glUniform1i(glGetUniformLocation(vol_prog, "u_ShadowIndex"), shadow_point_index);
+            shadow_point_index++;
+        }
+        else
+        {
+            glUniform1i(glGetUniformLocation(vol_prog, "u_ShadowIndex"), -1);
+        }
         glUniform1f(glGetUniformLocation(vol_prog, "u_FarPlane"), 100.0f); // Match the projection matrix
 
         // Calculate physical light radius mathematically based on attenuation
@@ -1841,8 +1873,6 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
 
         // Draw Sphere
         glDrawElements(GL_TRIANGLES, internal->deferred.sphere_index_count, GL_UNSIGNED_INT, 0);
-
-        shadow_point_index++;
     }
 
 
@@ -1872,9 +1902,17 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     {
         SpotLightData* sl = &internal->state.spot_lights[i];
 
-        // Upload the specific light-space matrix for this spotlight
-        glUniformMatrix4fv(glGetUniformLocation(spot_prog, "u_LightSpaceMatrix"), 1, GL_FALSE, (float*)&internal->state.spot_light_matrices[shadow_spot_index]);
-        glUniform1i(glGetUniformLocation(spot_prog, "u_ShadowIndex"), shadow_spot_index);
+        if (sl->casts_shadows && shadow_spot_index < MAX_SHADOW_CASTING_SPOTLIGHTS)
+        {
+            // Upload the specific light-space matrix for this spotlight
+            glUniformMatrix4fv(glGetUniformLocation(spot_prog, "u_LightSpaceMatrix"), 1, GL_FALSE, (float*)&internal->state.spot_light_matrices[shadow_spot_index]);
+            glUniform1i(glGetUniformLocation(spot_prog, "u_ShadowIndex"), shadow_spot_index);
+            shadow_spot_index++;
+        }
+        else
+        {
+            glUniform1i(glGetUniformLocation(spot_prog, "u_ShadowIndex"), -1);
+        }
 
         // Same physical radius calculation so the sphere encompasses the cone's reach
         float max_color = fmaxf(fmaxf(sl->color.r, sl->color.g), sl->color.b);
@@ -1904,8 +1942,6 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
         glUniform1f(glGetUniformLocation(spot_prog, "u_OuterCutOff"), sl->outer_cut_off);
 
         glDrawElements(GL_TRIANGLES, internal->deferred.sphere_index_count, GL_UNSIGNED_INT, 0);
-
-        shadow_spot_index++;
     }
 
 

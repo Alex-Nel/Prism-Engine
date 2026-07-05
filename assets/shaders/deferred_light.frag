@@ -40,6 +40,7 @@ struct DirLight
     vec3 color;
     float intensity;
     float ambientStrength;
+    int castsShadows;
 };
 
 
@@ -184,6 +185,10 @@ float SampleCascadeShadow(int cascade, vec3 fragPos, vec3 normal, vec3 lightDir)
 // Calculates if the pixel is in shadow (0.0 = bright, 1.0 = shadowed)
 float ShadowCalculation(vec3 fragPos, vec3 normal, vec3 lightDir)
 {
+    float receivesShadows = texture(gNormal, TexCoords).a;
+    if (receivesShadows < 0.5) 
+        return 0.0;
+
     if (u_ShadowCascadeCount <= 1)
         return SampleCascadeShadow(0, fragPos, normal, lightDir);
 
@@ -218,6 +223,7 @@ float ShadowCalculation(vec3 fragPos, vec3 normal, vec3 lightDir)
         shadow = mix(shadow, 0.0, fadeFactor); // Blend shadow to 0.0 (fully lit)
     }
 
+    shadow *= receivesShadows;
 
     return shadow;
 }
@@ -243,7 +249,10 @@ vec3 CalcDirLight(DirLight light, vec3 normal, vec3 viewDir, float ao, vec3 albe
     vec3 diffuse = diff * light.color * light.intensity;
     vec3 specular = specStrength * spec * light.color * light.intensity;
 
-    float shadow = ShadowCalculation(fragPos, normal, lightDir);
+    float shadow = 0.0;
+    if (light.castsShadows == 1)
+        shadow = ShadowCalculation(fragPos, normal, lightDir);
+        
     return ambient + (1.0 - shadow) * (diffuse + specular);
 }
 
