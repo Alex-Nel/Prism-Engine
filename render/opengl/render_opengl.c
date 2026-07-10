@@ -66,6 +66,10 @@ typedef struct GLMesh
     GLuint ebo;
     float bounding_radius;
     uint32_t index_count;
+    uint32_t max_vertices;
+    uint32_t max_indices;
+    bool is_dynamic;
+    bool is_skinned;
     bool active;
 } GLMesh;
 
@@ -94,7 +98,12 @@ typedef struct RenderCommand
 {
     MeshHandle mesh;
     ShaderHandle shader;
-    TextureHandle texture;
+
+    TextureHandle albedo_map;
+    TextureHandle normal_map;
+    TextureHandle metallic_map;
+    TextureHandle roughness_map;
+    
     MaterialProperties mat_props;
     Matrix4 transform;
     Matrix4* bone_matrices;
@@ -203,6 +212,10 @@ typedef struct OpenGL_Backend
     GL_ShadowPipeline   shadow;
     GL_SSAOPipeline     ssao;
     GL_SkyboxPipeline   skybox;
+
+    GLuint default_white_texture;
+    GLuint default_normal_texture;
+    GLuint default_black_texture;
 } OpenGL_Backend;
 
 
@@ -420,6 +433,10 @@ static MeshHandle OpenGL_CreateMesh(Renderer* r, const Vertex3D* vertices, uint3
     GLMesh* mesh = &internal->mesh_pool[id];
     mesh->active = true;
     mesh->index_count = index_count;
+    mesh->max_vertices = vertex_count;
+    mesh->max_indices = index_count;
+    mesh->is_dynamic = false;
+    mesh->is_skinned = false;
 
     float max_dist_sq = 0.0f;
     for (uint32_t i = 0; i < vertex_count; i++)
@@ -460,6 +477,9 @@ static MeshHandle OpenGL_CreateMesh(Renderer* r, const Vertex3D* vertices, uint3
     // UV (Vector2)
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, uv));
     glEnableVertexAttribArray(2);
+    // Tangent (Vector3)
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, tangent));
+    glEnableVertexAttribArray(3);
 
     glBindVertexArray(0); // Unbind to prevent accidental modifications
 
@@ -473,7 +493,8 @@ static MeshHandle OpenGL_CreateMesh(Renderer* r, const Vertex3D* vertices, uint3
 // Uploads pixels to the renderer to make a texture. Returns a handle
 static TextureHandle OpenGL_CreateTexture(Renderer* r, const uint8_t* pixels, uint32_t width, uint32_t height, uint32_t channels)
 {
-    if (!pixels) return (TextureHandle){0};
+    if (!pixels || width == 0 || height == 0 || channels == 0)
+        return (TextureHandle){0};
 
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
@@ -497,14 +518,34 @@ static TextureHandle OpenGL_CreateTexture(Renderer* r, const uint8_t* pixels, ui
     }
 
     // Determine color format based on channels
-    GLenum format;
-    if (channels == 4)
-        format = GL_RGBA;
-    else
+    GLenum format = GL_RGBA;
+    GLenum internal_format = GL_RGBA;
+    if (channels == 1)
+    {
+        internal_format = GL_RED;
+        format = GL_RED;
+    }
+    else if (channels == 2)
+    {
+        internal_format = GL_RG;
+        format = GL_RG;
+    }
+    else if (channels == 3)
+    {
+        internal_format = GL_RGB;
         format = GL_RGB;
+    }
+    else if (channels == 4)
+    {
+        internal_format = GL_RGBA;
+        format = GL_RGBA;
+    }
 
-    // Send pixels to GPU memory
-    glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, pixels);
+    // Set unpack alignment to 1 byte so tight rows from stbi_load (especially 3-channel RGB or 1-channel RED) do not overflow bounds
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, format, GL_UNSIGNED_BYTE, pixels);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+
     
     if (width > 1 || height > 1)
     {
@@ -633,23 +674,33 @@ static TextureHandle OpenGL_CreateCubemap(Renderer* r, const uint8_t* right, con
 
     const uint8_t* faces[6] = { right, left, top, bottom, front, back };
     
-    // Assume GL_RGB for 3 channels, GL_RGBA for 4
-    GLenum format = (channels == 4) ? GL_RGBA : GL_RGB;
-
-    if (left)   glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, left);
-    if (right)  glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, right);
-    if (bottom) glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, bottom);
-    if (back)   glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, back);
-    if (front)  glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, front);
     
+    // Determine color format based on channels
+    GLenum format = GL_RGBA;
+    GLenum internal_format = GL_RGBA;
+    if (channels == 1) { internal_format = GL_RED; format = GL_RED; }
+    else if (channels == 2) { internal_format = GL_RG; format = GL_RG; }
+    else if (channels == 3) { internal_format = GL_RGB; format = GL_RGB; }
+    else if (channels == 4) { internal_format = GL_RGBA; format = GL_RGBA; }
+
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    if (left)   glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, internal_format, width, height, 0, format, GL_UNSIGNED_BYTE, left);
+    if (right)  glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, 0, internal_format, width, height, 0, format, GL_UNSIGNED_BYTE, right);
+    if (bottom) glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, 0, internal_format, width, height, 0, format, GL_UNSIGNED_BYTE, bottom);
+    if (back)   glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, 0, internal_format, width, height, 0, format, GL_UNSIGNED_BYTE, back);
+    if (front)  glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, 0, internal_format, width, height, 0, format, GL_UNSIGNED_BYTE, front);
+
+
     // Fix for the top being rotated CCW
     if (top)
     {
         uint8_t* rotated_top = OpenGL_RotatePixels90CCW(top, width, height, channels);
-        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, rotated_top);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, 0, internal_format, width, height, 0, format, GL_UNSIGNED_BYTE, rotated_top);
 
         free(rotated_top);
     }
+
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
     
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -690,6 +741,10 @@ static MeshHandle OpenGL_CreateSkinnedMesh(Renderer* r, const Vertex3DSkinned* v
     GLMesh* mesh = &internal->mesh_pool[id];
     mesh->active = true;
     mesh->index_count = index_count;
+    mesh->max_vertices = vertex_count;
+    mesh->max_indices = index_count;
+    mesh->is_dynamic = false;
+    mesh->is_skinned = true;
 
     float max_dist_sq = 0.0f;
     for (uint32_t i = 0; i < vertex_count; i++)
@@ -731,10 +786,13 @@ static MeshHandle OpenGL_CreateSkinnedMesh(Renderer* r, const Vertex3DSkinned* v
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex3DSkinned), (void*)offsetof(Vertex3DSkinned, uv));
 
     glEnableVertexAttribArray(3);
-    glVertexAttribIPointer(3, MAX_BONE_INFLUENCE, GL_INT, sizeof(Vertex3DSkinned), (void*)offsetof(Vertex3DSkinned, bone_ids));
-    
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex3DSkinned), (void*)offsetof(Vertex3DSkinned, tangent));
+
     glEnableVertexAttribArray(4);
-    glVertexAttribPointer(4, MAX_BONE_INFLUENCE, GL_FLOAT, GL_FALSE, sizeof(Vertex3DSkinned), (void*)offsetof(Vertex3DSkinned, bone_weights));
+    glVertexAttribIPointer(4, MAX_BONE_INFLUENCE, GL_INT, sizeof(Vertex3DSkinned), (void*)offsetof(Vertex3DSkinned, bone_ids));
+    
+    glEnableVertexAttribArray(5);
+    glVertexAttribPointer(5, MAX_BONE_INFLUENCE, GL_FLOAT, GL_FALSE, sizeof(Vertex3DSkinned), (void*)offsetof(Vertex3DSkinned, bone_weights));
 
 
     glBindVertexArray(0); // Unbind to prevent accidental modifications
@@ -769,6 +827,10 @@ static MeshHandle OpenGL_CreateDynamicMesh(Renderer* r, uint32_t max_vertices, u
     GLMesh* mesh = &internal->mesh_pool[id];
     mesh->active = true;
     mesh->index_count = 0;
+    mesh->max_vertices = max_vertices;
+    mesh->max_indices = max_indices;
+    mesh->is_dynamic = true;
+    mesh->is_skinned = false;
     
     glGenVertexArrays(1, &mesh->vao);
     glGenBuffers(1, &mesh->vbo);
@@ -795,6 +857,10 @@ static MeshHandle OpenGL_CreateDynamicMesh(Renderer* r, uint32_t max_vertices, u
     // UV
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, uv));
+
+    // Tangent
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, tangent));
 
     glBindVertexArray(0);
     
@@ -825,13 +891,30 @@ static void OpenGL_UpdateDynamicMesh(Renderer* r, MeshHandle handle, Vertex3D* v
     // Overwrite the buffers
     glBindVertexArray(mesh->vao);
 
-    // Vertex Buffer using SubData
+    // Vertex Buffer: reallocate if larger than max_vertices
     glBindBuffer(GL_ARRAY_BUFFER, mesh->vbo);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, vertex_count * sizeof(Vertex3D), vertices);
+    if (vertex_count > mesh->max_vertices)
+    {
+        glBufferData(GL_ARRAY_BUFFER, vertex_count * sizeof(Vertex3D), vertices, GL_DYNAMIC_DRAW);
+        mesh->max_vertices = vertex_count;
+    }
+    else
+    {
+        glBufferSubData(GL_ARRAY_BUFFER, 0, vertex_count * sizeof(Vertex3D), vertices);
+    }
 
-    // Overwrite the Index Buffer using SubData
+
+    // Index Buffer: reallocate if larger than max_indices
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->ebo);
-    glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, index_count * sizeof(uint32_t), indices);
+    if (index_count > mesh->max_indices)
+    {
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_count * sizeof(uint32_t), indices, GL_DYNAMIC_DRAW);
+        mesh->max_indices = index_count;
+    }
+    else
+    {
+        glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, index_count * sizeof(uint32_t), indices);
+    }
 
     glBindVertexArray(0);
 }
@@ -1228,7 +1311,7 @@ static void OpenGL_DrawShadowQueue(OpenGL_Backend* internal, const Matrix4* ligh
     {
         RenderCommand* cmd = &internal->command_queue[i];
 
-        if (!internal->mesh_pool[cmd->mesh.id].active)
+        if (cmd->mesh.id == 0 || cmd->mesh.id >= MAX_RESOURCES || !internal->mesh_pool[cmd->mesh.id].active)
             continue;
 
         if (!cmd->cast_shadows)
@@ -1236,8 +1319,8 @@ static void OpenGL_DrawShadowQueue(OpenGL_Backend* internal, const Matrix4* ligh
 
         GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
 
-        // Dynamically select the internal shadow shader based on skeleton presence
-        ShaderHandle target_shader = (cmd->bone_matrices != NULL) ? internal->shadow.skinned_shader : internal->shadow.static_shader;
+        // Dynamically select the internal shadow shader based on skeleton presence and skinned mesh format
+        ShaderHandle target_shader = (cmd->bone_matrices != NULL && gl_mesh->is_skinned) ? internal->shadow.skinned_shader : internal->shadow.static_shader;
         GLShader* gl_shader = &internal->shader_pool[target_shader.id];
 
         if (current_shader != target_shader.id)
@@ -1255,8 +1338,24 @@ static void OpenGL_DrawShadowQueue(OpenGL_Backend* internal, const Matrix4* ligh
             glUniformMatrix4fv(model_loc, 1, GL_FALSE, (float*)&cmd->transform);
 
         GLint bone_loc = glGetUniformLocation(gl_shader->program, "u_BoneMatrices");
-        if (bone_loc != -1 && cmd->bone_matrices != NULL)
-            glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)cmd->bone_matrices);
+        if (bone_loc != -1)
+        {
+            if (cmd->bone_matrices != NULL && gl_mesh->is_skinned)
+            {
+                glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)cmd->bone_matrices);
+            }
+            else
+            {
+                static Matrix4 identity_bones[MAX_BONES];
+                static bool initialized = false;
+                if (!initialized)
+                {
+                    for (int b = 0; b < MAX_BONES; b++) identity_bones[b] = Matrix4Identity();
+                    initialized = true;
+                }
+                glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)identity_bones);
+            }
+        }
 
         glBindVertexArray(gl_mesh->vao);
         glDrawElements(GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
@@ -1329,7 +1428,8 @@ static void OpenGL_EndShadowPass(Renderer* r)
             continue;
 
         // Make the Perspective Projection for the Spotlight. We use the outer_cut_off (in degrees) * 2 to get the full FOV of the cone
-        float fov_rad = (sl->outer_cut_off * 2.0f) * (3.14159265359f / 180.0f);
+        // float fov_rad = (sl->outer_cut_off * 2.0f) * (3.14159265359f / 180.0f);
+        float fov_rad = acosf(sl->outer_cut_off) * 2.0f;
         Matrix4 spotProj = Matrix4Perspective(fov_rad, 1.0f, 0.1f, 100.0f); // Adjust 100.0f to max distance - TODO: investigate this
 
         // Create the View Matrix
@@ -1412,7 +1512,7 @@ static void OpenGL_EndShadowPass(Renderer* r)
         {
             RenderCommand* cmd = &internal->command_queue[c];
             
-            if (!internal->mesh_pool[cmd->mesh.id].active)
+            if (cmd->mesh.id == 0 || cmd->mesh.id >= MAX_RESOURCES || !internal->mesh_pool[cmd->mesh.id].active)
                 continue;
 
             if (!cmd->cast_shadows)
@@ -1447,7 +1547,7 @@ static void OpenGL_EndShadowPass(Renderer* r)
 
 
             ShaderHandle target_shader = internal->shadow.point_static_shader; 
-            if (cmd->bone_matrices != NULL) 
+            if (cmd->bone_matrices != NULL && internal->mesh_pool[cmd->mesh.id].is_skinned) 
                 target_shader = internal->shadow.point_skinned_shader;
 
             // If we swap shaders, we must re-upload the global light uniforms
@@ -1466,8 +1566,24 @@ static void OpenGL_EndShadowPass(Renderer* r)
             glUniformMatrix4fv(glGetUniformLocation(prog, "u_Model"), 1, GL_FALSE, (float*)&cmd->transform);
             
             GLint bone_loc = glGetUniformLocation(prog, "u_BoneMatrices");
-            if (bone_loc != -1 && cmd->bone_matrices != NULL)
-                glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)cmd->bone_matrices);
+            if (bone_loc != -1)
+            {
+                if (cmd->bone_matrices != NULL && internal->mesh_pool[cmd->mesh.id].is_skinned)
+                {
+                    glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)cmd->bone_matrices);
+                }
+                else
+                {
+                    static Matrix4 identity_bones[MAX_BONES];
+                    static bool initialized = false;
+                    if (!initialized)
+                    {
+                        for (int b = 0; b < MAX_BONES; b++) identity_bones[b] = Matrix4Identity();
+                        initialized = true;
+                    }
+                    glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)identity_bones);
+                }
+            }
 
             glBindVertexArray(internal->mesh_pool[cmd->mesh.id].vao);
             glDrawElements(GL_TRIANGLES, internal->mesh_pool[cmd->mesh.id].index_count, GL_UNSIGNED_INT, 0);
@@ -1554,7 +1670,10 @@ static void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
 
 
 // Adds an object to the draw queue
-static void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle texture, MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows)
+static void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader,
+                          TextureHandle albedo, TextureHandle normal, TextureHandle metallic, TextureHandle roughness,
+                          MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices,
+                          bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
@@ -1564,7 +1683,10 @@ static void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, Tex
     internal->command_queue[internal->command_count++] = (RenderCommand){
         mesh,
         shader,
-        texture,
+        albedo,
+        normal,
+        metallic,
+        roughness,
         mat_props,
         transform,
         bone_matrices,
@@ -1601,7 +1723,7 @@ static int CompareRenderCommands(const void* a, const void* b)
     if (cmdA->shader.id != cmdB->shader.id)
         return (int)cmdA->shader.id - (int)cmdB->shader.id;
     
-    return (int)cmdA->texture.id - (int)cmdB->texture.id;
+    return (int)cmdA->albedo_map.id - (int)cmdB->albedo_map.id;
 }
 
 
@@ -1728,7 +1850,7 @@ static void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
         if (!internal->mesh_pool[cmd->mesh.id].active)
             continue;
 
-        ShaderHandle target_g_handle = (cmd->bone_matrices != NULL) ? internal->ssao.g_buffer_skinned_shader : internal->ssao.g_buffer_shader;
+        ShaderHandle target_g_handle = (cmd->bone_matrices != NULL && internal->mesh_pool[cmd->mesh.id].is_skinned) ? internal->ssao.g_buffer_skinned_shader : internal->ssao.g_buffer_shader;
         GLShader* g_prog = &internal->shader_pool[target_g_handle.id];
 
         if (current_g_shader != target_g_handle.id)
@@ -1740,24 +1862,70 @@ static void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
             glUniformMatrix4fv(glGetUniformLocation(g_prog->program, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
         }
 
-        // Bind Texture and Material Properties
-        if (current_texture != cmd->texture.id)
-        {
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->texture.id].id);
-            current_texture = cmd->texture.id;
-        }
+
+        // 0. Albedo Map
+        glActiveTexture(GL_TEXTURE0);
+        bool valid_albedo = (cmd->albedo_map.id != 0 && cmd->albedo_map.id < MAX_RESOURCES);
+        glBindTexture(GL_TEXTURE_2D, valid_albedo ? internal->texture_pool[cmd->albedo_map.id].id : internal->texture_pool[1].id); // Fallback to default tex
+        glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.albedoMap"), 0);
+
+        // 1. Normal Map
+        bool valid_normal = (cmd->normal_map.id != 0 && cmd->normal_map.id < MAX_RESOURCES);
+        glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.hasNormalMap"), valid_normal ? 1 : 0);
+        glActiveTexture(GL_TEXTURE1);
+        if (valid_normal)
+            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->normal_map.id].id);
+        else
+            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[2].id);
+        glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.normalMap"), 1);
+
+        // 2. Metallic Map
+        bool valid_metallic = (cmd->metallic_map.id != 0 && cmd->metallic_map.id < MAX_RESOURCES);
+        glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.hasMetallicMap"), valid_metallic ? 1 : 0);
+        glActiveTexture(GL_TEXTURE2);
+        if (valid_metallic)
+            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->metallic_map.id].id);
+        else
+            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[3].id);
+        glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.metallicMap"), 2);
+
+        // 3. Roughness Map
+        bool valid_roughness = (cmd->roughness_map.id != 0 && cmd->roughness_map.id < MAX_RESOURCES);
+        glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.hasRoughnessMap"), valid_roughness ? 1 : 0);
+        glActiveTexture(GL_TEXTURE3);
+        if (valid_roughness)
+            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->roughness_map.id].id);
+        else
+            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[1].id);
+        glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.roughnessMap"), 3);
         
-        glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.diffuse"), 0);
-        glUniform3fv(glGetUniformLocation(g_prog->program, "u_Material.tint"), 1, (float*)&cmd->mat_props.tint_color);
-        glUniform1f(glGetUniformLocation(g_prog->program, "u_Material.specularStrength"), cmd->mat_props.specular_strength);
+
+        glUniform3fv(glGetUniformLocation(g_prog->program, "u_Material.albedoTint"), 1, (float*)&cmd->mat_props.albedo_tint);
+        glUniform1f(glGetUniformLocation(g_prog->program, "u_Material.metallicFactor"), cmd->mat_props.metallic_factor);
+        glUniform1f(glGetUniformLocation(g_prog->program, "u_Material.roughnessFactor"), cmd->mat_props.roughness_factor);
         glUniform1f(glGetUniformLocation(g_prog->program, "u_ReceiveShadows"), cmd->receive_shadows ? 1.0f : 0.0f);
 
         glUniformMatrix4fv(glGetUniformLocation(g_prog->program, "u_Model"), 1, GL_FALSE, (float*)&cmd->transform);
 
         GLint bone_loc = glGetUniformLocation(g_prog->program, "u_BoneMatrices");
-        if (bone_loc != -1 && cmd->bone_matrices != NULL)
-            glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)cmd->bone_matrices);
+        if (bone_loc != -1)
+        {
+            if (cmd->bone_matrices != NULL && internal->mesh_pool[cmd->mesh.id].is_skinned)
+            {
+                glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)cmd->bone_matrices);
+            }
+            else
+            {
+                static Matrix4 identity_bones[MAX_BONES];
+                static bool initialized = false;
+                if (!initialized)
+                {
+                    for (int b = 0; b < MAX_BONES; b++) identity_bones[b] = Matrix4Identity();
+                    initialized = true;
+                }
+                glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)identity_bones);
+            }
+        }
 
         GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
         glBindVertexArray(gl_mesh->vao);
@@ -1823,7 +1991,8 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     // --- Additive Blending ---
     glEnable(GL_BLEND);
     glBlendFunc(GL_ONE, GL_ONE);
-    glDisable(GL_CULL_FACE);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
 
     glBindVertexArray(internal->deferred.sphere_vao);
 
@@ -2023,7 +2192,7 @@ static void OpenGL_RenderCommandBatch(OpenGL_Backend* internal, uint32_t start_i
 
         ShaderHandle target_handle = cmd->shader;
         if (target_handle.id == 0)
-            target_handle = (cmd->bone_matrices != NULL) ? internal->forward.animated_shader : internal->forward.default_shader;
+            target_handle = (cmd->bone_matrices != NULL && internal->mesh_pool[cmd->mesh.id].is_skinned) ? internal->forward.animated_shader : internal->forward.default_shader;
 
         GLShader* gl_shader = &internal->shader_pool[target_handle.id];
         if (!gl_shader->active)
@@ -2052,23 +2221,47 @@ static void OpenGL_RenderCommandBatch(OpenGL_Backend* internal, uint32_t start_i
             OpenGL_UploadLightUniforms(gl_shader->program, &internal->state);
         }
 
-        if (current_texture != cmd->texture.id)
-        {
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->texture.id].id);
-            current_texture = cmd->texture.id;
-        }
+
+        // 0. Albedo Map
+        glActiveTexture(GL_TEXTURE0);
+        bool valid_albedo = (cmd->albedo_map.id != 0 && cmd->albedo_map.id < MAX_RESOURCES && internal->texture_pool[cmd->albedo_map.id].active && internal->texture_pool[cmd->albedo_map.id].id != 0);
+        glBindTexture(GL_TEXTURE_2D, valid_albedo ? internal->texture_pool[cmd->albedo_map.id].id : internal->texture_pool[1].id);
+        glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.albedoMap"), 0);
+        glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.diffuse"), 0);
+
+        // 1. Normal Map
+        bool valid_normal = (cmd->normal_map.id != 0 && cmd->normal_map.id < MAX_RESOURCES && internal->texture_pool[cmd->normal_map.id].active && internal->texture_pool[cmd->normal_map.id].id != 0);
+        glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.hasNormalMap"), valid_normal ? 1 : 0);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, valid_normal ? internal->texture_pool[cmd->normal_map.id].id : internal->texture_pool[2].id);
+        glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.normalMap"), 1);
+
+        // 2. Metallic Map
+        bool valid_metallic = (cmd->metallic_map.id != 0 && cmd->metallic_map.id < MAX_RESOURCES && internal->texture_pool[cmd->metallic_map.id].active && internal->texture_pool[cmd->metallic_map.id].id != 0);
+        glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.hasMetallicMap"), valid_metallic ? 1 : 0);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, valid_metallic ? internal->texture_pool[cmd->metallic_map.id].id : internal->texture_pool[3].id);
+        glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.metallicMap"), 2);
+
+        // 3. Roughness Map
+        bool valid_roughness = (cmd->roughness_map.id != 0 && cmd->roughness_map.id < MAX_RESOURCES && internal->texture_pool[cmd->roughness_map.id].active && internal->texture_pool[cmd->roughness_map.id].id != 0);
+        glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.hasRoughnessMap"), valid_roughness ? 1 : 0);
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, valid_roughness ? internal->texture_pool[cmd->roughness_map.id].id : internal->texture_pool[1].id);
+        glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.roughnessMap"), 3);
+
 
         glUniformMatrix4fv(glGetUniformLocation(gl_shader->program, "u_Model"), 1, GL_FALSE, (float*)&cmd->transform);
-        glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.diffuse"), 0);
-        glUniform3fv(glGetUniformLocation(gl_shader->program, "u_Material.tint"), 1, (float*)&cmd->mat_props.tint_color);
-        glUniform1f(glGetUniformLocation(gl_shader->program, "u_Material.shininess"), cmd->mat_props.shininess);
-        glUniform1f(glGetUniformLocation(gl_shader->program, "u_Material.specularStrength"), cmd->mat_props.specular_strength);
+        glUniform3fv(glGetUniformLocation(gl_shader->program, "u_Material.tint"), 1, (float*)&cmd->mat_props.albedo_tint);
+        glUniform1f(glGetUniformLocation(gl_shader->program, "u_Material.metallicFactor"), cmd->mat_props.metallic_factor);
+        glUniform1f(glGetUniformLocation(gl_shader->program, "u_Material.roughnessFactor"), cmd->mat_props.roughness_factor);
+        glUniform1f(glGetUniformLocation(gl_shader->program, "u_ReceiveShadows"), cmd->receive_shadows ? 1.0f : 0.0f);
 
         GLint bone_loc = glGetUniformLocation(gl_shader->program, "u_BoneMatrices");
         if (bone_loc != -1)
         {
-            if (cmd->bone_matrices != NULL)
+            // if (cmd->bone_matrices != NULL)
+            if (cmd->bone_matrices != NULL && internal->mesh_pool[cmd->mesh.id].is_skinned)
             {
                 glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)cmd->bone_matrices);
             }
@@ -2320,6 +2513,39 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
     glEnable(GL_CULL_FACE); // Disables drawing the inside of a mesh
+
+    // Generate Guaranteed Default 1x1 Textures for Fallbacks & Safe Binding
+    unsigned char white_pixel[4]  = { 255, 255, 255, 255 };
+    unsigned char normal_pixel[4] = { 128, 128, 255, 255 };
+    unsigned char black_pixel[4]  = { 0,   0,   0,   255 };
+
+    glGenTextures(1, &internal->default_white_texture);
+    glBindTexture(GL_TEXTURE_2D, internal->default_white_texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, white_pixel);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    glGenTextures(1, &internal->default_normal_texture);
+    glBindTexture(GL_TEXTURE_2D, internal->default_normal_texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, normal_pixel);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    glGenTextures(1, &internal->default_black_texture);
+    glBindTexture(GL_TEXTURE_2D, internal->default_black_texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, black_pixel);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    // Reserve slots 1, 2, and 3 inside texture_pool exclusively for these default textures
+    internal->texture_pool[1].id = internal->default_white_texture;
+    internal->texture_pool[1].active = true;
+
+    internal->texture_pool[2].id = internal->default_normal_texture;
+    internal->texture_pool[2].active = true;
+
+    internal->texture_pool[3].id = internal->default_black_texture;
+    internal->texture_pool[3].active = true;
 
 
     

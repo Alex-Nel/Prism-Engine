@@ -23,6 +23,7 @@ typedef struct Vertex3D
     Vector3 position;
     Vector3 normal;
     Vector2 uv;
+    Vector3 tangent;
 } Vertex3D;
 
 
@@ -33,6 +34,7 @@ typedef struct Vertex3DSkinned
     Vector3 position;
     Vector3 normal;
     Vector2 uv;
+    Vector3 tangent;
 
     int bone_ids[MAX_BONE_INFLUENCE];
     float bone_weights[MAX_BONE_INFLUENCE];
@@ -133,9 +135,9 @@ typedef struct Shader
 // Properties for materials
 typedef struct MaterialProperties
 {
-    Color tint_color;
-    float shininess;
-    float specular_strength;
+    Color albedo_tint;
+    float metallic_factor;    // 0.0 = plastic, 1.0 metal
+    float roughness_factor;   // 0.0 = perfect mirror, 1.0 = rough dirt
 } MaterialProperties;
 
 
@@ -147,10 +149,13 @@ typedef struct Material
     bool active;
     
     Shader* shader;
-    Texture* diffuse_texture;
+
+    Texture* albedo_texture;
+    Texture* normal_map;
+    Texture* metallic_map;   // White = metal, Black = non-metal
+    Texture* roughness_map;  // White = rough, Black = smooth
 
     MaterialProperties properties;
-    
 } Material;
 
 
@@ -240,6 +245,10 @@ typedef struct Skeleton
 
 // Builds a model-space AABB from the current skinned pose
 AABB SkinnedMesh_ComputePoseAABB(const SkinnedMesh* mesh, const Matrix4* bone_matrices);
+
+// Calculates Tangest Vectors for a mesh based on its UV coordinates
+void Mesh_CalculateVertexTangents(Vertex3D* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count);
+void Mesh_CalculateVertexSkinnedTangents(Vertex3DSkinned* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count);
 
 
 

@@ -323,6 +323,7 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
     const struct aiScene* scene = aiImportFile(filepath, 
         aiProcess_Triangulate |
         aiProcess_GenSmoothNormals |
+        aiProcess_CalcTangentSpace |
         aiProcess_LimitBoneWeights);
 
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
@@ -464,7 +465,21 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
         
         // Update the tint color to match the 3D file
         if (mat_ptr)
-            mat_ptr->properties.tint_color = (Color){ diffuse_color.r, diffuse_color.g, diffuse_color.b, diffuse_color.a };
+        {
+            mat_ptr->properties.albedo_tint = (Color){ diffuse_color.r, diffuse_color.g, diffuse_color.b, diffuse_color.a };
+
+            float metallic_val = 0.0f;
+            if (aiGetMaterialFloatArray(ai_mat, "$mat.gltf.pbrMetallicRoughness.metallicFactor", 0, 0, &metallic_val, NULL) == aiReturn_SUCCESS)
+                mat_ptr->properties.metallic_factor = metallic_val;
+            else if (aiGetMaterialFloatArray(ai_mat, AI_MATKEY_METALLIC_FACTOR, &metallic_val, NULL) == aiReturn_SUCCESS)
+                mat_ptr->properties.metallic_factor = metallic_val;
+
+            float roughness_val = 0.5f;
+            if (aiGetMaterialFloatArray(ai_mat, "$mat.gltf.pbrMetallicRoughness.roughnessFactor", 0, 0, &roughness_val, NULL) == aiReturn_SUCCESS)
+                mat_ptr->properties.roughness_factor = roughness_val;
+            else if (aiGetMaterialFloatArray(ai_mat, AI_MATKEY_ROUGHNESS_FACTOR, &roughness_val, NULL) == aiReturn_SUCCESS)
+                mat_ptr->properties.roughness_factor = roughness_val;
+        }
 
         material_map[i] = mat_ptr;
     }
@@ -516,8 +531,14 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
                 if (ai_mesh->mTextureCoords[0]) v.uv = (Vector2){ ai_mesh->mTextureCoords[0][i].x, ai_mesh->mTextureCoords[0][i].y };
                 else v.uv = (Vector2){ 0.0f, 0.0f };
 
+                if (ai_mesh->mTangents)
+                    v.tangent = (Vector3){ ai_mesh->mTangents[i].x, ai_mesh->mTangents[i].y, ai_mesh->mTangents[i].z };
+                else
+                    v.tangent = (Vector3){ 0.0f, 0.0f, 0.0f };
+
                 // Initialize bones to default (empty) state
-                for (int b = 0; b < MAX_BONE_INFLUENCE; b++) {
+                for (int b = 0; b < MAX_BONE_INFLUENCE; b++)
+                {
                     v.bone_ids[b] = -1;
                     v.bone_weights[b] = 0.0f;
                 }
@@ -577,7 +598,7 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
             new_model->nodes[m].mesh = NULL;
         }
 
-        // Static meshwa
+        // Static meshes
         else 
         {
             if (mesh_count >= MAX_CACHED_MESHES)
@@ -595,24 +616,56 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
                 Vector3 raw_pos = (Vector3){ ai_mesh->mVertices[i].x, ai_mesh->mVertices[i].y, ai_mesh->mVertices[i].z };
                 Vector3 raw_norm = (Vector3){ ai_mesh->mNormals[i].x, ai_mesh->mNormals[i].y, ai_mesh->mNormals[i].z };
 
+                Vector3 raw_tan = (Vector3){ 0.0f, 0.0f, 0.0f };
+                if (ai_mesh->mTangents)
+                    raw_tan = (Vector3){ ai_mesh->mTangents[i].x, ai_mesh->mTangents[i].y, ai_mesh->mTangents[i].z };
+
                 // Apply node transformation directly to geometry if rigid
-                if (!has_animations) {
+                if (!has_animations)
+                {
                     v.position = Matrix4MultiplyVector3(node_transform, raw_pos);
                     v.normal.x = node_transform.m00 * raw_norm.x + node_transform.m01 * raw_norm.y + node_transform.m02 * raw_norm.z;
                     v.normal.y = node_transform.m10 * raw_norm.x + node_transform.m11 * raw_norm.y + node_transform.m12 * raw_norm.z;
                     v.normal.z = node_transform.m20 * raw_norm.x + node_transform.m21 * raw_norm.y + node_transform.m22 * raw_norm.z;
 
+                    v.tangent.x = node_transform.m00 * raw_tan.x + node_transform.m01 * raw_tan.y + node_transform.m02 * raw_tan.z;
+                    v.tangent.y = node_transform.m10 * raw_tan.x + node_transform.m11 * raw_tan.y + node_transform.m12 * raw_tan.z;
+                    v.tangent.z = node_transform.m20 * raw_tan.x + node_transform.m21 * raw_tan.y + node_transform.m22 * raw_tan.z;
+
                     float length = sqrtf(v.normal.x*v.normal.x + v.normal.y*v.normal.y + v.normal.z*v.normal.z);
-                    if (length > 0.0001f) {
+                    if (length > 0.0001f)
+                    {
                         v.normal.x /= length; v.normal.y /= length; v.normal.z /= length;
                     }
-                } else {
+
+                    float tan_length = sqrtf(v.tangent.x*v.tangent.x + v.tangent.y*v.tangent.y + v.tangent.z*v.tangent.z);
+                    if (tan_length > 0.0001f)
+                    {
+                        v.tangent.x /= tan_length; v.tangent.y /= tan_length; v.tangent.z /= tan_length;
+                    }
+                }
+                else
+                {
                     v.position = raw_pos;
                     v.normal = raw_norm;
+                    v.tangent = raw_tan;
                 }
 
                 if (ai_mesh->mTextureCoords[0]) v.uv = (Vector2){ ai_mesh->mTextureCoords[0][i].x, ai_mesh->mTextureCoords[0][i].y };
                 else v.uv = (Vector2){ 0.0f, 0.0f };
+
+                float tan_length = sqrtf(v.tangent.x*v.tangent.x + v.tangent.y*v.tangent.y + v.tangent.z*v.tangent.z);
+                if (tan_length > 0.0001f)
+                {
+                    v.tangent.x /= tan_length; v.tangent.y /= tan_length; v.tangent.z /= tan_length;
+                }
+                else
+                {
+                    Vector3 n = v.normal;
+                    Vector3 c = (fabsf(n.z) < 0.99f) ? (Vector3){ -n.y, n.x, 0.0f } : (Vector3){ 0.0f, -n.z, n.y };
+                    float l = sqrtf(c.x*c.x + c.y*c.y + c.z*c.z);
+                    v.tangent = (l > 0.0001f) ? (Vector3){ c.x/l, c.y/l, c.z/l } : (Vector3){ 1.0f, 0.0f, 0.0f };
+                }
 
                 vertices[i] = v;
             }
@@ -799,6 +852,8 @@ Mesh* Asset_LoadMesh(const char* name, const char* filepath)
                 fastObjIndex mi = indices[k];
                 Vertex3D v;
 
+                v.tangent = (Vector3){0.0f, 0.0f, 0.0f};
+
                 v.position.x = mesh->positions[mi.p * 3 + 0];
                 v.position.y = mesh->positions[mi.p * 3 + 1];
                 v.position.z = mesh->positions[mi.p * 3 + 2];
@@ -832,6 +887,8 @@ Mesh* Asset_LoadMesh(const char* name, const char* filepath)
         
         index_offset += fv; 
     }
+
+    Mesh_CalculateVertexTangents(final_vertices, vertex_count, final_indices, index_count);
 
 
     // Create GPU mesh
@@ -916,7 +973,7 @@ Texture* Asset_CreateSolidColorTexture(const char* name, Color color)
 
 
 // Creates a material from a given shader and texture (diffuse)
-Material* Asset_CreateMaterial(Shader* shader, Texture* diffuse)
+Material* Asset_CreateMaterial(Shader* shader, Texture* albedo)
 {
     if (material_count >= MAX_MATERIALS)
     {
@@ -932,16 +989,20 @@ Material* Asset_CreateMaterial(Shader* shader, Texture* diffuse)
 
     mat->shader = shader;
     
-    if (diffuse == NULL)
-        mat->diffuse_texture = Asset_GetDefaultTexture();
+    if (albedo == NULL)
+        mat->albedo_texture = Asset_GetDefaultTexture();
     else
-        mat->diffuse_texture = diffuse;
+        mat->albedo_texture = albedo;
     
-    
+    // Set other textures to NULL
+    mat->normal_map = NULL;
+    mat->metallic_map = NULL;
+    mat->roughness_map = NULL;
+
     // Default physical properties
-    mat->properties.tint_color = (Color){1.0f, 1.0f, 1.0f, 1.0f}; // Pure white
-    mat->properties.shininess = 32.0f;                        // Standard plastic
-    mat->properties.specular_strength = 0.5f;                 // Medium reflection
+    mat->properties.albedo_tint = (Color){1.0f, 1.0f, 1.0f, 1.0f}; // Pure white
+    mat->properties.metallic_factor = 0.0f;                        // Standard plastic
+    mat->properties.roughness_factor = 0.5f;                       // Medium reflection
     
     
     return mat;
@@ -1198,6 +1259,8 @@ Mesh* Asset_GetBuiltinQuad()
         2, 3, 0  // Triangle 2
     };
 
+    Mesh_CalculateVertexTangents(vertices, 4, indices, 6);
+
 
     // Copy vertices and indices to the heap for caching
     Vertex3D* heap_vertices = malloc(sizeof(vertices));
@@ -1286,6 +1349,8 @@ Mesh* Asset_GetBuiltinCube()
         16, 17, 18, 18, 19, 16, // Top
         20, 21, 22, 22, 23, 20  // Bottom
     };
+
+    Mesh_CalculateVertexTangents(vertices, 24, indices, 36);
 
 
     // Copy vertices and indices to the heap for caching
@@ -1392,6 +1457,8 @@ Mesh* Asset_GetBuiltinSphere()
         }
     }
 
+    Mesh_CalculateVertexTangents(vertices, vertex_count, indices, index_count);
+
 
     // Create mesh and cache it if possible
     MeshHandle gpu_handle = Render_CreateMesh(renderer, vertices, vertex_count, indices, index_count);
@@ -1437,10 +1504,8 @@ Texture* Asset_GetDefaultTexture()
     // If already made, return the handle
     if (default_texture != NULL)
         return default_texture;
-    
-    unsigned char white_pixel[4] = {200, 200, 200, 255};
 
-    TextureHandle handle = Render_CreateTexture(renderer, white_pixel, 1, 1, 4);
+    TextureHandle handle = (TextureHandle){ 1 };
 
     if (texture_count < MAX_CACHED_TEXTURES)
     {

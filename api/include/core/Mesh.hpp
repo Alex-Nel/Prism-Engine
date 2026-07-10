@@ -225,6 +225,12 @@ namespace Prism
         void SetTintColor(const Prism::Color& color);
         void SetShininess(float shininess);
         void SetSpecularStrength(float strength);
+        void SetMetallic(float metallic);
+        void SetRoughness(float roughness);
+        void SetAlbedoTexture(Prism::Texture albedo);
+        void SetNormalMap(Prism::Texture normal);
+        void SetMetallicMap(Prism::Texture metallic);
+        void SetRoughnessMap(Prism::Texture roughness);
         void SetShader(Prism::Shader shader);
     };
 

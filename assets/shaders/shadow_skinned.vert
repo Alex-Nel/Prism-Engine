@@ -1,10 +1,11 @@
 #version 330 core
 
 layout (location = 0) in vec3 aPos;
+layout (location = 3) in vec3 aTangent;
 
 // Animation inputs (same attribute slots as animated.vert)
-layout (location = 3) in ivec4 aBoneIds;
-layout (location = 4) in vec4 aWeights;
+layout (location = 4) in ivec4 aBoneIds;
+layout (location = 5) in vec4 aWeights;
 
 uniform mat4 u_Model;
 uniform mat4 u_LightSpaceMatrix;
@@ -19,7 +20,7 @@ void main()
     vec4 totalPosition = vec4(0.0);
     for (int i = 0; i < 4; i++)
     {
-        if (aBoneIds[i] == -1)
+        if (aBoneIds[i] < 0 || aBoneIds[i] >= MAX_BONES)
             continue;
 
         totalPosition += (u_BoneMatrices[aBoneIds[i]] * vec4(aPos, 1.0)) * aWeights[i];
