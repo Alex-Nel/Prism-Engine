@@ -14,10 +14,12 @@ struct Material
     sampler2D normalMap;
     sampler2D metallicMap;
     sampler2D roughnessMap;
+    sampler2D aoMap;
 
     bool hasNormalMap;
     bool hasMetallicMap;
     bool hasRoughnessMap;
+    bool hasAOMap;
 
     vec3 albedoTint;
     float metallicFactor;
@@ -52,11 +54,12 @@ void main()
     }
 
     // --- Metallic & Roughness ---
-    float metallic = u_Material.hasMetallicMap ? texture(u_Material.metallicMap, TexCoords).r : u_Material.metallicFactor;
-    float roughness = u_Material.hasRoughnessMap ? texture(u_Material.roughnessMap, TexCoords).r : u_Material.roughnessFactor;
+    float metallic = u_Material.hasMetallicMap ? texture(u_Material.metallicMap, TexCoords).b : u_Material.metallicFactor;
+    float roughness = u_Material.hasRoughnessMap ? texture(u_Material.roughnessMap, TexCoords).g : u_Material.roughnessFactor;
+    float ao = u_Material.hasAOMap ? texture(u_Material.aoMap, TexCoords).r : 1.0;
 
     gPosition = vec4(WorldPos, metallic);    
-    gNormal = vec4(finalNormal, u_ReceiveShadows);
+    gNormal = vec4(finalNormal, (u_ReceiveShadows > 0.5) ? ao : -ao);
     gAlbedoSpec.rgb = texColor.rgb * u_Material.albedoTint;
     gAlbedoSpec.a = roughness;
 }

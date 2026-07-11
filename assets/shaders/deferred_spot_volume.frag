@@ -215,7 +215,7 @@ void main()
     float NdotL = max(dot(normal, lightDir), 0.0);
 
     float shadow = CalculateSpotShadow(fragPos, normal, lightDir);
-    float receivesShadows = texture(gNormal, TexCoords).a;
+    float receivesShadows = (texture(gNormal, TexCoords).a >= 0.0) ? 1.0 : 0.0;
     shadow *= receivesShadows;
     
     // Outgoing Light (Lo)

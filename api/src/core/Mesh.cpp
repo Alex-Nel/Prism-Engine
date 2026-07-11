@@ -197,6 +197,22 @@ namespace Prism
         }
     }
 
+    void Material::SetAOMap(Prism::Texture ao)
+    {
+        if (m_Handle != nullptr) 
+        {
+            ::Material* raw_mat = static_cast<::Material*>(m_Handle);
+            if (ao.IsValid())
+                raw_mat->ao_map = static_cast<::Texture*>(ao.GetRaw());
+            else
+                raw_mat->ao_map = nullptr;
+        }
+        else
+        {
+            Debug_Warning("Attempted to set AO Map on an invalid Material");
+        }
+    }
+
     void Material::SetShader(Prism::Shader shader)
     {
         if (m_Handle != nullptr) 

@@ -479,6 +479,46 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
                 mat_ptr->properties.roughness_factor = roughness_val;
             else if (aiGetMaterialFloatArray(ai_mat, AI_MATKEY_ROUGHNESS_FACTOR, &roughness_val, NULL) == aiReturn_SUCCESS)
                 mat_ptr->properties.roughness_factor = roughness_val;
+
+            // Check for AO / Occlusion texture
+            struct aiString ao_path;
+            if (aiGetMaterialTexture(ai_mat, aiTextureType_AMBIENT_OCCLUSION, 0, &ao_path, NULL, NULL, NULL, NULL, NULL, NULL) == aiReturn_SUCCESS ||
+                aiGetMaterialTexture(ai_mat, aiTextureType_AMBIENT, 0, &ao_path, NULL, NULL, NULL, NULL, NULL, NULL) == aiReturn_SUCCESS ||
+                aiGetMaterialTexture(ai_mat, aiTextureType_LIGHTMAP, 0, &ao_path, NULL, NULL, NULL, NULL, NULL, NULL) == aiReturn_SUCCESS)
+            {
+                char model_dir_ao[512] = {0};
+                strcpy(model_dir_ao, filepath);
+                char* last_slash_ao = strrchr(model_dir_ao, '/');
+                char* last_backslash_ao = strrchr(model_dir_ao, '\\');
+                char* split_ao = (last_slash_ao > last_backslash_ao) ? last_slash_ao : last_backslash_ao;
+                if (split_ao) *(split_ao + 1) = '\0'; else model_dir_ao[0] = '\0';
+
+                const char* clean_ao_filename = GetBaseFilename(ao_path.data);
+                char try_ao_path_1[1024];
+                snprintf(try_ao_path_1, sizeof(try_ao_path_1), "%s%s", model_dir_ao, ao_path.data);
+                char try_ao_path_2[1024];
+                snprintf(try_ao_path_2, sizeof(try_ao_path_2), "%s%s", model_dir_ao, clean_ao_filename);
+
+                Texture* ao_tex_ptr = NULL;
+                FILE* fao1 = fopen(try_ao_path_1, "rb");
+                if (fao1)
+                {
+                    fclose(fao1);
+                    ao_tex_ptr = Asset_LoadTexture(clean_ao_filename, try_ao_path_1);
+                }
+                else
+                {
+                    FILE* fao2 = fopen(try_ao_path_2, "rb");
+                    if (fao2)
+                    {
+                        fclose(fao2);
+                        ao_tex_ptr = Asset_LoadTexture(clean_ao_filename, try_ao_path_2);
+                    }
+                }
+
+                if (mat_ptr && ao_tex_ptr)
+                    mat_ptr->ao_map = ao_tex_ptr;
+            }
         }
 
         material_map[i] = mat_ptr;
@@ -998,6 +1038,7 @@ Material* Asset_CreateMaterial(Shader* shader, Texture* albedo)
     mat->normal_map = NULL;
     mat->metallic_map = NULL;
     mat->roughness_map = NULL;
+    mat->ao_map = NULL;
 
     // Default physical properties
     mat->properties.albedo_tint = (Color){1.0f, 1.0f, 1.0f, 1.0f}; // Pure white

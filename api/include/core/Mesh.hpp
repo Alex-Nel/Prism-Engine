@@ -231,6 +231,7 @@ namespace Prism
         void SetNormalMap(Prism::Texture normal);
         void SetMetallicMap(Prism::Texture metallic);
         void SetRoughnessMap(Prism::Texture roughness);
+        void SetAOMap(Prism::Texture ao);
         void SetShader(Prism::Shader shader);
     };
 

@@ -154,6 +154,7 @@ typedef struct Material
     Texture* normal_map;
     Texture* metallic_map;   // White = metal, Black = non-metal
     Texture* roughness_map;  // White = rough, Black = smooth
+    Texture* ao_map;         // White = unoccluded (1.0), Black = occluded (0.0)
 
     MaterialProperties properties;
 } Material;

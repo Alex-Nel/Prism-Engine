@@ -25,7 +25,18 @@ uniform vec3 u_ViewPos;
 
 struct Material
 {
-    sampler2D diffuse; 
+    sampler2D diffuse;
+    sampler2D albedoMap;
+    sampler2D normalMap;
+    sampler2D metallicMap;
+    sampler2D roughnessMap;
+    sampler2D aoMap;
+
+    bool hasNormalMap;
+    bool hasMetallicMap;
+    bool hasRoughnessMap;
+    bool hasAOMap;
+
     vec3 tint;
     float metallicFactor;
     float roughnessFactor;
@@ -228,6 +239,9 @@ float SampleCascadeShadow(int cascade, vec3 fragPos, vec3 normal, vec3 lightDir)
 // Calculates if the pixel is in shadow (0.0 = bright, 1.0 = shadowed)
 float ShadowCalculation(vec3 fragPos, vec3 normal, vec3 lightDir)
 {
+    if (u_ReceiveShadows < 0.5)
+        return 0.0;
+    
     if (u_ShadowCascadeCount <= 1)
         return SampleCascadeShadow(0, fragPos, normal, lightDir);
 
@@ -454,16 +468,6 @@ void main()
         discard;
     vec3 linearAlbedo = pow(texColor.rgb, vec3(2.2)) * u_Material.tint;
 
-    // If the renderer disabled shadows for this object, assume it's a 2D Unlit graphic
-    if (u_ReceiveShadows < 0.5) 
-    {
-        // Tone map and Gamma correct the pure color, then exit immediately.
-        vec3 unlit = ACESFilm(linearAlbedo);
-        unlit = pow(unlit, vec3(1.0 / 2.2));
-        FragColor = vec4(unlit, texColor.a);
-        return;
-    }
-
     // --- 3D Lighting for Forward Meshes ---
     vec3 norm = normalize(v_Normal);
     if (!gl_FrontFacing)
@@ -471,12 +475,15 @@ void main()
 
     vec3 viewDir = normalize(u_ViewPos - v_FragPos);
 
-    float ambientOcclusion = 1.0; 
+    float ambientOcclusion = u_Material.hasAOMap ? texture(u_Material.aoMap, TexCoord).r : 1.0; 
     if (u_EnableSSAO)
     {
         vec2 screenUV = gl_FragCoord.xy / vec2(textureSize(ssaoMap, 0));
-        ambientOcclusion = texture(ssaoMap, screenUV).r;
+        ambientOcclusion *= texture(ssaoMap, screenUV).r;
     }
+
+    float metallic = u_Material.hasMetallicMap ? texture(u_Material.metallicMap, TexCoord).b : u_Material.metallicFactor;
+    float roughness = u_Material.hasRoughnessMap ? texture(u_Material.roughnessMap, TexCoord).g : u_Material.roughnessFactor;
 
     vec3 totalLight = vec3(0.0);
 
@@ -485,7 +492,7 @@ void main()
     {
         if (i >= u_DirLightCount)
             break;
-        totalLight += CalcDirLight(u_DirLights[i], norm, viewDir, ambientOcclusion, linearAlbedo, u_Material.metallicFactor, u_Material.roughnessFactor, v_FragPos);
+        totalLight += CalcDirLight(u_DirLights[i], norm, viewDir, ambientOcclusion, linearAlbedo, metallic, roughness, v_FragPos);
     }
 
     // Accumulate Point Lights
@@ -493,7 +500,7 @@ void main()
     {
         if (i >= u_PointLightCount)
             break;
-        totalLight += CalcPointLight(u_PointLights[i], norm, v_FragPos, viewDir, linearAlbedo, u_Material.metallicFactor, u_Material.roughnessFactor);
+        totalLight += CalcPointLight(u_PointLights[i], norm, v_FragPos, viewDir, linearAlbedo, metallic, roughness);
     }
 
     // Accumulate Spot Lights
@@ -501,7 +508,7 @@ void main()
     {
         if (i >= u_SpotLightCount)
             break;
-        totalLight += CalcSpotLight(u_SpotLights[i], norm, v_FragPos, viewDir, linearAlbedo, u_Material.metallicFactor, u_Material.roughnessFactor);
+        totalLight += CalcSpotLight(u_SpotLights[i], norm, v_FragPos, viewDir, linearAlbedo, metallic, roughness);
     }
 
 

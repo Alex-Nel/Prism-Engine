@@ -186,7 +186,7 @@ float SampleCascadeShadow(int cascade, vec3 fragPos, vec3 normal, vec3 lightDir)
 float ShadowCalculation(vec3 fragPos, vec3 normal, vec3 lightDir)
 {
     float receivesShadows = texture(gNormal, TexCoords).a;
-    if (receivesShadows < 0.5) 
+    if (receivesShadows < 0.0) 
         return 0.0;
 
     if (u_ShadowCascadeCount <= 1)
@@ -375,9 +375,9 @@ void main()
 
     if (length(normal) < 0.1) discard;
 
-    float ao = 1.0;
+    float ao = abs(texture(gNormal, TexCoords).a);
     if (u_EnableSSAO)
-        ao = texture(ssaoMap, TexCoords).r;
+        ao *= texture(ssaoMap, TexCoords).r;
 
     vec3 viewDir = normalize(u_ViewPos - fragPos);
     vec3 totalLight = vec3(0.0);

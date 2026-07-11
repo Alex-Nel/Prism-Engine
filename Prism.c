@@ -543,7 +543,7 @@ void Engine_ExecuteShadowPass(Scene* scene, RenderPacket* packet)
             continue; // Too far to cast a visible shadow
 
         Render_Submit(engine.renderer, rc->mesh->gpu_handle, DEFAULT_SHADER,
-                      DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE,
+                      DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE,
                       (MaterialProperties){0}, t->world_matrix, NULL,
                       false, 0.0f, rc->casts_shadows, rc->receives_shadows);
     }
@@ -578,7 +578,7 @@ void Engine_ExecuteShadowPass(Scene* scene, RenderPacket* packet)
             bone_ptr = scene->animators[i].final_bone_matrices;
 
         Render_Submit(engine.renderer, rc->mesh->gpu_handle, DEFAULT_SHADER,
-                      DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE,
+                      DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE,
                       (MaterialProperties){0}, t->world_matrix, bone_ptr,
                       false, 0.0f, rc->casts_shadows, rc->receives_shadows);
     }
@@ -644,9 +644,10 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
         TextureHandle normal = rc->material->normal_map ? rc->material->normal_map->gpu_handle : (TextureHandle){0};
         TextureHandle metallic = rc->material->metallic_map ? rc->material->metallic_map->gpu_handle : (TextureHandle){0};
         TextureHandle roughness = rc->material->roughness_map ? rc->material->roughness_map->gpu_handle : (TextureHandle){0};
+        TextureHandle ao = rc->material->ao_map ? rc->material->ao_map->gpu_handle : (TextureHandle){0};
         
         Render_Submit(engine.renderer, rc->mesh->gpu_handle, shader,
-                      albedo, normal, metallic, roughness, rc->material->properties,
+                      albedo, normal, metallic, roughness, ao, rc->material->properties,
                       t->world_matrix, NULL, false, 0.0f, rc->casts_shadows, rc->receives_shadows);
     }
 
@@ -683,9 +684,10 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
         TextureHandle normal = rc->material->normal_map ? rc->material->normal_map->gpu_handle : (TextureHandle){0};
         TextureHandle metallic = rc->material->metallic_map ? rc->material->metallic_map->gpu_handle : (TextureHandle){0};
         TextureHandle roughness = rc->material->roughness_map ? rc->material->roughness_map->gpu_handle : (TextureHandle){0};
+        TextureHandle ao = rc->material->ao_map ? rc->material->ao_map->gpu_handle : (TextureHandle){0};
         
         Render_Submit(engine.renderer, rc->mesh->gpu_handle, shader,
-                      albedo, normal, metallic, roughness, rc->material->properties,
+                      albedo, normal, metallic, roughness, ao, rc->material->properties,
                       t->world_matrix, bone_ptr, false, 0.0f, rc->casts_shadows, rc->receives_shadows);
     }
 
@@ -713,9 +715,10 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
         TextureHandle normal = line->material->normal_map ? line->material->normal_map->gpu_handle : (TextureHandle){0};
         TextureHandle metallic = line->material->metallic_map ? line->material->metallic_map->gpu_handle : (TextureHandle){0};
         TextureHandle roughness = line->material->roughness_map ? line->material->roughness_map->gpu_handle : (TextureHandle){0};
+        TextureHandle ao = line->material->ao_map ? line->material->ao_map->gpu_handle : (TextureHandle){0};
 
         Render_Submit(engine.renderer, line->dynamic_mesh->gpu_handle, shader,
-                      albedo, normal, metallic, roughness, 
+                      albedo, normal, metallic, roughness, ao,
                       local_props, Matrix4Identity(), NULL, false, 0.0f, false, false);
     }
 
@@ -757,9 +760,10 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
         TextureHandle normal = sprite->material->normal_map ? sprite->material->normal_map->gpu_handle : (TextureHandle){0};
         TextureHandle metallic = sprite->material->metallic_map ? sprite->material->metallic_map->gpu_handle : (TextureHandle){0};
         TextureHandle roughness = sprite->material->roughness_map ? sprite->material->roughness_map->gpu_handle : (TextureHandle){0};
+        TextureHandle ao = sprite->material->ao_map ? sprite->material->ao_map->gpu_handle : (TextureHandle){0};
 
         Render_Submit(engine.renderer, sprite->quad->gpu_handle, shader,
-                      albedo, normal, metallic, roughness,
+                      albedo, normal, metallic, roughness, ao,
                       local_props, final_sprite_matrix, NULL, true, dist_sq, false, false);
     }
 }
