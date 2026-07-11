@@ -316,6 +316,101 @@ static SkeletonNode* CopyAssimpNodeTree(struct aiNode* ai_node)
 
 
 
+// Loads a specific texture from an AssImp material
+static Texture* Asset_LoadAssimpTexture(const struct aiScene* scene, const struct aiMaterial* ai_mat, enum aiTextureType type, unsigned int index, const char* filepath, const char* name)
+{
+    struct aiString tex_path;
+    if (aiGetMaterialTexture(ai_mat, type, index, &tex_path, NULL, NULL, NULL, NULL, NULL, NULL) != aiReturn_SUCCESS)
+        return NULL;
+
+    const struct aiTexture* embedded_tex = NULL;
+
+    // glTF Style case (starts with '*')
+    if (tex_path.data[0] == '*')
+    {
+        int texture_index = atoi(&tex_path.data[1]);
+        if (texture_index >= 0 && texture_index < (int)scene->mNumTextures)
+        {
+            embedded_tex = scene->mTextures[texture_index];
+        }
+    }
+    // FBX Style (Match by Filename)
+    else
+    {
+        const char* target_filename = GetBaseFilename(tex_path.data);
+        for (uint32_t t = 0; t < scene->mNumTextures; t++)
+        {
+            const char* embedded_filename = GetBaseFilename(scene->mTextures[t]->mFilename.data);
+            if (strcmp(embedded_filename, target_filename) == 0)
+            {
+                embedded_tex = scene->mTextures[t];
+                break;
+            }
+        }
+    }
+
+    if (embedded_tex != NULL)
+    {
+        if (embedded_tex->mHeight == 0)
+        {
+            char tex_name[256];
+            snprintf(tex_name, sizeof(tex_name), "%s_embedded_%s_%d", name, tex_path.data, (int)type);
+            return Asset_CreateTextureFromMemory(tex_name, (const unsigned char*)embedded_tex->pcData, embedded_tex->mWidth);
+        }
+        else
+        {
+            Log_Warning("Uncompressed embedded textures are not supported!");
+            return NULL;
+        }
+    }
+
+    // External File Fallback
+    char model_dir[512] = {0};
+    strcpy(model_dir, filepath);
+    char* last_slash = strrchr(model_dir, '/');
+    char* last_backslash = strrchr(model_dir, '\\');
+    char* split = (last_slash > last_backslash) ? last_slash : last_backslash;
+
+    if (split)
+        *(split + 1) = '\0';
+    else
+        model_dir[0] = '\0';
+
+    const char* clean_filename = GetBaseFilename(tex_path.data);
+
+    char try_path_1[1024];
+    snprintf(try_path_1, sizeof(try_path_1), "%s%s", model_dir, tex_path.data);
+
+    char try_path_2[1024];
+    snprintf(try_path_2, sizeof(try_path_2), "%s%s", model_dir, clean_filename);
+
+    FILE* f1 = fopen(try_path_1, "rb");
+    if (f1)
+    {
+        fclose(f1);
+        return Asset_LoadTexture(clean_filename, try_path_1);
+    }
+    else
+    {
+        FILE* f2 = fopen(try_path_2, "rb");
+        if (f2)
+        {
+            fclose(f2);
+            return Asset_LoadTexture(clean_filename, try_path_2);
+        }
+        else
+        {
+            Log_Warning("ASSIMP: Could not find texture %s", clean_filename);
+        }
+    }
+
+    return NULL;
+}
+
+
+
+
+
 // Main model loader function
 Model* Asset_LoadModel(const char* name, const char* filepath)
 {
@@ -351,110 +446,45 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
     for (uint32_t i = 0; i < scene->mNumMaterials; i++)
     {
         struct aiMaterial* ai_mat = scene->mMaterials[i];
-        Texture* tex_ptr = Asset_GetDefaultTexture(); // Fallback
+        // Texture* tex_ptr = Asset_GetDefaultTexture(); // Fallback
         Shader* model_shader = NULL;
 
         if (scene->mNumAnimations > 0)
             model_shader = NULL;
 
-        // Ask Assimp if this material has a Diffuse Texture
-        struct aiString tex_path;
-        if (aiGetMaterialTexture(ai_mat, aiTextureType_DIFFUSE, 0, &tex_path, NULL, NULL, NULL, NULL, NULL, NULL) == aiReturn_SUCCESS)
-        {
-            const struct aiTexture* embedded_tex = NULL;
+        // --- Albedo / Diffuse Texture ---
+        Texture* tex_ptr = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_DIFFUSE, 0, filepath, name);
+#ifdef aiTextureType_BASE_COLOR
+        if (!tex_ptr)
+            tex_ptr = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_BASE_COLOR, 0, filepath, name);
+#else
+        if (!tex_ptr)
+            tex_ptr = Asset_LoadAssimpTexture(scene, ai_mat, (enum aiTextureType)12, 0, filepath, name);
+#endif
+        if (!tex_ptr)
+            tex_ptr = Asset_GetDefaultTexture(); // Fallback
 
-            // glTF Style case (starts with '*')
-            if (tex_path.data[0] == '*')
-            {
-                int texture_index = atoi(&tex_path.data[1]);
-                if (texture_index >= 0 && texture_index < scene->mNumTextures)
-                {
-                    embedded_tex = scene->mTextures[texture_index];
-                }
-            }
-            // FBX Style (Match by Filename)
-            else
-            {
-                const char* target_filename = GetBaseFilename(tex_path.data);
-                
-                for (uint32_t t = 0; t < scene->mNumTextures; t++)
-                {
-                    const char* embedded_filename = GetBaseFilename(scene->mTextures[t]->mFilename.data);
-                    
-                    if (strcmp(embedded_filename, target_filename) == 0)
-                    {
-                        embedded_tex = scene->mTextures[t];
-                        break;
-                    }
-                }
-            }
+        // --- Normal Map ---
+        Texture* normal_tex = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_NORMALS, 0, filepath, name);
+        if (!normal_tex)
+            normal_tex = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_HEIGHT, 0, filepath, name);
 
-            // --- Load the Texture ---
-            // If we found embedded data (either from glTF or FBX)
-            if (embedded_tex != NULL)
-            {
-                if (embedded_tex->mHeight == 0) 
-                {
-                    char tex_name[256];
-                    snprintf(tex_name, sizeof(tex_name), "%s_embedded_%s", name, tex_path.data);
-                    tex_ptr = Asset_CreateTextureFromMemory(tex_name, (const unsigned char*)embedded_tex->pcData, embedded_tex->mWidth);
-                }
-                else 
-                {
-                    Log_Warning("Uncompressed embedded textures are not supported!");
-                }
-            }
-            // If we didn't find embedded data, it must be an external file
-            else
-            {
-                // External File Fallback
-                char model_dir[512] = {0};
-                strcpy(model_dir, filepath);
-                
-                char* last_slash = strrchr(model_dir, '/');
-                char* last_backslash = strrchr(model_dir, '\\');
-                char* split = (last_slash > last_backslash) ? last_slash : last_backslash;
+        // --- Metallic & Roughness Maps ---
+        // glTF 2.0 often stores combined pbrMetallicRoughness in aiTextureType_UNKNOWN (18) or DIFFUSE_ROUGHNESS / METALNESS
+        Texture* metallic_tex = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_METALNESS, 0, filepath, name);
+        if (!metallic_tex)
+            metallic_tex = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_UNKNOWN, 0, filepath, name);
 
-                if (split)
-                    *(split + 1) = '\0'; // Keep the trailing slash
-                else
-                    model_dir[0] = '\0'; // No directory found
+        Texture* roughness_tex = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_DIFFUSE_ROUGHNESS, 0, filepath, name);
+        if (!roughness_tex)
+            roughness_tex = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_UNKNOWN, 0, filepath, name);
 
-                const char* clean_filename = GetBaseFilename(tex_path.data);
-
-                // Path Strategy 1: Preserve Relative Subdirectories (For glTF)
-                // e.g., "assets/SampleObjects/" + "Textures/colors.jpg"
-                char try_path_1[1024];
-                snprintf(try_path_1, sizeof(try_path_1), "%s%s", model_dir, tex_path.data);
-
-                // PATH STRATEGY 2: Flattened Filename (For FBX)
-                // e.g., "assets/SampleObjects/" + "colors.jpg"
-                char try_path_2[1024];
-                snprintf(try_path_2, sizeof(try_path_2), "%s%s", model_dir, clean_filename);
-
-                // Check which path actually exists on the hard drive
-                FILE* f1 = fopen(try_path_1, "rb");
-                if (f1) 
-                {
-                    fclose(f1);
-                    tex_ptr = Asset_LoadTexture(clean_filename, try_path_1);
-                }
-                else 
-                {
-                    FILE* f2 = fopen(try_path_2, "rb");
-                    if (f2) 
-                    {
-                        fclose(f2);
-                        tex_ptr = Asset_LoadTexture(clean_filename, try_path_2);
-                    }
-                    else 
-                    {
-                        // Neither path worked. File is missing.
-                        Log_Warning("ASSIMP: Could not find texture %s", clean_filename);
-                    }
-                }
-            }
-        }
+        // --- Ambient Occlusion Map ---
+        Texture* ao_tex = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_AMBIENT_OCCLUSION, 0, filepath, name);
+        if (!ao_tex)
+            ao_tex = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_AMBIENT, 0, filepath, name);
+        if (!ao_tex)
+            ao_tex = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_LIGHTMAP, 0, filepath, name);
 
         // Extract Material Color
         struct aiColor4D diffuse_color = {1.0f, 1.0f, 1.0f, 1.0f}; // Default to white
@@ -463,7 +493,7 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
         // Create the material
         Material* mat_ptr = Asset_CreateMaterial(model_shader, tex_ptr);
         
-        // Update the tint color to match the 3D file
+        // Update the tint color and assign PBR textures
         if (mat_ptr)
         {
             mat_ptr->properties.albedo_tint = (Color){ diffuse_color.r, diffuse_color.g, diffuse_color.b, diffuse_color.a };
@@ -480,45 +510,10 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
             else if (aiGetMaterialFloatArray(ai_mat, AI_MATKEY_ROUGHNESS_FACTOR, &roughness_val, NULL) == aiReturn_SUCCESS)
                 mat_ptr->properties.roughness_factor = roughness_val;
 
-            // Check for AO / Occlusion texture
-            struct aiString ao_path;
-            if (aiGetMaterialTexture(ai_mat, aiTextureType_AMBIENT_OCCLUSION, 0, &ao_path, NULL, NULL, NULL, NULL, NULL, NULL) == aiReturn_SUCCESS ||
-                aiGetMaterialTexture(ai_mat, aiTextureType_AMBIENT, 0, &ao_path, NULL, NULL, NULL, NULL, NULL, NULL) == aiReturn_SUCCESS ||
-                aiGetMaterialTexture(ai_mat, aiTextureType_LIGHTMAP, 0, &ao_path, NULL, NULL, NULL, NULL, NULL, NULL) == aiReturn_SUCCESS)
-            {
-                char model_dir_ao[512] = {0};
-                strcpy(model_dir_ao, filepath);
-                char* last_slash_ao = strrchr(model_dir_ao, '/');
-                char* last_backslash_ao = strrchr(model_dir_ao, '\\');
-                char* split_ao = (last_slash_ao > last_backslash_ao) ? last_slash_ao : last_backslash_ao;
-                if (split_ao) *(split_ao + 1) = '\0'; else model_dir_ao[0] = '\0';
-
-                const char* clean_ao_filename = GetBaseFilename(ao_path.data);
-                char try_ao_path_1[1024];
-                snprintf(try_ao_path_1, sizeof(try_ao_path_1), "%s%s", model_dir_ao, ao_path.data);
-                char try_ao_path_2[1024];
-                snprintf(try_ao_path_2, sizeof(try_ao_path_2), "%s%s", model_dir_ao, clean_ao_filename);
-
-                Texture* ao_tex_ptr = NULL;
-                FILE* fao1 = fopen(try_ao_path_1, "rb");
-                if (fao1)
-                {
-                    fclose(fao1);
-                    ao_tex_ptr = Asset_LoadTexture(clean_ao_filename, try_ao_path_1);
-                }
-                else
-                {
-                    FILE* fao2 = fopen(try_ao_path_2, "rb");
-                    if (fao2)
-                    {
-                        fclose(fao2);
-                        ao_tex_ptr = Asset_LoadTexture(clean_ao_filename, try_ao_path_2);
-                    }
-                }
-
-                if (mat_ptr && ao_tex_ptr)
-                    mat_ptr->ao_map = ao_tex_ptr;
-            }
+            mat_ptr->normal_map = normal_tex;
+            mat_ptr->metallic_map = metallic_tex;
+            mat_ptr->roughness_map = roughness_tex;
+            mat_ptr->ao_map = ao_tex;
         }
 
         material_map[i] = mat_ptr;
