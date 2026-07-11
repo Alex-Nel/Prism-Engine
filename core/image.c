@@ -16,8 +16,10 @@ ImageData Image_Load(const char* filepath, bool inverted)
     // Most image formats put Y=0 at the top. This flips it so textures aren't upside down
     stbi_set_flip_vertically_on_load(inverted); 
     
-    // stbi_load automatically allocates the memory and decodes the image
-    data.pixels = stbi_load(filepath, &data.width, &data.height, &data.channels, 0);
+    // stbi_load automatically allocates the memory and decodes the image. Force 4 channels (RGBA) for 100% memory alignment safety with OpenGL.
+    data.pixels = stbi_load(filepath, &data.width, &data.height, &data.channels, 4);
+    if (data.pixels)
+        data.channels = 4;
 
     return data;
 }

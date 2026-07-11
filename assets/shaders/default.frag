@@ -23,11 +23,23 @@ uniform vec3 u_ViewPos;
 
 // --- Material Struct ---
 
-struct Material {
-    sampler2D diffuse; 
+struct Material
+{
+    sampler2D diffuse;
+    sampler2D albedoMap;
+    sampler2D normalMap;
+    sampler2D metallicMap;
+    sampler2D roughnessMap;
+    sampler2D aoMap;
+
+    bool hasNormalMap;
+    bool hasMetallicMap;
+    bool hasRoughnessMap;
+    bool hasAOMap;
+
     vec3 tint;
-    float shininess;
-    float specularStrength;
+    float metallicFactor;
+    float roughnessFactor;
 };
 uniform Material u_Material;
 
@@ -96,6 +108,7 @@ uniform float u_CascadeBlendFraction;
 uniform sampler2D ssaoMap;
 uniform bool u_EnableSSAO;
 uniform float u_ShadowMaxDistance;
+uniform float u_ReceiveShadows;
 
 
 
@@ -226,6 +239,9 @@ float SampleCascadeShadow(int cascade, vec3 fragPos, vec3 normal, vec3 lightDir)
 // Calculates if the pixel is in shadow (0.0 = bright, 1.0 = shadowed)
 float ShadowCalculation(vec3 fragPos, vec3 normal, vec3 lightDir)
 {
+    if (u_ReceiveShadows < 0.5)
+        return 0.0;
+    
     if (u_ShadowCascadeCount <= 1)
         return SampleCascadeShadow(0, fragPos, normal, lightDir);
 
@@ -260,8 +276,59 @@ float ShadowCalculation(vec3 fragPos, vec3 normal, vec3 lightDir)
         shadow = mix(shadow, 0.0, fadeFactor); // Blend shadow to 0.0 (fully lit)
     }
 
+    shadow *= u_ReceiveShadows;
 
     return shadow;
+}
+
+
+
+
+
+// ==========================================
+// PBR Calculations
+// ==========================================
+
+const float PI = 3.14159265359;
+
+float DistributionGGX(vec3 N, vec3 H, float roughness)
+{
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float NdotH = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH * NdotH;
+
+    float num = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+
+    return num / max(denom, 0.0000001);
+}
+
+float GeometrySchlickGGX(float NdotV, float roughness)
+{
+    float r = (roughness + 1.0);
+    float k = (r * r) / 8.0;
+
+    float num = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+
+    return num / denom;
+}
+
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
+{
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx2 = GeometrySchlickGGX(NdotV, roughness);
+    float ggx1 = GeometrySchlickGGX(NdotL, roughness);
+
+    return ggx1 * ggx2;
+}
+
+vec3 FresnelSchlick(float cosTheta, vec3 F0)
+{
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
 
@@ -272,78 +339,121 @@ float ShadowCalculation(vec3 fragPos, vec3 normal, vec3 lightDir)
 // Lighting Calculations
 // ==========================================
 
-vec3 CalcDirLight(DirLight light, vec3 normal, vec3 viewDir, float ao)
+vec3 CalcDirLight(DirLight light, vec3 normal, vec3 viewDir, float ao, vec3 albedo, float metallic, float roughness, vec3 fragPos)
 {
     vec3 lightDir = normalize(-light.direction);
     
-    // Diffuse
-    float diff = max(dot(normal, lightDir), 0.0);
+    vec3 halfVector = normalize(lightDir + viewDir);
     
-    // Specular
-    vec3 reflectDir = reflect(-lightDir, normal);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_Material.shininess);
-    
-    // Combine
-    vec3 ambient = light.ambientStrength * light.color * light.intensity * ao;
-    vec3 diffuse = diff * light.color * light.intensity;
-    vec3 specular = u_Material.specularStrength * spec * light.color * light.intensity;
+    vec3 radiance = light.color * light.intensity;
 
-    float shadow = ShadowCalculation(v_FragPos, normal, lightDir);
+    vec3 F0 = vec3(0.04); 
+    F0 = mix(F0, albedo, metallic);
+
+    float NDF = DistributionGGX(normal, halfVector, roughness);   
+    float G   = GeometrySmith(normal, viewDir, lightDir, roughness);      
+    vec3 F    = FresnelSchlick(max(dot(halfVector, viewDir), 0.0), F0);
+       
+    vec3 numerator    = NDF * G * F; 
+    float denominator = 4.0 * max(dot(normal, viewDir), 0.0) * max(dot(normal, lightDir), 0.0) + 0.0001;
+    vec3 specular = numerator / denominator;
+
+    vec3 kS = F;
+    vec3 kD = vec3(1.0) - kS;
+    kD *= 1.0 - metallic; 
+
+    float NdotL = max(dot(normal, lightDir), 0.0);
+    vec3 Lo = (kD * albedo + specular) * radiance * NdotL;
+
+    // Ambient lighting (scaled proportionally for PBR sRGB workflow)
+    vec3 ambient = light.color * (light.ambientStrength * 0.30) * albedo * ao;
+
+    float shadow = ShadowCalculation(fragPos, normal, lightDir);
     
-    return ( ambient + (1.0 - shadow) * (diffuse + specular) );
+    return ambient + (1.0 - shadow) * Lo;
 }
 
 
 
-vec3 CalcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir)
+vec3 CalcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 albedo, float metallic, float roughness)
 {
     vec3 lightDir = normalize(light.position - fragPos);
     
-    // Diffuse
-    float diff = max(dot(normal, lightDir), 0.0);
-    
-    // Specular
-    vec3 reflectDir = reflect(-lightDir, normal);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_Material.shininess);
-    
-    // Attenuation
+    vec3 halfVector = normalize(lightDir + viewDir);
     float distance = length(light.position - fragPos);
+
     float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));    
     
-    // Combine
-    vec3 diffuse = diff * light.color * light.intensity;
-    vec3 specular = u_Material.specularStrength * spec * light.color * light.intensity;
-    
-    return (diffuse + specular) * attenuation;
+    vec3 radiance = light.color * light.intensity * attenuation;
+
+    vec3 F0 = vec3(0.04); 
+    F0 = mix(F0, albedo, metallic);
+
+    float NDF = DistributionGGX(normal, halfVector, roughness);   
+    float G   = GeometrySmith(normal, viewDir, lightDir, roughness);      
+    vec3 F    = FresnelSchlick(max(dot(halfVector, viewDir), 0.0), F0);
+       
+    vec3 numerator    = NDF * G * F; 
+    float denominator = 4.0 * max(dot(normal, viewDir), 0.0) * max(dot(normal, lightDir), 0.0) + 0.0001;
+    vec3 specular = numerator / denominator;
+
+    vec3 kS = F;
+    vec3 kD = vec3(1.0) - kS;
+    kD *= 1.0 - metallic; 
+
+    float NdotL = max(dot(normal, lightDir), 0.0);
+    return (kD * albedo + specular) * radiance * NdotL;
 }
 
 
 
-vec3 CalcSpotLight(SpotLight light, vec3 normal, vec3 fragPos, vec3 viewDir)
+vec3 CalcSpotLight(SpotLight light, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 albedo, float metallic, float roughness)
 {
     vec3 lightDir = normalize(light.position - fragPos);
     
-    // Diffuse
-    float diff = max(dot(normal, lightDir), 0.0);
-    
-    // Specular
-    vec3 reflectDir = reflect(-lightDir, normal);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_Material.shininess);
-    
-    // Attenuation
+    vec3 halfVector = normalize(lightDir + viewDir);
     float distance = length(light.position - fragPos);
+
     float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));    
     
-    // Spotlight Soft Edges Intensity
-    float theta = dot(lightDir, normalize(-light.direction)); 
-    float epsilon = light.cutOff - light.outerCutOff;
-    float spotIntensity = clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);
+    // Spotlight Soft Edges Intensity (angular smoothstep using true physical cone angles in radians)
+    float theta = dot(lightDir, normalize(-light.direction));
+    float spotIntensity = smoothstep(light.outerCutOff, light.cutOff, theta);
     
-    // Combine
-    vec3 diffuse = diff * light.color * light.intensity;
-    vec3 specular = u_Material.specularStrength * spec * light.color * light.intensity;
-    
-    return (diffuse + specular) * attenuation * spotIntensity;
+    vec3 radiance = light.color * light.intensity * attenuation * spotIntensity;
+
+    vec3 F0 = vec3(0.04); 
+    F0 = mix(F0, albedo, metallic);
+
+    float NDF = DistributionGGX(normal, halfVector, roughness);   
+    float G   = GeometrySmith(normal, viewDir, lightDir, roughness);      
+    vec3 F    = FresnelSchlick(max(dot(halfVector, viewDir), 0.0), F0);
+       
+    vec3 numerator    = NDF * G * F; 
+    float denominator = 4.0 * max(dot(normal, viewDir), 0.0) * max(dot(normal, lightDir), 0.0) + 0.0001;
+    vec3 specular = numerator / denominator;
+
+    vec3 kS = F;
+    vec3 kD = vec3(1.0) - kS;
+    kD *= 1.0 - metallic; 
+
+    float NdotL = max(dot(normal, lightDir), 0.0);
+    return (kD * albedo + specular) * radiance * NdotL;
+}
+
+
+
+
+
+// ACES Filmic Tone Mapping approximation
+vec3 ACESFilm(vec3 x)
+{
+    float a = 2.51f;
+    float b = 0.03f;
+    float c = 2.43f;
+    float d = 0.59f;
+    float e = 0.14f;
+    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
 }
 
 
@@ -352,30 +462,37 @@ vec3 CalcSpotLight(SpotLight light, vec3 normal, vec3 fragPos, vec3 viewDir)
 
 void main()
 {
-    // Pre-calculate vectors we will reuse
-    vec3 norm = normalize(v_Normal);
+    // Final Pixel Color
+    vec4 texColor = texture(u_Material.diffuse, TexCoord);
+    if (texColor.a < 0.1)
+        discard;
+    vec3 linearAlbedo = pow(texColor.rgb, vec3(2.2)) * u_Material.tint;
 
+    // --- 3D Lighting for Forward Meshes ---
+    vec3 norm = normalize(v_Normal);
     if (!gl_FrontFacing)
         norm = -norm;
 
     vec3 viewDir = normalize(u_ViewPos - v_FragPos);
 
-    float ambientOcclusion = 1.0; 
+    float ambientOcclusion = u_Material.hasAOMap ? texture(u_Material.aoMap, TexCoord).r : 1.0; 
     if (u_EnableSSAO)
     {
         vec2 screenUV = gl_FragCoord.xy / vec2(textureSize(ssaoMap, 0));
-        ambientOcclusion = texture(ssaoMap, screenUV).r;
+        ambientOcclusion *= texture(ssaoMap, screenUV).r;
     }
 
-    vec3 totalLight = vec3(0.0);
+    float metallic = u_Material.hasMetallicMap ? texture(u_Material.metallicMap, TexCoord).b : u_Material.metallicFactor;
+    float roughness = u_Material.hasRoughnessMap ? texture(u_Material.roughnessMap, TexCoord).g : u_Material.roughnessFactor;
 
+    vec3 totalLight = vec3(0.0);
 
     // Accumulate directional lights
     for (int i = 0; i < MAX_DIR_LIGHTS; i++)
     {
         if (i >= u_DirLightCount)
             break;
-        totalLight += CalcDirLight(u_DirLights[i], norm, viewDir, ambientOcclusion);
+        totalLight += CalcDirLight(u_DirLights[i], norm, viewDir, ambientOcclusion, linearAlbedo, metallic, roughness, v_FragPos);
     }
 
     // Accumulate Point Lights
@@ -383,7 +500,7 @@ void main()
     {
         if (i >= u_PointLightCount)
             break;
-        totalLight += CalcPointLight(u_PointLights[i], norm, v_FragPos, viewDir);
+        totalLight += CalcPointLight(u_PointLights[i], norm, v_FragPos, viewDir, linearAlbedo, metallic, roughness);
     }
 
     // Accumulate Spot Lights
@@ -391,14 +508,16 @@ void main()
     {
         if (i >= u_SpotLightCount)
             break;
-        totalLight += CalcSpotLight(u_SpotLights[i], norm, v_FragPos, viewDir);
+        totalLight += CalcSpotLight(u_SpotLights[i], norm, v_FragPos, viewDir, linearAlbedo, metallic, roughness);
     }
 
-    
-    // Final Pixel Color
-    vec4 texColor = texture(u_Material.diffuse, TexCoord);
-    vec3 tintedAlbedo = texColor.rgb * u_Material.tint;
 
-    // Multiply the accumulated physical light by the tinted surface color
-    FragColor = vec4(totalLight * tintedAlbedo, texColor.a);
+    // // --- (old) HDR Tone Mapping & Gamma ---
+    // totalLight = totalLight / (totalLight + vec3(1.0));
+
+    // --- HDR Tone Mapping (ACES Filmic) & Gamma ---
+    totalLight = ACESFilm(totalLight);
+    totalLight = pow(totalLight, vec3(1.0 / 2.2));
+
+    FragColor = vec4(totalLight, texColor.a);
 }

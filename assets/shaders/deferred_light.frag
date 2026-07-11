@@ -186,7 +186,7 @@ float SampleCascadeShadow(int cascade, vec3 fragPos, vec3 normal, vec3 lightDir)
 float ShadowCalculation(vec3 fragPos, vec3 normal, vec3 lightDir)
 {
     float receivesShadows = texture(gNormal, TexCoords).a;
-    if (receivesShadows < 0.5) 
+    if (receivesShadows < 0.0) 
         return 0.0;
 
     if (u_ShadowCascadeCount <= 1)
@@ -237,23 +237,59 @@ float ShadowCalculation(vec3 fragPos, vec3 normal, vec3 lightDir)
 
 
 
-// Example of the updated DirLight calculation:
-vec3 CalcDirLight(DirLight light, vec3 normal, vec3 viewDir, float ao, vec3 albedo, float specStrength, vec3 fragPos)
-{
-    vec3 lightDir = normalize(-light.direction);
-    float diff = max(dot(normal, lightDir), 0.0);
-    vec3 reflectDir = reflect(-lightDir, normal);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0); // Hardcoded shininess for deferred
-    
-    vec3 ambient = light.ambientStrength * light.color * light.intensity * ao;
-    vec3 diffuse = diff * light.color * light.intensity;
-    vec3 specular = specStrength * spec * light.color * light.intensity;
+// ==========================================
+// PBR Math (Cook-Torrance BRDF)
+// ==========================================
 
-    float shadow = 0.0;
-    if (light.castsShadows == 1)
-        shadow = ShadowCalculation(fragPos, normal, lightDir);
-        
-    return ambient + (1.0 - shadow) * (diffuse + specular);
+const float PI = 3.14159265359;
+
+// Normal Distribution (GGX) - How many micro-facets point exactly at the light?
+float DistributionGGX(vec3 N, vec3 H, float roughness)
+{
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float NdotH = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH * NdotH;
+
+    float num = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+
+    return num / max(denom, 0.0000001); // Prevent divide by zero
+}
+
+
+
+// Geometry Schlick-GGX - How much do the micro-facets shadow each other
+float GeometrySchlickGGX(float NdotV, float roughness)
+{
+    float r = (roughness + 1.0);
+    float k = (r * r) / 8.0;
+
+    float num = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+
+    return num / max(denom, 0.0000001);
+}
+
+
+
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
+{
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx2 = GeometrySchlickGGX(NdotV, roughness);
+    float ggx1 = GeometrySchlickGGX(NdotL, roughness);
+
+    return ggx1 * ggx2;
+}
+
+
+
+// Fresnel Schlick - Reflection intensity based on viewing angle
+vec3 FresnelSchlick(float cosTheta, vec3 F0)
+{
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
 
@@ -265,36 +301,104 @@ vec3 CalcDirLight(DirLight light, vec3 normal, vec3 viewDir, float ao, vec3 albe
 
 
 
+// PBR Directional Light calculation:
+vec3 CalcDirLight(DirLight light, vec3 normal, vec3 viewDir, float ao, vec3 albedo, float metallic, float roughness, vec3 fragPos)
+{
+    vec3 lightDir = normalize(-light.direction);
+    vec3 halfVector = normalize(lightDir + viewDir);
+
+    // Radiance of a directional light is just its color * intensity (no distance attenuation)
+    vec3 radiance = light.color * light.intensity;
+
+    vec3 F0 = vec3(0.04); 
+    F0 = mix(F0, albedo, metallic);
+
+    float NDF = DistributionGGX(normal, halfVector, roughness);   
+    float G   = GeometrySmith(normal, viewDir, lightDir, roughness);      
+    vec3 F    = FresnelSchlick(max(dot(halfVector, viewDir), 0.0), F0);
+       
+    vec3 numerator    = NDF * G * F; 
+    float denominator = 4.0 * max(dot(normal, viewDir), 0.0) * max(dot(normal, lightDir), 0.0) + 0.0001;
+    vec3 specular = numerator / denominator;
+
+    vec3 kS = F;
+    vec3 kD = vec3(1.0) - kS;
+    kD *= 1.0 - metallic; 
+
+    float NdotL = max(dot(normal, lightDir), 0.0);
+    vec3 Lo = (kD * albedo + specular) * radiance * NdotL;
+
+    // Ambient lighting (scaled proportionally for PBR sRGB workflow so 0.1 strength produces rich, realistic shadows instead of flat gray interiors)
+    vec3 ambient = light.color * (light.ambientStrength * 0.30) * albedo * ao;
+
+    float shadow = 0.0;
+    if (light.castsShadows == 1)
+        shadow = ShadowCalculation(fragPos, normal, lightDir);
+        
+    return ambient + (1.0 - shadow) * Lo;
+}
+
+
+
+
+
+
+
+
+
+
+// ACES Filmic Tone Mapping approximation (preserves rich diffuse saturation and deep shadow contrast without washing out colors)
+vec3 ACESFilm(vec3 x)
+{
+    float a = 2.51f;
+    float b = 0.03f;
+    float c = 2.43f;
+    float d = 0.59f;
+    float e = 0.14f;
+    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+}
+
+
+
+
+
 void main()
 {
-    // Read G-Buffer Data for this pixel
+    vec2 TexCoords = gl_FragCoord.xy / vec2(textureSize(gPosition, 0));
+
     vec3 fragPos = texture(gPosition, TexCoords).xyz;
     vec3 normal = texture(gNormal, TexCoords).xyz;
     vec3 albedo = texture(gAlbedoSpec, TexCoords).rgb;
-    float specStrength = texture(gAlbedoSpec, TexCoords).a;
-    
-    // If normal is 0,0,0, this is the skybox/background! Discard to let skybox show.
+
+    float metallic = texture(gPosition, TexCoords).a;
+    float roughness = texture(gAlbedoSpec, TexCoords).a;
+
     if (length(normal) < 0.1) discard;
 
-    // Read SSAO
-    float ao = 1.0;
+    float ao = abs(texture(gNormal, TexCoords).a);
     if (u_EnableSSAO)
-        ao = texture(ssaoMap, TexCoords).r;
+        ao *= texture(ssaoMap, TexCoords).r;
 
-    // Calculate Lighting
     vec3 viewDir = normalize(u_ViewPos - fragPos);
     vec3 totalLight = vec3(0.0);
 
-
-    // Accumulate directional lights
     for (int i = 0; i < MAX_DIR_LIGHTS; i++)
     {
-        if (i >= u_DirLightCount) break;
-        totalLight += CalcDirLight(u_DirLights[i], normal, viewDir, ao, albedo, specStrength, fragPos);
+        if (i >= u_DirLightCount)
+            break;
+        totalLight += CalcDirLight(u_DirLights[i], normal, viewDir, ao, albedo, metallic, roughness, fragPos);
     }
 
+    // --- HDR Tone Mapping (ACES Filmic) ---
+    totalLight = ACESFilm(totalLight);
 
-    FragColor = vec4(totalLight * albedo, 1.0);
+    // --- Gamma Correction ---
+    // Converts linear physical light to sRGB space
+    const float gamma = 2.2;
+    totalLight = pow(totalLight, vec3(1.0 / gamma));
+
+
+    FragColor = vec4(totalLight, 1.0);
 
 
     // --- Debugging the fragment shader, uncomment one to see the image ---

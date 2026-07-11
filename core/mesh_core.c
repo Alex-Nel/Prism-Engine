@@ -54,6 +54,153 @@ AABB SkinnedMesh_ComputePoseAABB(const SkinnedMesh* mesh, const Matrix4* bone_ma
 
 
 
+// Calculates Tangest Vectors for a mesh based on its UV coordinates
+void Mesh_CalculateVertexTangents(Vertex3D* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count)
+{
+    // Initialize all tangents to zero
+    for (uint32_t i = 0; i < vertex_count; i++)
+        vertices[i].tangent = (Vector3){0.0f, 0.0f, 0.0f};
+
+    
+    // Loop through every triangle
+    for (uint32_t i = 0; i < index_count; i += 3)
+    {
+        uint32_t i0 = indices[i];
+        uint32_t i1 = indices[i+1];
+        uint32_t i2 = indices[i+2];
+
+        Vertex3D* v0 = &vertices[i0];
+        Vertex3D* v1 = &vertices[i1];
+        Vertex3D* v2 = &vertices[i2];
+
+        // Edges of the triangle
+        Vector3 edge1 = {v1->position.x - v0->position.x, v1->position.y - v0->position.y, v1->position.z - v0->position.z};
+        Vector3 edge2 = {v2->position.x - v0->position.x, v2->position.y - v0->position.y, v2->position.z - v0->position.z};
+
+        // UV Deltas
+        Vector2 deltaUV1 = {v1->uv.x - v0->uv.x, v1->uv.y - v0->uv.y};
+        Vector2 deltaUV2 = {v2->uv.x - v0->uv.x, v2->uv.y - v0->uv.y};
+
+        // The Tangent Math
+        // float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+        float denom = (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+        if (denom > -1e-6f && denom < 1e-6f)
+            continue;
+        float f = 1.0f / denom;
+
+        Vector3 tangent;
+        tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+        tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+        tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+
+        // Accumulate tangents (for shared vertices)
+        v0->tangent.x += tangent.x; v0->tangent.y += tangent.y; v0->tangent.z += tangent.z;
+        v1->tangent.x += tangent.x; v1->tangent.y += tangent.y; v1->tangent.z += tangent.z;
+        v2->tangent.x += tangent.x; v2->tangent.y += tangent.y; v2->tangent.z += tangent.z;
+    }
+
+    // Normalize all tangents at the end
+    // for (uint32_t i = 0; i < vertex_count; i++)
+    //     vertices[i].tangent = Vector3Normalize(vertices[i].tangent);
+    for (uint32_t i = 0; i < vertex_count; i++)
+    {
+        float len = sqrtf(vertices[i].tangent.x * vertices[i].tangent.x +
+                          vertices[i].tangent.y * vertices[i].tangent.y +
+                          vertices[i].tangent.z * vertices[i].tangent.z);
+        if (len > 0.0001f)
+        {
+            vertices[i].tangent.x /= len;
+            vertices[i].tangent.y /= len;
+            vertices[i].tangent.z /= len;
+        }
+        else
+        {
+            Vector3 n = vertices[i].normal;
+            Vector3 c = (fabsf(n.z) < 0.99f) ? (Vector3){ -n.y, n.x, 0.0f } : (Vector3){ 0.0f, -n.z, n.y };
+            float l = sqrtf(c.x*c.x + c.y*c.y + c.z*c.z);
+            vertices[i].tangent = (l > 0.0001f) ? (Vector3){ c.x/l, c.y/l, c.z/l } : (Vector3){ 1.0f, 0.0f, 0.0f };
+        }
+    }
+}
+
+
+
+
+
+// Calculates Tangest Vectors for a mesh based on its UV coordinates (Vertex3DSkinned)
+void Mesh_CalculateVertexSkinnedTangents(Vertex3DSkinned* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count)
+{
+    // Initialize all tangents to zero
+    for (uint32_t i = 0; i < vertex_count; i++)
+        vertices[i].tangent = (Vector3){0.0f, 0.0f, 0.0f};
+
+    
+    // Loop through every triangle
+    for (uint32_t i = 0; i < index_count; i += 3)
+    {
+        uint32_t i0 = indices[i];
+        uint32_t i1 = indices[i+1];
+        uint32_t i2 = indices[i+2];
+
+        Vertex3DSkinned* v0 = &vertices[i0];
+        Vertex3DSkinned* v1 = &vertices[i1];
+        Vertex3DSkinned* v2 = &vertices[i2];
+
+        // Edges of the triangle
+        Vector3 edge1 = {v1->position.x - v0->position.x, v1->position.y - v0->position.y, v1->position.z - v0->position.z};
+        Vector3 edge2 = {v2->position.x - v0->position.x, v2->position.y - v0->position.y, v2->position.z - v0->position.z};
+
+        // UV Deltas
+        Vector2 deltaUV1 = {v1->uv.x - v0->uv.x, v1->uv.y - v0->uv.y};
+        Vector2 deltaUV2 = {v2->uv.x - v0->uv.x, v2->uv.y - v0->uv.y};
+
+        // The Tangent Math
+        float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+        // float denom = (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+        // if (denom > -1e-6f && denom < 1e-6f)
+        //     continue;
+        // float f = 1.0f / denom;
+
+        Vector3 tangent;
+        tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+        tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+        tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+
+        // Accumulate tangents (for shared vertices)
+        v0->tangent.x += tangent.x; v0->tangent.y += tangent.y; v0->tangent.z += tangent.z;
+        v1->tangent.x += tangent.x; v1->tangent.y += tangent.y; v1->tangent.z += tangent.z;
+        v2->tangent.x += tangent.x; v2->tangent.y += tangent.y; v2->tangent.z += tangent.z;
+    }
+
+    // Normalize all tangents at the end
+    for (uint32_t i = 0; i < vertex_count; i++)
+        vertices[i].tangent = Vector3Normalize(vertices[i].tangent);
+        
+    // for (uint32_t i = 0; i < vertex_count; i++)
+    // {
+    //     float len = sqrtf(vertices[i].tangent.x * vertices[i].tangent.x +
+    //                       vertices[i].tangent.y * vertices[i].tangent.y +
+    //                       vertices[i].tangent.z * vertices[i].tangent.z);
+    //     if (len > 0.0001f)
+    //     {
+    //         vertices[i].tangent.x /= len;
+    //         vertices[i].tangent.y /= len;
+    //         vertices[i].tangent.z /= len;
+    //     }
+    //     else
+    //     {
+    //         Vector3 n = vertices[i].normal;
+    //         Vector3 c = (fabsf(n.z) < 0.99f) ? (Vector3){ -n.y, n.x, 0.0f } : (Vector3){ 0.0f, -n.z, n.y };
+    //         float l = sqrtf(c.x*c.x + c.y*c.y + c.z*c.z);
+    //         vertices[i].tangent = (l > 0.0001f) ? (Vector3){ c.x/l, c.y/l, c.z/l } : (Vector3){ 1.0f, 0.0f, 0.0f };
+    //     }
+    // }
+}
+
+
+
+
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Move these functions to asset manager to be able to procedurally generate terrain or custom shapes from code later
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

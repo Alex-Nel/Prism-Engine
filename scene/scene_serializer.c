@@ -140,12 +140,12 @@ bool Scene_Save(Scene* scene, const char* filepath)
 
             cJSON_AddStringToObject(comp_obj, "mesh_name", r->mesh->name);
 
-            if (r->material && r->material->diffuse_texture)
+            if (r->material && r->material->albedo_texture)
             {
-                cJSON_AddStringToObject(comp_obj, "texture_name", r->material->diffuse_texture->name);
-                cJSON_AddItemToObject(comp_obj, "tint", SaveColor(r->material->properties.tint_color));
-                cJSON_AddNumberToObject(comp_obj, "shininess", r->material->properties.shininess);
-                cJSON_AddNumberToObject(comp_obj, "specular_strength", r->material->properties.specular_strength);
+                cJSON_AddStringToObject(comp_obj, "texture_name", r->material->albedo_texture->name);
+                cJSON_AddItemToObject(comp_obj, "tint", SaveColor(r->material->properties.albedo_tint));
+                cJSON_AddNumberToObject(comp_obj, "shininess", r->material->properties.metallic_factor);
+                cJSON_AddNumberToObject(comp_obj, "specular_strength", r->material->properties.roughness_factor);
             }
         }
 
@@ -158,12 +158,12 @@ bool Scene_Save(Scene* scene, const char* filepath)
 
             cJSON_AddStringToObject(comp_obj, "mesh_name", r->mesh->name);
 
-            if (r->material && r->material->diffuse_texture)
+            if (r->material && r->material->albedo_texture)
             {
-                cJSON_AddStringToObject(comp_obj, "texture_name", r->material->diffuse_texture->name);
-                cJSON_AddItemToObject(comp_obj, "tint", SaveColor(r->material->properties.tint_color));
-                cJSON_AddNumberToObject(comp_obj, "shininess", r->material->properties.shininess);
-                cJSON_AddNumberToObject(comp_obj, "specular_strength", r->material->properties.specular_strength);
+                cJSON_AddStringToObject(comp_obj, "texture_name", r->material->albedo_texture->name);
+                cJSON_AddItemToObject(comp_obj, "tint", SaveColor(r->material->properties.albedo_tint));
+                cJSON_AddNumberToObject(comp_obj, "shininess", r->material->properties.metallic_factor);
+                cJSON_AddNumberToObject(comp_obj, "specular_strength", r->material->properties.roughness_factor);
             }
         }
 
@@ -386,7 +386,7 @@ bool Scene_Load(Scene* scene, const char* filepath)
             r->material = Asset_CreateMaterial(NULL, tex);
             
             cJSON* tint = cJSON_GetObjectItemCaseSensitive(comp_obj, "tint");
-            if (tint) r->material->properties.tint_color = LoadColor(tint);
+            if (tint) r->material->properties.albedo_tint = LoadColor(tint);
         }
 
 
@@ -406,7 +406,7 @@ bool Scene_Load(Scene* scene, const char* filepath)
             r->material = Asset_CreateMaterial(NULL, tex);
             
             cJSON* tint = cJSON_GetObjectItemCaseSensitive(comp_obj, "tint");
-            if (tint) r->material->properties.tint_color = LoadColor(tint);
+            if (tint) r->material->properties.albedo_tint = LoadColor(tint);
         }
 
 

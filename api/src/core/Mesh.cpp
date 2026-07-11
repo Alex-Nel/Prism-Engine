@@ -59,9 +59,9 @@ namespace Prism
         if (m_Handle != nullptr)
         {
             ::Material* raw_mat = static_cast<::Material*>(m_Handle);
-            raw_mat->properties.tint_color.r = color.r;
-            raw_mat->properties.tint_color.g = color.g;
-            raw_mat->properties.tint_color.b = color.b;
+            raw_mat->properties.albedo_tint.r = color.r;
+            raw_mat->properties.albedo_tint.b = color.b;
+            raw_mat->properties.albedo_tint.g = color.g;
         }
         else
         {
@@ -75,7 +75,10 @@ namespace Prism
         if (m_Handle != nullptr) 
         {
             ::Material* raw_mat = static_cast<::Material*>(m_Handle);
-            raw_mat->properties.shininess = shininess;
+            float roughness = sqrt(2.0f / (shininess + 2.0f));
+            if (roughness < 0.04f) roughness = 0.04f;
+            if (roughness > 1.0f) roughness = 1.0f;
+            raw_mat->properties.roughness_factor = roughness;
         }
         else
         {
@@ -89,11 +92,124 @@ namespace Prism
         if (m_Handle != nullptr) 
         {
             ::Material* raw_mat = static_cast<::Material*>(m_Handle);
-            raw_mat->properties.specular_strength = strength;
+            float metallic = strength;
+            if (metallic < 0.0f) metallic = 0.0f;
+            if (metallic > 1.0f) metallic = 1.0f;
+            raw_mat->properties.metallic_factor = metallic;
         }
         else
         {
             Debug_Warning("Attempted to set specular strength on an invalid Material");
+        }
+    }
+
+    void Material::SetMetallic(float metallic)
+    {
+        if (m_Handle != nullptr) 
+        {
+            ::Material* raw_mat = static_cast<::Material*>(m_Handle);
+            if (metallic < 0.0f) metallic = 0.0f;
+            if (metallic > 1.0f) metallic = 1.0f;
+            raw_mat->properties.metallic_factor = metallic;
+        }
+        else
+        {
+            Debug_Warning("Attempted to set metallic on an invalid Material");
+        }
+    }
+
+    void Material::SetRoughness(float roughness)
+    {
+        if (m_Handle != nullptr) 
+        {
+            ::Material* raw_mat = static_cast<::Material*>(m_Handle);
+            if (roughness < 0.0f) roughness = 0.0f;
+            if (roughness > 1.0f) roughness = 1.0f;
+            raw_mat->properties.roughness_factor = roughness;
+        }
+        else
+        {
+            Debug_Warning("Attempted to set roughness on an invalid Material");
+        }
+    }
+
+    void Material::SetAlbedoTexture(Prism::Texture albedo)
+    {
+        if (m_Handle != nullptr) 
+        {
+            ::Material* raw_mat = static_cast<::Material*>(m_Handle);
+            if (albedo.IsValid())
+                raw_mat->albedo_texture = static_cast<::Texture*>(albedo.GetRaw());
+            else
+                raw_mat->albedo_texture = nullptr;
+        }
+        else
+        {
+            Debug_Warning("Attempted to set Albedo on an invalid Material");
+        }
+    }
+
+    void Material::SetNormalMap(Prism::Texture normal)
+    {
+        if (m_Handle != nullptr) 
+        {
+            ::Material* raw_mat = static_cast<::Material*>(m_Handle);
+            if (normal.IsValid())
+                raw_mat->normal_map = static_cast<::Texture*>(normal.GetRaw());
+            else
+                raw_mat->normal_map = nullptr;
+        }
+        else
+        {
+            Debug_Warning("Attempted to set Normal Map on an invalid Material");
+        }
+    }
+
+    void Material::SetMetallicMap(Prism::Texture metallic)
+    {
+        if (m_Handle != nullptr) 
+        {
+            ::Material* raw_mat = static_cast<::Material*>(m_Handle);
+            if (metallic.IsValid())
+                raw_mat->metallic_map = static_cast<::Texture*>(metallic.GetRaw());
+            else
+                raw_mat->metallic_map = nullptr;
+        }
+        else
+        {
+            Debug_Warning("Attempted to set Metallic Map on an invalid Material");
+        }
+    }
+
+    void Material::SetRoughnessMap(Prism::Texture roughness)
+    {
+        if (m_Handle != nullptr) 
+        {
+            ::Material* raw_mat = static_cast<::Material*>(m_Handle);
+            if (roughness.IsValid())
+                raw_mat->roughness_map = static_cast<::Texture*>(roughness.GetRaw());
+            else
+                raw_mat->roughness_map = nullptr;
+        }
+        else
+        {
+            Debug_Warning("Attempted to set Roughness Map on an invalid Material");
+        }
+    }
+
+    void Material::SetAOMap(Prism::Texture ao)
+    {
+        if (m_Handle != nullptr) 
+        {
+            ::Material* raw_mat = static_cast<::Material*>(m_Handle);
+            if (ao.IsValid())
+                raw_mat->ao_map = static_cast<::Texture*>(ao.GetRaw());
+            else
+                raw_mat->ao_map = nullptr;
+        }
+        else
+        {
+            Debug_Warning("Attempted to set AO Map on an invalid Material");
         }
     }
 

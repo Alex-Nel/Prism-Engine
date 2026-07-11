@@ -4,10 +4,11 @@
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec3 aNormal;
 layout (location = 2) in vec2 aTexCoords;
+layout (location = 3) in vec3 aTangent;
 
 // --- Animation Inputs ---
-layout (location = 3) in ivec4 aBoneIds;
-layout (location = 4) in vec4 aWeights;
+layout (location = 4) in ivec4 aBoneIds;
+layout (location = 5) in vec4 aWeights;
 
 // Camera & Object Matrices
 uniform mat4 u_Model;
@@ -35,22 +36,22 @@ void main()
     for(int i = 0 ; i < 4 ; i++)
     {
         // -1 means no bone is assigned to this slot
-        if(aBoneIds[i] == -1) 
+        if(aBoneIds[i] < 0 || aBoneIds[i] >= MAX_BONES) 
             continue;
 
         mat4 boneMatrix = u_BoneMatrices[aBoneIds[i]];
         float weight = aWeights[i];
 
-        // 1. Deform the Position
+        // Deform the Position
         vec4 localPosition = boneMatrix * vec4(aPos, 1.0);
         totalPosition += localPosition * weight;
 
-        // 2. Deform the Normal (mat3 strips the translation, keeping only rotation/scale)
+        // Deform the Normal (mat3 strips the translation, keeping only rotation/scale)
         vec3 localNormal = mat3(boneMatrix) * aNormal;
         totalNormal += localNormal * weight;
     }
 
-    // Safety net: If a sub-mesh has 0 bones, default back to its raw local position.
+    // If a sub-mesh has 0 bones, default back to its raw local position.
     if (totalPosition.w == 0.0) 
     {
         totalPosition = vec4(aPos, 1.0);
