@@ -49,6 +49,10 @@ typedef struct RenderState
     float cascade_blend_fraction;
 
     bool enable_ssao;
+    Color global_ambient_color;
+    float global_ambient_illumination;
+    float gamma;
+    RendererSettings settings;
 
     bool has_skybox;
     TextureHandle skybox_texture;
@@ -1400,10 +1404,14 @@ static void OpenGL_EndShadowPass(Renderer* r)
     glEnable(GL_POLYGON_OFFSET_FILL);
     glPolygonOffset(1.0f, 1.0f);
 
+    uint32_t shadow_res = SHADOW_WIDTH;
+    if (internal->state.settings.shadow_map_resolution > 0)
+        shadow_res = internal->state.settings.shadow_map_resolution;
+    
     for (uint32_t c = 0; c < cascade_count; c++)
     {
         glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, internal->shadow.depthMapTextureArray, 0, c);
-        glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+        glViewport(0, 0, shadow_res, shadow_res);
         glClear(GL_DEPTH_BUFFER_BIT);
 
         OpenGL_DrawShadowQueue(internal, &internal->state.light_space_matrices[c]);
@@ -1612,6 +1620,61 @@ static void OpenGL_EndShadowPass(Renderer* r)
 
 
 
+// Sets OpenGL settings from a given settings struct
+static void OpenGL_SetSettings(Renderer* r, const RendererSettings* settings)
+{
+    if (!r || !r->backend_internal_data || !settings)
+        return;
+    
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+
+    // Check if shadow map resolution changed and reallocate if necessary
+    if (settings->shadow_map_resolution != internal->state.settings.shadow_map_resolution && settings->shadow_map_resolution > 0)
+    {
+        uint32_t new_res = settings->shadow_map_resolution;
+        if (internal->shadow.depthMapTextureArray != 0)
+        {
+            glBindTexture(GL_TEXTURE_2D_ARRAY, internal->shadow.depthMapTextureArray);
+            glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT24, new_res, new_res, MAX_SHADOW_CASCADES, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+            glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+        }
+    }
+
+
+    internal->state.settings = *settings;
+    internal->state.enable_ssao = settings->enable_ssao;
+
+    if (settings->gamma > 0.01f)
+        internal->state.gamma = settings->gamma;
+    else
+        internal->state.gamma = 2.2f;
+}
+
+
+
+
+
+// Returns all the openGL settings in a struct
+static RendererSettings OpenGL_GetSettings(Renderer* r)
+{
+    if (!r || !r->backend_internal_data)
+    {
+        RendererSettings empty = {0};
+        return empty;
+    }
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    return internal->state.settings;
+}
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1658,6 +1721,12 @@ static void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
     internal->state.has_skybox = packet->has_skybox;
     internal->state.skybox_texture = packet->skybox_texture;
     internal->state.enable_ssao = packet->enable_ssao;
+    internal->state.global_ambient_color = packet->global_ambient_color;
+    internal->state.global_ambient_illumination = packet->global_ambient_illumination;
+    if (packet->gamma > 0.01f)
+        internal->state.gamma = packet->gamma;
+    else
+        internal->state.gamma = internal->state.settings.gamma > 0.01f ? internal->state.settings.gamma : 2.2f;
     
     if (packet->skybox_shader.id != 0)
         internal->skybox.default_shader = packet->skybox_shader;
@@ -1732,9 +1801,30 @@ static int CompareRenderCommands(const void* a, const void* b)
 
 
 
+// Uploads generic renderer uniforms
+static void OpenGL_UploadCommonUniforms(GLuint program, const RenderState* state)
+{
+    GLint gamma_loc = glGetUniformLocation(program, "u_Gamma");
+    if (gamma_loc != -1)
+        glUniform1f(gamma_loc, state->gamma > 0.01f ? state->gamma : 2.2f);
+
+    GLint ambient_color_loc = glGetUniformLocation(program, "u_GlobalAmbientColor");
+    if (ambient_color_loc != -1)
+        glUniform3fv(ambient_color_loc, 1, (float*)&state->global_ambient_color);
+
+    GLint ambient_int_loc = glGetUniformLocation(program, "u_GlobalAmbientIllumination");
+    if (ambient_int_loc != -1)
+        glUniform1f(ambient_int_loc, state->global_ambient_illumination);
+}
+
+
+
+
+
 // Extracts the string formatting for lights
 static void OpenGL_UploadLightUniforms(GLuint program, const RenderState* state)
 {
+    OpenGL_UploadCommonUniforms(program, state);
     char uniform_name[64];
 
     // --- Upload Directional Lights ---
@@ -1862,6 +1952,7 @@ static void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
 
             glUniformMatrix4fv(glGetUniformLocation(g_prog->program, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
             glUniformMatrix4fv(glGetUniformLocation(g_prog->program, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+            OpenGL_UploadCommonUniforms(g_prog->program, &internal->state);
         }
 
 
@@ -1932,7 +2023,9 @@ static void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
                 static bool initialized = false;
                 if (!initialized)
                 {
-                    for (int b = 0; b < MAX_BONES; b++) identity_bones[b] = Matrix4Identity();
+                    for (int b = 0; b < MAX_BONES; b++)
+                        identity_bones[b] = Matrix4Identity();
+
                     initialized = true;
                 }
                 glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)identity_bones);
@@ -1970,6 +2063,7 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     glUniformMatrix4fv(glGetUniformLocation(def_prog, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
     glUniform3fv(glGetUniformLocation(def_prog, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
     glUniform1i(glGetUniformLocation(def_prog, "u_EnableSSAO"), internal->state.enable_ssao ? 1 : 0);
+    OpenGL_UploadCommonUniforms(def_prog, &internal->state);
 
     OpenGL_UploadShadowUniforms(def_prog, &internal->state);
 
@@ -2876,6 +2970,9 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     r->BeginFrame = OpenGL_BeginFrame;
     r->Submit = OpenGL_Submit;
     r->EndFrame = OpenGL_EndFrame;
+
+    r->SetSettings = OpenGL_SetSettings;
+    r->GetSettings = OpenGL_GetSettings;
     
     return r;
 }

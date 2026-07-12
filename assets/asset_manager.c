@@ -15,12 +15,12 @@
 
 
 
-#define MAX_CACHED_SHADERS 1024
-#define MAX_CACHED_TEXTURES 1024
-#define MAX_CACHED_MESHES 1024
-#define MAX_CACHED_SKINNED_MESHES 1024
-#define MAX_CACHED_MODELS 1024
-#define MAX_MATERIALS 1024
+#define MAX_CACHED_SHADERS 8192
+#define MAX_CACHED_TEXTURES 8192
+#define MAX_CACHED_MESHES 8192
+#define MAX_CACHED_SKINNED_MESHES 8192
+#define MAX_CACHED_MODELS 8192
+#define MAX_MATERIALS 8192
 
 
 
@@ -384,6 +384,17 @@ static Texture* Asset_LoadAssimpTexture(const struct aiScene* scene, const struc
     char try_path_2[1024];
     snprintf(try_path_2, sizeof(try_path_2), "%s%s", model_dir, clean_filename);
 
+    // Convert all backslashes to forward slashes
+    for (int i = 0; try_path_1[i]; i++) { if (try_path_1[i] == '\\') try_path_1[i] = '/'; }
+    for (int i = 0; try_path_2[i]; i++) { if (try_path_2[i] == '\\') try_path_2[i] = '/'; }
+
+    // TODO: Add proper support for .dds files - for now, convert to png
+    char* ext1 = strstr(try_path_1, ".dds");
+    if (ext1) strcpy(ext1, ".png");
+
+    char* ext2 = strstr(try_path_2, ".dds");
+    if (ext2) strcpy(ext2, ".png");
+
     FILE* f1 = fopen(try_path_1, "rb");
     if (f1)
     {
@@ -534,8 +545,6 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
         Matrix4 node_transform = Matrix4Identity();
         const char* real_node_name = "UnknownNode";
         GetMeshGlobalTransform(scene->mRootNode, m, Matrix4Identity(), &node_transform, &real_node_name);
-
-        GetOrAddBone(new_model->skeleton, real_node_name, Matrix4Inverse(node_transform));
 
         // Check if the file contains animations
         bool has_animations = (scene->mNumAnimations > 0);

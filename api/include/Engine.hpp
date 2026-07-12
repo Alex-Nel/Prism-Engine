@@ -25,6 +25,16 @@ namespace Prism
 
 
 
+    struct RendererSettings
+    {
+        bool enable_ssao = true;
+        uint32_t shadow_map_resolution = 2048;
+        // bool vsync = false;
+        float gamma = 2.2f;
+    };
+
+
+
     class PRISM_API Engine
     {
     public:
@@ -50,5 +60,7 @@ namespace Prism
         static void SetTargetFPS(uint32_t fps);
         static uint32_t GetTargetFPS();
         static void SetVSync(bool enabled);
+        static void SetRendererSettings(const RendererSettings& settings);
+        static RendererSettings GetRendererSettings();
     };
 }

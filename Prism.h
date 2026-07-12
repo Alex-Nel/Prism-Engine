@@ -39,6 +39,9 @@ void Engine_Shutdown();
 // Get the main window pointer
 Window* Engine_GetMainWindow();
 
+// Get the main renderer pointer
+Renderer* Engine_GetRenderer();
+
 // Allows API to set custom runtime logic
 void Engine_SetPreUpdateCallback(EngineUpdateCallback callback);
 

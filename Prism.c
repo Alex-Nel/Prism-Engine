@@ -41,6 +41,14 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
     engine.renderer = renderer;
     Log_Info("Renderer Initialized");
 
+    // Initialize default renderer settings
+    RendererSettings default_settings = {
+        .enable_ssao = false,
+        .shadow_map_resolution = SHADOW_MAP_RESOLUTION,
+        .gamma = 2.2f
+    };
+    Render_SetSettings(engine.renderer, &default_settings);
+
     // Set renderer clear color to pure white
     Engine_SetClearColor(0.8f, 0.8f, 0.8f, 1.0f);
 
@@ -63,6 +71,16 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
 Window* Engine_GetMainWindow()
 {
     return engine.window;
+}
+
+
+
+
+
+// Get a pointer to the main renderer
+Renderer* Engine_GetRenderer()
+{
+    return engine.renderer;
 }
 
 
@@ -372,7 +390,11 @@ void Engine_ExecuteShadowPass(Scene* scene, RenderPacket* packet)
             cam_pos.y + cam_fwd.y * shadow_box_size * 0.5f,
             cam_pos.z + cam_fwd.z * shadow_box_size * 0.5f
         };
-        float texel_world_size = (2.0f * shadow_box_size) / (float)SHADOW_MAP_RESOLUTION;
+        RendererSettings cur_settings = Render_GetSettings(engine.renderer);
+        float cur_shadow_res = (float)SHADOW_MAP_RESOLUTION;
+        if (cur_settings.shadow_map_resolution > 0)
+            cur_shadow_res = (float)cur_settings.shadow_map_resolution;
+        float texel_world_size = (2.0f * shadow_box_size) / cur_shadow_res;
 
         Matrix4 light_basis = Matrix4LookAt((Vector3){0.0f, 0.0f, 0.0f}, light_dir, up);
         Vector4 center_ls = Matrix4MultiplyVector4(light_basis, (Vector4){center.x, center.y, center.z, 1.0f});
@@ -486,7 +508,11 @@ void Engine_ExecuteShadowPass(Scene* scene, RenderPacket* packet)
             radius = ceilf(radius / 16.0f) * 16.0f;
             
             float shadow_box_size = radius; 
-            float texel_world_size = (2.0f * shadow_box_size) / (float)SHADOW_MAP_RESOLUTION;
+            RendererSettings cur_settings = Render_GetSettings(engine.renderer);
+            float cur_shadow_res = (float)SHADOW_MAP_RESOLUTION;
+            if (cur_settings.shadow_map_resolution > 0)
+                cur_shadow_res = (float)cur_settings.shadow_map_resolution;
+            float texel_world_size = (2.0f * shadow_box_size) / cur_shadow_res;
 
             // Snap the center to the texel grid
             Matrix4 light_basis = Matrix4LookAt((Vector3){0.0f, 0.0f, 0.0f}, light_dir, up);
@@ -786,7 +812,13 @@ void Engine_RenderScene(Scene* scene)
 
     // Make an empty render packet to send to the renderer
     RenderPacket packet = {0};
-    packet.enable_ssao = scene->enable_ssao;
+    RendererSettings cur_settings = Render_GetSettings(engine.renderer);
+    packet.enable_ssao = cur_settings.enable_ssao;
+    packet.global_ambient_color = scene->ambient_color;
+    packet.global_ambient_illumination = scene->ambient_illumination;
+    packet.gamma = 2.2f;
+    if (cur_settings.gamma > 0.01f)
+        packet.gamma = cur_settings.gamma;
     packet.has_skybox = scene->has_skybox;
 
     if (scene->has_skybox)
@@ -1093,7 +1125,7 @@ bool Frustum_ContainsAABB(Frustum* frustum, AABB local_aabb, Matrix4 world_matri
 
 
 
-// TODO - Deprecated function
+// TODO - Deprecated function (Could be useful for something else)
 // Builds a texel-snapped light-space matrix that fully contains the eight frustum corners of one cascade slice
 void ComputeCascadeLightMatrix(const Vector3 corners[8], Vector3 light_dir, Vector3 up, float light_distance, Matrix4* out_light_space, float* out_texel_world_size)
 {
@@ -1127,7 +1159,10 @@ void ComputeCascadeLightMatrix(const Vector3 corners[8], Vector3 light_dir, Vect
         if (ls.y > max_y) max_y = ls.y;
     }
 
-    float texel_world_size = fmaxf(max_x - min_x, max_y - min_y) / (float)SHADOW_MAP_RESOLUTION;
+    // float texel_world_size = fmaxf(max_x - min_x, max_y - min_y) / (float)SHADOW_MAP_RESOLUTION;
+    RendererSettings cur_settings = Render_GetSettings(engine.renderer);
+    float cur_shadow_res = (float)(cur_settings.shadow_map_resolution > 0 ? cur_settings.shadow_map_resolution : SHADOW_MAP_RESOLUTION);
+    float texel_world_size = fmaxf(max_x - min_x, max_y - min_y) / cur_shadow_res;
     if (texel_world_size <= 0.0f)
         texel_world_size = 0.001f;
 

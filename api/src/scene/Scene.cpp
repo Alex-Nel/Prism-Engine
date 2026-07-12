@@ -109,8 +109,23 @@ namespace Prism
         ::Scene_RemoveSkybox(static_cast<::Scene*>(m_RawScene));
     }
 
-    void Scene::EnableSSAO(bool enabled) {
-        ::Scene_EnableSSAO(static_cast<::Scene*>(m_RawScene), enabled);
+    void Scene::SetGlobalAmbientColor(Prism::Color color) {
+        ::Color c_color = {color.r, color.g, color.b, color.a};
+        static_cast<::Scene*>(m_RawScene)->ambient_color = c_color;
+    }
+
+    void Scene::SetGlobalAmbientIllumination(float illumination) {
+        static_cast<::Scene*>(m_RawScene)->ambient_illumination = illumination;
+    }
+
+    Prism::Color Scene::GetGlobalAmbientColor() {
+        ::Scene* c_scene = static_cast<::Scene*>(m_RawScene);
+        ::Color c_color = c_scene->ambient_color;
+        return Prism::Color(c_color.r, c_color.g, c_color.b, c_color.a);
+    }
+
+    float Scene::GetGlobalAmbientIllumination() {
+        return static_cast<::Scene*>(m_RawScene)->ambient_illumination;
     }
 
 

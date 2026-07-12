@@ -93,6 +93,12 @@ bool Scene_Save(Scene* scene, const char* filepath)
     cJSON* root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "scene_name", "Sample_Scene");
 
+    cJSON_AddNumberToObject(root, "ambient_r", scene->ambient_color.r);
+    cJSON_AddNumberToObject(root, "ambient_g", scene->ambient_color.g);
+    cJSON_AddNumberToObject(root, "ambient_b", scene->ambient_color.b);
+    cJSON_AddNumberToObject(root, "ambient_a", scene->ambient_color.a);
+    cJSON_AddNumberToObject(root, "ambient_illumination", scene->ambient_illumination);
+
     // Create the "entities" array
     cJSON* entities_array = cJSON_AddArrayToObject(root, "entities");
 
@@ -324,6 +330,22 @@ bool Scene_Load(Scene* scene, const char* filepath)
     if (!root) return false;
 
     Scene_Clear(scene);
+
+    cJSON* ambient_r = cJSON_GetObjectItemCaseSensitive(root, "ambient_r");
+    cJSON* ambient_g = cJSON_GetObjectItemCaseSensitive(root, "ambient_g");
+    cJSON* ambient_b = cJSON_GetObjectItemCaseSensitive(root, "ambient_b");
+    cJSON* ambient_a = cJSON_GetObjectItemCaseSensitive(root, "ambient_a");
+    cJSON* ambient_int = cJSON_GetObjectItemCaseSensitive(root, "ambient_illumination");
+
+    if (ambient_r && ambient_g && ambient_b)
+    {
+        scene->ambient_color.r = (float)ambient_r->valuedouble;
+        scene->ambient_color.g = (float)ambient_g->valuedouble;
+        scene->ambient_color.b = (float)ambient_b->valuedouble;
+        scene->ambient_color.a = ambient_a ? (float)ambient_a->valuedouble : 1.0f;
+    }
+    if (ambient_int)
+        scene->ambient_illumination = (float)ambient_int->valuedouble;
 
     cJSON* entities_array = cJSON_GetObjectItemCaseSensitive(root, "entities");
     cJSON* entity_json = NULL;

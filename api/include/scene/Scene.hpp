@@ -66,7 +66,10 @@ namespace Prism
         void SetSkybox(Prism::Texture* skybox_text, Prism::Shader* custom_shader = nullptr);
         void SetSkybox(Prism::Color color);
         void RemoveSkybox();
-        void EnableSSAO(bool enabled);
+        void SetGlobalAmbientColor(Prism::Color color);
+        void SetGlobalAmbientIllumination(float illumination);
+        Prism::Color GetGlobalAmbientColor();
+        float GetGlobalAmbientIllumination();
 
 
         

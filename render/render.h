@@ -20,8 +20,8 @@
 
 // --- Internal data pool limits ---
 
-#define MAX_RESOURCES 1024
-#define MAX_COMMANDS 4096
+#define MAX_RESOURCES 8192
+#define MAX_COMMANDS 32768
 
 #define SHADOW_MAP_RESOLUTION 4096
 #define MAX_SHADOW_CASCADES 4
@@ -127,6 +127,9 @@ typedef struct RenderPacket
     float cascade_blend_fraction;  // 0..1 fraction of each slice used to cross-fade
 
     bool enable_ssao;
+    Color global_ambient_color;
+    float global_ambient_illumination;
+    float gamma;
 
     bool has_skybox;
     TextureHandle skybox_texture;
@@ -143,6 +146,19 @@ typedef enum
     TEXTURE_FILTER_NEAREST, // Blocky (Pixel art style)
     TEXTURE_FILTER_LINEAR   // Smooth (Standard 3D style)
 } TextureFilter;
+
+
+
+
+
+// Structure holding all renderer settings
+typedef struct RendererSettings
+{
+    bool enable_ssao;
+    uint32_t shadow_map_resolution; // e.g., 1024, 2048, 4096
+    float gamma;                    // e.g., 2.2f (default)
+} RendererSettings;
+
 
 
 
@@ -187,11 +203,21 @@ typedef struct Renderer
 
 
     // --- Command Submission ---
+
     void (*BeginShadowPass)(Renderer* r, const RenderPacket* packet);
     void (*EndShadowPass)(Renderer* r);
     void (*BeginFrame)(Renderer* r, const RenderPacket* packet);
     void (*Submit)(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle albedo, TextureHandle normal, TextureHandle metallic, TextureHandle roughness, TextureHandle ao, MaterialProperties mat, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows);
     void (*EndFrame)(Renderer* r);
+
+
+
+    // --- Settings ---
+
+    void (*SetSettings)(Renderer* r, const RendererSettings* settings);
+    RendererSettings (*GetSettings)(Renderer* r);
+
+
 
     // Hidden implementation-specific data (e.g., SDL_GLContext or Vulkan Instance)
     void* backend_internal_data;
@@ -376,6 +402,64 @@ static inline void Render_EndFrame(Renderer* r)
     if (r && r->EndFrame)
         r->EndFrame(r);
 }
+
+
+
+
+
+// Sets all renderer settings according to the specified struct
+static inline void Render_SetSettings(Renderer* r, const RendererSettings* settings)
+{
+    if (r && r->SetSettings && settings)
+        r->SetSettings(r, settings);
+}
+
+// Returns all the settings of the renderer
+static inline RendererSettings Render_GetSettings(Renderer* r)
+{
+    if (r && r->GetSettings)
+        return r->GetSettings(r);
+    RendererSettings empty = {0};
+    return empty;
+}
+
+// Sets the gamma value of the renderer
+static inline void Render_SetGamma(Renderer* r, float gamma)
+{
+    if (!r)
+        return;
+    RendererSettings s = Render_GetSettings(r);
+    s.gamma = gamma;
+    if (gamma < 0.1f)
+        s.gamma = 0.1f;
+    Render_SetSettings(r, &s);
+}
+
+// Sets the resolution of the renderers shadow map
+static inline void Render_SetShadowMapResolution(Renderer* r, uint32_t resolution)
+{
+    if (!r)
+        return;
+    if (resolution < 256)
+        resolution = 256;
+    if (resolution > 8192)
+        resolution = 8192;
+    RendererSettings s = Render_GetSettings(r);
+    s.shadow_map_resolution = resolution;
+    Render_SetSettings(r, &s);
+}
+
+// Sets whether Screen Space Ambient Occlusion is enabled or not
+static inline void Render_SetSSAOEnabled(Renderer* r, bool enabled)
+{
+    if (!r)
+        return;
+    RendererSettings s = Render_GetSettings(r);
+    s.enable_ssao = enabled;
+    Render_SetSettings(r, &s);
+}
+
+
 
 
 

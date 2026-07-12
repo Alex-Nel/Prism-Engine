@@ -109,6 +109,9 @@ uniform sampler2D ssaoMap;
 uniform bool u_EnableSSAO;
 uniform float u_ShadowMaxDistance;
 uniform float u_ReceiveShadows;
+uniform float u_Gamma;
+uniform vec3 u_GlobalAmbientColor;
+uniform float u_GlobalAmbientIllumination;
 
 
 
@@ -466,7 +469,8 @@ void main()
     vec4 texColor = texture(u_Material.diffuse, TexCoord);
     if (texColor.a < 0.1)
         discard;
-    vec3 linearAlbedo = pow(texColor.rgb, vec3(2.2)) * u_Material.tint;
+    float gamma = u_Gamma > 0.01 ? u_Gamma : 2.2;
+    vec3 linearAlbedo = pow(texColor.rgb, vec3(gamma)) * u_Material.tint;
 
     // --- 3D Lighting for Forward Meshes ---
     vec3 norm = normalize(v_Normal);
@@ -485,7 +489,8 @@ void main()
     float metallic = u_Material.hasMetallicMap ? texture(u_Material.metallicMap, TexCoord).b : u_Material.metallicFactor;
     float roughness = u_Material.hasRoughnessMap ? texture(u_Material.roughnessMap, TexCoord).g : u_Material.roughnessFactor;
 
-    vec3 totalLight = vec3(0.0);
+    vec3 globalAmbient = u_GlobalAmbientColor * u_GlobalAmbientIllumination * linearAlbedo * ambientOcclusion;
+    vec3 totalLight = globalAmbient;
 
     // Accumulate directional lights
     for (int i = 0; i < MAX_DIR_LIGHTS; i++)
@@ -517,7 +522,7 @@ void main()
 
     // --- HDR Tone Mapping (ACES Filmic) & Gamma ---
     totalLight = ACESFilm(totalLight);
-    totalLight = pow(totalLight, vec3(1.0 / 2.2));
+    totalLight = pow(totalLight, vec3(1.0 / gamma));
 
     FragColor = vec4(totalLight, texColor.a);
 }

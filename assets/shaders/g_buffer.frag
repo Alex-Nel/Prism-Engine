@@ -28,6 +28,7 @@ struct Material
 
 uniform Material u_Material;
 uniform float u_ReceiveShadows;
+uniform float u_Gamma;
 
 
 
@@ -38,7 +39,8 @@ void main()
     if (texColor.a < 0.1)
         discard;
 
-    texColor.rgb = pow(texColor.rgb, vec3(2.2));
+    float gamma = u_Gamma > 0.01 ? u_Gamma : 2.2;
+    texColor.rgb = pow(texColor.rgb, vec3(gamma));
     
     // --- Normal Mapping ---
     vec3 finalNormal;

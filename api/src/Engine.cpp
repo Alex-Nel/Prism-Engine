@@ -69,4 +69,23 @@ namespace Prism
     void Engine::SetVSync(bool enabled) {
         ::Platform_SetVSync(enabled);
     }
+
+    void Engine::SetRendererSettings(const Prism::RendererSettings& settings) {
+        ::Renderer* r = ::Engine_GetRenderer();
+        ::RendererSettings c_settings;
+        c_settings.enable_ssao = settings.enable_ssao;
+        c_settings.shadow_map_resolution = settings.shadow_map_resolution;
+        c_settings.gamma = settings.gamma;
+        ::Render_SetSettings(r, &c_settings);
+    }
+
+    Prism::RendererSettings Engine::GetRendererSettings() {
+        ::Renderer* r = ::Engine_GetRenderer();
+        ::RendererSettings c_settings = ::Render_GetSettings(r);
+        Prism::RendererSettings settings;
+        settings.enable_ssao = c_settings.enable_ssao;
+        settings.shadow_map_resolution = c_settings.shadow_map_resolution;
+        settings.gamma = c_settings.gamma;
+        return settings;
+    }
 }

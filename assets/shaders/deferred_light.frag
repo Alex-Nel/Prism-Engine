@@ -47,6 +47,9 @@ struct DirLight
 
 uniform DirLight u_DirLights[MAX_DIR_LIGHTS];
 uniform int u_DirLightCount;
+uniform float u_Gamma;
+uniform vec3 u_GlobalAmbientColor;
+uniform float u_GlobalAmbientIllumination;
 
 
 
@@ -380,7 +383,8 @@ void main()
         ao *= texture(ssaoMap, TexCoords).r;
 
     vec3 viewDir = normalize(u_ViewPos - fragPos);
-    vec3 totalLight = vec3(0.0);
+    vec3 globalAmbient = u_GlobalAmbientColor * u_GlobalAmbientIllumination * albedo * ao;
+    vec3 totalLight = globalAmbient;
 
     for (int i = 0; i < MAX_DIR_LIGHTS; i++)
     {
@@ -394,7 +398,7 @@ void main()
 
     // --- Gamma Correction ---
     // Converts linear physical light to sRGB space
-    const float gamma = 2.2;
+    float gamma = u_Gamma > 0.01 ? u_Gamma : 2.2;
     totalLight = pow(totalLight, vec3(1.0 / gamma));
 
 

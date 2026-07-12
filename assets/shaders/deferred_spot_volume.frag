@@ -24,6 +24,7 @@ uniform float u_OuterCutOff;
 uniform sampler2DArrayShadow spotShadowMap;
 uniform mat4 u_LightSpaceMatrix;
 uniform int u_ShadowIndex;
+uniform float u_Gamma;
 
 
 
@@ -226,7 +227,8 @@ void main()
     // --- HDR Tone Mapping & Gamma ---
     // ACES approximation:
     finalLight = clamp((finalLight * (2.51f * finalLight + 0.03f)) / (finalLight * (2.43f * finalLight + 0.59f) + 0.14f), 0.0, 1.0);
-    finalLight = pow(finalLight, vec3(1.0 / 2.2));
+    float gamma = u_Gamma > 0.01 ? u_Gamma : 2.2;
+    finalLight = pow(finalLight, vec3(1.0 / gamma));
 
     FragColor = vec4(finalLight, 0.0);
 

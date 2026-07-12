@@ -11,7 +11,7 @@
 
 
 
-#define MAX_ENTITIES 8192
+#define MAX_ENTITIES 32768
 #define MAX_NAME_LENGTH 256
 #define MAX_SCRIPTS_PER_ENTITY 64
 #define MAX_COLLISION_OVERLAPS 16
@@ -515,7 +515,8 @@ typedef struct Scene
 
     bool has_skybox;
     Skybox skybox;
-    bool enable_ssao;
+    Color ambient_color;
+    float ambient_illumination;
 
 
     // Variables for entities to remove
