@@ -135,6 +135,9 @@ typedef struct GL_DeferredPipeline
     ShaderHandle deferred_shader;
     ShaderHandle volume_shader;
     ShaderHandle spot_volume_shader;
+    ShaderHandle post_shader;
+    uint32_t lighting_fbo;
+    uint32_t lighting_texture;
     uint32_t sphere_vao;
     uint32_t sphere_vbo;
     uint32_t sphere_ebo;
@@ -282,6 +285,10 @@ static void OpenGL_SetViewport(Renderer* r, uint32_t x, uint32_t y, uint32_t wid
 
         glBindTexture(GL_TEXTURE_2D, internal->ssao.gAlbedoSpec);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+        // Resize the linear HDR lighting target
+        glBindTexture(GL_TEXTURE_2D, internal->deferred.lighting_texture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
 
         // Resize G-Buffer Depth Renderbuffer
         glBindRenderbuffer(GL_RENDERBUFFER, internal->ssao.gDepth);
@@ -1162,13 +1169,14 @@ static ShaderHandle OpenGL_CompileInternalShaderFromFile(OpenGL_Backend* interna
 static void OpenGL_InitPipelines(OpenGL_Backend* internal)
 {
     // 1. Forward Pipeline (Main Lit Shaders)
-    internal->forward.default_shader = OpenGL_CompileInternalShaderFromFile(internal, "Default", "assets/shaders/default.vert", NULL, "assets/shaders/default.frag");
-    internal->forward.animated_shader = OpenGL_CompileInternalShaderFromFile(internal, "Animated", "assets/shaders/animated.vert", NULL, "assets/shaders/default.frag");
+    internal->forward.default_shader = OpenGL_CompileInternalShaderFromFile(internal, "Foward Default", "assets/shaders/default.vert", NULL, "assets/shaders/default.frag");
+    internal->forward.animated_shader = OpenGL_CompileInternalShaderFromFile(internal, "Forward Animated", "assets/shaders/animated.vert", NULL, "assets/shaders/default.frag");
     
     // 2. Deferred Pipeline
-    internal->deferred.deferred_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred", "assets/shaders/deferred_light.vert", NULL, "assets/shaders/deferred_light.frag");
-    internal->deferred.volume_shader = OpenGL_CompileInternalShaderFromFile(internal, "Volume", "assets/shaders/deferred_volume.vert", NULL, "assets/shaders/deferred_volume.frag");
-    internal->deferred.spot_volume_shader = OpenGL_CompileInternalShaderFromFile(internal, "Spot Volume", "assets/shaders/deferred_volume.vert", NULL, "assets/shaders/deferred_spot_volume.frag");
+    internal->deferred.deferred_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred Main", "assets/shaders/deferred_light.vert", NULL, "assets/shaders/deferred_light.frag");
+    internal->deferred.volume_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred Volume", "assets/shaders/deferred_volume.vert", NULL, "assets/shaders/deferred_volume.frag");
+    internal->deferred.spot_volume_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred Spot Volume", "assets/shaders/deferred_volume.vert", NULL, "assets/shaders/deferred_spot_volume.frag");
+    internal->deferred.post_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred Post", "assets/shaders/deferred_light.vert", NULL, "assets/shaders/deferred_post.frag");
 
     // 3. Shadow Pipeline
     internal->shadow.static_shader = OpenGL_CompileInternalShaderFromFile(internal, "Shadow Static", "assets/shaders/shadow.vert", NULL, "assets/shaders/shadow.frag");
@@ -2045,7 +2053,11 @@ static void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
 // Executes deferred lighting pass
 static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
 {
-    OpenGL_BindDefaultFramebuffer();
+    // Accumulate every light in linear HDR space. Tone mapping and gamma must happen once, after additive blending
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->deferred.lighting_fbo);
+    glDrawBuffer(GL_COLOR_ATTACHMENT0);
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
 
     // --- Global pass ---
 
@@ -2107,7 +2119,6 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     {
         PointLightData* pl = &internal->state.point_lights[i];
 
-        // glUniform1i(glGetUniformLocation(vol_prog, "u_ShadowIndex"), shadow_point_index);
         if (pl->casts_shadows && shadow_point_index < MAX_SHADOW_CASTING_POINT_LIGHTS)
         {
             glBindTexture(GL_TEXTURE_CUBE_MAP, internal->shadow.pointDepthMaps[shadow_point_index]);
@@ -2121,13 +2132,21 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
         glUniform1f(glGetUniformLocation(vol_prog, "u_FarPlane"), 100.0f); // Match the projection matrix
 
         // Calculate physical light radius mathematically based on attenuation
-        float max_color = fmaxf(fmaxf(pl->color.r, pl->color.g), pl->color.b);
+        float max_color = fmaxf(fmaxf(pl->color.r, pl->color.g), pl->color.b) * fmaxf(pl->intensity, 0.0f);
         float radius = 50.0f; // Safe fallback if attenuation is 0
         
         if (pl->quadratic > 0.0001f)
-            radius = (-pl->linear + sqrtf(pl->linear * pl->linear - 4 * pl->quadratic * (pl->constant - (256.0f / 5.0f) * max_color))) / (2.0f * pl->quadratic);
+        {
+            float discriminant = pl->linear * pl->linear - 4 * pl->quadratic * (pl->constant - (256.0f / 5.0f) * max_color);
+            radius = 0.0f;
+            if (discriminant > 0.0f)
+                radius = (-pl->linear + sqrtf(discriminant)) / (2.0f * pl->quadratic);
+        }
         else if (pl->linear > 0.0001f)
             radius = ((256.0f / 5.0f) * max_color - pl->constant) / pl->linear;
+
+        if (radius <= 0.0f)
+            continue;
 
         float volume_radius = radius * 1.2f;
 
@@ -2190,13 +2209,21 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
         }
 
         // Same physical radius calculation so the sphere encompasses the cone's reach
-        float max_color = fmaxf(fmaxf(sl->color.r, sl->color.g), sl->color.b);
+        float max_color = fmaxf(fmaxf(sl->color.r, sl->color.g), sl->color.b) * fmaxf(sl->intensity, 0.0f);
         float radius = 50.0f; // Safe fallback
         
         if (sl->quadratic > 0.0001f)
-            radius = (-sl->linear + sqrtf(sl->linear * sl->linear - 4 * sl->quadratic * (sl->constant - (256.0f / 5.0f) * max_color))) / (2.0f * sl->quadratic);
+        {
+            float discriminant = sl->linear * sl->linear - 4 * sl->quadratic * (sl->constant - (256.0f / 5.0f) * max_color);
+            radius = 0.0f;
+            if (discriminant > 0.0f)
+                radius = (-sl->linear + sqrtf(discriminant)) / (2.0f * sl->quadratic);
+        }
         else if (sl->linear > 0.0001f)
             radius = ((256.0f / 5.0f) * max_color - sl->constant) / sl->linear;
+
+        if (radius <= 0.0f)
+            continue;
 
         float volume_radius = radius * 1.2f;
 
@@ -2223,6 +2250,20 @@ static void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     // --- Restore pipeline defaults ---
     glDisable(GL_BLEND);
     glCullFace(GL_BACK);
+
+    // Convert the completed linear lighting buffer to the display color space.
+    OpenGL_BindDefaultFramebuffer();
+
+    GLuint post_prog = internal->shader_pool[internal->deferred.post_shader.id].program;
+    glUseProgram(post_prog);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, internal->deferred.lighting_texture);
+    glUniform1i(glGetUniformLocation(post_prog, "hdrLightingMap"), 0);
+    OpenGL_UploadCommonUniforms(post_prog, &internal->state);
+
+    glBindVertexArray(internal->quad_vao);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
     glEnable(GL_DEPTH_TEST);
 }
 
@@ -2817,6 +2858,22 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
 
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
         Log_Error("G-Buffer Framebuffer not complete!");
+
+    // --- Generate linear HDR lighting target ---
+    glGenFramebuffers(1, &internal->deferred.lighting_fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->deferred.lighting_fbo);
+
+    glGenTextures(1, &internal->deferred.lighting_texture);
+    glBindTexture(GL_TEXTURE_2D, internal->deferred.lighting_texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, win_w, win_h, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, internal->deferred.lighting_texture, 0);
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        Log_Error("Deferred lighting framebuffer not complete!");
 
     // --- Generate SSAO FBOs ---
     glGenFramebuffers(1, &internal->ssao.ssaoFBO);  

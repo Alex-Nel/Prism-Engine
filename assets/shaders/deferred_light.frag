@@ -47,7 +47,6 @@ struct DirLight
 
 uniform DirLight u_DirLights[MAX_DIR_LIGHTS];
 uniform int u_DirLightCount;
-uniform float u_Gamma;
 uniform vec3 u_GlobalAmbientColor;
 uniform float u_GlobalAmbientIllumination;
 
@@ -350,16 +349,6 @@ vec3 CalcDirLight(DirLight light, vec3 normal, vec3 viewDir, float ao, vec3 albe
 
 
 
-// ACES Filmic Tone Mapping approximation (preserves rich diffuse saturation and deep shadow contrast without washing out colors)
-vec3 ACESFilm(vec3 x)
-{
-    float a = 2.51f;
-    float b = 0.03f;
-    float c = 2.43f;
-    float d = 0.59f;
-    float e = 0.14f;
-    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
-}
 
 
 
@@ -376,7 +365,8 @@ void main()
     float metallic = texture(gPosition, TexCoords).a;
     float roughness = texture(gAlbedoSpec, TexCoords).a;
 
-    if (length(normal) < 0.1) discard;
+    if (length(normal) < 0.1)
+        discard;
 
     float ao = abs(texture(gNormal, TexCoords).a);
     if (u_EnableSSAO)
@@ -393,15 +383,7 @@ void main()
         totalLight += CalcDirLight(u_DirLights[i], normal, viewDir, ao, albedo, metallic, roughness, fragPos);
     }
 
-    // --- HDR Tone Mapping (ACES Filmic) ---
-    totalLight = ACESFilm(totalLight);
-
-    // --- Gamma Correction ---
-    // Converts linear physical light to sRGB space
-    float gamma = u_Gamma > 0.01 ? u_Gamma : 2.2;
-    totalLight = pow(totalLight, vec3(1.0 / gamma));
-
-
+    // The post shader corrects for gamma
     FragColor = vec4(totalLight, 1.0);
 
 

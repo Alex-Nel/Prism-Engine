@@ -24,7 +24,6 @@ uniform float u_OuterCutOff;
 uniform sampler2DArrayShadow spotShadowMap;
 uniform mat4 u_LightSpaceMatrix;
 uniform int u_ShadowIndex;
-uniform float u_Gamma;
 
 
 
@@ -178,6 +177,8 @@ void main()
     if (distance > u_Radius)
         discard;
 
+    float radiusFade = 1.0 - smoothstep(u_Radius * 0.8, u_Radius, distance);
+    
     vec3 lightDir = normalize(u_LightPos - fragPos);
 
     // Spotlight Soft Edges Intensity (angular smoothstep using true physical cone angles in radians)
@@ -191,7 +192,7 @@ void main()
 
     // Calculate attenuation
     float attenuation = 1.0 / (u_Constant + u_Linear * distance + u_Quadratic * (distance * distance));    
-    vec3 radiance = u_LightColor * u_Intensity * attenuation * spotIntensity;
+    vec3 radiance = u_LightColor * u_Intensity * attenuation * spotIntensity * radiusFade;
 
     // F0 represents the base reflectivity of the surface
     // Non-metals use 0.04. Metals use their albedo color
@@ -223,12 +224,6 @@ void main()
     vec3 Lo = (kD * albedo + specular) * radiance * NdotL;
     
     vec3 finalLight = (1.0 - shadow) * Lo;
-
-    // --- HDR Tone Mapping & Gamma ---
-    // ACES approximation:
-    finalLight = clamp((finalLight * (2.51f * finalLight + 0.03f)) / (finalLight * (2.43f * finalLight + 0.59f) + 0.14f), 0.0, 1.0);
-    float gamma = u_Gamma > 0.01 ? u_Gamma : 2.2;
-    finalLight = pow(finalLight, vec3(1.0 / gamma));
 
     FragColor = vec4(finalLight, 0.0);
 
