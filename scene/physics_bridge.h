@@ -46,12 +46,21 @@ typedef struct RaycastHit
 
 
 
-typedef struct CollisionPair
+typedef enum
 {
+    PHYS_EVENT_ENTER,
+    PHYS_EVENT_EXIT
+} PhysEventType;
+
+
+
+typedef struct CollisionEvent
+{
+    PhysEventType type;
     uint32_t entity_a;
     uint32_t entity_b;
     bool is_trigger_event; // True if either object is a trigger
-} CollisionPair;
+} CollisionEvent;
 
 
 
@@ -77,6 +86,7 @@ void Physics_AddRigidbody(PhysicsWorldHandle world, PhysicsBodyHandle body, floa
 
 Vector3 Physics_GetBodyPosition(PhysicsBodyHandle body);
 Quaternion Physics_GetBodyRotation(PhysicsBodyHandle body);
+Vector3 Physics_GetBodyScale(PhysicsBodyHandle body);
 
 
 
@@ -102,7 +112,8 @@ void Physics_RecalculateMass(void* physics_handle, float mass);
 // --- Used for enabling/disabling entities ---
 
 void Physics_SetBodySimulationState(PhysicsWorldHandle world, PhysicsBodyHandle body, bool enable_simulation);
-int Physics_GetCollisions(PhysicsWorldHandle world, CollisionPair* out_pairs, int max_pairs);
+// int Physics_GetCollisions(PhysicsWorldHandle world, CollisionPair* out_pairs, int max_pairs);
+int Physics_GetEvents(PhysicsWorldHandle world, CollisionEvent* out_events, int max_events);
 void Physics_SetCollisionFilter(PhysicsWorldHandle world, PhysicsBodyHandle body, int layer, int mask);
 
 

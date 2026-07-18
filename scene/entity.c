@@ -794,6 +794,7 @@ void Entity_AddColliderBox(Entity entity, Vector3 extents, bool is_trigger)
     c->mesh_ptr = NULL;
     c->extents = extents;
     c->radius = 0.0f;
+    c->touching_count = 0;
     Transform* t = &entity.scene->transforms[entity.id];
     c->mesh_scale = (Vector3){1.0f, 1.0f, 1.0f};
 
@@ -802,7 +803,7 @@ void Entity_AddColliderBox(Entity entity, Vector3 extents, bool is_trigger)
     Physics_SetBodyScale(c->physics_handle, t->local_scale);
     Physics_SetBodyRotation(c->physics_handle, t->local_rotation);
 
-    // Push default layers/mask to Bullet
+    // Push default layers/mask to the physics
     c->collision_layer = COLLISION_LAYER_DEFAULT;
     c->collision_mask = COLLISION_MASK_ALL;
     Physics_SetCollisionFilter(entity.scene->physics_world, c->physics_handle, c->collision_layer, c->collision_mask);
@@ -860,6 +861,7 @@ void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger)
     c->mesh_ptr = NULL;
     c->extents = (Vector3){0, 0, 0};
     c->radius = radius;
+    c->touching_count = 0;
     Transform* t = &entity.scene->transforms[entity.id];
     c->mesh_scale = (Vector3){1.0f, 1.0f, 1.0f};
 
@@ -880,7 +882,6 @@ void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger)
 
 
 
-// TODO: Make colliders follow models too
 // Adds a collider to an entity that matches its mesh
 void Entity_AddColliderMesh(Entity entity, Mesh* mesh, bool is_trigger, bool is_convex)
 {
@@ -901,6 +902,7 @@ void Entity_AddColliderMesh(Entity entity, Mesh* mesh, bool is_trigger, bool is_
     c->mesh_ptr = mesh;
     c->extents = (Vector3){0, 0, 0};
     c->radius = 0.0f;
+    c->touching_count = 0;
 
     Transform* t = &entity.scene->transforms[entity.id];
     c->mesh_scale = t->local_scale;
@@ -970,7 +972,7 @@ void Entity_AddRigidbody(Entity entity, float mass)
     rb->freeze_rot_y = false;
     rb->freeze_rot_z = false;
 
-    // Upgrade the static collider into a dynamic falling physics object!
+    // Change the static collider into a dynamic physics object
     Physics_AddRigidbody(entity.scene->physics_world, c->physics_handle, mass);
     Physics_SetDamping(c->physics_handle, rb->linear_drag, rb->angular_drag);
     Physics_SetGravityState(entity.scene->physics_world, c->physics_handle, rb->use_gravity);

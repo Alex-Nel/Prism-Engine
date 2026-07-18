@@ -1024,7 +1024,8 @@ void Scene_SyncPhysicsPreSim(Scene* scene)
         bool is_kinematic = has_rigidbody && scene->rigidbodies[i].is_kinematic;
         bool is_dynamic = has_rigidbody && !scene->rigidbodies[i].is_kinematic;
 
-        if (is_static || is_kinematic || (is_dynamic && t->is_dirty))
+        // if (is_static || is_kinematic || (is_dynamic && t->is_dirty))
+        if (t->is_dirty)
         {
             ColliderComponent* c = &scene->colliders[i];
             if (c->physics_handle)
@@ -1051,76 +1052,88 @@ void Scene_SyncPhysicsPreSim(Scene* scene)
 // Steps the physics engine and dispatches collision events
 void Scene_StepPhysicsAndCollisions(Scene* scene)
 {
-    if (scene->physics_world)
+    if (!scene->physics_world)
+        return;
+
+    float fixed_dt = Time_FixedDeltaTime();
+    Physics_StepSimulation(scene->physics_world, fixed_dt);
+
+    CollisionEvent events[1024];
+    int event_count = Physics_GetEvents(scene->physics_world, events, 1024);
+
+    // Process all ENTERS and EXITS
+    for (int i = 0; i < event_count; i++)
     {
-        // Important to use the FIXED delta time here, not the variable one
-        float fixed_dt = Time_FixedDeltaTime();
-        Physics_StepSimulation(scene->physics_world, fixed_dt);
+        uint32_t idA = events[i].entity_a;
+        uint32_t idB = events[i].entity_b;
 
-        // Shift current memory to "last frame" memory
-        for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+        ColliderComponent* colA = &scene->colliders[idA];
+        ColliderComponent* colB = &scene->colliders[idB];
+
+        if (events[i].type == PHYS_EVENT_ENTER)
         {
-            if (scene->component_masks[i] & COMPONENT_COLLIDER)
+            // Add B to A
+            if (!ArrayContains(colA->touching_entities, colA->touching_count, idB) && colA->touching_count < MAX_COLLISION_OVERLAPS)
             {
-                ColliderComponent* c = &scene->colliders[i];
-                memcpy(c->touching_last_frame, c->touching_entities, sizeof(uint32_t) * c->touching_count);
-                c->touching_last_count = c->touching_count;
-                c->touching_count = 0; 
-            }
-        }
-
-
-        // Fetch Collisions for all colliders
-        CollisionPair pairs[1024]; 
-        int hit_count = Physics_GetCollisions(scene->physics_world, pairs, 1024);
-
-        for (int i = 0; i < hit_count; i++)
-        {
-            uint32_t idA = pairs[i].entity_a;
-            uint32_t idB = pairs[i].entity_b;
-
-            // Save the hit to Entity A's memory
-            ColliderComponent* colA = &scene->colliders[idA];
-            if (colA->touching_count < MAX_COLLISION_OVERLAPS)
                 colA->touching_entities[colA->touching_count++] = idB;
-
-            // Save the hit to Entity B's memory
-            ColliderComponent* colB = &scene->colliders[idB];
-            if (colB->touching_count < MAX_COLLISION_OVERLAPS)
-                colB->touching_entities[colB->touching_count++] = idA;
-        }
-
-
-        // Process Collision Events
-        for (uint32_t i = 0; i < MAX_ENTITIES; i++)
-        {
-            if (!(scene->component_masks[i] & COMPONENT_COLLIDER)) continue;
-            
-            ColliderComponent* c = &scene->colliders[i];
-            
-            for (uint32_t j = 0; j < c->touching_count; j++)
-            {
-                uint32_t other_id = c->touching_entities[j];
-
-                // If it was touching last frame, it's an EVENT_STAY, otherwise it's an EVENT_ENTER
-                bool was_touching = ArrayContains(c->touching_last_frame, c->touching_last_count, other_id);
-                
-                if (was_touching)
-                    DispatchCollisionEvent(scene, i, other_id, EVENT_STAY);
-                else
-                    DispatchCollisionEvent(scene, i, other_id, EVENT_ENTER);
+                DispatchCollisionEvent(scene, idA, idB, EVENT_ENTER);
             }
-            
-            // Check for EXIT events
-            for (uint32_t j = 0; j < c->touching_last_count; j++)
+            // Add A to B
+            if (!ArrayContains(colB->touching_entities, colB->touching_count, idA) && colB->touching_count < MAX_COLLISION_OVERLAPS)
             {
-                uint32_t other_id = c->touching_last_frame[j];
+                colB->touching_entities[colB->touching_count++] = idA;
+                DispatchCollisionEvent(scene, idB, idA, EVENT_ENTER);
+            }
+        }
+        else if (events[i].type == PHYS_EVENT_EXIT)
+        {
+            // Remove B from A
+            for (uint32_t j = 0; j < colA->touching_count; j++)
+            {
+                if (colA->touching_entities[j] == idB)
+                {
+                    colA->touching_entities[j] = colA->touching_entities[colA->touching_count - 1];
+                    colA->touching_count--;
+                    DispatchCollisionEvent(scene, idA, idB, EVENT_EXIT);
+                    break;
+                }
+            }
+            // Remove A from B
+            for (uint32_t j = 0; j < colB->touching_count; j++)
+            {
+                if (colB->touching_entities[j] == idA)
+                {
+                    colB->touching_entities[j] = colB->touching_entities[colB->touching_count - 1];
+                    colB->touching_count--;
+                    DispatchCollisionEvent(scene, idB, idA, EVENT_EXIT);
+                    break;
+                }
+            }
+        }
+    }
 
-                // If it's not touching this frame, it's an EVENT_EXIT
-                bool is_touching_now = ArrayContains(c->touching_entities, c->touching_count, other_id);
-                
-                if (!is_touching_now)
-                    DispatchCollisionEvent(scene, i, other_id, EVENT_EXIT);
+    // Dispatch STAY events for anything remaining in the array
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!(scene->component_masks[i] & COMPONENT_COLLIDER))
+            continue;
+        
+        ColliderComponent* c = &scene->colliders[i];
+        
+        for (uint32_t j = 0; j < c->touching_count; )
+        {
+            uint32_t other_id = c->touching_entities[j];
+            
+            // Self-Cleaning: If the other entity was destroyed without firing an EXIT event, clean it up silently!
+            if (!(scene->component_masks[other_id] & COMPONENT_COLLIDER) || !scene->colliders[other_id].is_active)
+            {
+                c->touching_entities[j] = c->touching_entities[c->touching_count - 1];
+                c->touching_count--;
+            }
+            else
+            {
+                DispatchCollisionEvent(scene, i, other_id, EVENT_STAY);
+                j++;
             }
         }
     }
