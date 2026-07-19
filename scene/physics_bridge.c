@@ -223,6 +223,8 @@ static b3ShapeDef CreateShapeDef(B3PhysicsBody* wrapper, bool is_trigger)
     shapeDef.density = 1.0f;
     shapeDef.isSensor = is_trigger;
     shapeDef.enableSensorEvents = true;
+    if (wrapper->type == COLLIDER_MESH)
+        shapeDef.enableSensorEvents = false; // Mesh shapes do not have proxies, disable sensor events
     shapeDef.enableContactEvents = !is_trigger;
     shapeDef.userData = wrapper;
 
@@ -410,14 +412,6 @@ PhysicsBodyHandle Physics_CreateMeshCollider(PhysicsWorldHandle world, uint32_t 
         temp_indices[i] = (int32_t)indices[i];
     }
 
-    // b3MeshDef meshDef = {0};
-    // meshDef.vertices = temp_vertices;
-    // meshDef.indices = temp_indices;
-    // meshDef.vertexCount = vertex_count;
-    // meshDef.triangleCount = index_count / 3;
-
-    // wrapper->mesh_data_array = b3CreateMesh(&meshDef, NULL, 0);
-
     wrapper->mesh_vertices = temp_vertices;
     wrapper->mesh_indices = temp_indices;
 
@@ -436,16 +430,27 @@ PhysicsBodyHandle Physics_CreateMeshCollider(PhysicsWorldHandle world, uint32_t 
         if (tri_start + tris_in_chunk > total_tris) 
             tris_in_chunk = total_tris - tri_start;
 
-        // b3MeshDef meshDef = b3DefaultMeshDef();
-        b3MeshDef meshDef = {0};
-        meshDef.vertices = temp_vertices;
-        meshDef.vertexCount = vertex_count;
+        int num_chunk_indices = tris_in_chunk * 3;
+        b3Vec3* chunk_vertices = (b3Vec3*)malloc(sizeof(b3Vec3) * num_chunk_indices);
+        int32_t* chunk_indices = (int32_t*)malloc(sizeof(int32_t) * num_chunk_indices);
 
-        // Offset the index pointer for this specific chunk
-        meshDef.indices = &temp_indices[tri_start * 3]; 
+        for (int i = 0; i < num_chunk_indices; i++)
+        {
+            int32_t original_index = temp_indices[tri_start * 3 + i];
+            chunk_vertices[i] = temp_vertices[original_index];
+            chunk_indices[i] = i; 
+        }
+
+        b3MeshDef meshDef = {0};
+        meshDef.vertices = chunk_vertices;
+        meshDef.vertexCount = num_chunk_indices;
+        meshDef.indices = chunk_indices; 
         meshDef.triangleCount = tris_in_chunk;
 
         wrapper->mesh_data_array[c] = b3CreateMesh(&meshDef, NULL, 0);
+
+        free(chunk_vertices);
+        free(chunk_indices);
 
         b3ShapeDef shapeDef = CreateShapeDef(wrapper, is_trigger);
         if (wrapper->mesh_data_array[c])
@@ -481,9 +486,10 @@ PhysicsBodyHandle Physics_CreateConvexCollider(PhysicsWorldHandle world, uint32_
         temp_vertices[i] = (b3Vec3){ f[0], f[1], f[2] };
     }
 
-    // wrapper->convex_hull = b3CreateHull(temp_vertices, vertex_count, vertex_count);
-    // Limit the maximum vertices for the generated convex hull to prevent hard crashes
-    int max_hull_vertices = vertex_count > 64 ? 64 : vertex_count;
+    // Limit the maximum vertices for the generated convex hull to 64 to prevent hard crashes
+    int max_hull_vertices = vertex_count;
+    if (vertex_count > 64)
+        max_hull_vertices = 64;
     wrapper->convex_hull = b3CreateHull(temp_vertices, vertex_count, max_hull_vertices);
     wrapper->mesh_vertices = temp_vertices;
 
