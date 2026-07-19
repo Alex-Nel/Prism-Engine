@@ -222,7 +222,7 @@ static b3ShapeDef CreateShapeDef(B3PhysicsBody* wrapper, bool is_trigger)
     b3ShapeDef shapeDef = b3DefaultShapeDef();
     shapeDef.density = 1.0f;
     shapeDef.isSensor = is_trigger;
-    shapeDef.enableSensorEvents = is_trigger;
+    shapeDef.enableSensorEvents = true;
     shapeDef.enableContactEvents = !is_trigger;
     shapeDef.userData = wrapper;
 
@@ -481,7 +481,10 @@ PhysicsBodyHandle Physics_CreateConvexCollider(PhysicsWorldHandle world, uint32_
         temp_vertices[i] = (b3Vec3){ f[0], f[1], f[2] };
     }
 
-    wrapper->convex_hull = b3CreateHull(temp_vertices, vertex_count, vertex_count);
+    // wrapper->convex_hull = b3CreateHull(temp_vertices, vertex_count, vertex_count);
+    // Limit the maximum vertices for the generated convex hull to prevent hard crashes
+    int max_hull_vertices = vertex_count > 64 ? 64 : vertex_count;
+    wrapper->convex_hull = b3CreateHull(temp_vertices, vertex_count, max_hull_vertices);
     wrapper->mesh_vertices = temp_vertices;
 
     b3ShapeDef shapeDef = CreateShapeDef(wrapper, is_trigger);

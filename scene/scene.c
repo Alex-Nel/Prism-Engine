@@ -1024,8 +1024,7 @@ void Scene_SyncPhysicsPreSim(Scene* scene)
         bool is_kinematic = has_rigidbody && scene->rigidbodies[i].is_kinematic;
         bool is_dynamic = has_rigidbody && !scene->rigidbodies[i].is_kinematic;
 
-        // if (is_static || is_kinematic || (is_dynamic && t->is_dirty))
-        if (t->is_dirty)
+        if (is_static || is_kinematic || (is_dynamic && t->is_dirty))
         {
             ColliderComponent* c = &scene->colliders[i];
             if (c->physics_handle)
