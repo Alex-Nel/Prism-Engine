@@ -26,6 +26,7 @@ void Scene_Init(Scene* scene);
 void Scene_Clear(Scene* scene);
 bool Scene_Save(Scene* scene, const char* filepath);
 bool Scene_Load(Scene* scene, const char* filepath);
+
 void Scene_Update(Scene* scene);
 void Scene_FixedUpdate(Scene* scene);
 void Scene_UpdateScripts(Scene* scene);
@@ -36,13 +37,16 @@ void Scene_UpdateAnimators(Scene* scene, float delta_time);
 void Scene_UpdateSkinnedMeshBounds(Scene* scene);
 void Scene_UpdateBoneAttachments(Scene* scene);
 void Scene_UpdateTransforms(Scene* scene);
+
 void Scene_SyncPhysicsPreSim(Scene* scene);
 void Scene_StepPhysicsAndCollisions(Scene* scene);
 void Scene_SyncPhysicsPostSim(Scene* scene);
+
 Entity Scene_GetEntity(Scene* scene, const char* name);
 uint32_t Scene_GetTotalEntityCount(Scene* scene);
 uint32_t Scene_GetActiveEntityCount(Scene* scene);
 uint32_t Scene_GetEntitiesWithTag(Scene* scene, const char* target_tag, Entity* out_array, uint32_t max_results);
+
 void Scene_SetMainCamera(Scene* scene, Entity camera_entity);
 void Scene_ShutdownPhysics(Scene* scene);
 void Scene_ProcessDestroyQueue(Scene* scene);
@@ -113,6 +117,7 @@ Transform* Entity_GetTransform(Entity entity);
 MeshRendererComponent* Entity_GetMeshRenderer(Entity entity);
 SkinnedMeshRendererComponent* Entity_GetSkinnedMeshRenderer(Entity entity);
 Mesh* Entity_GetMesh(Entity entity);
+SkinnedMesh* Entity_GetSkinnedMesh(Entity entity);
 CameraComponent* Entity_GetCamera(Entity entity);
 LightComponent* Entity_GetLight(Entity entity);
 ColliderComponent* Entity_GetCollider(Entity entity);
@@ -127,11 +132,11 @@ ScriptComponent* Entity_GetScripts(Entity entity);
 
 
 
-// --- Transform setters and getters ---
+// --- Transform Setters and Getters ---
 
 void Transform_SetLocalPosition(Transform* t, Vector3 position);
-void Transform_SetLocalRotationEuler(Transform* t, Vector3 euler_angles);
 void Transform_SetLocalRotation(Transform* t, Quaternion rotation);
+void Transform_SetLocalRotationEuler(Transform* t, Vector3 euler_angles);
 void Transform_SetLocalScale(Transform* t, Vector3 scale);
 
 void Transform_SetGlobalPosition(Transform* t, Transform* parent_t, Vector3 global_position);
@@ -139,17 +144,17 @@ void Transform_SetGlobalRotation(Transform* t, Transform* parent_t, Quaternion g
 void Transform_SetGlobalRotationEuler(Transform* t, Transform* parent_t, Vector3 global_euler);
 void Transform_SetGlobalScale(Transform* t, Transform* parent_t, Vector3 global_scale);
 
-void Transform_Translate(Transform* t, Vector3 translation);
-void Transform_RotateEuler(Transform* t, Vector3 euler_addition);
-
 Vector3 Transform_GetLocalPosition(Transform* t);
 Vector3 Transform_GetGlobalPosition(Transform* t);
-Vector3 Transform_GetGlobalScale(Transform* t);
 Quaternion Transform_GetGlobalRotation(Transform* t);
+Vector3 Transform_GetGlobalScale(Transform* t);
 
 Vector3 Transform_GetForwardVector(Transform* t);
 Vector3 Transform_GetRightVector(Transform* t);
 Vector3 Transform_GetUpVector(Transform* t);
+
+void Transform_Translate(Transform* t, Vector3 translation);
+void Transform_RotateEuler(Transform* t, Vector3 euler_addition);
 
 
 

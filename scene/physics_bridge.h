@@ -92,9 +92,9 @@ Vector3 Physics_GetBodyScale(PhysicsBodyHandle body);
 
 // --- Set physics properties ---
 
-void Physics_SetBodyScale(PhysicsBodyHandle body, Vector3 scale);
 void Physics_SetBodyPosition(PhysicsBodyHandle body, Vector3 position);
 void Physics_SetBodyRotation(PhysicsBodyHandle body, Quaternion rotation);
+void Physics_SetBodyScale(PhysicsBodyHandle body, Vector3 scale);
 void Physics_SetLinearVelocity(PhysicsBodyHandle body, Vector3 velocity);
 
 void Physics_SetDamping(PhysicsBodyHandle body, float linear_drag, float angular_drag);
@@ -102,17 +102,15 @@ void Physics_SetGravityState(PhysicsWorldHandle world, PhysicsBodyHandle body, b
 void Physics_SetRotationConstraints(PhysicsBodyHandle body, bool freeze_x, bool freeze_y, bool freeze_z);
 void Physics_SetKinematicState(PhysicsWorldHandle world, PhysicsBodyHandle body, bool is_kinematic);
 
-void Physics_SetBoxExtents(void* physics_handle, Vector3 extents);
-void Physics_SetSphereRadius(void* physics_handle, float radius);
-void Physics_SetMeshScale(void* physics_handle, Vector3 scale);
-void Physics_RecalculateMass(void* physics_handle, float mass);
+void Physics_SetBoxExtents(PhysicsBodyHandle body, Vector3 extents);
+void Physics_SetSphereRadius(PhysicsBodyHandle body, float radius);
+void Physics_RecalculateMass(PhysicsBodyHandle body, float mass);
 
 
 
 // --- Used for enabling/disabling entities ---
 
 void Physics_SetBodySimulationState(PhysicsWorldHandle world, PhysicsBodyHandle body, bool enable_simulation);
-// int Physics_GetCollisions(PhysicsWorldHandle world, CollisionPair* out_pairs, int max_pairs);
 int Physics_GetEvents(PhysicsWorldHandle world, CollisionEvent* out_events, int max_events);
 void Physics_SetCollisionFilter(PhysicsWorldHandle world, PhysicsBodyHandle body, int layer, int mask);
 
@@ -128,7 +126,6 @@ int Physics_RaycastAll(PhysicsWorldHandle world, Ray ray, float max_distance, Ra
 // --- Functions to delete physics entities ---
 
 void Physics_DestroyBody(PhysicsWorldHandle world, PhysicsBodyHandle body);
-void Physics_ShutdownWorld(PhysicsWorldHandle world);
 
 
 

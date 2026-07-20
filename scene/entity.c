@@ -1297,6 +1297,23 @@ Mesh* Entity_GetMesh(Entity entity)
 
 
 
+// Returns an entities SkinnedMesh
+SkinnedMesh* Entity_GetSkinnedMesh(Entity entity)
+{
+    if (!Entity_IsValid(entity))
+        return NULL;
+    
+    // Check if the entity actually has a skinned render component
+    if (entity.scene->component_masks[entity.id] & COMPONENT_SKINNED_MESH_RENDERER)
+        return entity.scene->skinned_mesh_renderers[entity.id].mesh;
+    
+    return NULL;
+}
+
+
+
+
+
 // Returns an entities camera struct
 CameraComponent* Entity_GetCamera(Entity entity)
 {

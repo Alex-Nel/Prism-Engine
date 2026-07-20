@@ -27,28 +27,24 @@ typedef struct B3PhysicsBody
     b3WorldId worldId;
     b3BodyId bodyId;
     uint32_t entity_id;
+
     bool is_trigger;
     bool is_kinematic;
+    
     ColliderType type;
+    
     Vector3 base_extents;
     float base_radius;
+    
     b3MeshData** mesh_data_array;
     int mesh_data_count;
     b3Vec3* mesh_vertices;
     int32_t* mesh_indices;
+    
     b3HullData* convex_hull;
+    
     Vector3 current_scale;
 } B3PhysicsBody;
-
-
-
-
-
-// typedef struct SensorPair
-// {
-//     b3ShapeId sensorShapeId;
-//     b3ShapeId visitorShapeId;
-// } SensorPair;
 
 
 
@@ -91,6 +87,7 @@ typedef struct RaycastAllContext
 
 
 
+// Custom callback for a raycast
 static float PrismClosestRayCallback(b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float fraction, uint64_t userMaterialId, int triangleIndex, int childIndex, void* context)
 {
     (void)userMaterialId;
@@ -119,6 +116,7 @@ static float PrismClosestRayCallback(b3ShapeId shapeId, b3Pos point, b3Vec3 norm
 
 
 
+// Custom callback for a raycast that hits all meshes
 static float PrismAllHitsRayCallback(b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float fraction, uint64_t userMaterialId, int triangleIndex, int childIndex, void* context)
 {
     (void)userMaterialId;
@@ -172,6 +170,7 @@ static float PrismAllHitsRayCallback(b3ShapeId shapeId, b3Pos point, b3Vec3 norm
 
 
 
+// Function that creates a B3PhysicsBody during object creation
 static B3PhysicsBody* CreateBodyWrapper(B3PhysicsWorld* worldW, uint32_t entity_id, Vector3 position, bool is_trigger, ColliderType type)
 {
     b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -217,6 +216,7 @@ static B3PhysicsBody* CreateBodyWrapper(B3PhysicsWorld* worldW, uint32_t entity_
 
 
 
+// Used for creating shape definitions
 static b3ShapeDef CreateShapeDef(B3PhysicsBody* wrapper, bool is_trigger)
 {
     b3ShapeDef shapeDef = b3DefaultShapeDef();
@@ -235,6 +235,7 @@ static b3ShapeDef CreateShapeDef(B3PhysicsBody* wrapper, bool is_trigger)
 
 
 
+// Initializes a physics world
 PhysicsWorldHandle Physics_InitWorld(void)
 {
     b3WorldDef def = b3DefaultWorldDef();
@@ -250,10 +251,6 @@ PhysicsWorldHandle Physics_InitWorld(void)
     worldW->body_count = 0;
     worldW->body_capacity = 0;
 
-    // worldW->active_sensor_pairs = NULL;
-    // worldW->sensor_pair_count = 0;
-    // worldW->sensor_pair_capacity = 0;
-
     return (PhysicsWorldHandle)worldW;
 }
 
@@ -261,6 +258,7 @@ PhysicsWorldHandle Physics_InitWorld(void)
 
 
 
+// Steps through the physics simulation by the specified delta time
 void Physics_StepSimulation(PhysicsWorldHandle world, float delta_time)
 {
     if (!world || delta_time <= 0.0f)
@@ -278,6 +276,7 @@ void Physics_StepSimulation(PhysicsWorldHandle world, float delta_time)
 
 
 
+// Shuts down a physics world and deletes all the objects in it
 void Physics_ShutdownWorld(PhysicsWorldHandle world)
 {
     if (!world)
@@ -328,6 +327,17 @@ void Physics_ShutdownWorld(PhysicsWorldHandle world)
 
 
 
+
+
+
+
+
+
+
+
+
+
+// Creates a box collider with the specified extents
 PhysicsBodyHandle Physics_CreateBoxCollider(PhysicsWorldHandle world, uint32_t entity_id, Vector3 position, Vector3 extents, bool is_trigger)
 {
     if (!world)
@@ -352,6 +362,7 @@ PhysicsBodyHandle Physics_CreateBoxCollider(PhysicsWorldHandle world, uint32_t e
 
 
 
+// Creates a sphere collider with the specified radius
 PhysicsBodyHandle Physics_CreateSphereCollider(PhysicsWorldHandle world, uint32_t entity_id, Vector3 position, float radius, bool is_trigger)
 {
     if (!world)
@@ -376,6 +387,7 @@ PhysicsBodyHandle Physics_CreateSphereCollider(PhysicsWorldHandle world, uint32_
 
 
 
+// Creates a mesh collider with the specified vertices and indices
 PhysicsBodyHandle Physics_CreateMeshCollider(PhysicsWorldHandle world, uint32_t entity_id, Vector3 position, const void* vertices, int vertex_stride, int vertex_count, const uint32_t* indices, int index_count, bool is_trigger)
 {
     if (!world || !vertices || !indices || vertex_count <= 0 || index_count <= 0)
@@ -464,6 +476,7 @@ PhysicsBodyHandle Physics_CreateMeshCollider(PhysicsWorldHandle world, uint32_t 
 
 
 
+// Creates a convex mesh collider with the specified vertices and indices
 PhysicsBodyHandle Physics_CreateConvexCollider(PhysicsWorldHandle world, uint32_t entity_id, Vector3 position, const void* vertices, int vertex_stride, int vertex_count, bool is_trigger)
 {
     if (!world || !vertices || vertex_count <= 0)
@@ -475,22 +488,24 @@ PhysicsBodyHandle Physics_CreateConvexCollider(PhysicsWorldHandle world, uint32_
     if (!wrapper)
         return NULL;
 
-    b3Vec3* temp_vertices = (b3Vec3*)malloc(sizeof(b3Vec3) * vertex_count);
-    if (!temp_vertices)
-        return (PhysicsBodyHandle)wrapper;
-
-    const uint8_t* ptr = (const uint8_t*)vertices;
-    for (int i = 0; i < vertex_count; i++)
-    {
-        const float* f = (const float*)(ptr + i * vertex_stride);
-        temp_vertices[i] = (b3Vec3){ f[0], f[1], f[2] };
-    }
-
     // Limit the maximum vertices for the generated convex hull to 64 to prevent hard crashes
     int max_hull_vertices = vertex_count;
     if (vertex_count > 64)
         max_hull_vertices = 64;
-    wrapper->convex_hull = b3CreateHull(temp_vertices, vertex_count, max_hull_vertices);
+
+    b3Vec3* temp_vertices = (b3Vec3*)malloc(sizeof(b3Vec3) * max_hull_vertices);
+    if (!temp_vertices)
+        return (PhysicsBodyHandle)wrapper;
+
+    const uint8_t* ptr = (const uint8_t*)vertices;
+    for (int i = 0; i < max_hull_vertices; i++)
+    {
+        int index = (vertex_count > 64) ? (i * vertex_count) / max_hull_vertices : i;
+        const float* f = (const float*)(ptr + index * vertex_stride);
+        temp_vertices[i] = (b3Vec3){ f[0], f[1], f[2] };
+    }
+
+    wrapper->convex_hull = b3CreateHull(temp_vertices, max_hull_vertices, max_hull_vertices);
     wrapper->mesh_vertices = temp_vertices;
 
     b3ShapeDef shapeDef = CreateShapeDef(wrapper, is_trigger);
@@ -504,6 +519,7 @@ PhysicsBodyHandle Physics_CreateConvexCollider(PhysicsWorldHandle world, uint32_
 
 
 
+// Adds a rigidbody to a physics body
 void Physics_AddRigidbody(PhysicsWorldHandle world, PhysicsBodyHandle body, float mass)
 {
     (void)world;
@@ -519,6 +535,7 @@ void Physics_AddRigidbody(PhysicsWorldHandle world, PhysicsBodyHandle body, floa
         b3Body_SetType(w->bodyId, b3_dynamicBody);
         b3Body_ApplyMassFromShapes(w->bodyId);
         b3MassData massData = b3Body_GetMassData(w->bodyId);
+
         if (massData.mass > 0.0f)
         {
             float scale = mass / massData.mass;
@@ -528,6 +545,7 @@ void Physics_AddRigidbody(PhysicsWorldHandle world, PhysicsBodyHandle body, floa
             massData.inertia.cz.x *= scale; massData.inertia.cz.y *= scale; massData.inertia.cz.z *= scale;
             b3Body_SetMassData(w->bodyId, massData);
         }
+
         b3Body_SetAwake(w->bodyId, true);
     }
     else
@@ -540,6 +558,17 @@ void Physics_AddRigidbody(PhysicsWorldHandle world, PhysicsBodyHandle body, floa
 
 
 
+
+
+
+
+
+
+
+
+
+
+// Returns a physics body position in the world
 Vector3 Physics_GetBodyPosition(PhysicsBodyHandle body)
 {
     if (!body)
@@ -558,6 +587,7 @@ Vector3 Physics_GetBodyPosition(PhysicsBodyHandle body)
 
 
 
+// Returns a physics body rotation in the world as a Quaternion
 Quaternion Physics_GetBodyRotation(PhysicsBodyHandle body)
 {
     if (!body)
@@ -572,6 +602,95 @@ Quaternion Physics_GetBodyRotation(PhysicsBodyHandle body)
     return (Quaternion){ rot.v.x, rot.v.y, rot.v.z, rot.s };
 }
 
+
+
+
+
+// Returns a physics body scale in the world
+Vector3 Physics_GetBodyScale(PhysicsBodyHandle body)
+{
+    if (!body)
+        return (Vector3){0.0f, 0.0f, 0.0f};
+    
+    B3PhysicsBody* w = (B3PhysicsBody*)body;
+
+    if (!b3Body_IsValid(w->bodyId))
+        return (Vector3){0.0f, 0.0f, 0.0f};
+
+    return w->current_scale;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Sets the position of a physics body to a specified point
+void Physics_SetBodyPosition(PhysicsBodyHandle body, Vector3 position)
+{
+    if (!body)
+        return;
+    
+    B3PhysicsBody* w = (B3PhysicsBody*)body;
+
+    if (!b3Body_IsValid(w->bodyId))
+        return;
+
+    b3Pos current_p = b3Body_GetPosition(w->bodyId);
+    if (fabsf(current_p.x - position.x) < 0.001f && 
+        fabsf(current_p.y - position.y) < 0.001f && 
+        fabsf(current_p.z - position.z) < 0.001f) 
+    {
+        return;
+    }
+
+    b3Pos p = (b3Pos){ position.x, position.y, position.z };
+    b3Body_SetTransform(w->bodyId, p, b3Body_GetRotation(w->bodyId));
+    b3Body_SetAwake(w->bodyId, true);
+}
+
+
+
+
+
+// Sets a physics body rotation to a specified quaternion
+void Physics_SetBodyRotation(PhysicsBodyHandle body, Quaternion rotation)
+{
+    if (!body)
+        return;
+    
+    B3PhysicsBody* w = (B3PhysicsBody*)body;
+
+    if (!b3Body_IsValid(w->bodyId))
+        return;
+
+    b3Quat q_curr = b3Body_GetRotation(w->bodyId);
+    float dot = q_curr.v.x * rotation.x + q_curr.v.y * rotation.y + q_curr.v.z * rotation.z + q_curr.s * rotation.w;
+    if (fabsf(dot) > 0.999f) 
+        return;
+
+    if (rotation.x == 0.0f && rotation.y == 0.0f && rotation.z == 0.0f && rotation.w == 0.0f)
+        rotation.w = 1.0f;
+
+    b3Quat q = (b3Quat){ (b3Vec3){ rotation.x, rotation.y, rotation.z }, rotation.w };
+    b3Body_SetTransform(w->bodyId, b3Body_GetPosition(w->bodyId), q);
+    b3Body_SetAwake(w->bodyId, true);
+}
+
+
+
+
+
+// Sets the scale of a physics body to a specified size
 void Physics_SetBodyScale(PhysicsBodyHandle body, Vector3 scale)
 {
     if (!body)
@@ -653,60 +772,7 @@ void Physics_SetBodyScale(PhysicsBodyHandle body, Vector3 scale)
 
 
 
-void Physics_SetBodyPosition(PhysicsBodyHandle body, Vector3 position)
-{
-    if (!body)
-        return;
-    
-    B3PhysicsBody* w = (B3PhysicsBody*)body;
-
-    if (!b3Body_IsValid(w->bodyId))
-        return;
-
-    b3Pos current_p = b3Body_GetPosition(w->bodyId);
-    if (fabsf(current_p.x - position.x) < 0.001f && 
-        fabsf(current_p.y - position.y) < 0.001f && 
-        fabsf(current_p.z - position.z) < 0.001f) 
-    {
-        return;
-    }
-
-    b3Pos p = (b3Pos){ position.x, position.y, position.z };
-    b3Body_SetTransform(w->bodyId, p, b3Body_GetRotation(w->bodyId));
-    b3Body_SetAwake(w->bodyId, true);
-}
-
-
-
-
-
-void Physics_SetBodyRotation(PhysicsBodyHandle body, Quaternion rotation)
-{
-    if (!body)
-        return;
-    
-    B3PhysicsBody* w = (B3PhysicsBody*)body;
-
-    if (!b3Body_IsValid(w->bodyId))
-        return;
-
-    b3Quat q_curr = b3Body_GetRotation(w->bodyId);
-    float dot = q_curr.v.x * rotation.x + q_curr.v.y * rotation.y + q_curr.v.z * rotation.z + q_curr.s * rotation.w;
-    if (fabsf(dot) > 0.999f) 
-        return;
-
-    if (rotation.x == 0.0f && rotation.y == 0.0f && rotation.z == 0.0f && rotation.w == 0.0f)
-        rotation.w = 1.0f;
-
-    b3Quat q = (b3Quat){ (b3Vec3){ rotation.x, rotation.y, rotation.z }, rotation.w };
-    b3Body_SetTransform(w->bodyId, b3Body_GetPosition(w->bodyId), q);
-    b3Body_SetAwake(w->bodyId, true);
-}
-
-
-
-
-
+// Sets the linear velocity of a physics body
 void Physics_SetLinearVelocity(PhysicsBodyHandle body, Vector3 velocity)
 {
     if (!body)
@@ -725,6 +791,7 @@ void Physics_SetLinearVelocity(PhysicsBodyHandle body, Vector3 velocity)
 
 
 
+// Sets the linear and angular damping variables of a physics body
 void Physics_SetDamping(PhysicsBodyHandle body, float linear_drag, float angular_drag)
 {
     if (!body)
@@ -743,6 +810,7 @@ void Physics_SetDamping(PhysicsBodyHandle body, float linear_drag, float angular
 
 
 
+// Sets whether a physics body is affected by gravity
 void Physics_SetGravityState(PhysicsWorldHandle world, PhysicsBodyHandle body, bool use_gravity)
 {
     (void)world;
@@ -762,6 +830,7 @@ void Physics_SetGravityState(PhysicsWorldHandle world, PhysicsBodyHandle body, b
 
 
 
+// Sets the rotational constraints of a physics body
 void Physics_SetRotationConstraints(PhysicsBodyHandle body, bool freeze_x, bool freeze_y, bool freeze_z)
 {
     if (!body)
@@ -783,6 +852,7 @@ void Physics_SetRotationConstraints(PhysicsBodyHandle body, bool freeze_x, bool 
 
 
 
+// Sets whether a physics body is kinematic or dynamic
 void Physics_SetKinematicState(PhysicsWorldHandle world, PhysicsBodyHandle body, bool is_kinematic)
 {
     (void)world;
@@ -812,12 +882,13 @@ void Physics_SetKinematicState(PhysicsWorldHandle world, PhysicsBodyHandle body,
 
 
 
-void Physics_SetBoxExtents(void* physics_handle, Vector3 extents)
+// Sets the box extents of a box collider
+void Physics_SetBoxExtents(PhysicsBodyHandle body, Vector3 extents)
 {
-    if (!physics_handle)
+    if (!body)
         return;
     
-    B3PhysicsBody* w = (B3PhysicsBody*)physics_handle;
+    B3PhysicsBody* w = (B3PhysicsBody*)body;
 
     if (!b3Body_IsValid(w->bodyId))
         return;
@@ -838,12 +909,13 @@ void Physics_SetBoxExtents(void* physics_handle, Vector3 extents)
 
 
 
-void Physics_SetSphereRadius(void* physics_handle, float radius)
+// Sets the radius of a sphere collider
+void Physics_SetSphereRadius(PhysicsBodyHandle body, float radius)
 {
-    if (!physics_handle)
+    if (!body)
         return;
     
-    B3PhysicsBody* w = (B3PhysicsBody*)physics_handle;
+    B3PhysicsBody* w = (B3PhysicsBody*)body;
 
     if (!b3Body_IsValid(w->bodyId))
         return;
@@ -865,25 +937,13 @@ void Physics_SetSphereRadius(void* physics_handle, float radius)
 
 
 
-void Physics_SetMeshScale(void* physics_handle, Vector3 scale)
+// Forces physics engine to recalculate the mass of a body
+void Physics_RecalculateMass(PhysicsBodyHandle body, float mass)
 {
-    if (!physics_handle)
+    if (!body)
         return;
     
-    B3PhysicsBody* w = (B3PhysicsBody*)physics_handle;
-    Physics_SetBodyScale((PhysicsBodyHandle)w, scale);
-}
-
-
-
-
-
-void Physics_RecalculateMass(void* physics_handle, float mass)
-{
-    if (!physics_handle)
-        return;
-    
-    B3PhysicsBody* w = (B3PhysicsBody*)physics_handle;
+    B3PhysicsBody* w = (B3PhysicsBody*)body;
 
     if (!b3Body_IsValid(w->bodyId))
         return;
@@ -918,6 +978,17 @@ void Physics_RecalculateMass(void* physics_handle, float mass)
 
 
 
+
+
+
+
+
+
+
+
+
+
+// Sets the simulation state of a physics body
 void Physics_SetBodySimulationState(PhysicsWorldHandle world, PhysicsBodyHandle body, bool enable_simulation)
 {
     (void)world;
@@ -944,6 +1015,7 @@ void Physics_SetBodySimulationState(PhysicsWorldHandle world, PhysicsBodyHandle 
 
 
 
+// Returns all the collision events in a physics world
 int Physics_GetEvents(PhysicsWorldHandle world, CollisionEvent* out_events, int max_events)
 {
     if (!world || !out_events || max_events <= 0)
@@ -1038,156 +1110,7 @@ int Physics_GetEvents(PhysicsWorldHandle world, CollisionEvent* out_events, int 
 
 
 
-// int Physics_GetCollisions(PhysicsWorldHandle world, CollisionPair* out_pairs, int max_pairs)
-// {
-//     if (!world || !out_pairs || max_pairs <= 0)
-//         return 0;
-//     B3PhysicsWorld* worldW = (B3PhysicsWorld*)world;
-
-//     int pair_count = 0;
-
-//     if (!worldW->bodies)
-//         return 0;
-
-//     for (int b = 0; b < worldW->body_count; ++b)
-//     {
-//         B3PhysicsBody* bodyW = worldW->bodies[b];
-//         if (!bodyW || !b3Body_IsValid(bodyW->bodyId) || !b3Body_IsEnabled(bodyW->bodyId))
-//             continue;
-
-//         int contactCapacity = b3Body_GetContactCapacity(bodyW->bodyId);
-//         if (contactCapacity > 0)
-//         {
-//             b3ContactData* contacts = (b3ContactData*)malloc(sizeof(b3ContactData) * contactCapacity);
-//             if (contacts)
-//             {
-//                 int contactCount = b3Body_GetContactData(bodyW->bodyId, contacts, contactCapacity);
-//                 for (int i = 0; i < contactCount; i++)
-//                 {
-//                     if (pair_count >= max_pairs)
-//                         break;
-//                     if (!b3Shape_IsValid(contacts[i].shapeIdA) || !b3Shape_IsValid(contacts[i].shapeIdB))
-//                         continue;
-
-//                     bool touching = false;
-//                     for (int m = 0; m < contacts[i].manifoldCount; ++m)
-//                     {
-//                         const b3Manifold* manifold = &contacts[i].manifolds[m];
-//                         if (manifold->pointCount > 0)
-//                         {
-//                             for (int p = 0; p < manifold->pointCount; ++p)
-//                             {
-//                                 if (manifold->points[p].separation <= 0.005f || manifold->points[p].totalNormalImpulse > 0.0f)
-//                                 {
-//                                     touching = true;
-//                                     break;
-//                                 }
-//                             }
-//                         }
-
-//                         if (touching)
-//                             break;
-//                     }
-
-//                     if (!touching)
-//                         continue;
-
-//                     B3PhysicsBody* wA = (B3PhysicsBody*)b3Shape_GetUserData(contacts[i].shapeIdA);
-//                     B3PhysicsBody* wB = (B3PhysicsBody*)b3Shape_GetUserData(contacts[i].shapeIdB);
-//                     if (!wA || !wB || wA == wB)
-//                         continue;
-
-//                     uint32_t idA = wA->entity_id;
-//                     uint32_t idB = wB->entity_id;
-//                     bool is_trigger_event = (wA->is_trigger || wB->is_trigger);
-
-//                     bool already_added = false;
-//                     for (int k = 0; k < pair_count; ++k)
-//                     {
-//                         if ((out_pairs[k].entity_a == idA && out_pairs[k].entity_b == idB) ||
-//                             (out_pairs[k].entity_a == idB && out_pairs[k].entity_b == idA))
-//                         {
-//                             already_added = true;
-//                             if (is_trigger_event)
-//                                 out_pairs[k].is_trigger_event = true;
-
-//                             break;
-//                         }
-//                     }
-
-//                     if (!already_added && pair_count < max_pairs)
-//                     {
-//                         CollisionPair pair;
-//                         pair.entity_a = idA;
-//                         pair.entity_b = idB;
-//                         pair.is_trigger_event = is_trigger_event;
-//                         out_pairs[pair_count++] = pair;
-//                     }
-//                 }
-
-//                 free(contacts);
-//             }
-//         }
-//     }
-
-//     for (int i = 0; i < worldW->sensor_pair_count; )
-//     {
-//         if (pair_count >= max_pairs)
-//             break;
-
-//         b3ShapeId sensorId = worldW->active_sensor_pairs[i].sensorShapeId;
-//         b3ShapeId visitorId = worldW->active_sensor_pairs[i].visitorShapeId;
-
-//         if (!b3Shape_IsValid(sensorId) || !b3Shape_IsValid(visitorId))
-//         {
-//             worldW->active_sensor_pairs[i] = worldW->active_sensor_pairs[worldW->sensor_pair_count - 1];
-//             worldW->sensor_pair_count--;
-//             continue; // Don't increment i. We must re-check the element we just swapped in.
-//         }
-
-//         B3PhysicsBody* wA = (B3PhysicsBody*)b3Shape_GetUserData(sensorId);
-//         B3PhysicsBody* wB = (B3PhysicsBody*)b3Shape_GetUserData(visitorId);
-        
-//         if (!wA || !wB || wA == wB)
-//         {
-//             i++;
-//             continue;
-//         }
-
-//         uint32_t idA = wA->entity_id;
-//         uint32_t idB = wB->entity_id;
-
-//         bool already_added = false;
-//         for (int k = 0; k < pair_count; ++k)
-//         {
-//             if ((out_pairs[k].entity_a == idA && out_pairs[k].entity_b == idB) ||
-//                 (out_pairs[k].entity_a == idB && out_pairs[k].entity_b == idA))
-//             {
-//                 already_added = true;
-//                 out_pairs[k].is_trigger_event = true;
-//                 break;
-//             }
-//         }
-
-//         if (!already_added)
-//         {
-//             CollisionPair pair;
-//             pair.entity_a = idA;
-//             pair.entity_b = idB;
-//             pair.is_trigger_event = true;
-//             out_pairs[pair_count++] = pair;
-//         }
-
-//         i++;
-//     }
-
-//     return pair_count;
-// }
-
-
-
-
-
+// Sets the collision layer and mask of a physics body
 void Physics_SetCollisionFilter(PhysicsWorldHandle world, PhysicsBodyHandle body, int layer, int mask)
 {
     (void)world;
@@ -1217,6 +1140,17 @@ void Physics_SetCollisionFilter(PhysicsWorldHandle world, PhysicsBodyHandle body
 
 
 
+
+
+
+
+
+
+
+
+
+
+// Performs a raycast in the world with a given ray. Returns the first object hit
 bool Physics_Raycast(PhysicsWorldHandle world, Ray ray, float max_distance, RaycastHit* out_hit, int collision_mask, bool hit_triggers)
 {
     if (out_hit)
@@ -1254,6 +1188,7 @@ bool Physics_Raycast(PhysicsWorldHandle world, Ray ray, float max_distance, Rayc
 
 
 
+// Performs a raycast in the world with a given ray. Returns all objects hit
 int Physics_RaycastAll(PhysicsWorldHandle world, Ray ray, float max_distance, RaycastHit* out_hits, int max_hits, int collision_mask, bool hit_triggers)
 {
     if (!world || !out_hits || max_hits <= 0 || max_distance <= 0.0f)
@@ -1306,6 +1241,17 @@ int Physics_RaycastAll(PhysicsWorldHandle world, Ray ray, float max_distance, Ra
 
 
 
+
+
+
+
+
+
+
+
+
+
+// Destroys a physics body in a world
 void Physics_DestroyBody(PhysicsWorldHandle world, PhysicsBodyHandle body)
 {
     if (!body)

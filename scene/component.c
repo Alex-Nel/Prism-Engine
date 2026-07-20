@@ -188,8 +188,8 @@ void Collider_SetMeshScale(Entity entity, Vector3 new_scale)
     // Update the ECS state
     c->mesh_scale = new_scale;
 
-    // Tell Bullet to scale the mesh
-    Physics_SetMeshScale(c->physics_handle, new_scale);
+    // Tell physics engine to scale the mesh
+    Physics_SetBodyScale(c->physics_handle, new_scale);
 
     // Mesh colliders should usually be static, but update just in case (undefined bahavior)
     RigidbodyComponent* rb = Entity_GetRigidbody(entity);
@@ -257,7 +257,7 @@ void Collider_SetConvex(Entity entity, bool is_convex)
             rb->mass = 0.0f;
         }
 
-        // Push all the saved states back into the fresh Bullet object
+        // Push all the saved states back into the new physics object
         Physics_AddRigidbody(entity.scene->physics_world, c->physics_handle, rb->mass);
         Physics_SetDamping(c->physics_handle, rb->linear_drag, rb->angular_drag);
         Physics_SetGravityState(entity.scene->physics_world, c->physics_handle, rb->use_gravity);
