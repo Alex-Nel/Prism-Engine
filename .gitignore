@@ -1,11 +1,6 @@
 .vscode/
-build/
-SampleObjects/
-lib/*.a
-lib/*.dll
-lib/*.so
-include/bullet
-include/SDL3
+build*/
+lib*/
 
 *.png
 *.jpg
@@ -13,5 +8,6 @@ include/SDL3
 
 *.exe
 *.dll
+
 main.c
 main.cpp

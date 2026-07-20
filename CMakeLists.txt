@@ -149,7 +149,7 @@ target_include_directories(PrismEngineLib PUBLIC
 target_include_directories(PrismEngineLib PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}         # Allows api source to include needed headers
     ${CMAKE_CURRENT_SOURCE_DIR}/include # Hides internal vendor headers (glad, stb)
-    ${box3d_SOURCE_DIR}/src         # Hides physics library
+    ${box3d_SOURCE_DIR}/src             # Hides physics library
     ${cjson_SOURCE_DIR}                 # Hides JSON library
 )
 
