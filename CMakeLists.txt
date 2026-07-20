@@ -45,25 +45,26 @@ FetchContent_Declare(
 set(SDL_SHARED OFF CACHE BOOL "" FORCE)
 set(SDL_STATIC ON CACHE BOOL "" FORCE)
 set(SDL_TEST OFF CACHE BOOL "" FORCE)
+set(SDL_TESTS OFF CACHE BOOL "" FORCE)
+set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
 set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(SDL_X11_XTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(SDL3)
 
 
 
-message(STATUS "Fetching Bullet3 from GitHub...")
+message(STATUS "Fetching Box3D from GitHub...")
 FetchContent_Declare(
-    bullet3
-    GIT_REPOSITORY https://github.com/bulletphysics/bullet3.git
-    GIT_TAG 3.25
+    box3d
+    GIT_REPOSITORY https://github.com/erincatto/box3d.git
+    GIT_TAG v0.1.0
     GIT_SHALLOW TRUE
 )
-set(BUILD_UNIT_TESTS OFF CACHE BOOL "" FORCE)
-set(BUILD_BULLET2_DEMOS OFF CACHE BOOL "" FORCE)
-set(BUILD_CPU_DEMOS OFF CACHE BOOL "" FORCE)
-set(BUILD_OPENGL3_DEMOS OFF CACHE BOOL "" FORCE)
-set(BUILD_EXTRAS OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(bullet3)
+set(BOX3D_SAMPLES OFF CACHE BOOL "" FORCE)
+set(BOX3D_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+set(BOX3D_BENCHMARKS OFF CACHE BOOL "" FORCE)
+set(BOX3D_DOCS OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(box3d)
 
 
 
@@ -148,16 +149,14 @@ target_include_directories(PrismEngineLib PUBLIC
 target_include_directories(PrismEngineLib PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}         # Allows api source to include needed headers
     ${CMAKE_CURRENT_SOURCE_DIR}/include # Hides internal vendor headers (glad, stb)
-    ${bullet3_SOURCE_DIR}/src           # Hides physics library
+    ${box3d_SOURCE_DIR}/src         # Hides physics library
     ${cjson_SOURCE_DIR}                 # Hides JSON library
 )
 
 # PRIVATE: The engine uses these libraries natively.
 target_link_libraries(PrismEngineLib PRIVATE
     SDL3::SDL3
-    BulletDynamics
-    BulletCollision
-    LinearMath
+    box3d::box3d
     OpenGL::GL
     cjson
     assimp

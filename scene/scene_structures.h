@@ -303,9 +303,6 @@ typedef struct ColliderComponent
     uint32_t touching_entities[MAX_COLLISION_OVERLAPS];
     uint32_t touching_count;
 
-    uint32_t touching_last_frame[MAX_COLLISION_OVERLAPS];
-    uint32_t touching_last_count;
-
     CollisionLayer collision_layer;
     int collision_mask;
 } ColliderComponent;
