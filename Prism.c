@@ -53,6 +53,7 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
     Engine_SetClearColor(0.8f, 0.8f, 0.8f, 1.0f);
 
     engine.is_running = true;
+    engine.accumulator = 0.0f;
 
     // Core moduels init
     Input_Init();
@@ -101,7 +102,8 @@ void Engine_SetPreUpdateCallback(EngineUpdateCallback callback)
 static void Engine_OnModalEvent(void* userdata)
 {
     Scene* active_scene = (Scene*)userdata;
-    if (!active_scene) return;
+    if (!active_scene)
+        return;
 
     // Force the renderer to update its viewport immediately
     uint32_t w = Platform_GetWindowWidth(engine.window);
@@ -112,6 +114,15 @@ static void Engine_OnModalEvent(void* userdata)
 
     // Tick the time to prevent physics/animation explosions when we let go
     Time_Tick();
+
+    engine.accumulator += Time_DeltaTime();
+
+    float fixed_dt = Time_FixedDeltaTime();
+    while (engine.accumulator >= fixed_dt)
+    {
+        Scene_FixedUpdate(active_scene);
+        engine.accumulator -= fixed_dt;
+    }
 
     // Update scripts/animations
     Scene_Update(active_scene);
@@ -138,14 +149,14 @@ void Engine_Run(Scene* active_scene)
 
     Log_Info("Running Scene");
 
-    float accumulator = 0.0f;
+    engine.accumulator = 0.0f;
 
     while (engine.is_running)
     {
         // Advance the engine clock
         Time_Tick();
 
-        accumulator += Time_DeltaTime();
+        engine.accumulator += Time_DeltaTime();
         
         // Poll through events
         Event e;
@@ -170,10 +181,10 @@ void Engine_Run(Scene* active_scene)
 
         // Update accumulator and fixed updates
         float fixed_dt = Time_FixedDeltaTime();
-        while (accumulator >= fixed_dt)
+        while (engine.accumulator >= fixed_dt)
         {
             Scene_FixedUpdate(active_scene);
-            accumulator -= fixed_dt;
+            engine.accumulator -= fixed_dt;
         }
 
         // Update scene and physics
@@ -804,11 +815,17 @@ void Engine_RenderScene(Scene* scene)
     if (!scene)
         return;
 
+    uint32_t win_w = Platform_GetWindowWidth(engine.window);
+    uint32_t win_h = Platform_GetWindowHeight(engine.window);
+
     CameraComponent* cam = &scene->cameras[scene->main_camera_id];
-    cam->viewport_x = 0;
-    cam->viewport_y = 0;
-    cam->viewport_width = (uint32_t)Platform_GetWindowWidth(engine.window);
-    cam->viewport_height = (uint32_t)Platform_GetWindowHeight(engine.window);
+    if (win_w > 0 && win_h > 0)
+    {
+        cam->viewport_x = 0;
+        cam->viewport_y = 0;
+        cam->viewport_width = win_w;
+        cam->viewport_height = win_h;
+    }
 
     // Make an empty render packet to send to the renderer
     RenderPacket packet = {0};
@@ -855,6 +872,15 @@ void Engine_RenderScene(Scene* scene)
         Transform* cam_transform = &scene->transforms[cam_id];
         CameraComponent* cam_comp = &scene->cameras[cam_id];
 
+        // Keep every cameras viewport in sync with the current window size
+        if (win_w > 0 && win_h > 0)
+        {
+            cam_comp->viewport_x = 0;
+            cam_comp->viewport_y = 0;
+            cam_comp->viewport_width = win_w;
+            cam_comp->viewport_height = win_h;
+        }
+
         // Clear Screen
         if (cam_comp->clear_flags == CLEAR_COLOR_AND_DEPTH)
         {
@@ -874,8 +900,8 @@ void Engine_RenderScene(Scene* scene)
         packet.projection_matrix = cam_comp->projection_matrix;
         packet.camera_pos = global_pos;
         packet.has_skybox = (cam_comp->clear_flags == CLEAR_COLOR_AND_DEPTH) ? scene->has_skybox : false;
-        packet.window_width = cam->viewport_width;
-        packet.window_height = cam->viewport_height;
+        packet.window_width = cam_comp->viewport_width;
+        packet.window_height = cam_comp->viewport_height;
 
         Matrix4 view_proj = Matrix4Multiply(packet.projection_matrix, packet.view_matrix);
         Frustum cam_frustum = Frustum_ExtractFromMatrix(view_proj);

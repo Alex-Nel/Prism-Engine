@@ -85,7 +85,7 @@ namespace Prism
     }
 
     void Scene::SetSkybox(Prism::Texture* skybox_text, Prism::Shader* custom_shader) {
-        ::Shader* c_shader;
+        ::Shader* c_shader = nullptr;
 
         if (custom_shader != nullptr)
             c_shader = static_cast<::Shader*>(custom_shader->GetRaw());

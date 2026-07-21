@@ -202,7 +202,7 @@ namespace Prism
     void CameraComponent::RemoveLayerFromMask(uint8_t layer_index) {
         this->culling_masks &= ~(1u << layer_index); // Remove a specific layer from the camera's sight
     }
-    void CameraComponent::SetViewport(float x, float y, float width, float height) {
+    void CameraComponent::SetViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height) {
         this->viewport_x = x;
         this->viewport_y = y;
         this->viewport_width = width;

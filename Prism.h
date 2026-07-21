@@ -19,6 +19,7 @@ typedef struct PrismEngine
     Window* window;
     Renderer* renderer;
     bool is_running;
+    float accumulator;
     uint32_t target_fps;
 } PrismEngine;
 

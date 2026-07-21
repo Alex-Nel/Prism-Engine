@@ -336,10 +336,10 @@ Matrix4 Matrix4Inverse(Matrix4 m)
 
     det = 1.0f / det;
 
-    for (int i = 0; i < 16; i++)
-    {
-        ((float*)&inv)[i] *= det;
-    }
+    inv.m00 *= det; inv.m10 *= det; inv.m20 *= det; inv.m30 *= det;
+    inv.m01 *= det; inv.m11 *= det; inv.m21 *= det; inv.m31 *= det;
+    inv.m02 *= det; inv.m12 *= det; inv.m22 *= det; inv.m32 *= det;
+    inv.m03 *= det; inv.m13 *= det; inv.m23 *= det; inv.m33 *= det;
 
     return inv;
 }

@@ -238,10 +238,10 @@ namespace Prism
         uint32_t culling_masks;
         int render_order;
         CameraClearFlags clear_flags;
-        float viewport_x;
-        float viewport_y;
-        float viewport_width;
-        float viewport_height;
+        uint32_t viewport_x;
+        uint32_t viewport_y;
+        uint32_t viewport_width;
+        uint32_t viewport_height;
 
 
         void SetActive(bool active) { this->is_active = active; }
@@ -253,7 +253,7 @@ namespace Prism
         void SetCullingMask(uint32_t layer_index);
         void AddLayerToMask(uint8_t layer_index);
         void RemoveLayerFromMask(uint8_t layer_index);
-        void SetViewport(float x, float y, float width, float height);
+        void SetViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height);
         void SetFOV(float fov);
     };
 

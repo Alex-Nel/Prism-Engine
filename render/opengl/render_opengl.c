@@ -1698,8 +1698,7 @@ static void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
-    internal->state.window_width = packet->window_width;
-    internal->state.window_height = packet->window_height;
+    OpenGL_SetViewport(r, 0, 0, packet->window_width, packet->window_height);
 
     internal->state.view_matrix = packet->view_matrix;
     internal->state.projection_matrix = packet->projection_matrix;
@@ -1736,7 +1735,7 @@ static void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
     else
         internal->state.gamma = internal->state.settings.gamma > 0.01f ? internal->state.settings.gamma : 2.2f;
     
-    if (packet->skybox_shader.id != 0)
+    if (packet->skybox_shader.id != 0 && packet->skybox_shader.id < MAX_RESOURCES && internal->shader_pool[packet->skybox_shader.id].active)
         internal->skybox.default_shader = packet->skybox_shader;
 
     // Reset the queue for the new frame
@@ -2447,6 +2446,12 @@ static void OpenGL_DrawSkybox(OpenGL_Backend* internal)
 {
     uint32_t shader_id = internal->skybox.default_shader.id;
     uint32_t tex_id = internal->state.skybox_texture.id;
+
+    // Validate both handles so a stale ID can't bind a program.
+    if (shader_id >= MAX_RESOURCES || !internal->shader_pool[shader_id].active)
+        return;
+    if (tex_id >= MAX_RESOURCES || !internal->texture_pool[tex_id].active)
+        return;
 
     if (shader_id != 0 && tex_id != 0)
     {
