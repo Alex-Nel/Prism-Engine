@@ -68,6 +68,8 @@ typedef struct CollisionEvent
 
 PhysicsWorldHandle Physics_InitWorld(void);
 void Physics_StepSimulation(PhysicsWorldHandle world, float delta_time);
+void Physics_SetGravity(PhysicsWorldHandle world, Vector3 gravity);
+Vector3 Physics_GetGravity(PhysicsWorldHandle world);
 void Physics_ShutdownWorld(PhysicsWorldHandle world);
 
 

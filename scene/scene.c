@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stddef.h>
 #include "scene.h"
+#include "scene/physics_bridge.h"
 
 
 
@@ -50,6 +51,7 @@ void Scene_Init(Scene* scene)
     scene->main_camera_id = 0;
 
     scene->physics_world = Physics_InitWorld();
+    scene->gravity = (Vector3){0.0f, -9.81f, 0.0f};
 
     // Setting skybox information
     scene->skybox.background_color = (Color){0.8f, 0.8f, 0.8f, 1.0f};
@@ -1308,6 +1310,33 @@ void Scene_SetMainCamera(Scene* scene, Entity camera_entity)
     {
         scene->main_camera_id = camera_entity.id;
     }
+}
+
+
+
+
+
+// Sets the gravity vector of the scene
+void Scene_SetGravity(Scene* scene, Vector3 gravity)
+{
+    if (!scene)
+        return;
+
+    scene->gravity = gravity;
+    Physics_SetGravity(scene->physics_world, gravity);
+}
+
+
+
+
+
+// Returns the gravity vector of the scene
+Vector3 Scene_GetGravity(Scene* scene)
+{
+    if (!scene)
+        return (Vector3){0.0f, 0.0f, 0.0f};
+
+    return scene->gravity;
 }
 
 

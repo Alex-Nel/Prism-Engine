@@ -63,6 +63,8 @@ namespace Prism
         uint32_t GetActiveEntityCount();
         std::vector<Prism::Entity> GetEntitiesWithTag(const std::string& tag);
         void SetMainCamera(Entity cameraEntity);
+        void SetGravity(Prism::Vector3 gravity);
+        Vector3 GetGravity();
         void SetSkybox(Prism::Texture* skybox_text, Prism::Shader* custom_shader = nullptr);
         void SetSkybox(Prism::Color color);
         void RemoveSkybox();

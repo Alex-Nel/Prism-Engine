@@ -1,4 +1,5 @@
 #include "physics_bridge.h"
+#include "box3d/math_functions.h"
 #include <box3d/box3d.h>
 #include <stdlib.h>
 #include <string.h>
@@ -236,7 +237,7 @@ static b3ShapeDef CreateShapeDef(B3PhysicsBody* wrapper, bool is_trigger)
 
 
 // Initializes a physics world
-PhysicsWorldHandle Physics_InitWorld(void)
+PhysicsWorldHandle Physics_InitWorld()
 {
     b3WorldDef def = b3DefaultWorldDef();
     def.gravity = (b3Vec3){ 0.0f, -9.81f, 0.0f };
@@ -270,6 +271,47 @@ void Physics_StepSimulation(PhysicsWorldHandle world, float delta_time)
         return;
 
     b3World_Step(worldW->worldId, delta_time, 4);
+}
+
+
+
+
+
+// Sets the gravity of the physics world
+void Physics_SetGravity(PhysicsWorldHandle world, Vector3 gravity)
+{
+    if (!world)
+        return;
+
+    B3PhysicsWorld* worldW = (B3PhysicsWorld*)world;
+
+    b3World_SetGravity(worldW->worldId, (b3Vec3){gravity.x, gravity.y, gravity.z});
+
+    // Wake up all bodies so they respond to the new gravity
+    for (int i = 0; i < worldW->body_count; i++)
+    {
+        if (worldW->bodies[i] && !worldW->bodies[i]->is_kinematic)
+        {
+            b3Body_SetAwake(worldW->bodies[i]->bodyId, true);
+        }
+    }
+}
+
+
+
+
+
+// Returns the gravity of the physics world
+Vector3 Physics_GetGravity(PhysicsWorldHandle world)
+{
+    if (!world)
+        return (Vector3){0.0f, 0.0f, 0.0f};
+
+    B3PhysicsWorld* worldW = (B3PhysicsWorld*)world;
+
+    b3Vec3 gravity = b3World_GetGravity(worldW->worldId);
+
+    return (Vector3){gravity.x, gravity.y, gravity.z};
 }
 
 

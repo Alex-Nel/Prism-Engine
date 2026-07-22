@@ -506,6 +506,7 @@ typedef struct Scene
 
     uint32_t main_camera_id;
     PhysicsWorldHandle physics_world;
+    Vector3 gravity;
 
 
     // Variables for the skybox

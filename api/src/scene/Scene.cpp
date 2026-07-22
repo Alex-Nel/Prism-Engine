@@ -84,6 +84,15 @@ namespace Prism
         ::Scene_SetMainCamera(static_cast<::Scene*>(m_RawScene), raw_cam);
     }
 
+    void Scene::SetGravity(Prism::Vector3 gravity) {
+        ::Scene_SetGravity(static_cast<::Scene*>(m_RawScene), ::Vector3{gravity.x, gravity.y, gravity.z});
+    }
+
+    Vector3 Scene::GetGravity() {
+        ::Vector3 gravity = ::Scene_GetGravity(static_cast<::Scene*>(m_RawScene));
+        return Prism::Vector3(gravity.x, gravity.y, gravity.z);
+    }
+
     void Scene::SetSkybox(Prism::Texture* skybox_text, Prism::Shader* custom_shader) {
         ::Shader* c_shader = nullptr;
 
