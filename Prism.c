@@ -1,4 +1,7 @@
 #include "Prism.h"
+#include "core/ui_core.h"
+#include "platform/platform_core.h"
+#include "render/render.h"
 #include <stddef.h>
 #include <stdlib.h>
 
@@ -60,6 +63,9 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
     Audio_Init();
     Asset_Init(renderer);
     Time_Init(engine.target_fps, Platform_GetTime, Platform_Delay);
+
+    UI_Init();
+    Render_UIinit(engine.renderer, UI_GetContext());
 
     return true;
 }
@@ -157,12 +163,17 @@ void Engine_Run(Scene* active_scene)
         Time_Tick();
 
         engine.accumulator += Time_DeltaTime();
+
+        UI_InputBegin();
         
         // Poll through events
         Event e;
         while (Platform_PollEvents(&e))
         {
-            Input_ProcessEvent(&e);
+            bool ui_handled = UI_ProcessEvent(&e);
+
+            if (!ui_handled)
+                Input_ProcessEvent(&e);
             
             if (e.type == EVENT_WINDOW_CLOSE)
             {
@@ -174,6 +185,8 @@ void Engine_Run(Scene* active_scene)
                 Platform_SetWindowSize(engine.window, e.window_resize.width, e.window_resize.height);
             }
         }
+
+        UI_InputEnd();
 
         // If the API registered a custom callback, call it
         if (g_PreUpdateCallback != NULL)
@@ -192,6 +205,9 @@ void Engine_Run(Scene* active_scene)
 
         // Render scene
         Engine_RenderScene(active_scene);
+
+        // Render UI
+        Render_UIRender(engine.renderer, UI_GetContext(), Platform_GetWindowWidth(engine.window), Platform_GetWindowHeight(engine.window));
 
         // Process destroy queue
         Scene_ProcessDestroyQueue(active_scene);
@@ -941,7 +957,9 @@ void Engine_EndFrame()
 // Shuts down the renderer and platform
 void Engine_Shutdown()
 {
+    UI_Shutdown();
     Audio_Shutdown();
+    Render_UIShutdown(engine.renderer);
     Render_Shutdown(engine.renderer);
     if (engine.window)
     {

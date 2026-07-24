@@ -19,6 +19,7 @@ typedef enum KeyCode
     KEYCODE_SPACE, KEYCODE_ESCAPE, KEYCODE_ENTER, KEYCODE_RIGHTSHIFT, KEYCODE_LEFTSHIFT,
     KEYCODE_LEFTCTRL, KEYCODE_RIGHTCTRL,
     KEYCODE_UPARROW, KEYCODE_RIGHTARROW, KEYCODE_DOWNARROW, KEYCODE_LEFTARROW,
+    KEYCODE_BACKSPACE,
     KEYCODE_MAX
 } KeyCode;
 
@@ -51,8 +52,9 @@ typedef enum EventType
     EVENT_MOUSE_MOVED,
     EVENT_MOUSE_BUTTON_PRESSED,
     EVENT_MOUSE_BUTTON_RELEASED,
-    EVENT_MOUSEWHEEL_SCROLLED
+    EVENT_MOUSEWHEEL_SCROLLED,
 
+    EVENT_TEXT_INPUT
 } EventType;
 
 
@@ -68,6 +70,9 @@ typedef struct Event
         
         // Keyboard
         struct { KeyCode key; } key;
+
+        // Text Input
+        struct { char text[256]; } text_input;
         
         // Mouse
         struct { float x, y, dx, dy; } mouse_state;

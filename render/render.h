@@ -212,6 +212,14 @@ typedef struct Renderer
 
 
 
+    // --- UI Rendering ---
+
+    void (*UIinit)(Renderer* r, void* nk_ctx);
+    void (*UIShutdown)(Renderer* r);
+    void (*UIRender)(Renderer* r, void* nk_ctx, uint32_t width, uint32_t height);
+
+
+
     // --- Settings ---
 
     void (*SetSettings)(Renderer* r, const RendererSettings* settings);
@@ -401,6 +409,31 @@ static inline void Render_EndFrame(Renderer* r)
 {
     if (r && r->EndFrame)
         r->EndFrame(r);
+}
+
+
+
+
+
+// Initializes the UI rendering pipeline
+static inline void Render_UIinit(Renderer* r, void* nk_ctx)
+{
+    if (r && r->UIinit)
+        r->UIinit(r, nk_ctx);
+}
+
+// Shuts down the UI rendering pipeline
+static inline void Render_UIShutdown(Renderer* r)
+{
+    if (r && r->UIShutdown)
+        r->UIShutdown(r);
+}
+
+// Renders any UI
+static inline void Render_UIRender(Renderer* r, void* nk_ctx, uint32_t width, uint32_t height)
+{
+    if (r && r->UIRender)
+        r->UIRender(r, nk_ctx, width, height);
 }
 
 

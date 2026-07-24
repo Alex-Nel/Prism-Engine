@@ -12,6 +12,7 @@
 #include "core/Log.hpp"
 #include "core/Mesh.hpp"
 #include "core/Image.hpp"
+#include "core/UI.hpp"
 
 // Assets & platform
 #include "AssetManager.hpp"

@@ -1,6 +1,10 @@
 #include "../platform_core.h"
 #include "SDL3/SDL.h"
+#include "SDL3/SDL_events.h"
+#include "SDL3/SDL_keycode.h"
+#include "core/event.h"
 #include <stdlib.h>
+#include <string.h>
 
 
 
@@ -81,6 +85,8 @@ static KeyCode TranslateKey(SDL_Keycode sdl_key)
         case SDLK_RIGHT: return KEYCODE_RIGHTARROW;
         case SDLK_DOWN: return KEYCODE_DOWNARROW;
         case SDLK_LEFT: return KEYCODE_LEFTARROW;
+
+        case SDLK_BACKSPACE: return KEYCODE_BACKSPACE;
         
         default: return KEYCODE_UNKNOWN;
     }
@@ -323,6 +329,13 @@ bool Platform_PollEvents(Event* e)
             case SDL_EVENT_MOUSE_WHEEL:
                 e->type = EVENT_MOUSEWHEEL_SCROLLED;
                 e->mouse_scroll.delta_y = sdl_event.wheel.y;
+                break;
+
+            case SDL_EVENT_TEXT_INPUT:
+                e->type = EVENT_TEXT_INPUT;
+                // Copy the max size, with NULL terminator
+                strncpy(e->text_input.text, sdl_event.text.text, 255);
+                e->text_input.text[255] = '\0';
                 break;
 
             default:
