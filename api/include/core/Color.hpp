@@ -25,8 +25,12 @@ namespace Prism
         static Color White()   { return Color(1.0f, 1.0f, 1.0f, 1.0f); }
         static Color Black()   { return Color(0.0f, 0.0f, 0.0f, 1.0f); }
         static Color Red()     { return Color(1.0f, 0.0f, 0.0f, 1.0f); }
+        static Color Orange()  { return Color(1.0f, 0.65f, 0.0f, 1.0f);}
+        static Color Yellow()  { return Color(1.0f, 1.0f, 0.0f, 1.0f); }
         static Color Green()   { return Color(0.0f, 1.0f, 0.0f, 1.0f); }
         static Color Blue()    { return Color(0.0f, 0.0f, 1.0f, 1.0f); }
+        static Color Indigo()  { return Color(0.3f, 0.0f, 0.5f, 1.0f); }
+        static Color Violet()  { return Color(0.5f, 0.0f, 1.0f, 1.0f); }
         static Color Clear()   { return Color(0.0f, 0.0f, 0.0f, 0.0f); }
     };
 }

@@ -9,7 +9,8 @@ extern "C"
 
 
 
-namespace Prism {
+namespace Prism
+{
 
     bool UI::BeginWindow(const std::string& title, float x, float y, float width, float height, WindowFlags flags) {
         return UI_BeginWindow(title.c_str(), x, y, width, height, static_cast<int>(flags));
@@ -55,7 +56,7 @@ namespace Prism {
         return UI_ColorPicker(reinterpret_cast<::Color*>(color));
     }
 
-    int UI::Combo(const std::vector<std::string>& items, int selected, int item_height, float width, float height) {
+    bool UI::Combo(const std::vector<std::string>& items, int* selected, int item_height, float width, float height) {
         std::vector<const char*> c_items;
         c_items.reserve(items.size());
         for (const auto& item : items) {
@@ -68,8 +69,8 @@ namespace Prism {
         UI_SetTheme(static_cast<int>(theme));
     }
 
-    void UI::SetStyleColor(UIElement element, const Color& color) {
-        UI_SetStyleColor(static_cast<int>(element), *reinterpret_cast<const ::Color*>(&color));
+    void UI::SetElementStyleColor(UIElement element, const Color& color) {
+        UI_SetElementStyleColor(static_cast<int>(element), *reinterpret_cast<const ::Color*>(&color));
     }
 
 }

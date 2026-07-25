@@ -9,7 +9,6 @@
 #include "../include/nuklear.h"
 
 #include "ui_core.h"
-#include <string.h>
 
 
 
@@ -234,9 +233,9 @@ bool UI_ColorPicker(Color* color)
 
 
 
-int UI_Combo(const char** items, int count, int selected, int item_height, float width, float height)
+bool UI_Combo(const char** items, int count, int* selected, int item_height, float width, float height)
 {
-    return nk_combo(&ctx, items, count, selected, item_height, nk_vec2(width, height));
+    return nk_combobox(&ctx, items, count, selected, item_height, nk_vec2(width, height));
 }
 
 
@@ -371,11 +370,11 @@ void UI_SetTheme(int theme_id)
 
 
 
-void UI_SetStyleColor(int color_id, Color color)
+void UI_SetElementStyleColor(int element_color_id, Color color)
 {
-    if (color_id >= 0 && color_id < NK_COLOR_COUNT)
+    if (element_color_id >= 0 && element_color_id < NK_COLOR_COUNT)
     {
-        current_theme_table[color_id] = nk_rgba_f(color.r, color.g, color.b, color.a);
+        current_theme_table[element_color_id] = nk_rgba_f(color.r, color.g, color.b, color.a);
         nk_style_from_table(&ctx, current_theme_table);
     }
 }

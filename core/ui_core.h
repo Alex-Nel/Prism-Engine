@@ -48,7 +48,7 @@ typedef enum UIWindowFlags
 
 
 
-// UI Widget functions
+// --- UI Widget functions ---
 
 bool UI_BeginWindow(const char* title, float x, float y, float width, float height, int flags);
 void UI_EndWindow(void);
@@ -62,11 +62,14 @@ bool UI_Checkbox(const char* label, bool* active);
 bool UI_RadioButton(const char* label, bool active);
 void UI_PropertyInt(const char* name, int min, int* val, int max, int step, float inc_per_pixel);
 bool UI_ColorPicker(Color* color);
-int UI_Combo(const char** items, int count, int selected, int item_height, float width, float height);
+bool UI_Combo(const char** items, int count, int* selected, int item_height, float width, float height);
 
-// Theming functions
+
+
+// --- Theming functions ---
+
 void UI_SetTheme(int theme_id); // 0 = Dark, 1 = Light, 2 = Red, 3 = Blue
-void UI_SetStyleColor(int color_id, Color color); // color_id maps to nk_style_colors
+void UI_SetElementStyleColor(int element_color_id, Color color);
 
 
 

@@ -117,12 +117,12 @@ namespace Prism
         // Create a color picker
         static bool ColorPicker(Color* color);
 
-        // Create a combo box
-        static int Combo(const std::vector<std::string>& items, int selected, int item_height, float width, float height);
+        // Create a combo box (drop down box)
+        static bool Combo(const std::vector<std::string>& items, int* selected, int item_height, float width, float height);
 
         // Theming functions
         static void SetTheme(UITheme theme);
-        static void SetStyleColor(UIElement element, const Color& color);
+        static void SetElementStyleColor(UIElement element, const Color& color);
     };
 
 }
