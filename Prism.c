@@ -135,6 +135,7 @@ static void Engine_OnModalEvent(void* userdata)
 
     // Render and Swap Buffers directly!
     Engine_RenderScene(active_scene);
+    Render_UIRender(engine.renderer, UI_GetContext(), w, h);
     Platform_SwapBuffers(engine.window);
 }
 

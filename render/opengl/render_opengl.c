@@ -2806,6 +2806,7 @@ static void OpenGL_UIRender(Renderer* r, void* nk_ctx_void, uint32_t width, uint
     };
     
     memset(&config, 0, sizeof(config));
+    config.tex_null = internal->ui.tex_null;
     config.vertex_layout = vertex_layout;
     config.vertex_size = sizeof(struct nk_draw_vertex);
     config.vertex_alignment = NK_ALIGNOF(struct nk_draw_vertex);

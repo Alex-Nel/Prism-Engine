@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "math_core.h"
+#include "color.h"
 
 #define MAX_NAME_LENGTH 256
 #define MAX_BONES 128
@@ -39,14 +40,6 @@ typedef struct Vertex3DSkinned
     int bone_ids[MAX_BONE_INFLUENCE];
     float bone_weights[MAX_BONE_INFLUENCE];
 } Vertex3DSkinned;
-
-
-
-// Color structure (in RGBA format)
-typedef struct Color
-{
-    float r, g, b, a;
-} Color;
 
 
 
