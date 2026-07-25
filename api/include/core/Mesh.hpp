@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Math.hpp"
+#include "Color.hpp"
 #include <cstdint>
 #include "../PrismAPI.hpp"
 
@@ -70,32 +71,6 @@ namespace Prism
 
         AABB();
         AABB(const Prism::Vector3& min_extents, const Prism::Vector3& max_extents);
-    };
-
-
-
-    // ==========================================
-    // Color Wrapper
-    // ==========================================
-
-    struct PRISM_API Color
-    {
-        float r, g, b, a;
-
-        // --- Constructors --- 
-
-        Color() : r(1.0f), g(1.0f), b(1.0f), a(1.0f) {}
-        Color(float r, float g, float b, float a = 1.0f) : r(r), g(g), b(b), a(a) {}
-        
-
-        // --- static preset colors ---
-        
-        static Color White()   { return Color(1.0f, 1.0f, 1.0f, 1.0f); }
-        static Color Black()   { return Color(0.0f, 0.0f, 0.0f, 1.0f); }
-        static Color Red()     { return Color(1.0f, 0.0f, 0.0f, 1.0f); }
-        static Color Green()   { return Color(0.0f, 1.0f, 0.0f, 1.0f); }
-        static Color Blue()    { return Color(0.0f, 0.0f, 1.0f, 1.0f); }
-        static Color Clear()   { return Color(0.0f, 0.0f, 0.0f, 0.0f); }
     };
 
 

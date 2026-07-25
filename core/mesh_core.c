@@ -82,7 +82,6 @@ void Mesh_CalculateVertexTangents(Vertex3D* vertices, uint32_t vertex_count, con
         Vector2 deltaUV2 = {v2->uv.x - v0->uv.x, v2->uv.y - v0->uv.y};
 
         // The Tangent Math
-        // float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
         float denom = (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
         if (denom > -1e-6f && denom < 1e-6f)
             continue;
@@ -100,8 +99,6 @@ void Mesh_CalculateVertexTangents(Vertex3D* vertices, uint32_t vertex_count, con
     }
 
     // Normalize all tangents at the end
-    // for (uint32_t i = 0; i < vertex_count; i++)
-    //     vertices[i].tangent = Vector3Normalize(vertices[i].tangent);
     for (uint32_t i = 0; i < vertex_count; i++)
     {
         float len = sqrtf(vertices[i].tangent.x * vertices[i].tangent.x +
@@ -156,10 +153,6 @@ void Mesh_CalculateVertexSkinnedTangents(Vertex3DSkinned* vertices, uint32_t ver
 
         // The Tangent Math
         float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
-        // float denom = (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
-        // if (denom > -1e-6f && denom < 1e-6f)
-        //     continue;
-        // float f = 1.0f / denom;
 
         Vector3 tangent;
         tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
@@ -175,26 +168,6 @@ void Mesh_CalculateVertexSkinnedTangents(Vertex3DSkinned* vertices, uint32_t ver
     // Normalize all tangents at the end
     for (uint32_t i = 0; i < vertex_count; i++)
         vertices[i].tangent = Vector3Normalize(vertices[i].tangent);
-        
-    // for (uint32_t i = 0; i < vertex_count; i++)
-    // {
-    //     float len = sqrtf(vertices[i].tangent.x * vertices[i].tangent.x +
-    //                       vertices[i].tangent.y * vertices[i].tangent.y +
-    //                       vertices[i].tangent.z * vertices[i].tangent.z);
-    //     if (len > 0.0001f)
-    //     {
-    //         vertices[i].tangent.x /= len;
-    //         vertices[i].tangent.y /= len;
-    //         vertices[i].tangent.z /= len;
-    //     }
-    //     else
-    //     {
-    //         Vector3 n = vertices[i].normal;
-    //         Vector3 c = (fabsf(n.z) < 0.99f) ? (Vector3){ -n.y, n.x, 0.0f } : (Vector3){ 0.0f, -n.z, n.y };
-    //         float l = sqrtf(c.x*c.x + c.y*c.y + c.z*c.z);
-    //         vertices[i].tangent = (l > 0.0001f) ? (Vector3){ c.x/l, c.y/l, c.z/l } : (Vector3){ 1.0f, 0.0f, 0.0f };
-    //     }
-    // }
 }
 
 
