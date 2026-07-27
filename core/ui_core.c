@@ -13,7 +13,6 @@
 
 
 static struct nk_context ctx;
-static struct nk_font_atlas atlas;
 static struct nk_color current_theme_table[NK_COLOR_COUNT];
 
 
@@ -31,7 +30,6 @@ void UI_Init()
 void UI_Shutdown()
 {
     nk_free(&ctx);
-    nk_font_atlas_clear(&atlas);
 }
 
 

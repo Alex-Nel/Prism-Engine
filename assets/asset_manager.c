@@ -570,10 +570,16 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
             {
                 Vertex3DSkinned v;
                 v.position = (Vector3){ ai_mesh->mVertices[i].x, ai_mesh->mVertices[i].y, ai_mesh->mVertices[i].z };
-                v.normal = (Vector3){ ai_mesh->mNormals[i].x, ai_mesh->mNormals[i].y, ai_mesh->mNormals[i].z };
                 
-                if (ai_mesh->mTextureCoords[0]) v.uv = (Vector2){ ai_mesh->mTextureCoords[0][i].x, ai_mesh->mTextureCoords[0][i].y };
-                else v.uv = (Vector2){ 0.0f, 0.0f };
+                if (ai_mesh->mNormals)
+                    v.normal = (Vector3){ ai_mesh->mNormals[i].x, ai_mesh->mNormals[i].y, ai_mesh->mNormals[i].z };
+                else
+                    v.normal = (Vector3){ 0.0f, 1.0f, 0.0f };
+                
+                if (ai_mesh->mTextureCoords[0])
+                    v.uv = (Vector2){ ai_mesh->mTextureCoords[0][i].x, ai_mesh->mTextureCoords[0][i].y };
+                else
+                    v.uv = (Vector2){ 0.0f, 0.0f };
 
                 if (ai_mesh->mTangents)
                     v.tangent = (Vector3){ ai_mesh->mTangents[i].x, ai_mesh->mTangents[i].y, ai_mesh->mTangents[i].z };
@@ -658,7 +664,10 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
             {
                 Vertex3D v;
                 Vector3 raw_pos = (Vector3){ ai_mesh->mVertices[i].x, ai_mesh->mVertices[i].y, ai_mesh->mVertices[i].z };
-                Vector3 raw_norm = (Vector3){ ai_mesh->mNormals[i].x, ai_mesh->mNormals[i].y, ai_mesh->mNormals[i].z };
+                
+                Vector3 raw_norm = (Vector3){ 0.0f, 1.0f, 0.0f };
+                if (ai_mesh->mNormals)
+                    raw_norm = (Vector3){ ai_mesh->mNormals[i].x, ai_mesh->mNormals[i].y, ai_mesh->mNormals[i].z };
 
                 Vector3 raw_tan = (Vector3){ 0.0f, 0.0f, 0.0f };
                 if (ai_mesh->mTangents)

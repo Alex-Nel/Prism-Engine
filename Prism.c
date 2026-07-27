@@ -171,7 +171,9 @@ void Engine_Run(Scene* active_scene)
         Event e;
         while (Platform_PollEvents(&e))
         {
-            bool ui_handled = UI_ProcessEvent(&e);
+            bool ui_handled;
+            if (!Engine_IsMouseCaptured())
+                ui_handled = UI_ProcessEvent(&e);
 
             if (!ui_handled)
                 Input_ProcessEvent(&e);
