@@ -1,6 +1,6 @@
 #include "../../include/glad/glad.h"
 #include "../render.h"
-#include "../../core/log.h"
+#include "../../core/log_core.h"
 #include "../../core/ui_core.h"
 
 #define NK_INCLUDE_FIXED_TYPES

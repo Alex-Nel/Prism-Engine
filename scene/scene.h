@@ -8,7 +8,7 @@
 
 #include "../core/math_core.h"
 #include "../core/time_core.h"
-#include "../core/log.h"
+#include "../core/log_core.h"
 #include "../audio/audio.h"
 #include "../assets/asset_manager.h"
 #include "physics_bridge.h"

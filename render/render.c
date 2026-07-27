@@ -1,5 +1,5 @@
 #include "render.h"
-#include "../core/log.h"
+#include "../core/log_core.h"
 #include <stddef.h>
 
 

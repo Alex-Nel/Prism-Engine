@@ -1,4 +1,4 @@
-#include "log.h"
+#include "log_core.h"
 #include <stdarg.h>
 
 

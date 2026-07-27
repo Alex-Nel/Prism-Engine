@@ -1,8 +1,8 @@
 #ifndef CORE_UI_H
 #define CORE_UI_H
 
-#include "event.h"
-#include "color.h"
+#include "event_core.h"
+#include "color_core.h"
 
 struct nk_context;
 

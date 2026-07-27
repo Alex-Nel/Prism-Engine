@@ -11,7 +11,7 @@
 #include "asset_manager.h"
 #include "core/io_core.h"
 #include "core/mesh_core.h"
-#include "core/image.h"
+#include "core/image_core.h"
 
 
 

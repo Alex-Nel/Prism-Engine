@@ -9,9 +9,9 @@ extern "C" {
 
 
 #include "math_core.h"
-#include "event.h"
-#include "input.h"
-#include "log.h"
+#include "event_core.h"
+#include "input_core.h"
+#include "log_core.h"
 #include "time_core.h"
 #include "mesh_core.h"
 #include "io_core.h"

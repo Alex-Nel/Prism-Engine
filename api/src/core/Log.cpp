@@ -5,7 +5,7 @@
 
 extern "C"
 {
-    #include "../../../core/log.h"
+    #include "../../../core/log_core.h"
 }
 
 

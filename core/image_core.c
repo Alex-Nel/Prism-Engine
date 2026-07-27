@@ -1,6 +1,6 @@
 #include <stdbool.h>
-#include "image.h"
-#include "log.h"
+#include "image_core.h"
+#include "log_core.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"

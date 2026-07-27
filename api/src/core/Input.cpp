@@ -3,8 +3,8 @@
 
 extern "C"
 {
-    #include "../../../core/input.h" 
-    #include "../../../core/event.h"
+    #include "../../../core/input_core.h" 
+    #include "../../../core/event_core.h"
 }
 
 

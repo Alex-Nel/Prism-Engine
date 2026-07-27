@@ -1,7 +1,7 @@
 #ifndef CORE_IO_H
 #define CORE_IO_H
 
-#include "log.h"
+#include "log_core.h"
 
 // Reads an entire file into a null-terminated string.
 // The caller is responsible for calling free() on the returned pointer

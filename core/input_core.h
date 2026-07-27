@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "event.h"
+#include "event_core.h"
 
 // Initialization function
 void Input_Init();

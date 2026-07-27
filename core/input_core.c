@@ -1,4 +1,4 @@
-#include "input.h"
+#include "input_core.h"
 #include <string.h>
 
 #define MAX_KEYS 256

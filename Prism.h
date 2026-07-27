@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 // Include all modules
-#include "core/core.h"
+#include "core/prism_core.h"
 #include "audio/audio.h"
 #include "render/render.h"
 #include "scene/scene.h"

@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "math_core.h"
-#include "color.h"
+#include "color_core.h"
 
 #define MAX_NAME_LENGTH 256
 #define MAX_BONES 128

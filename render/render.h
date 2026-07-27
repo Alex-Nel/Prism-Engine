@@ -6,7 +6,7 @@
 
 #include "../core/math_core.h"
 #include "../core/mesh_core.h"
-#include "../core/log.h"
+#include "../core/log_core.h"
 #include "../core/io_core.h"
 
 

@@ -3,9 +3,9 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "../core/event.h"
-#include "../core/input.h"
-#include "../core/log.h"
+#include "../core/event_core.h"
+#include "../core/input_core.h"
+#include "../core/log_core.h"
 #include "../core/time_core.h"
 #include "../render/render.h"
 

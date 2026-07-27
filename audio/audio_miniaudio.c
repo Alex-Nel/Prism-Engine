@@ -1,5 +1,5 @@
 #include "audio.h"
-#include "../core/log.h"
+#include "../core/log_core.h"
 #include <stdlib.h>
 #include <string.h>
 
