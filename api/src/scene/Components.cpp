@@ -26,6 +26,32 @@ namespace Prism
     void Transform::SetLocalScale(const Prism::Vector3& scale) {
         ::Transform_SetLocalScale(reinterpret_cast<::Transform*>(this), {scale.x, scale.y, scale.z});
     }
+    
+    void Transform::SetGlobalPosition(const Prism::Vector3& pos) {
+        ::Transform* parent_t = nullptr;
+        if (this->parent_id != 0xFFFFFFFF)
+            parent_t = &static_cast<::Scene*>(this->entity.scene_ptr)->transforms[this->parent_id];
+        ::Transform_SetGlobalPosition(reinterpret_cast<::Transform*>(this), parent_t, {pos.x, pos.y, pos.z});
+    }
+    void Transform::SetGlobalRotationEuler(const Prism::Vector3& euler) {
+        ::Transform* parent_t = nullptr;
+        if (this->parent_id != 0xFFFFFFFF)
+            parent_t = &static_cast<::Scene*>(this->entity.scene_ptr)->transforms[this->parent_id];
+        ::Transform_SetGlobalRotationEuler(reinterpret_cast<::Transform*>(this), parent_t, {euler.x, euler.y, euler.z});
+    }
+    void Transform::SetGlobalRotation(const Prism::Quaternion& rot) {
+        ::Transform* parent_t = nullptr;
+        if (this->parent_id != 0xFFFFFFFF)
+            parent_t = &static_cast<::Scene*>(this->entity.scene_ptr)->transforms[this->parent_id];
+        ::Transform_SetGlobalRotation(reinterpret_cast<::Transform*>(this), parent_t, {rot.x, rot.y, rot.z, rot.w});
+    }
+    void Transform::SetGlobalScale(const Prism::Vector3& scale) {
+        ::Transform* parent_t = nullptr;
+        if (this->parent_id != 0xFFFFFFFF)
+            parent_t = &static_cast<::Scene*>(this->entity.scene_ptr)->transforms[this->parent_id];
+        ::Transform_SetGlobalScale(reinterpret_cast<::Transform*>(this), parent_t, {scale.x, scale.y, scale.z});
+    }
+
     void Transform::Translate(const Prism::Vector3& translation) {
         ::Transform_Translate(reinterpret_cast<::Transform*>(this), {translation.x, translation.y, translation.z});
     }
@@ -69,7 +95,7 @@ namespace Prism
 
 
     // ==========================================
-    // Render Component Implementation
+    // Light Component Implementation
     // ==========================================
 
     void LightComponent::SetType(LightType type) {

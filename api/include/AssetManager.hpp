@@ -56,16 +56,25 @@ namespace Prism
         static Model LoadModel(const std::string& name, const std::string& filepath);
         static Mesh LoadMesh(const std::string& name, const std::string& filepath);
         static Shader LoadShader(const std::string& name, const std::string& vertPath, const std::string& fragPath);
-        static Texture LoadTexture(const std::string& name, const std::string& filepath);
-        static Texture LoadSkyboxTexture(const std::string& name, const std::string& right, const std::string& left, const std::string& top, const std::string& bottom, const std::string& front, const std::string& back);
         static AudioClip LoadAudio(const std::string& filepath);
 
+        static Model GetModelByName(const std::string& name);
+        static Mesh GetMeshByName(const std::string& name);
+        static SkinnedMesh GetSkinnedMeshByName(const std::string& name);
 
-        // --- Texture Creation ---
 
+        // --- Texture Management ---
+
+        static Texture LoadTexture(const std::string& name, const std::string& filepath);
+        static Texture LoadSkyboxTexture(const std::string& name, const std::string& right, const std::string& left, const std::string& top, const std::string& bottom, const std::string& front, const std::string& back);
         static Texture CreateSolidColorTexture(const std::string& name, Prism::Color color);
         static Texture GetTextureByName(std::string name);
 
+
+        // --- Dynamic Meshes ---
+
+        static Mesh CreateDynamicMesh(uint32_t max_vertices, uint32_t max_indices);
+        static void UpdateDynamicMesh(Mesh mesh, Prism::Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
 
 
         // --- Material Management ---

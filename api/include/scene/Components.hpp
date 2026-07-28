@@ -1,9 +1,10 @@
 #pragma once
 
+#include "Entity.hpp"
 #include "../core/Log.hpp"
 #include "../core/Math.hpp"
-#include "Entity.hpp"
 #include "../PrismAPI.hpp"
+#include <cstdint>
 
 
 #define MAX_MATERIAL_SLOTS 256
@@ -92,6 +93,11 @@ namespace Prism
         void SetLocalRotationEuler(const Prism::Vector3& euler);
         void SetLocalRotation(const Prism::Quaternion& rot);
         void SetLocalScale(const Prism::Vector3& scale);
+
+        void SetGlobalPosition(const Prism::Vector3& pos);
+        void SetGlobalRotationEuler(const Prism::Vector3& euler);
+        void SetGlobalRotation(const Prism::Quaternion& rot);
+        void SetGlobalScale(const Prism::Vector3& scale);
 
         void Translate(const Prism::Vector3& translation);
         void RotateEuler(const Prism::Vector3& euler_addition);
@@ -298,27 +304,27 @@ namespace Prism
 
     struct PRISM_API ColliderComponent
     {
+    public:
         Prism::Entity owner; // The Entity that this component is attached to
         bool is_active;
         int type;
         bool is_trigger;
         bool is_convex;
+    private:
         void* physics_handle;
         void* raw_mesh_ptr;
+    public:
         Prism::Vector3 extents;
         float radius;
         Prism::Vector3 mesh_scale;
-
+    private:
         uint32_t touching_entities[MAX_COLLISION_OVERLAPS];
         uint32_t touching_count;
-
-        uint32_t touching_last_frame[MAX_COLLISION_OVERLAPS];
-        uint32_t touching_last_count;
 
         CollisionLayer collision_layer;
         int collision_mask;
 
-
+    public:
         void SetActive(bool active) { this->is_active = active; }
         bool IsActive() const { return this->is_active; }
 
@@ -362,22 +368,28 @@ namespace Prism
         float pitch = 1.0f;
         
         bool loop = false;
-        bool playOnAwake = true;
-        bool isPlaying = false;
+        bool play_on_awake = true;
+        bool is_playing = false;
         
         // 3D Settings
-        bool isSpatial = true;
-        float minDistance = 1.0f;
-        float maxDistance = 50.0f;
+        bool is_spatial = true;
+        float min_distance = 1.0f;
+        float max_distance = 50.0f;
 
 
         void SetActive(bool active) { this->is_active = active; }
         bool IsActive() const { return this->is_active; }
 
+        void SetVolume(float vol) { this->volume = vol; }
+        void SetPitch(float p) { this->pitch = p; }
+        void SetLoop(bool l) { this->loop = l; }
+        void SetSpatial(bool spatial) { this->is_spatial = spatial; }
+        void SetDistances(float min_dist, float max_dist) { this->min_distance = min_dist; this->max_distance = max_dist; }
+
         // Helper functions so the user doesn't have to manually toggle booleans
         
-        void Play() { isPlaying = true; }
-        void Stop() { isPlaying = false; }
+        void Play() { is_playing = true; }
+        void Stop() { is_playing = false; }
     };
 
 
@@ -444,12 +456,15 @@ namespace Prism
 
     struct PRISM_API BoneAttachmentComponent
     {
-        bool is_active;
+    public:
         Prism::Entity owner;
-        uint32_t target_animator_id;
+        bool is_active;
+    private:
         int target_bone_index;
         Prism::Matrix4 local_offset;
+        uint32_t target_animator_id;
 
+    public:
         void SetActive(bool active) {
             this->is_active = active;
         }
@@ -466,11 +481,25 @@ namespace Prism
     // ==========================================
     // Line Renderer Wrapper
     // ==========================================
+    
+    #define MAX_LINE_POINTS 1024
 
     struct PRISM_API LineRendererComponent
     {
-    private:
+    public:
         Prism::Entity entity;
+        bool is_active;
+        Prism::Vector3 points[MAX_LINE_POINTS];
+        uint32_t point_count;
+
+        float start_thickness;
+        float end_thickness;
+        Color color;
+        bool is_loop;
+        bool use_world_space;
+    private:
+        Mesh* dynamic_mesh;
+        Material* material;
 
     public:
         void AddPoint(const Prism::Vector3& point);
@@ -499,8 +528,10 @@ namespace Prism
 
     struct PRISM_API SpriteRendererComponent
     {
-    private:
+    public:
         Prism::Entity entity;
+        bool is_active;
+        Prism::Color color;
 
     public:
         void SetColor(const Prism::Color& color);

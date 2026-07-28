@@ -2,6 +2,7 @@
 
 #include <string>
 #include <cstdint>
+#include "core/Math.hpp"
 #include "PrismAPI.hpp"
 
 
@@ -22,6 +23,10 @@ namespace Prism
         void Play(float volume = 1.0f, bool loop = false);
         void Stop();
         bool IsPlaying();
+
+        void SetSourcePosition(Prism::Vector3 position);
+        void SetSourceDistances(float min_dist, float max_dist);
+        void SetSpatial(bool is_spatial);
         
         // Expose the raw ID just in case the engine needs it internally
         uint32_t GetID() const { return m_HandleID; }
@@ -36,5 +41,6 @@ namespace Prism
     public:
         static void SetMasterVolume(float volume);
         static void StopAll();
+        static void SetListenerPosition(Prism::Vector3 position, Prism::Vector3 forward, Prism::Vector3 up);
     };
 }

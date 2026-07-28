@@ -104,6 +104,34 @@ namespace Prism
         return Prism::Shader(h);
     }
     
+    AudioClip AssetManager::LoadAudio(const std::string& filepath) {
+        ::AudioClipHandle raw_handle = ::Audio_LoadClip(filepath.c_str());
+        return Prism::AudioClip(raw_handle.id);
+    }
+
+
+
+    Model AssetManager::GetModelByName(const std::string& name) {
+        ::Model* c_mod = ::Asset_GetModelByName(name.c_str());
+        return Prism::Model(c_mod);
+    }
+
+    Mesh AssetManager::GetMeshByName(const std::string& name) {
+        ::Mesh* c_mesh = ::Asset_GetMeshByName(name.c_str());
+        return Prism::Mesh(c_mesh);
+    }
+
+    SkinnedMesh AssetManager::GetSkinnedMeshByName(const std::string& name) {
+        ::SkinnedMesh* c_mesh = ::Asset_GetSkinnedMeshByName(name.c_str());
+        return Prism::SkinnedMesh(c_mesh);
+    }
+
+
+
+    // ==========================================
+    // Texture Management
+    // ==========================================
+
     Texture AssetManager::LoadTexture(const std::string& name, const std::string& filepath) {
         ::Texture* h = ::Asset_LoadTexture(name.c_str(), filepath.c_str());
         return Prism::Texture(h);
@@ -114,17 +142,6 @@ namespace Prism
         return Prism::Texture(t);
     }
 
-    AudioClip AssetManager::LoadAudio(const std::string& filepath) {
-        ::AudioClipHandle raw_handle = ::Audio_LoadClip(filepath.c_str());
-        return Prism::AudioClip(raw_handle.id);
-    }
-
-
-
-    // ==========================================
-    // Texture Creation
-    // ==========================================
-
     Texture AssetManager::CreateSolidColorTexture(const std::string& name, Prism::Color color) {
         ::Color c_color = { color.r, color.g, color.b, color.a };
         ::Texture* raw_tex = ::Asset_CreateSolidColorTexture(name.c_str(), c_color);
@@ -134,6 +151,21 @@ namespace Prism
     Texture AssetManager::GetTextureByName(std::string name) {
         ::Texture* c_text = ::Asset_GetTextureByName(name.c_str());
         return Prism::Texture(c_text);
+    }
+
+
+
+    // ==========================================
+    // Dynamic Meshes
+    // ==========================================
+
+    Mesh AssetManager::CreateDynamicMesh(uint32_t max_vertices, uint32_t max_indices) {
+        ::Mesh* raw_mesh = ::Asset_CreateDynamicMesh(max_vertices, max_indices);
+        return Prism::Mesh(raw_mesh);
+    }
+
+    void AssetManager::UpdateDynamicMesh(Mesh mesh, Prism::Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count) {
+        ::Asset_UpdateDynamicMesh((::Mesh*)mesh.GetRaw(), (::Vertex3D*)vertices, vertex_count, indices, index_count);
     }
 
 
