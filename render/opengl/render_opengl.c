@@ -972,6 +972,43 @@ static void OpenGL_UpdateDynamicMesh(Renderer* r, MeshHandle handle, Vertex3D* v
 
 
 
+// Overwrites the GPU memory with new vertex data
+static void OpenGL_UpdateMesh(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count)
+{
+    if (handle.id == 0 || handle.id >= MAX_RESOURCES)
+        return;
+
+    if (vertex_count == 0 || index_count == 0)
+        return;
+
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    GLMesh* mesh = &internal->mesh_pool[handle.id];
+
+    if (!mesh->active)
+        return;
+
+    mesh->index_count = index_count;
+    mesh->max_vertices = vertex_count;
+    mesh->max_indices = index_count;
+
+    // Overwrite the buffers
+    glBindVertexArray(mesh->vao);
+
+    // Vertex Buffer
+    glBindBuffer(GL_ARRAY_BUFFER, mesh->vbo);
+    glBufferData(GL_ARRAY_BUFFER, vertex_count * sizeof(Vertex3D), vertices, GL_STATIC_DRAW);
+
+    // Element Buffer
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_count * sizeof(uint32_t), indices, GL_STATIC_DRAW);
+
+    glBindVertexArray(0);
+}
+
+
+
+
+
 
 
 
@@ -3260,6 +3297,7 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     r->CreateDynamicMesh = OpenGL_CreateDynamicMesh;
     r->CreateSkinnedMesh = OpenGL_CreateSkinnedMesh;
     r->UpdateDynamicMesh = OpenGL_UpdateDynamicMesh;
+    r->UpdateMesh = OpenGL_UpdateMesh;
 
     r->BeginShadowPass = OpenGL_BeginShadowPass;
     r->EndShadowPass = OpenGL_EndShadowPass;

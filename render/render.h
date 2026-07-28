@@ -199,6 +199,7 @@ typedef struct Renderer
     MeshHandle (*CreateDynamicMesh)(Renderer* r, uint32_t max_vertices, uint32_t max_indices);
     MeshHandle (*CreateSkinnedMesh)(Renderer* r, const Vertex3DSkinned* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count);
     void (*UpdateDynamicMesh)(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
+    void (*UpdateMesh)(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
 
 
 
@@ -370,6 +371,14 @@ static inline void Render_UpdateDynamicMesh(Renderer* r, MeshHandle handle, Vert
 {
     if (r && r->UpdateDynamicMesh)
         r->UpdateDynamicMesh(r, handle, vertices, vertex_count, indices, index_count);   
+}
+
+
+// Overwrites the GPU memory with new vertex data
+static inline void Render_UpdateMesh(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count)
+{
+    if (r && r->UpdateMesh)
+        r->UpdateMesh(r, handle, vertices, vertex_count, indices, index_count);   
 }
 
 

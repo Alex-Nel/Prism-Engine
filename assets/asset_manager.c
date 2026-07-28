@@ -9,9 +9,10 @@
 #define FAST_OBJ_IMPLEMENTATION
 #include "fast_obj.h"
 #include "asset_manager.h"
-#include "core/io_core.h"
-#include "core/mesh_core.h"
-#include "core/image_core.h"
+#include "../core/io_core.h"
+#include "../core/mesh_core.h"
+#include "../core/image_core.h"
+#include "../core/log_core.h"
 
 
 
@@ -1112,6 +1113,45 @@ void Asset_UpdateDynamicMesh(Mesh* mesh, Vertex3D* vertices, uint32_t vertex_cou
     mesh->index_count = index_count;
 
     Render_UpdateDynamicMesh(renderer, mesh->gpu_handle, vertices, vertex_count, indices, index_count);
+}
+
+
+
+
+
+// Updates a static mesh with new vertices and indices
+void Asset_UpdateMesh(Mesh* mesh, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count)
+{
+    if (!mesh)
+        return;
+
+    mesh->vertex_count = vertex_count;
+    mesh->index_count = index_count;
+
+    if (vertices != mesh->vertices)
+    {
+        Vertex3D* new_verts = (Vertex3D*)malloc(vertex_count * sizeof(Vertex3D));
+        memcpy(new_verts, vertices, vertex_count * sizeof(Vertex3D));
+        if (mesh->vertices)
+            free(mesh->vertices);
+        
+        mesh->vertices = new_verts;
+    }
+
+    if (indices != mesh->indices)
+    {
+        uint32_t* new_indices = (uint32_t*)malloc(index_count * sizeof(uint32_t));
+        memcpy(new_indices, indices, index_count * sizeof(uint32_t));
+        if (mesh->indices)
+            free(mesh->indices);
+        
+        mesh->indices = new_indices;
+    }
+
+    Mesh_CalculateVertexTangents(mesh->vertices, mesh->vertex_count, mesh->indices, mesh->index_count);
+    Mesh_CalculateBounds(mesh);
+
+    Render_UpdateMesh(renderer, mesh->gpu_handle, mesh->vertices, mesh->vertex_count, mesh->indices, mesh->index_count);
 }
 
 

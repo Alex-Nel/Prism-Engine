@@ -3,6 +3,7 @@
 #include "Math.hpp"
 #include "Color.hpp"
 #include <cstdint>
+#include <vector>
 #include "../PrismAPI.hpp"
 
 
@@ -25,12 +26,13 @@ namespace Prism
         Vector3 position;
         Vector3 normal;
         Vector2 uv;
+        Vector3 tangent;
 
 
         // --- Constructors ---   
 
         Vertex3D();
-        Vertex3D(const Prism::Vector3& pos, const Prism::Vector3& norm, const Prism::Vector2& tex);
+        Vertex3D(const Prism::Vector3& pos, const Prism::Vector3& norm, const Prism::Vector2& tex, const Prism::Vector3& tan = Prism::Vector3(0,0,0));
     };
 
 
@@ -44,6 +46,7 @@ namespace Prism
         Vector3 position;
         Vector3 normal;
         Vector2 uv;
+        Vector3 tangent;
 
         int bone_ids[4];
         float bone_weights[4];
@@ -52,7 +55,7 @@ namespace Prism
         // --- Constructors ---   
 
         Vertex3DSkinned();
-        Vertex3DSkinned(const Prism::Vector3& pos, const Prism::Vector3& norm, const Prism::Vector2& tex);
+        Vertex3DSkinned(const Prism::Vector3& pos, const Prism::Vector3& norm, const Prism::Vector2& tex, const Prism::Vector3& tan = Prism::Vector3(0,0,0));
     };
 
 
@@ -108,6 +111,13 @@ namespace Prism
 
         void* GetRaw() const { return m_Handle; }
         bool IsValid() const { return m_Handle != nullptr; }
+
+        std::vector<Prism::Vertex3D> GetVertices() const;
+        std::vector<uint32_t> GetIndices() const;
+        void SetVertices(const std::vector<Prism::Vertex3D>& vertices, const std::vector<uint32_t>& indices);
+
+        void RecalculateBounds();
+        void RecalculateNormals();
     };
 
 

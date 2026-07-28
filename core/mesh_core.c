@@ -174,37 +174,74 @@ void Mesh_CalculateVertexSkinnedTangents(Vertex3DSkinned* vertices, uint32_t ver
 
 
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Move these functions to asset manager to be able to procedurally generate terrain or custom shapes from code later
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Recalculates the bounding box for a static mesh
+void Mesh_CalculateBounds(Mesh* mesh)
+{
+    if (!mesh || mesh->vertex_count == 0)
+        return;
+
+    mesh->local_bounds.min = (Vector3){ 999999.0f,  999999.0f,  999999.0f};
+    mesh->local_bounds.max = (Vector3){-999999.0f, -999999.0f, -999999.0f};
+
+    for (uint32_t i = 0; i < mesh->vertex_count; i++)
+    {
+        Vector3 pos = mesh->vertices[i].position;
+        if (pos.x < mesh->local_bounds.min.x) mesh->local_bounds.min.x = pos.x;
+        if (pos.y < mesh->local_bounds.min.y) mesh->local_bounds.min.y = pos.y;
+        if (pos.z < mesh->local_bounds.min.z) mesh->local_bounds.min.z = pos.z;
+        if (pos.x > mesh->local_bounds.max.x) mesh->local_bounds.max.x = pos.x;
+        if (pos.y > mesh->local_bounds.max.y) mesh->local_bounds.max.y = pos.y;
+        if (pos.z > mesh->local_bounds.max.z) mesh->local_bounds.max.z = pos.z;
+    }
+}
 
 
-// TODO: Implement a procedural mesh function
-// Prototype:
-// asset_manager.c
-// Mesh* Asset_CreateProceduralMesh(const char* name, const Vertex3D* vertices, uint32_t v_count, const uint32_t* indices, uint32_t i_count)
-// {
-//     if (mesh_count >= MAX_CACHED_MESHES) return NULL;
 
-//     // Send to GPU
-//     MeshHandle gpu = Render_CreateMesh(renderer, vertices, v_count, indices, i_count);
 
-//     // Cache it
-//     Mesh* m = &mesh_cache[mesh_count];
-//     strcpy(m->name, name);
-//     m->id = mesh_count;
-//     m->gpu_handle = gpu;
-    
-//     // Allocate heap memory and copy the data so the engine owns it
-//     m->vertices = malloc(sizeof(Vertex3D) * v_count);
-//     m->indices = malloc(sizeof(uint32_t) * i_count);
-//     memcpy(m->vertices, vertices, sizeof(Vertex3D) * v_count);
-//     memcpy(m->indices, indices, sizeof(uint32_t) * i_count);
-    
-//     m->vertex_count = v_count;
-//     m->index_count = i_count;
-//     m->local_bounds = CalculateAABB(m->vertices, v_count);
 
-//     mesh_count++;
-//     return m;
-// }
+// Recalculates the normals for a static mesh
+void Mesh_CalculateNormals(Vertex3D* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count)
+{
+    // Initialize all normals to zero
+    for (uint32_t i = 0; i < vertex_count; i++)
+        vertices[i].normal = (Vector3){0.0f, 0.0f, 0.0f};
+
+    // Accumulate face normals
+    for (uint32_t i = 0; i < index_count; i += 3)
+    {
+        uint32_t i0 = indices[i];
+        uint32_t i1 = indices[i+1];
+        uint32_t i2 = indices[i+2];
+
+        Vertex3D* v0 = &vertices[i0];
+        Vertex3D* v1 = &vertices[i1];
+        Vertex3D* v2 = &vertices[i2];
+
+        Vector3 edge1 = {v1->position.x - v0->position.x, v1->position.y - v0->position.y, v1->position.z - v0->position.z};
+        Vector3 edge2 = {v2->position.x - v0->position.x, v2->position.y - v0->position.y, v2->position.z - v0->position.z};
+
+        // Cross product edge1 x edge2
+        Vector3 normal = {
+            edge1.y * edge2.z - edge1.z * edge2.y,
+            edge1.z * edge2.x - edge1.x * edge2.z,
+            edge1.x * edge2.y - edge1.y * edge2.x
+        };
+
+        v0->normal.x += normal.x; v0->normal.y += normal.y; v0->normal.z += normal.z;
+        v1->normal.x += normal.x; v1->normal.y += normal.y; v1->normal.z += normal.z;
+        v2->normal.x += normal.x; v2->normal.y += normal.y; v2->normal.z += normal.z;
+    }
+
+    // Normalize them
+    for (uint32_t i = 0; i < vertex_count; i++)
+    {
+        Vector3 n = vertices[i].normal;
+        float mag = sqrtf(n.x*n.x + n.y*n.y + n.z*n.z);
+        if (mag > 0.0001f)
+        {
+            vertices[i].normal.x /= mag;
+            vertices[i].normal.y /= mag;
+            vertices[i].normal.z /= mag;
+        }
+    }
+}

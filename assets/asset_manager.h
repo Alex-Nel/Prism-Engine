@@ -1,7 +1,6 @@
 #ifndef ASSET_MANAGER_H
 #define ASSET_MANAGER_H
 
-#include "../core/log_core.h"
 #include "../core/mesh_core.h"
 #include "render/render.h"
 
@@ -82,6 +81,9 @@ Mesh* Asset_CreateDynamicMesh(uint32_t max_vertices, uint32_t max_indices);
 
 // Updates a dynamic mesh from the renderer
 void Asset_UpdateDynamicMesh(Mesh* mesh, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
+
+// Updates a static mesh
+void Asset_UpdateMesh(Mesh* mesh, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
 
 
 

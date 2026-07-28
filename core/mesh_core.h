@@ -242,7 +242,15 @@ AABB SkinnedMesh_ComputePoseAABB(const SkinnedMesh* mesh, const Matrix4* bone_ma
 
 // Calculates Tangest Vectors for a mesh based on its UV coordinates
 void Mesh_CalculateVertexTangents(Vertex3D* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count);
+
+// Calculates Tangest Vectors for a skinned mesh based on its UV coordinates
 void Mesh_CalculateVertexSkinnedTangents(Vertex3DSkinned* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count);
+
+// Recalculates the bounding box for a static mesh based on its vertex positions
+void Mesh_CalculateBounds(Mesh* mesh);
+
+// Recalculates the normals for a static mesh
+void Mesh_CalculateNormals(Vertex3D* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count);
 
 
 
