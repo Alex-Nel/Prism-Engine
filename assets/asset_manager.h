@@ -1,6 +1,8 @@
 #ifndef ASSET_MANAGER_H
 #define ASSET_MANAGER_H
 
+
+
 #include "../core/mesh_core.h"
 #include "render/render.h"
 
@@ -87,7 +89,7 @@ void Asset_UpdateMesh(Mesh* mesh, Vertex3D* vertices, uint32_t vertex_count, uin
 
 
 
-// Functions to retrieve meshes and textures by name
+// Functions to retrieve assets by name
 
 Model* Asset_GetModelByName(const char* name);
 Mesh* Asset_GetMeshByName(const char* name);
@@ -95,7 +97,6 @@ SkinnedMesh* Asset_GetSkinnedMeshByName(const char* name);
 Texture* Asset_GetTextureByName(const char* name);
 
 
-// TODO: Make individual meshes of a model become separate entities
 
 
 

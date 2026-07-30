@@ -228,7 +228,7 @@ typedef struct Renderer
 
 
 
-    // Hidden implementation-specific data (e.g., SDL_GLContext or Vulkan Instance)
+    // Hidden implementation-specific data
     void* backend_internal_data;
 
 } Renderer;
@@ -238,7 +238,7 @@ typedef struct Renderer
 
 
 
-// Function pointer for loading graphics API procedures (Currently only OpenGL)
+// Function pointer for loading graphics API procedures
 typedef void* (*Render_LoadProcFn)(const char* name);
 
 
