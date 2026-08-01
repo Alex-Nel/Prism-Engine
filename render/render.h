@@ -99,19 +99,6 @@ typedef struct SpotLightData
 
 
 
-// // Struct containing IBL textures
-// typedef struct EnvironmentMap
-// {
-//     TextureHandle skybox;
-//     TextureHandle irradiance;
-//     TextureHandle prefilter;
-//     TextureHandle brdf_lut;
-// } EnvironmentMap;
-
-
-
-
-
 // Struct for a render packet to send to renderer
 typedef struct RenderPacket
 {
@@ -135,7 +122,7 @@ typedef struct RenderPacket
     Matrix4 light_space_matrices[MAX_SHADOW_CASCADES];
     float shadow_texel_world_sizes[MAX_SHADOW_CASCADES];
     float cascade_splits[MAX_SHADOW_CASCADES - 1]; // distance along camera forward
-    Vector3 camera_forward; // main camera forward (cascade selection in shader)
+    Vector3 camera_forward;        // main camera forward (cascade selection in shader)
     float shadow_camera_near;      // camera near plane (CSM blend region sizing)
     float cascade_blend_fraction;  // 0..1 fraction of each slice used to cross-fade
 
@@ -144,9 +131,6 @@ typedef struct RenderPacket
     float global_ambient_illumination;
     float gamma;
 
-    // bool has_skybox;
-    // TextureHandle skybox_texture;
-    // ShaderHandle skybox_shader;
     bool has_env_map;
     EnvironmentMap env_map;
 } RenderPacket;
@@ -244,7 +228,7 @@ typedef struct Renderer
 
 
 
-    // Hidden implementation-specific data
+    // --- Hidden implementation-specific data ---
     void* backend_internal_data;
 
 } Renderer;

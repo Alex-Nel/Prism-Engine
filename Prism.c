@@ -855,12 +855,11 @@ void Engine_RenderScene(Scene* scene)
     packet.gamma = 2.2f;
     if (cur_settings.gamma > 0.01f)
         packet.gamma = cur_settings.gamma;
+    
     packet.has_env_map = scene->has_env_map;
 
     if (scene->has_env_map && scene->env_map)
-    {
         packet.env_map = *scene->env_map;
-    }
 
     // --- Get all Point Lights from the ECS ---
     DirectionalLightData active_dir_lights[MAX_RESOURCES];

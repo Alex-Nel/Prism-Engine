@@ -112,10 +112,26 @@ ImageDataFloat Image_LoadFloat(const char* filepath, bool inverted)
     // Force 3 channels (RGB) for HDR environments
     data.pixels = stbi_loadf(filepath, &data.width, &data.height, &data.channels, 3);
     if (data.pixels)
+    {
         data.channels = 3;
 
-    if (!data.pixels)
+        int total = data.width * data.height * data.channels;
+        for (int i = 0; i < total; i++)
+        {
+            if (isnan(data.pixels[i]) || isinf(data.pixels[i]))
+            {
+                data.pixels[i] = 0.0f;
+            }
+            else if (data.pixels[i] > 10000.0f)
+            {
+                data.pixels[i] = 10000.0f;
+            }
+        }
+    }
+    else
+    {
         Log_Error("Failed to load HDR image: %s", filepath);
+    }
 
     return data;
 }

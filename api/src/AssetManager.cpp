@@ -147,6 +147,11 @@ namespace Prism
         return Prism::EnvironmentMap(c_env);
     }
 
+    EnvironmentMap AssetManager::LoadEnvironmentMapFromSkybox(const std::string& name, const std::string& right, const std::string& left, const std::string& top, const std::string& bottom, const std::string& front, const std::string& back) {
+        ::EnvironmentMap* c_env = ::Asset_LoadEnvironmentMapFromSkybox(name.c_str(), right.c_str(), left.c_str(), top.c_str(), bottom.c_str(), front.c_str(), back.c_str());
+        return Prism::EnvironmentMap(c_env);
+    }
+
     Texture AssetManager::CreateSolidColorTexture(const std::string& name, Prism::Color color) {
         ::Color c_color = { color.r, color.g, color.b, color.a };
         ::Texture* raw_tex = ::Asset_CreateSolidColorTexture(name.c_str(), c_color);

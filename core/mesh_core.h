@@ -134,6 +134,7 @@ typedef struct EnvironmentMap
     TextureHandle irradiance;
     TextureHandle prefilter;
     TextureHandle brdf_lut;
+    bool has_ibl;   // If false, shader won't apply Image Based Lighting
 } EnvironmentMap;
 
 

@@ -465,18 +465,6 @@ typedef struct ScriptComponent
 
 
 
-// // Struct for a skybox
-// typedef struct Skybox
-// {
-//     Texture* texture;
-//     Shader* shader;
-//     Color background_color;
-// } Skybox;
-
-
-
-
-
 // --- The Scene Struct ---
 typedef struct Scene
 {

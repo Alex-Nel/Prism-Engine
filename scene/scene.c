@@ -54,11 +54,7 @@ void Scene_Init(Scene* scene)
     scene->physics_world = Physics_InitWorld();
     scene->gravity = (Vector3){0.0f, -9.81f, 0.0f};
 
-    // Setting skybox information
-    // scene->skybox.background_color = (Color){0.8f, 0.8f, 0.8f, 1.0f};
-    // scene->skybox.texture = NULL;
-    // scene->skybox.shader = NULL;
-    // scene->has_skybox = false;
+    // Setting environment map information
     scene->has_env_map = false;
     scene->env_map = NULL;
     scene->background_color = (Color){0.8f, 0.8f, 0.8f, 1.0f};

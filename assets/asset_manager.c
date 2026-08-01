@@ -1361,6 +1361,49 @@ EnvironmentMap* Asset_LoadEnvironmentMap(const char* filepath)
         strncpy(m->name, filepath, MAX_NAME_LENGTH - 1);
         m->name[MAX_NAME_LENGTH - 1] = '\0';
         m->id = env_map_count;
+        m->has_ibl = true;
+
+        env_map_count++;
+        return m;
+    }
+
+    return NULL;
+}
+
+
+
+
+
+
+
+
+
+
+// Creates an environment map (without IBL features) from 6 standard images
+EnvironmentMap* Asset_LoadEnvironmentMapFromSkybox(const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back)
+{
+    // Check if it's already loaded
+    for (uint32_t i = 0; i < env_map_count; i++)
+    {
+        if (strcmp(env_map_cache[i].name, name) == 0)
+            return &env_map_cache[i];
+    }
+
+    Texture* skybox_tex = Asset_LoadSkyboxTexture(name, right, left, top, bottom, front, back);
+    if (!skybox_tex)
+        return NULL;
+
+    if (env_map_count < MAX_CACHED_TEXTURES)
+    {
+        EnvironmentMap* m = &env_map_cache[env_map_count];
+        strncpy(m->name, name, MAX_NAME_LENGTH - 1);
+        m->name[MAX_NAME_LENGTH - 1] = '\0';
+        m->id = env_map_count;
+        m->skybox = skybox_tex->gpu_handle;
+        m->irradiance = (TextureHandle){0};
+        m->prefilter = (TextureHandle){0};
+        m->brdf_lut = (TextureHandle){0};
+        m->has_ibl = false;
 
         env_map_count++;
         return m;
@@ -1731,20 +1774,3 @@ Texture* Asset_GetTextureByName(const char* name)
 
     return NULL;
 }
-
-
-
-
-
-// MeshData* Asset_GetMeshData(MeshHandle handle)
-// {
-//     // Search the cache for the matching handle and return the pointer
-//     for (uint32_t i = 0; i < mesh_count; i++)
-//     {
-//         if (mesh_cache[i].handle.id == handle.id)
-//         {
-//             return &mesh_cache[i].mesh_data;
-//         }
-//     }
-//     return NULL; // return NULL if not found
-// }

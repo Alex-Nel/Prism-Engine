@@ -56,6 +56,7 @@ Mesh* Asset_LoadMesh(const char* name, const char* filepath);
 Texture* Asset_LoadTexture(const char* name, const char* filepath);
 Texture* Asset_LoadSkyboxTexture(const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back);
 EnvironmentMap* Asset_LoadEnvironmentMap(const char* filepath);
+EnvironmentMap* Asset_LoadEnvironmentMapFromSkybox(const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back);
 Shader* Asset_LoadShader(const char* name, const char* vert_path, const char* frag_path);
 
 

@@ -370,6 +370,17 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     OpenGL_InitPipelines(internal);
 
 
+    // Generate buffers for IBL pipeline after initialization
+    glGenFramebuffers(1, &internal->ibl.capture_fbo);
+    glGenRenderbuffers(1, &internal->ibl.capture_rbo);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->ibl.capture_fbo);
+    glBindRenderbuffer(GL_RENDERBUFFER, internal->ibl.capture_rbo);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, internal->ibl.capture_rbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
 
 
     r->backend_internal_data = internal;
@@ -559,15 +570,6 @@ void OpenGL_InitPipelines(OpenGL_Backend* internal)
     internal->ibl.irradiance_convolution = OpenGL_CompileInternalShaderFromFile(internal, "Irradiance Convolution", "assets/shaders/cubemap.vert", NULL, "assets/shaders/irradiance_convolution.frag");
     internal->ibl.prefilter = OpenGL_CompileInternalShaderFromFile(internal, "Prefilter", "assets/shaders/cubemap.vert", NULL, "assets/shaders/prefilter.frag");
     internal->ibl.brdf = OpenGL_CompileInternalShaderFromFile(internal, "BRDF LUT", "assets/shaders/brdf.vert", NULL, "assets/shaders/brdf.frag");
-
-    glGenFramebuffers(1, &internal->ibl.capture_fbo);
-    glGenRenderbuffers(1, &internal->ibl.capture_rbo);
-
-    glBindFramebuffer(GL_FRAMEBUFFER, internal->ibl.capture_fbo);
-    glBindRenderbuffer(GL_RENDERBUFFER, internal->ibl.capture_rbo);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, internal->ibl.capture_rbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 

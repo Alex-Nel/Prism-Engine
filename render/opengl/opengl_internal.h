@@ -62,8 +62,6 @@ typedef struct RenderState
     float global_ambient_illumination;
     RendererSettings settings;
 
-    // bool has_skybox;
-    // TextureHandle skybox_texture;
     bool has_env_map;
     EnvironmentMap env_map;
 } RenderState;

@@ -2,6 +2,7 @@
 #define CORE_IMAGE_H
 
 #include <stdbool.h>
+#include <math.h>
 
 
 
