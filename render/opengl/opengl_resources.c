@@ -737,7 +737,7 @@ void OpenGL_DestroyShader(Renderer* r, ShaderHandle shader)
 
 
 
-// Creates a CubeMap for the skybox. Returns a texture handle
+// Creates a CubeMap texture. Returns a texture handle
 TextureHandle OpenGL_CreateCubemap(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;

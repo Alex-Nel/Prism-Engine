@@ -1257,8 +1257,8 @@ Texture* Asset_LoadTexture(const char* name, const char* filepath)
 
 
 
-// Loads a skybox texture from 6 separate images
-Texture* Asset_LoadSkyboxTexture(const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back)
+// Loads a Cube Map texture from 6 separate images
+Texture* Asset_LoadCubemapTexture(const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back)
 {
     // Check if it's already loaded
     for (uint32_t i = 0; i < texture_count; i++)
@@ -1278,7 +1278,7 @@ Texture* Asset_LoadSkyboxTexture(const char* name, const char* right, const char
         images[i] = Image_Load(paths[i], false);
         if (!images[i].pixels)
         {
-            Log_Error("CRITICAL: Failed to load skybox face: %s\n", paths[i]);
+            Log_Error("CRITICAL: Failed to load Cube Map face: %s\n", paths[i]);
             failed = true;
             break; // Stop loading if one fails
         }
@@ -1295,7 +1295,7 @@ Texture* Asset_LoadSkyboxTexture(const char* name, const char* right, const char
 
     // Image_Rotate90CW(&images[2]);
 
-    // Send all 6 pixel arrays to the GPU (Assuming all 6 faces of a skybox have the exact same width/height/channels)
+    // Send all 6 pixel arrays to the GPU (Assuming all 6 faces of a cube map have the exact same width/height/channels)
     TextureHandle handle = Render_CreateCubemap(
         renderer,
         images[0].pixels, // 0: Right
@@ -1389,7 +1389,7 @@ EnvironmentMap* Asset_LoadEnvironmentMapFromSkybox(const char* name, const char*
             return &env_map_cache[i];
     }
 
-    Texture* skybox_tex = Asset_LoadSkyboxTexture(name, right, left, top, bottom, front, back);
+    Texture* skybox_tex = Asset_LoadCubemapTexture(name, right, left, top, bottom, front, back);
     if (!skybox_tex)
         return NULL;
 
