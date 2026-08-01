@@ -462,6 +462,10 @@ void OpenGL_UploadCommonUniforms(GLuint program, const RenderState* state)
     if (gamma_loc != -1)
         glUniform1f(gamma_loc, state->settings.gamma > 0.01f ? state->settings.gamma : 2.2f);
 
+    GLint exp_loc = glGetUniformLocation(program, "u_Exposure");
+    if (exp_loc != -1)
+        glUniform1f(exp_loc, state->settings.exposure > 0.001f ? state->settings.exposure : 1.0f);
+
     GLint ambient_color_loc = glGetUniformLocation(program, "u_GlobalAmbientColor");
     if (ambient_color_loc != -1)
         glUniform3fv(ambient_color_loc, 1, (float*)&state->global_ambient_color);
@@ -1162,6 +1166,7 @@ void OpenGL_DrawSkybox(OpenGL_Backend* internal)
         glBindTexture(GL_TEXTURE_CUBE_MAP, internal->texture_pool[tex_id].id);
 
         glUniform1f(glGetUniformLocation(prog, "u_Gamma"), internal->state.settings.gamma);
+        glUniform1f(glGetUniformLocation(prog, "u_Exposure"), internal->state.settings.exposure > 0.001f ? internal->state.settings.exposure : 1.0f);
         glUniform1i(glGetUniformLocation(prog, "u_IsHDR"), internal->state.env_map.has_ibl ? 1 : 0);
 
         GLint skybox_loc = glGetUniformLocation(prog, "u_Skybox");
@@ -1223,10 +1228,16 @@ void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
     internal->state.settings.enable_ssao = packet->enable_ssao;
     internal->state.global_ambient_color = packet->global_ambient_color;
     internal->state.global_ambient_illumination = packet->global_ambient_illumination;
+
     if (packet->gamma > 0.01f)
         internal->state.settings.gamma = packet->gamma;
     else
         internal->state.settings.gamma = internal->state.settings.gamma > 0.01f ? internal->state.settings.gamma : 2.2f;
+
+    if (packet->exposure > 0.001f)
+        internal->state.settings.exposure = packet->exposure;
+    else
+        internal->state.settings.exposure = 1.0f;
     
     // Reset the queue for the new frame
     internal->command_count = 0;

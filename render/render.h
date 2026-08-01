@@ -130,6 +130,7 @@ typedef struct RenderPacket
     Color global_ambient_color;
     float global_ambient_illumination;
     float gamma;
+    float exposure;
 
     bool has_env_map;
     EnvironmentMap env_map;
@@ -156,6 +157,7 @@ typedef struct RendererSettings
     bool enable_ssao;
     uint32_t shadow_map_resolution; // e.g., 1024, 2048, 4096
     float gamma;                    // e.g., 2.2f (default)
+    float exposure;                 // e.g., 1.0f (default)
 } RendererSettings;
 
 

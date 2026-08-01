@@ -62,6 +62,7 @@ void Scene_Init(Scene* scene)
     // Set ambience variables
     scene->ambient_color = (Color){1.0f, 1.0f, 1.0f, 1.0f};
     scene->ambient_illumination = 0.15f;
+    scene->exposure = 1.0f;
 }
 
 
@@ -1446,6 +1447,32 @@ void Scene_RemoveEnvironmentMap(Scene* scene)
         return;
     
     scene->has_env_map = false;
+}
+
+
+
+
+
+// Sets the scene's exposure level (brightness before tone-mapping)
+void Scene_SetExposure(Scene* scene, float exposure)
+{
+    if (!scene)
+        return;
+
+    scene->exposure = exposure;
+}
+
+
+
+
+
+// Gets the scene's exposure level
+float Scene_GetExposure(Scene* scene)
+{
+    if (!scene)
+        return 1.0f;
+    
+    return scene->exposure;
 }
 
 

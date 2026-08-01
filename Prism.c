@@ -852,6 +852,7 @@ void Engine_RenderScene(Scene* scene)
     packet.enable_ssao = cur_settings.enable_ssao;
     packet.global_ambient_color = scene->ambient_color;
     packet.global_ambient_illumination = scene->ambient_illumination;
+    packet.exposure = scene->exposure;
     packet.gamma = 2.2f;
     if (cur_settings.gamma > 0.01f)
         packet.gamma = cur_settings.gamma;

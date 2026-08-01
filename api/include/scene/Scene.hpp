@@ -67,6 +67,8 @@ namespace Prism
         Vector3 GetGravity();
         void SetEnvironmentMap(Prism::EnvironmentMap env_map);
         void RemoveEnvironmentMap();
+        void SetExposure(float exposure);
+        float GetExposure();
         void SetBackgroundColor(Prism::Color color);
         void SetGlobalAmbientColor(Prism::Color color);
         void SetGlobalAmbientIllumination(float illumination);

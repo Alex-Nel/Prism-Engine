@@ -7,6 +7,7 @@ in vec3 TexCoords;
 uniform samplerCube u_Skybox;
 uniform float u_Gamma;
 uniform bool u_IsHDR;
+uniform float u_Exposure;
 
 
 
@@ -29,7 +30,9 @@ void main()
     vec3 flippedCoords = vec3(-TexCoords.x, TexCoords.y, TexCoords.z);
     vec3 color = texture(u_Skybox, flippedCoords).rgb;
 
-    // FragColor = texture(u_Skybox, flippedCoords);
+    float exposure = u_Exposure > 0.001 ? u_Exposure : 1.0;
+    color *= exposure;
+
     if (u_IsHDR)
     {
         // HDR textures are linear, so tone-map them to display range

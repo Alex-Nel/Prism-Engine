@@ -106,6 +106,14 @@ namespace Prism
         ::Scene_RemoveEnvironmentMap(static_cast<::Scene*>(m_RawScene));
     }
 
+    void Scene::SetExposure(float exposure) {
+        ::Scene_SetExposure(static_cast<::Scene*>(m_RawScene), exposure);
+    }
+
+    float Scene::GetExposure() {
+        return ::Scene_GetExposure(static_cast<::Scene*>(m_RawScene));
+    }
+
     void Scene::SetBackgroundColor(Prism::Color color) {
         ::Scene* c_scene = static_cast<::Scene*>(m_RawScene);
 

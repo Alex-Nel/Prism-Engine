@@ -104,6 +104,7 @@ uniform bool u_EnableSSAO;
 uniform float u_ShadowMaxDistance;
 uniform float u_ReceiveShadows;
 uniform float u_Gamma;
+uniform float u_Exposure;
 uniform vec3 u_GlobalAmbientColor;
 uniform float u_GlobalAmbientIllumination;
 
@@ -515,6 +516,8 @@ void main()
     // totalLight = totalLight / (totalLight + vec3(1.0));
 
     // --- HDR Tone Mapping (ACES Filmic) & Gamma ---
+    float exposure = u_Exposure > 0.001 ? u_Exposure : 1.0;
+    totalLight *= exposure;
     totalLight = ACESFilm(totalLight);
     totalLight = pow(totalLight, vec3(1.0 / gamma));
 

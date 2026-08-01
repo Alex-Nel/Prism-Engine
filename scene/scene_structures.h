@@ -505,6 +505,7 @@ typedef struct Scene
     Color background_color;
     Color ambient_color;
     float ambient_illumination;
+    float exposure;
 
 
     // Variables for entities to remove
