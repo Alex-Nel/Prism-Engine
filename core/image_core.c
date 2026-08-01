@@ -71,7 +71,8 @@ void Image_Rotate90CW(ImageData* img)
             int new_index = (new_y * h + new_x) * c;
 
             // Copy the pixel data (handles 3 or 4 channels automatically)
-            for (int i = 0; i < c; i++) {
+            for (int i = 0; i < c; i++)
+            {
                 rotated_pixels[new_index + i] = img->pixels[old_index + i];
             }
         }
@@ -119,13 +120,9 @@ ImageDataFloat Image_LoadFloat(const char* filepath, bool inverted)
         for (int i = 0; i < total; i++)
         {
             if (isnan(data.pixels[i]) || isinf(data.pixels[i]))
-            {
                 data.pixels[i] = 0.0f;
-            }
             else if (data.pixels[i] > 10000.0f)
-            {
                 data.pixels[i] = 10000.0f;
-            }
         }
     }
     else

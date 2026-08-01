@@ -1108,9 +1108,12 @@ void OpenGL_RenderCommandBatch(OpenGL_Backend* internal, uint32_t start_idx, uin
             {
                 static Matrix4 identity_bones[MAX_BONES];
                 static bool initialized = false;
+
                 if (!initialized)
                 {
-                    for (int b = 0; b < MAX_BONES; b++) identity_bones[b] = Matrix4Identity();
+                    for (int b = 0; b < MAX_BONES; b++)
+                        identity_bones[b] = Matrix4Identity();
+
                     initialized = true;
                 }
                 glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)identity_bones);
@@ -1157,6 +1160,9 @@ void OpenGL_DrawSkybox(OpenGL_Backend* internal)
         
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_CUBE_MAP, internal->texture_pool[tex_id].id);
+
+        glUniform1f(glGetUniformLocation(prog, "u_Gamma"), internal->state.settings.gamma);
+        glUniform1i(glGetUniformLocation(prog, "u_IsHDR"), internal->state.env_map.has_ibl ? 1 : 0);
 
         GLint skybox_loc = glGetUniformLocation(prog, "u_Skybox");
         if (skybox_loc != -1)
@@ -1286,7 +1292,7 @@ static int CompareRenderCommands(const void* a, const void* b)
     // If transparent, sort back to front
     if (cmdA->is_transparent)
     {
-        if (cmdA->depth_distance < cmdB->depth_distance) return 1;
+        if (cmdA->depth_distance < cmdB->depth_distance) return  1;
         if (cmdA->depth_distance > cmdB->depth_distance) return -1;
         return 0;
     }
@@ -1353,8 +1359,7 @@ void OpenGL_EndFrame(Renderer* r)
 
     // --- Forward pipeline (For Skybox and Transparent Geometry) ---
 
-    // Depth Blit. We must copy the exact depths from the G-Buffer onto the main screen 
-    // so the Skybox and Transparent objects know what to hide behind
+    // Depth Blit. We must copy the exact depths from the G-Buffer onto the main screen so the Skybox and Transparent objects know what to hide behind
     glBindFramebuffer(GL_READ_FRAMEBUFFER, internal->ssao.gBufferFBO);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     glBlitFramebuffer(0, 0, internal->state.window_width, internal->state.window_height,
@@ -1364,7 +1369,6 @@ void OpenGL_EndFrame(Renderer* r)
     OpenGL_BindDefaultFramebuffer();
 
     // Draw Skybox
-    // if (internal->state.has_skybox)
     if (internal->state.has_env_map)
         OpenGL_DrawSkybox(internal);
 
@@ -1385,5 +1389,3 @@ void OpenGL_EndFrame(Renderer* r)
 
     glBindVertexArray(0);
 }
-
-static int CompareRenderCommands(const void* a, const void* b);

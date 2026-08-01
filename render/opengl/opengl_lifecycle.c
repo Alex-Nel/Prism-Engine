@@ -445,8 +445,6 @@ void OpenGL_Shutdown(Renderer* r)
     // Garbage Collector Loop. We start at 1 because index 0 is the "Invalid/Null" handle.
     for (uint32_t i = 1; i < MAX_RESOURCES; i++)
     {
-        // We could add a LOG_WARN here to tell the user they had a memory leak during runtime
-
         if (internal->mesh_pool[i].active)
             Render_DestroyMesh(r, (MeshHandle){i});
         
@@ -481,9 +479,9 @@ void OpenGL_GenerateLightSphere(OpenGL_Backend* internal)
     uint32_t indices[32 * 32 * 6];
     
     int v = 0;
-    for (int r = 0; r < rings; ++r)
+    for (int r = 0; r < rings; r++)
     {
-        for (int s = 0; s < sectors; ++s)
+        for (int s = 0; s < sectors; s++)
         {
             float const y = sin(-PI/2.0f + PI * r / (float)(rings-1));
             float const x = cos(2*PI * s / (float)(sectors-1)) * sin(PI * r / (float)(rings-1));
@@ -495,9 +493,9 @@ void OpenGL_GenerateLightSphere(OpenGL_Backend* internal)
 
     int i = 0;
 
-    for (int r = 0; r < rings - 1; ++r)
+    for (int r = 0; r < rings - 1; r++)
     {
-        for (int s = 0; s < sectors - 1; ++s)
+        for (int s = 0; s < sectors - 1; s++)
         {
             indices[i++] = r * sectors + s;
             indices[i++] = r * sectors + (s+1);
@@ -726,6 +724,8 @@ RendererSettings OpenGL_GetSettings(Renderer* r)
         RendererSettings empty = {0};
         return empty;
     }
+
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    
     return internal->state.settings;
 }

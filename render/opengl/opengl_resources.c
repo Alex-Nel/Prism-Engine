@@ -61,16 +61,20 @@ MeshHandle OpenGL_CreateMesh(Renderer* r, const Vertex3D* vertices, uint32_t ver
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_count * sizeof(uint32_t), indices, GL_STATIC_DRAW);
 
-    // Define Vertex Attributes
+    // --- Define Vertex Attributes ---
+
     // Position (Vector3)
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, position));
     glEnableVertexAttribArray(0);
+
     // Normal (Vector3)
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, normal));
     glEnableVertexAttribArray(1);
+    
     // UV (Vector2)
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, uv));
     glEnableVertexAttribArray(2);
+    
     // Tangent (Vector3)
     glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, tangent));
     glEnableVertexAttribArray(3);
@@ -341,7 +345,7 @@ EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels,
     // 1. Generate Env Cubemap
     glGenTextures(1, &envCubemap);
     glBindTexture(GL_TEXTURE_CUBE_MAP, envCubemap);
-    for (unsigned int i = 0; i < 6; ++i)
+    for (unsigned int i = 0; i < 6; i++)
         glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 512, 512, 0, GL_RGB, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -359,7 +363,7 @@ EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels,
     
     glViewport(0, 0, 512, 512); 
     glBindFramebuffer(GL_FRAMEBUFFER, internal->ibl.capture_fbo);
-    for (unsigned int i = 0; i < 6; ++i)
+    for (unsigned int i = 0; i < 6; i++)
     {
         glUniformMatrix4fv(glGetUniformLocation(prog, "view"), 1, GL_FALSE, (float*)&captureViews[i]);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, envCubemap, 0);
@@ -377,7 +381,7 @@ EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels,
     // 2. Generate Irradiance Map
     glGenTextures(1, &irradianceMap);
     glBindTexture(GL_TEXTURE_CUBE_MAP, irradianceMap);
-    for (unsigned int i = 0; i < 6; ++i)
+    for (unsigned int i = 0; i < 6; i++)
         glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 32, 32, 0, GL_RGB, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -397,7 +401,7 @@ EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels,
     glUniformMatrix4fv(glGetUniformLocation(prog, "projection"), 1, GL_FALSE, (float*)&captureProjection);
 
     glViewport(0, 0, 32, 32);
-    for (unsigned int i = 0; i < 6; ++i)
+    for (unsigned int i = 0; i < 6; i++)
     {
         glUniformMatrix4fv(glGetUniformLocation(prog, "view"), 1, GL_FALSE, (float*)&captureViews[i]);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, irradianceMap, 0);
@@ -413,7 +417,7 @@ EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels,
     // 3. Generate Prefilter Map
     glGenTextures(1, &prefilterMap);
     glBindTexture(GL_TEXTURE_CUBE_MAP, prefilterMap);
-    for (unsigned int i = 0; i < 6; ++i)
+    for (unsigned int i = 0; i < 6; i++)
         glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 128, 128, 0, GL_RGB, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -430,7 +434,7 @@ EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels,
     glUniformMatrix4fv(glGetUniformLocation(prog, "projection"), 1, GL_FALSE, (float*)&captureProjection);
 
     unsigned int maxMipLevels = 5;
-    for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
+    for (unsigned int mip = 0; mip < maxMipLevels; mip++)
     {
         unsigned int mipWidth  = 128 >> mip;
         unsigned int mipHeight = 128 >> mip;
@@ -440,7 +444,7 @@ EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels,
 
         float roughness = (float)mip / (float)(maxMipLevels - 1);
         glUniform1f(glGetUniformLocation(prog, "roughness"), roughness);
-        for (unsigned int i = 0; i < 6; ++i)
+        for (unsigned int i = 0; i < 6; i++)
         {
             glUniformMatrix4fv(glGetUniformLocation(prog, "view"), 1, GL_FALSE, (float*)&captureViews[i]);
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, prefilterMap, mip);
@@ -942,7 +946,8 @@ MeshHandle OpenGL_CreateDynamicMesh(Renderer* r, uint32_t max_vertices, uint32_t
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, max_indices * sizeof(uint32_t), NULL, GL_DYNAMIC_DRAW);
 
-    // Define Vertex Attributes
+    // --- Define Vertex Attributes ---
+
     // Position
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, position));
