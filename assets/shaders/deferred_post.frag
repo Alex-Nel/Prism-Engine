@@ -5,6 +5,7 @@ in vec2 TexCoords;
 
 uniform sampler2D hdrLightingMap;
 uniform float u_Gamma;
+uniform float u_Exposure;
 
 
 
@@ -24,12 +25,18 @@ vec3 ACESFilm(vec3 x)
 void main()
 {
     vec4 lightingSample = texture(hdrLightingMap, TexCoords);
-    if (lightingSample.a <= 0.0)
+    if (lightingSample.a < 0.1)
         discard;
 
     vec3 linearLight = lightingSample.rgb;
+
+    // Apply exposure
+    float exposure = u_Exposure > 0.001 ? u_Exposure : 1.0;
+    linearLight *= exposure;
+
     vec3 mapped = ACESFilm(linearLight);
     float gamma = u_Gamma > 0.01 ? u_Gamma : 2.2;
     mapped = pow(mapped, vec3(1.0 / gamma));
+    
     FragColor = vec4(mapped, 1.0);
 }

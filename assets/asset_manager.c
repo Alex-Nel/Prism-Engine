@@ -47,6 +47,9 @@ static uint32_t model_count = 0;
 static Material material_pool[MAX_MATERIALS];
 static uint32_t material_count = 0;
 
+static EnvironmentMap env_map_cache[MAX_CACHED_TEXTURES];
+static uint32_t env_map_count = 0;
+
 
 
 
@@ -1254,8 +1257,8 @@ Texture* Asset_LoadTexture(const char* name, const char* filepath)
 
 
 
-// Loads a skybox texture from 6 separate images
-Texture* Asset_LoadSkyboxTexture(const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back)
+// Loads a Cube Map texture from 6 separate images
+Texture* Asset_LoadCubemapTexture(const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back)
 {
     // Check if it's already loaded
     for (uint32_t i = 0; i < texture_count; i++)
@@ -1275,7 +1278,7 @@ Texture* Asset_LoadSkyboxTexture(const char* name, const char* right, const char
         images[i] = Image_Load(paths[i], false);
         if (!images[i].pixels)
         {
-            Log_Error("CRITICAL: Failed to load skybox face: %s\n", paths[i]);
+            Log_Error("CRITICAL: Failed to load Cube Map face: %s\n", paths[i]);
             failed = true;
             break; // Stop loading if one fails
         }
@@ -1292,7 +1295,7 @@ Texture* Asset_LoadSkyboxTexture(const char* name, const char* right, const char
 
     // Image_Rotate90CW(&images[2]);
 
-    // Send all 6 pixel arrays to the GPU (Assuming all 6 faces of a skybox have the exact same width/height/channels)
+    // Send all 6 pixel arrays to the GPU (Assuming all 6 faces of a cube map have the exact same width/height/channels)
     TextureHandle handle = Render_CreateCubemap(
         renderer,
         images[0].pixels, // 0: Right
@@ -1320,6 +1323,93 @@ Texture* Asset_LoadSkyboxTexture(const char* name, const char* right, const char
     texture_count++;
 
     return new_text;
+}
+
+
+
+
+
+
+
+
+
+
+// Loads an environment map from an HDR file
+EnvironmentMap* Asset_LoadEnvironmentMap(const char* filepath)
+{
+    // Check if it's already loaded
+    for (uint32_t i = 0; i < env_map_count; i++)
+    {
+        if (strcmp(env_map_cache[i].name, filepath) == 0)
+            return &env_map_cache[i];
+    }
+
+    ImageDataFloat img = Image_LoadFloat(filepath, true);
+    if (!img.pixels)
+    {
+        Log_Error("Failed to load HDR environment map: %s", filepath);
+        return NULL;
+    }
+
+    EnvironmentMap env_map = Render_CreateEnvironmentMap(renderer, img.pixels, img.width, img.height);
+    Image_FreeFloat(&img);
+
+    if (env_map_count < MAX_CACHED_TEXTURES)
+    {
+        EnvironmentMap* m = &env_map_cache[env_map_count];
+        *m = env_map;
+        strncpy(m->name, filepath, MAX_NAME_LENGTH - 1);
+        m->name[MAX_NAME_LENGTH - 1] = '\0';
+        m->id = env_map_count;
+        m->has_ibl = true;
+
+        env_map_count++;
+        return m;
+    }
+
+    return NULL;
+}
+
+
+
+
+
+
+
+
+
+
+// Creates an environment map (without IBL features) from 6 standard images
+EnvironmentMap* Asset_LoadEnvironmentMapFromSkybox(const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back)
+{
+    // Check if it's already loaded
+    for (uint32_t i = 0; i < env_map_count; i++)
+    {
+        if (strcmp(env_map_cache[i].name, name) == 0)
+            return &env_map_cache[i];
+    }
+
+    Texture* skybox_tex = Asset_LoadCubemapTexture(name, right, left, top, bottom, front, back);
+    if (!skybox_tex)
+        return NULL;
+
+    if (env_map_count < MAX_CACHED_TEXTURES)
+    {
+        EnvironmentMap* m = &env_map_cache[env_map_count];
+        strncpy(m->name, name, MAX_NAME_LENGTH - 1);
+        m->name[MAX_NAME_LENGTH - 1] = '\0';
+        m->id = env_map_count;
+        m->skybox = skybox_tex->gpu_handle;
+        m->irradiance = (TextureHandle){0};
+        m->prefilter = (TextureHandle){0};
+        m->brdf_lut = (TextureHandle){0};
+        m->has_ibl = false;
+
+        env_map_count++;
+        return m;
+    }
+
+    return NULL;
 }
 
 
@@ -1684,20 +1774,3 @@ Texture* Asset_GetTextureByName(const char* name)
 
     return NULL;
 }
-
-
-
-
-
-// MeshData* Asset_GetMeshData(MeshHandle handle)
-// {
-//     // Search the cache for the matching handle and return the pointer
-//     for (uint32_t i = 0; i < mesh_count; i++)
-//     {
-//         if (mesh_cache[i].handle.id == handle.id)
-//         {
-//             return &mesh_cache[i].mesh_data;
-//         }
-//     }
-//     return NULL; // return NULL if not found
-// }

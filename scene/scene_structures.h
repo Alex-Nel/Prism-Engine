@@ -464,18 +464,6 @@ typedef struct ScriptComponent
 
 
 
-// Struct for a skybox
-typedef struct Skybox
-{
-    Texture* texture;
-    Shader* shader;
-    Color background_color;
-} Skybox;
-
-
-
-
-
 // --- The Scene Struct ---
 typedef struct Scene
 {
@@ -511,10 +499,12 @@ typedef struct Scene
 
     // Variables for the skybox
 
-    bool has_skybox;
-    Skybox skybox;
+    bool has_env_map;
+    EnvironmentMap* env_map;
+    Color background_color;
     Color ambient_color;
     float ambient_illumination;
+    float exposure;
 
 
     // Variables for entities to remove

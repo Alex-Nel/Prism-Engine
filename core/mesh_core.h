@@ -125,12 +125,26 @@ typedef struct Shader
 
 
 
+// Structure for an environment map (IBL)
+typedef struct EnvironmentMap
+{
+    char name[MAX_NAME_LENGTH];
+    uint32_t id;
+    TextureHandle skybox;
+    TextureHandle irradiance;
+    TextureHandle prefilter;
+    TextureHandle brdf_lut;
+    bool has_ibl;   // If false, shader won't apply Image Based Lighting
+} EnvironmentMap;
+
+
+
 // Properties for materials
 typedef struct MaterialProperties
 {
     Color albedo_tint;
-    float metallic_factor;    // 0.0 = plastic, 1.0 metal
-    float roughness_factor;   // 0.0 = perfect mirror, 1.0 = rough dirt
+    float metallic_factor;    // 0.0 = plastic,        1.0 = metal
+    float roughness_factor;   // 0.0 = perfect mirror, 1.0 = rough
 } MaterialProperties;
 
 
@@ -156,13 +170,14 @@ typedef struct Material
 
 
 
-// A single keyframe on the timeline
+// A single Vector keyframe on the timeline
 typedef struct VectorKey
 {
     float time;
     Vector3 value;
 } VectorKey;
 
+// A single Quaternion keyframe on the timeline
 typedef struct QuaternionKey
 {
     float time;

@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <string.h>
 #include <stddef.h>
 #include "scene.h"
@@ -53,15 +54,15 @@ void Scene_Init(Scene* scene)
     scene->physics_world = Physics_InitWorld();
     scene->gravity = (Vector3){0.0f, -9.81f, 0.0f};
 
-    // Setting skybox information
-    scene->skybox.background_color = (Color){0.8f, 0.8f, 0.8f, 1.0f};
-    scene->skybox.texture = NULL;
-    scene->skybox.shader = NULL;
-    scene->has_skybox = false;
+    // Setting environment map information
+    scene->has_env_map = false;
+    scene->env_map = NULL;
+    scene->background_color = (Color){0.8f, 0.8f, 0.8f, 1.0f};
 
     // Set ambience variables
     scene->ambient_color = (Color){1.0f, 1.0f, 1.0f, 1.0f};
     scene->ambient_illumination = 0.15f;
+    scene->exposure = 1.0f;
 }
 
 
@@ -1426,16 +1427,13 @@ void Scene_ProcessDestroyQueue(Scene* scene)
 
 
 // Sets the skybox of the scene
-void Scene_SetSkybox(Scene* scene, Texture* skybox_texture, Shader* skybox_shader)
+void Scene_SetEnvironmentMap(Scene* scene, EnvironmentMap* env_map)
 {
     if (!scene)
         return;
-    
-    if (!scene->has_skybox)
-        scene->has_skybox = true;
 
-    scene->skybox.texture = skybox_texture;
-    scene->skybox.shader = skybox_shader;
+    scene->env_map = env_map;
+    scene->has_env_map = (env_map != NULL);
 }
 
 
@@ -1443,12 +1441,38 @@ void Scene_SetSkybox(Scene* scene, Texture* skybox_texture, Shader* skybox_shade
 
 
 // Removes the skybox from the scene
-void Scene_RemoveSkybox(Scene* scene)
+void Scene_RemoveEnvironmentMap(Scene* scene)
 {
     if (!scene)
         return;
     
-    scene->has_skybox = false;
+    scene->has_env_map = false;
+}
+
+
+
+
+
+// Sets the scene's exposure level (brightness before tone-mapping)
+void Scene_SetExposure(Scene* scene, float exposure)
+{
+    if (!scene)
+        return;
+
+    scene->exposure = exposure;
+}
+
+
+
+
+
+// Gets the scene's exposure level
+float Scene_GetExposure(Scene* scene)
+{
+    if (!scene)
+        return 1.0f;
+    
+    return scene->exposure;
 }
 
 

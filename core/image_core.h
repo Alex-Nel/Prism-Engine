@@ -2,6 +2,9 @@
 #define CORE_IMAGE_H
 
 #include <stdbool.h>
+#include <math.h>
+
+
 
 
 // The CPU container for raw pixel data
@@ -26,6 +29,29 @@ void Image_Rotate90CW(ImageData* img);
 
 // Frees the CPU RAM
 void Image_Free(ImageData* data);
+
+
+
+
+
+// The CPU container for float (HDR) pixel data
+typedef struct ImageDataFloat
+{
+    float* pixels;
+    int width;
+    int height;
+    int channels; 
+} ImageDataFloat;
+
+
+
+// Loads an HDR image from disk into CPU RAM
+ImageDataFloat Image_LoadFloat(const char* filepath, bool inverted);
+
+// Frees the CPU RAM of an HDR image
+void Image_FreeFloat(ImageDataFloat* data);
+
+
 
 
 

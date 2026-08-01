@@ -65,9 +65,11 @@ namespace Prism
         void SetMainCamera(Entity cameraEntity);
         void SetGravity(Prism::Vector3 gravity);
         Vector3 GetGravity();
-        void SetSkybox(Prism::Texture* skybox_text, Prism::Shader* custom_shader = nullptr);
-        void SetSkybox(Prism::Color color);
-        void RemoveSkybox();
+        void SetEnvironmentMap(Prism::EnvironmentMap env_map);
+        void RemoveEnvironmentMap();
+        void SetExposure(float exposure);
+        float GetExposure();
+        void SetBackgroundColor(Prism::Color color);
         void SetGlobalAmbientColor(Prism::Color color);
         void SetGlobalAmbientIllumination(float illumination);
         Prism::Color GetGlobalAmbientColor();

@@ -66,7 +66,9 @@ namespace Prism
         // --- Texture Management ---
 
         static Texture LoadTexture(const std::string& name, const std::string& filepath);
-        static Texture LoadSkyboxTexture(const std::string& name, const std::string& right, const std::string& left, const std::string& top, const std::string& bottom, const std::string& front, const std::string& back);
+        static Texture LoadCubemapTexture(const std::string& name, const std::string& right, const std::string& left, const std::string& top, const std::string& bottom, const std::string& front, const std::string& back);
+        static EnvironmentMap LoadEnvironmentMap(const std::string& filepath);
+        static EnvironmentMap LoadEnvironmentMapFromSkybox(const std::string& name, const std::string& right, const std::string& left, const std::string& top, const std::string& bottom, const std::string& front, const std::string& back);
         static Texture CreateSolidColorTexture(const std::string& name, Prism::Color color);
         static Texture GetTextureByName(std::string name);
 

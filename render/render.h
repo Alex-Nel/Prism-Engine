@@ -122,7 +122,7 @@ typedef struct RenderPacket
     Matrix4 light_space_matrices[MAX_SHADOW_CASCADES];
     float shadow_texel_world_sizes[MAX_SHADOW_CASCADES];
     float cascade_splits[MAX_SHADOW_CASCADES - 1]; // distance along camera forward
-    Vector3 camera_forward; // main camera forward (cascade selection in shader)
+    Vector3 camera_forward;        // main camera forward (cascade selection in shader)
     float shadow_camera_near;      // camera near plane (CSM blend region sizing)
     float cascade_blend_fraction;  // 0..1 fraction of each slice used to cross-fade
 
@@ -130,10 +130,10 @@ typedef struct RenderPacket
     Color global_ambient_color;
     float global_ambient_illumination;
     float gamma;
+    float exposure;
 
-    bool has_skybox;
-    TextureHandle skybox_texture;
-    ShaderHandle skybox_shader;
+    bool has_env_map;
+    EnvironmentMap env_map;
 } RenderPacket;
 
 
@@ -157,6 +157,7 @@ typedef struct RendererSettings
     bool enable_ssao;
     uint32_t shadow_map_resolution; // e.g., 1024, 2048, 4096
     float gamma;                    // e.g., 2.2f (default)
+    float exposure;                 // e.g., 1.0f (default)
 } RendererSettings;
 
 
@@ -196,6 +197,7 @@ typedef struct Renderer
     void          (*DestroyShader)(Renderer* r, ShaderHandle shader);
 
     TextureHandle (*CreateCubemap)(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels);
+    EnvironmentMap (*CreateEnvironmentMap)(Renderer* r, const float* hdr_pixels, uint32_t width, uint32_t height);
     MeshHandle (*CreateDynamicMesh)(Renderer* r, uint32_t max_vertices, uint32_t max_indices);
     MeshHandle (*CreateSkinnedMesh)(Renderer* r, const Vertex3DSkinned* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count);
     void (*UpdateDynamicMesh)(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
@@ -228,7 +230,7 @@ typedef struct Renderer
 
 
 
-    // Hidden implementation-specific data
+    // --- Hidden implementation-specific data ---
     void* backend_internal_data;
 
 } Renderer;
@@ -344,6 +346,16 @@ static inline TextureHandle Render_CreateCubemap(Renderer* r,
         return r->CreateCubemap(r, right, left, top, bottom, front, back, width, height, channels);
     else
         return (TextureHandle){0};
+}
+
+
+// Creates an EnvironmentMap (IBL textures) from an HDR image
+static inline EnvironmentMap Render_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels, uint32_t width, uint32_t height)
+{
+    if (r && r->CreateEnvironmentMap)
+        return r->CreateEnvironmentMap(r, hdr_pixels, width, height);
+    else
+        return (EnvironmentMap){0};
 }
 
 

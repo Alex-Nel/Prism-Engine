@@ -61,16 +61,20 @@ MeshHandle OpenGL_CreateMesh(Renderer* r, const Vertex3D* vertices, uint32_t ver
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_count * sizeof(uint32_t), indices, GL_STATIC_DRAW);
 
-    // Define Vertex Attributes
+    // --- Define Vertex Attributes ---
+
     // Position (Vector3)
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, position));
     glEnableVertexAttribArray(0);
+
     // Normal (Vector3)
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, normal));
     glEnableVertexAttribArray(1);
+    
     // UV (Vector2)
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, uv));
     glEnableVertexAttribArray(2);
+    
     // Tangent (Vector3)
     glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, tangent));
     glEnableVertexAttribArray(3);
@@ -204,6 +208,54 @@ TextureHandle OpenGL_CreateTexture(Renderer* r, const uint8_t* pixels, uint32_t 
 
 
 
+// Uploads float HDR pixels to a texture
+TextureHandle OpenGL_CreateTextureHDR(Renderer* r, const float* pixels, uint32_t width, uint32_t height, uint32_t channels)
+{
+    if (!pixels || width == 0 || height == 0 || channels == 0)
+        return (TextureHandle){0};
+
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+
+    GLuint texture_id;
+    glGenTextures(1, &texture_id);
+    glBindTexture(GL_TEXTURE_2D, texture_id);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);    
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    GLenum format = GL_RGB;
+    GLenum internal_format = GL_RGB16F;
+    if (channels == 4)
+    {
+        format = GL_RGBA;
+        internal_format = GL_RGBA16F;
+    }
+
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, format, GL_FLOAT, pixels);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+
+    for (uint32_t i = 1; i < MAX_RESOURCES; i++)
+    {
+        if (!internal->texture_pool[i].active)
+        {    
+            internal->texture_pool[i].id = texture_id;
+            internal->texture_pool[i].active = true;
+            return (TextureHandle){ i }; 
+        }
+    }
+
+    glDeleteTextures(1, &texture_id);
+
+    return (TextureHandle){ 0 };
+}
+
+
+
+
+
 // Removes a texture from the GPU
 void OpenGL_DestroyTexture(Renderer* r, TextureHandle texture)
 {
@@ -225,6 +277,225 @@ void OpenGL_DestroyTexture(Renderer* r, TextureHandle texture)
         tex->active = false;
     }
 }
+
+
+
+
+
+
+
+
+
+
+// Converts an equirectangular HDR to Cubemap and generates Irradiance, Prefilter, and BRDF LUT maps
+EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels, uint32_t width, uint32_t height)
+{
+    EnvironmentMap env = {0};
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    
+    if (!hdr_pixels || width == 0 || height == 0)
+        return env;
+
+    TextureHandle hdr_tex = OpenGL_CreateTextureHDR(r, hdr_pixels, width, height, 3);
+    if (hdr_tex.id == 0)
+        return env;
+    
+    // We need 4 handles from the pool for skybox, irradiance, prefilter, brdf
+    uint32_t ids[4] = {0,0,0,0};
+    int found = 0;
+    for (uint32_t i = 1; i < MAX_RESOURCES && found < 4; i++)
+    {
+        if (!internal->texture_pool[i].active)
+        {
+            ids[found++] = i;
+            internal->texture_pool[i].active = true; // Mark to reserve
+        }
+    }
+
+    if (found < 4)
+    {
+        OpenGL_DestroyTexture(r, hdr_tex);
+
+        for (int i = 0; i < found; i++)
+            internal->texture_pool[ids[i]].active = false;
+        
+        return env;
+    }
+    
+    env.skybox = (TextureHandle){ids[0]};
+    env.irradiance = (TextureHandle){ids[1]};
+    env.prefilter = (TextureHandle){ids[2]};
+    env.brdf_lut = (TextureHandle){ids[3]};
+
+    // Matrices for the 6 cube faces
+    Matrix4 captureProjection = Matrix4Perspective(90.0f * (3.14159265359f / 180.0f), 1.0f, 0.1f, 10.0f);
+    Matrix4 captureViews[] = {
+       Matrix4LookAt((Vector3){0,0,0}, (Vector3){ 1, 0, 0}, (Vector3){0,-1, 0}),
+       Matrix4LookAt((Vector3){0,0,0}, (Vector3){-1, 0, 0}, (Vector3){0,-1, 0}),
+       Matrix4LookAt((Vector3){0,0,0}, (Vector3){ 0, 1, 0}, (Vector3){0, 0, 1}),
+       Matrix4LookAt((Vector3){0,0,0}, (Vector3){ 0,-1, 0}, (Vector3){0, 0,-1}),
+       Matrix4LookAt((Vector3){0,0,0}, (Vector3){ 0, 0, 1}, (Vector3){0,-1, 0}),
+       Matrix4LookAt((Vector3){0,0,0}, (Vector3){ 0, 0,-1}, (Vector3){0,-1, 0})
+    };
+    
+    GLuint envCubemap, irradianceMap, prefilterMap, brdfLUTTexture;
+    
+
+
+    // 1. Generate Env Cubemap
+    glGenTextures(1, &envCubemap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, envCubemap);
+    for (unsigned int i = 0; i < 6; i++)
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 512, 512, 0, GL_RGB, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR); 
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    
+    // Convert HDR to Cubemap
+    GLuint prog = internal->shader_pool[internal->ibl.equirectangular_to_cubemap.id].program;
+    glUseProgram(prog);
+    glUniform1i(glGetUniformLocation(prog, "equirectangularMap"), 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, internal->texture_pool[hdr_tex.id].id);
+    glUniformMatrix4fv(glGetUniformLocation(prog, "projection"), 1, GL_FALSE, (float*)&captureProjection);
+    
+    glViewport(0, 0, 512, 512); 
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->ibl.capture_fbo);
+    for (unsigned int i = 0; i < 6; i++)
+    {
+        glUniformMatrix4fv(glGetUniformLocation(prog, "view"), 1, GL_FALSE, (float*)&captureViews[i]);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, envCubemap, 0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        
+        glBindVertexArray(internal->skybox.vao);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+        glBindVertexArray(0);
+    }
+    glBindTexture(GL_TEXTURE_CUBE_MAP, envCubemap);
+    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+
+
+
+    // 2. Generate Irradiance Map
+    glGenTextures(1, &irradianceMap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, irradianceMap);
+    for (unsigned int i = 0; i < 6; i++)
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 32, 32, 0, GL_RGB, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->ibl.capture_fbo);
+    glBindRenderbuffer(GL_RENDERBUFFER, internal->ibl.capture_rbo);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 32, 32);
+    
+    prog = internal->shader_pool[internal->ibl.irradiance_convolution.id].program;
+    glUseProgram(prog);
+    glUniform1i(glGetUniformLocation(prog, "environmentMap"), 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, envCubemap);
+    glUniformMatrix4fv(glGetUniformLocation(prog, "projection"), 1, GL_FALSE, (float*)&captureProjection);
+
+    glViewport(0, 0, 32, 32);
+    for (unsigned int i = 0; i < 6; i++)
+    {
+        glUniformMatrix4fv(glGetUniformLocation(prog, "view"), 1, GL_FALSE, (float*)&captureViews[i]);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, irradianceMap, 0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        glBindVertexArray(internal->skybox.vao);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+        glBindVertexArray(0);
+    }
+
+
+
+    // 3. Generate Prefilter Map
+    glGenTextures(1, &prefilterMap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, prefilterMap);
+    for (unsigned int i = 0; i < 6; i++)
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 128, 128, 0, GL_RGB, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR); 
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+
+    prog = internal->shader_pool[internal->ibl.prefilter.id].program;
+    glUseProgram(prog);
+    glUniform1i(glGetUniformLocation(prog, "environmentMap"), 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, envCubemap);
+    glUniformMatrix4fv(glGetUniformLocation(prog, "projection"), 1, GL_FALSE, (float*)&captureProjection);
+
+    unsigned int maxMipLevels = 5;
+    for (unsigned int mip = 0; mip < maxMipLevels; mip++)
+    {
+        unsigned int mipWidth  = 128 >> mip;
+        unsigned int mipHeight = 128 >> mip;
+        glBindRenderbuffer(GL_RENDERBUFFER, internal->ibl.capture_rbo);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
+        glViewport(0, 0, mipWidth, mipHeight);
+
+        float roughness = (float)mip / (float)(maxMipLevels - 1);
+        glUniform1f(glGetUniformLocation(prog, "roughness"), roughness);
+        for (unsigned int i = 0; i < 6; i++)
+        {
+            glUniformMatrix4fv(glGetUniformLocation(prog, "view"), 1, GL_FALSE, (float*)&captureViews[i]);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, prefilterMap, mip);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+            glBindVertexArray(internal->skybox.vao);
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+            glBindVertexArray(0);
+        }
+    }
+
+
+
+    // 4. Generate BRDF LUT
+    glGenTextures(1, &brdfLUTTexture);
+    glBindTexture(GL_TEXTURE_2D, brdfLUTTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, 512, 512, 0, GL_RG, GL_FLOAT, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->ibl.capture_fbo);
+    glBindRenderbuffer(GL_RENDERBUFFER, internal->ibl.capture_rbo);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, brdfLUTTexture, 0);
+    
+    glViewport(0, 0, 512, 512);
+    prog = internal->shader_pool[internal->ibl.brdf.id].program;
+    glUseProgram(prog);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glBindVertexArray(internal->quad_vao);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    
+    // Cleanup temporary HDR texture as it's no longer needed, everything is in the cubemaps
+    OpenGL_DestroyTexture(r, hdr_tex);
+    
+    internal->texture_pool[env.skybox.id].id = envCubemap;
+    internal->texture_pool[env.irradiance.id].id = irradianceMap;
+    internal->texture_pool[env.prefilter.id].id = prefilterMap;
+    internal->texture_pool[env.brdf_lut.id].id = brdfLUTTexture;
+    
+    // Set viewport back
+    OpenGL_SetViewport(r, 0, 0, internal->state.window_width, internal->state.window_height);
+
+    return env;
+}
+
 
 
 
@@ -470,7 +741,7 @@ void OpenGL_DestroyShader(Renderer* r, ShaderHandle shader)
 
 
 
-// Creates a CubeMap for the skybox. Returns a texture handle
+// Creates a CubeMap texture. Returns a texture handle
 TextureHandle OpenGL_CreateCubemap(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
@@ -675,7 +946,8 @@ MeshHandle OpenGL_CreateDynamicMesh(Renderer* r, uint32_t max_vertices, uint32_t
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, max_indices * sizeof(uint32_t), NULL, GL_DYNAMIC_DRAW);
 
-    // Define Vertex Attributes
+    // --- Define Vertex Attributes ---
+
     // Position
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex3D), (void*)offsetof(Vertex3D, position));

@@ -370,6 +370,17 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     OpenGL_InitPipelines(internal);
 
 
+    // Generate buffers for IBL pipeline after initialization
+    glGenFramebuffers(1, &internal->ibl.capture_fbo);
+    glGenRenderbuffers(1, &internal->ibl.capture_rbo);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->ibl.capture_fbo);
+    glBindRenderbuffer(GL_RENDERBUFFER, internal->ibl.capture_rbo);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, internal->ibl.capture_rbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
 
 
     r->backend_internal_data = internal;
@@ -391,6 +402,7 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     r->DestroyShader = OpenGL_DestroyShader;
 
     r->CreateCubemap = OpenGL_CreateCubemap;
+    r->CreateEnvironmentMap = OpenGL_CreateEnvironmentMap;
     r->CreateDynamicMesh = OpenGL_CreateDynamicMesh;
     r->CreateSkinnedMesh = OpenGL_CreateSkinnedMesh;
     r->UpdateDynamicMesh = OpenGL_UpdateDynamicMesh;
@@ -433,8 +445,6 @@ void OpenGL_Shutdown(Renderer* r)
     // Garbage Collector Loop. We start at 1 because index 0 is the "Invalid/Null" handle.
     for (uint32_t i = 1; i < MAX_RESOURCES; i++)
     {
-        // We could add a LOG_WARN here to tell the user they had a memory leak during runtime
-
         if (internal->mesh_pool[i].active)
             Render_DestroyMesh(r, (MeshHandle){i});
         
@@ -469,9 +479,9 @@ void OpenGL_GenerateLightSphere(OpenGL_Backend* internal)
     uint32_t indices[32 * 32 * 6];
     
     int v = 0;
-    for (int r = 0; r < rings; ++r)
+    for (int r = 0; r < rings; r++)
     {
-        for (int s = 0; s < sectors; ++s)
+        for (int s = 0; s < sectors; s++)
         {
             float const y = sin(-PI/2.0f + PI * r / (float)(rings-1));
             float const x = cos(2*PI * s / (float)(sectors-1)) * sin(PI * r / (float)(rings-1));
@@ -483,9 +493,9 @@ void OpenGL_GenerateLightSphere(OpenGL_Backend* internal)
 
     int i = 0;
 
-    for (int r = 0; r < rings - 1; ++r)
+    for (int r = 0; r < rings - 1; r++)
     {
-        for (int s = 0; s < sectors - 1; ++s)
+        for (int s = 0; s < sectors - 1; s++)
         {
             indices[i++] = r * sectors + s;
             indices[i++] = r * sectors + (s+1);
@@ -552,6 +562,12 @@ void OpenGL_InitPipelines(OpenGL_Backend* internal)
     internal->ssao.g_buffer_skinned_shader = OpenGL_CompileInternalShaderFromFile(internal, "G-Buffer Skinned", "assets/shaders/g_buffer_skinned.vert", NULL, "assets/shaders/g_buffer.frag");
     internal->ssao.ssao_shader = OpenGL_CompileInternalShaderFromFile(internal, "SSAO Compute", "assets/shaders/ssao.vert", NULL, "assets/shaders/ssao.frag");
     internal->ssao.blur_shader = OpenGL_CompileInternalShaderFromFile(internal, "SSAO Blur", "assets/shaders/ssao.vert", NULL, "assets/shaders/ssao_blur.frag");
+
+    // 7. IBL Precomputation Pipeline
+    internal->ibl.equirectangular_to_cubemap = OpenGL_CompileInternalShaderFromFile(internal, "Equirectangular to Cubemap", "assets/shaders/cubemap.vert", NULL, "assets/shaders/equirectangular_to_cubemap.frag");
+    internal->ibl.irradiance_convolution = OpenGL_CompileInternalShaderFromFile(internal, "Irradiance Convolution", "assets/shaders/cubemap.vert", NULL, "assets/shaders/irradiance_convolution.frag");
+    internal->ibl.prefilter = OpenGL_CompileInternalShaderFromFile(internal, "Prefilter", "assets/shaders/cubemap.vert", NULL, "assets/shaders/prefilter.frag");
+    internal->ibl.brdf = OpenGL_CompileInternalShaderFromFile(internal, "BRDF LUT", "assets/shaders/brdf.vert", NULL, "assets/shaders/brdf.frag");
 }
 
 
@@ -708,6 +724,8 @@ RendererSettings OpenGL_GetSettings(Renderer* r)
         RendererSettings empty = {0};
         return empty;
     }
+
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    
     return internal->state.settings;
 }

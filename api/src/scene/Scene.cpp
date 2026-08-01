@@ -93,29 +93,32 @@ namespace Prism
         return Prism::Vector3(gravity.x, gravity.y, gravity.z);
     }
 
-    void Scene::SetSkybox(Prism::Texture* skybox_text, Prism::Shader* custom_shader) {
-        ::Shader* c_shader = nullptr;
+    void Scene::SetEnvironmentMap(Prism::EnvironmentMap env_map) {
+        ::EnvironmentMap* c_env = static_cast<::EnvironmentMap*>(env_map.GetRaw());
 
-        if (custom_shader != nullptr)
-            c_shader = static_cast<::Shader*>(custom_shader->GetRaw());
+        if (!c_env)
+            Debug_Error("Failed to set environment map");
 
-        ::Texture* c_tex = static_cast<::Texture*>(skybox_text->GetRaw());
-
-        if (!c_tex)
-            Debug_Error("Failed to set skybox");
-
-        ::Scene_SetSkybox(static_cast<::Scene*>(m_RawScene), c_tex, c_shader);
+        ::Scene_SetEnvironmentMap(static_cast<::Scene*>(m_RawScene), c_env);
     }
 
-    void Scene::SetSkybox(Prism::Color color) {
+    void Scene::RemoveEnvironmentMap() {
+        ::Scene_RemoveEnvironmentMap(static_cast<::Scene*>(m_RawScene));
+    }
+
+    void Scene::SetExposure(float exposure) {
+        ::Scene_SetExposure(static_cast<::Scene*>(m_RawScene), exposure);
+    }
+
+    float Scene::GetExposure() {
+        return ::Scene_GetExposure(static_cast<::Scene*>(m_RawScene));
+    }
+
+    void Scene::SetBackgroundColor(Prism::Color color) {
         ::Scene* c_scene = static_cast<::Scene*>(m_RawScene);
 
-        c_scene->skybox.background_color = ::Color{color.r, color.g, color.b, color.a};
-        c_scene->has_skybox = false;
-    }
-
-    void Scene::RemoveSkybox() {
-        ::Scene_RemoveSkybox(static_cast<::Scene*>(m_RawScene));
+        c_scene->background_color = ::Color{color.r, color.g, color.b, color.a};
+        c_scene->has_env_map = false;
     }
 
     void Scene::SetGlobalAmbientColor(Prism::Color color) {
