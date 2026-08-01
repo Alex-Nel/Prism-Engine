@@ -97,3 +97,37 @@ void Image_Free(ImageData* data)
         data->pixels = NULL;
     }
 }
+
+
+
+
+
+// Loads float image from file path
+ImageDataFloat Image_LoadFloat(const char* filepath, bool inverted)
+{
+    ImageDataFloat data = {0};
+    
+    stbi_set_flip_vertically_on_load(inverted); 
+    
+    // Force 3 channels (RGB) for HDR environments
+    data.pixels = stbi_loadf(filepath, &data.width, &data.height, &data.channels, 3);
+    if (data.pixels)
+        data.channels = 3;
+
+    if (!data.pixels)
+        Log_Error("Failed to load HDR image: %s", filepath);
+
+    return data;
+}
+
+
+
+// Free's the float image data from memory
+void Image_FreeFloat(ImageDataFloat* data)
+{
+    if (data && data->pixels)
+    {
+        stbi_image_free(data->pixels);
+        data->pixels = NULL;
+    }
+}

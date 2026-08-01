@@ -12,6 +12,7 @@
 #include "../audio/audio.h"
 #include "../assets/asset_manager.h"
 #include "physics_bridge.h"
+#include "render/render.h"
 #include "scene_structures.h"
 
 
@@ -52,8 +53,10 @@ void Scene_SetGravity(Scene* scene, Vector3 gravity);
 Vector3 Scene_GetGravity(Scene* scene);
 void Scene_ShutdownPhysics(Scene* scene);
 void Scene_ProcessDestroyQueue(Scene* scene);
-void Scene_SetSkybox(Scene* scene, Texture* skybox_texture, Shader* skybox_shader);
-void Scene_RemoveSkybox(Scene* scene);
+void Scene_SetEnvironmentMap(Scene* scene, EnvironmentMap* env_map);
+void Scene_RemoveEnvironmentMap(Scene* scene);
+// void Scene_SetSkybox(Scene* scene, Texture* skybox_texture, Shader* skybox_shader);
+// void Scene_RemoveSkybox(Scene* scene);
 bool Scene_Raycast(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hit, int collision_mask, bool hit_triggers);
 int Scene_RaycastAll(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hits, int max_hits, int collision_mask, bool hit_triggers);
 

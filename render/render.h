@@ -99,6 +99,19 @@ typedef struct SpotLightData
 
 
 
+// // Struct containing IBL textures
+// typedef struct EnvironmentMap
+// {
+//     TextureHandle skybox;
+//     TextureHandle irradiance;
+//     TextureHandle prefilter;
+//     TextureHandle brdf_lut;
+// } EnvironmentMap;
+
+
+
+
+
 // Struct for a render packet to send to renderer
 typedef struct RenderPacket
 {
@@ -131,9 +144,11 @@ typedef struct RenderPacket
     float global_ambient_illumination;
     float gamma;
 
-    bool has_skybox;
-    TextureHandle skybox_texture;
-    ShaderHandle skybox_shader;
+    // bool has_skybox;
+    // TextureHandle skybox_texture;
+    // ShaderHandle skybox_shader;
+    bool has_env_map;
+    EnvironmentMap env_map;
 } RenderPacket;
 
 
@@ -196,6 +211,7 @@ typedef struct Renderer
     void          (*DestroyShader)(Renderer* r, ShaderHandle shader);
 
     TextureHandle (*CreateCubemap)(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels);
+    EnvironmentMap (*CreateEnvironmentMap)(Renderer* r, const float* hdr_pixels, uint32_t width, uint32_t height);
     MeshHandle (*CreateDynamicMesh)(Renderer* r, uint32_t max_vertices, uint32_t max_indices);
     MeshHandle (*CreateSkinnedMesh)(Renderer* r, const Vertex3DSkinned* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count);
     void (*UpdateDynamicMesh)(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
@@ -344,6 +360,16 @@ static inline TextureHandle Render_CreateCubemap(Renderer* r,
         return r->CreateCubemap(r, right, left, top, bottom, front, back, width, height, channels);
     else
         return (TextureHandle){0};
+}
+
+
+// Creates an EnvironmentMap (IBL textures) from an HDR image
+static inline EnvironmentMap Render_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels, uint32_t width, uint32_t height)
+{
+    if (r && r->CreateEnvironmentMap)
+        return r->CreateEnvironmentMap(r, hdr_pixels, width, height);
+    else
+        return (EnvironmentMap){0};
 }
 
 

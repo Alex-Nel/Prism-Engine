@@ -142,6 +142,11 @@ namespace Prism
         return Prism::Texture(t);
     }
 
+    EnvironmentMap AssetManager::LoadEnvironmentMap(const std::string& filepath) {
+        ::EnvironmentMap* c_env = ::Asset_LoadEnvironmentMap(filepath.c_str());
+        return Prism::EnvironmentMap(c_env);
+    }
+
     Texture AssetManager::CreateSolidColorTexture(const std::string& name, Prism::Color color) {
         ::Color c_color = { color.r, color.g, color.b, color.a };
         ::Texture* raw_tex = ::Asset_CreateSolidColorTexture(name.c_str(), c_color);

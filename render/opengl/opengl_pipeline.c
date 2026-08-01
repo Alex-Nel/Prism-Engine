@@ -736,6 +736,15 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, internal->ssao.gAlbedoSpec); glUniform1i(glGetUniformLocation(def_prog, "gAlbedoSpec"), 2);
     glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, internal->state.settings.enable_ssao ? internal->ssao.ssaoColorBufferBlur : internal->ssao.fallbackWhiteTexture); glUniform1i(glGetUniformLocation(def_prog, "ssaoMap"), 3);
     glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_2D_ARRAY, internal->shadow.depthMapTextureArray); glUniform1i(glGetUniformLocation(def_prog, "shadowMap"), 4);
+
+    // Bind IBL Maps
+    glUniform1i(glGetUniformLocation(def_prog, "u_HasIBL"), internal->state.has_env_map ? 1 : 0);
+    if (internal->state.has_env_map)
+    {
+        glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_CUBE_MAP, internal->texture_pool[internal->state.env_map.irradiance.id].id); glUniform1i(glGetUniformLocation(def_prog, "irradianceMap"), 5);
+        glActiveTexture(GL_TEXTURE6); glBindTexture(GL_TEXTURE_CUBE_MAP, internal->texture_pool[internal->state.env_map.prefilter.id].id); glUniform1i(glGetUniformLocation(def_prog, "prefilterMap"), 6);
+        glActiveTexture(GL_TEXTURE7); glBindTexture(GL_TEXTURE_2D, internal->texture_pool[internal->state.env_map.brdf_lut.id].id); glUniform1i(glGetUniformLocation(def_prog, "brdfLUT"), 7);
+    }
     
     // Upload Uniforms
     glUniformMatrix4fv(glGetUniformLocation(def_prog, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
@@ -1127,7 +1136,8 @@ void OpenGL_RenderCommandBatch(OpenGL_Backend* internal, uint32_t start_idx, uin
 void OpenGL_DrawSkybox(OpenGL_Backend* internal)
 {
     uint32_t shader_id = internal->skybox.default_shader.id;
-    uint32_t tex_id = internal->state.skybox_texture.id;
+    // uint32_t tex_id = internal->state.skybox_texture.id;
+    uint32_t tex_id = internal->state.env_map.skybox.id;
 
     // Validate both handles so a stale ID can't bind a program.
     if (shader_id >= MAX_RESOURCES || !internal->shader_pool[shader_id].active)
@@ -1147,7 +1157,8 @@ void OpenGL_DrawSkybox(OpenGL_Backend* internal)
         glUniformMatrix4fv(glGetUniformLocation(prog, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
         
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, internal->texture_pool[internal->state.skybox_texture.id].id);
+        // glBindTexture(GL_TEXTURE_CUBE_MAP, internal->texture_pool[internal->state.skybox_texture.id].id);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, internal->texture_pool[tex_id].id);
 
         GLint skybox_loc = glGetUniformLocation(prog, "u_Skybox");
         if (skybox_loc != -1)
@@ -1203,8 +1214,10 @@ void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
     for (uint32_t i = 0; i < packet->spot_light_count; i++)
         internal->state.spot_lights[i] = packet->spot_lights[i];
 
-    internal->state.has_skybox = packet->has_skybox;
-    internal->state.skybox_texture = packet->skybox_texture;
+    // internal->state.has_skybox = packet->has_skybox;
+    // internal->state.skybox_texture = packet->skybox_texture;
+    internal->state.has_env_map = packet->has_env_map;
+    internal->state.env_map = packet->env_map;
     internal->state.settings.enable_ssao = packet->enable_ssao;
     internal->state.global_ambient_color = packet->global_ambient_color;
     internal->state.global_ambient_illumination = packet->global_ambient_illumination;
@@ -1213,8 +1226,8 @@ void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
     else
         internal->state.settings.gamma = internal->state.settings.gamma > 0.01f ? internal->state.settings.gamma : 2.2f;
     
-    if (packet->skybox_shader.id != 0 && packet->skybox_shader.id < MAX_RESOURCES && internal->shader_pool[packet->skybox_shader.id].active)
-        internal->skybox.default_shader = packet->skybox_shader;
+    // if (packet->skybox_shader.id != 0 && packet->skybox_shader.id < MAX_RESOURCES && internal->shader_pool[packet->skybox_shader.id].active)
+    //     internal->skybox.default_shader = packet->skybox_shader;
 
     // Reset the queue for the new frame
     internal->command_count = 0;
@@ -1358,7 +1371,8 @@ void OpenGL_EndFrame(Renderer* r)
     OpenGL_BindDefaultFramebuffer();
 
     // Draw Skybox
-    if (internal->state.has_skybox)
+    // if (internal->state.has_skybox)
+    if (internal->state.has_env_map)
         OpenGL_DrawSkybox(internal);
 
     // Draw transparents using the forward renderer

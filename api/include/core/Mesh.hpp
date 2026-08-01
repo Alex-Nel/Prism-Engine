@@ -187,6 +187,29 @@ namespace Prism
 
 
     // ==========================================
+    // EnvironmentMap Wrapper
+    // ==========================================
+
+    class PRISM_API EnvironmentMap 
+    {
+    private:
+        void* m_Handle;
+
+    public:
+        EnvironmentMap(void* raw_env = nullptr) : m_Handle(raw_env) {}
+
+        void* GetRaw() const {
+            return m_Handle;
+        }
+
+        bool IsValid() const {
+            return m_Handle != nullptr;
+        }
+    };
+
+
+
+    // ==========================================
     // Material Wrapper
     // ==========================================
 

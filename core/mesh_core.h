@@ -125,6 +125,19 @@ typedef struct Shader
 
 
 
+// Structure for an environment map (IBL)
+typedef struct EnvironmentMap
+{
+    char name[MAX_NAME_LENGTH];
+    uint32_t id;
+    TextureHandle skybox;
+    TextureHandle irradiance;
+    TextureHandle prefilter;
+    TextureHandle brdf_lut;
+} EnvironmentMap;
+
+
+
 // Properties for materials
 typedef struct MaterialProperties
 {

@@ -10,6 +10,12 @@ uniform sampler2D gAlbedoSpec;
 uniform sampler2D ssaoMap;
 uniform bool u_EnableSSAO;
 
+// --- IBL Inputs ---
+uniform bool u_HasIBL;
+uniform samplerCube irradianceMap;
+uniform samplerCube prefilterMap;
+uniform sampler2D brdfLUT;
+
 // --- Global Uniforms ---
 uniform vec3 u_ViewPos;
 
@@ -296,6 +302,14 @@ vec3 FresnelSchlick(float cosTheta, vec3 F0)
 
 
 
+// Fresnel Schlick with roughness injected for IBL
+vec3 FresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
+{
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+
+
 
 
 
@@ -373,7 +387,33 @@ void main()
         ao *= texture(ssaoMap, TexCoords).r;
 
     vec3 viewDir = normalize(u_ViewPos - fragPos);
+
+    // Fallback Flat Ambient
     vec3 globalAmbient = u_GlobalAmbientColor * u_GlobalAmbientIllumination * albedo * ao;
+
+    // Image-Based Lighting
+    if (u_HasIBL)
+    {
+        vec3 F0 = vec3(0.04); 
+        F0 = mix(F0, albedo, metallic);
+        vec3 F = FresnelSchlickRoughness(max(dot(normal, viewDir), 0.0), F0, roughness);
+        
+        vec3 kS = F;
+        vec3 kD = 1.0 - kS;
+        kD *= 1.0 - metallic;     
+        
+        vec3 irradiance = texture(irradianceMap, normal).rgb;
+        vec3 diffuse    = irradiance * albedo;
+        
+        const float MAX_REFLECTION_LOD = 4.0;
+        vec3 R = reflect(-viewDir, normal);
+        vec3 prefilteredColor = textureLod(prefilterMap, R, roughness * MAX_REFLECTION_LOD).rgb;    
+        vec2 brdf  = texture(brdfLUT, vec2(max(dot(normal, viewDir), 0.0), roughness)).rg;
+        vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
+        
+        globalAmbient = (kD * diffuse + specular) * ao * u_GlobalAmbientIllumination;
+    }
+    
     vec3 totalLight = globalAmbient;
 
     for (int i = 0; i < MAX_DIR_LIGHTS; i++)

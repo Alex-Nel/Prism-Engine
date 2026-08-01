@@ -6,6 +6,7 @@
 #include "../audio/audio.h"
 #include "../core/math_core.h"
 #include "../core/mesh_core.h"
+#include "render/render.h"
 
 
 
@@ -464,13 +465,13 @@ typedef struct ScriptComponent
 
 
 
-// Struct for a skybox
-typedef struct Skybox
-{
-    Texture* texture;
-    Shader* shader;
-    Color background_color;
-} Skybox;
+// // Struct for a skybox
+// typedef struct Skybox
+// {
+//     Texture* texture;
+//     Shader* shader;
+//     Color background_color;
+// } Skybox;
 
 
 
@@ -511,8 +512,9 @@ typedef struct Scene
 
     // Variables for the skybox
 
-    bool has_skybox;
-    Skybox skybox;
+    bool has_env_map;
+    EnvironmentMap* env_map;
+    Color background_color;
     Color ambient_color;
     float ambient_illumination;
 

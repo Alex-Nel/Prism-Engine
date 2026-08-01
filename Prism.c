@@ -855,14 +855,11 @@ void Engine_RenderScene(Scene* scene)
     packet.gamma = 2.2f;
     if (cur_settings.gamma > 0.01f)
         packet.gamma = cur_settings.gamma;
-    packet.has_skybox = scene->has_skybox;
+    packet.has_env_map = scene->has_env_map;
 
-    if (scene->has_skybox)
+    if (scene->has_env_map && scene->env_map)
     {
-        if (scene->skybox.texture)
-            packet.skybox_texture = scene->skybox.texture->gpu_handle;
-        if (scene->skybox.shader)
-            packet.skybox_shader = scene->skybox.shader->gpu_handle;
+        packet.env_map = *scene->env_map;
     }
 
     // --- Get all Point Lights from the ECS ---
@@ -903,7 +900,7 @@ void Engine_RenderScene(Scene* scene)
         // Clear Screen
         if (cam_comp->clear_flags == CLEAR_COLOR_AND_DEPTH)
         {
-            Color bg = scene->skybox.background_color;
+            Color bg = scene->background_color;
             Render_SetClearColor(engine.renderer, bg.r, bg.g, bg.b, bg.a);
             Render_Clear(engine.renderer);
         }
@@ -918,7 +915,7 @@ void Engine_RenderScene(Scene* scene)
         Camera_RecalculateProjectionIfNeeded(cam_comp);
         packet.projection_matrix = cam_comp->projection_matrix;
         packet.camera_pos = global_pos;
-        packet.has_skybox = (cam_comp->clear_flags == CLEAR_COLOR_AND_DEPTH) ? scene->has_skybox : false;
+        packet.has_env_map = (cam_comp->clear_flags == CLEAR_COLOR_AND_DEPTH) ? scene->has_env_map : false;
         packet.window_width = cam_comp->viewport_width;
         packet.window_height = cam_comp->viewport_height;
 

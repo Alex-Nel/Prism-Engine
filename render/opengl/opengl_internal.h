@@ -62,8 +62,10 @@ typedef struct RenderState
     float global_ambient_illumination;
     RendererSettings settings;
 
-    bool has_skybox;
-    TextureHandle skybox_texture;
+    // bool has_skybox;
+    // TextureHandle skybox_texture;
+    bool has_env_map;
+    EnvironmentMap env_map;
 } RenderState;
 
 
@@ -228,6 +230,24 @@ typedef struct GL_UIPipeline
 } GL_UIPipeline;
 
 
+typedef struct GL_IBLPipeline
+{
+    ShaderHandle equirectangular_to_cubemap;
+    ShaderHandle irradiance_convolution;
+    ShaderHandle prefilter;
+    ShaderHandle brdf;
+    
+    uint32_t capture_fbo;
+    uint32_t capture_rbo;
+    
+    uint32_t cube_vao;
+    uint32_t cube_vbo;
+    
+    uint32_t quad_vao;
+    uint32_t quad_vbo;
+} GL_IBLPipeline;
+
+
 
 
 
@@ -252,6 +272,7 @@ typedef struct OpenGL_Backend
     GL_SSAOPipeline     ssao;
     GL_SkyboxPipeline   skybox;
     GL_UIPipeline       ui;
+    GL_IBLPipeline      ibl;
 
     GLuint default_white_texture;
     GLuint default_normal_texture;
@@ -292,7 +313,10 @@ MeshHandle OpenGL_CreateMesh(Renderer* r, const Vertex3D* vertices, uint32_t ver
 void OpenGL_DestroyMesh(Renderer* r, MeshHandle mesh);
 
 TextureHandle OpenGL_CreateTexture(Renderer* r, const uint8_t* pixels, uint32_t width, uint32_t height, uint32_t channels);
+TextureHandle OpenGL_CreateTextureHDR(Renderer* r, const float* pixels, uint32_t width, uint32_t height, uint32_t channels);
 void OpenGL_DestroyTexture(Renderer* r, TextureHandle texture);
+
+EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels, uint32_t width, uint32_t height);
 
 ShaderHandle OpenGL_CreateShader(Renderer* r, const char* vertex_source, const char* fragment_source);
 ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const char* name, const char* vertex_src, const char* geom_src, const char* fragment_src);

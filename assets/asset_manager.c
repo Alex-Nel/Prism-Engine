@@ -47,6 +47,9 @@ static uint32_t model_count = 0;
 static Material material_pool[MAX_MATERIALS];
 static uint32_t material_count = 0;
 
+static EnvironmentMap env_map_cache[MAX_CACHED_TEXTURES];
+static uint32_t env_map_count = 0;
+
 
 
 
@@ -1320,6 +1323,50 @@ Texture* Asset_LoadSkyboxTexture(const char* name, const char* right, const char
     texture_count++;
 
     return new_text;
+}
+
+
+
+
+
+
+
+
+
+
+// Loads an environment map from an HDR file
+EnvironmentMap* Asset_LoadEnvironmentMap(const char* filepath)
+{
+    // Check if it's already loaded
+    for (uint32_t i = 0; i < env_map_count; i++)
+    {
+        if (strcmp(env_map_cache[i].name, filepath) == 0)
+            return &env_map_cache[i];
+    }
+
+    ImageDataFloat img = Image_LoadFloat(filepath, true);
+    if (!img.pixels)
+    {
+        Log_Error("Failed to load HDR environment map: %s", filepath);
+        return NULL;
+    }
+
+    EnvironmentMap env_map = Render_CreateEnvironmentMap(renderer, img.pixels, img.width, img.height);
+    Image_FreeFloat(&img);
+
+    if (env_map_count < MAX_CACHED_TEXTURES)
+    {
+        EnvironmentMap* m = &env_map_cache[env_map_count];
+        *m = env_map;
+        strncpy(m->name, filepath, MAX_NAME_LENGTH - 1);
+        m->name[MAX_NAME_LENGTH - 1] = '\0';
+        m->id = env_map_count;
+
+        env_map_count++;
+        return m;
+    }
+
+    return NULL;
 }
 
 
