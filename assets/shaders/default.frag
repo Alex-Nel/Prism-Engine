@@ -1,12 +1,6 @@
 #version 330 core
 
 
-#define MAX_DIR_LIGHTS 4
-#define MAX_POINT_LIGHTS 8
-#define MAX_SPOT_LIGHTS 8
-#define MAX_SHADOW_CASCADES 4
-
-
 
 out vec4 FragColor;
 

@@ -18,7 +18,7 @@
 
 
 
-#define MAX_DIR_LIGHTS 8
+#define MAX_DIR_LIGHTS 4
 #define MAX_POINT_LIGHTS 512
 #define MAX_SPOT_LIGHTS 512
 

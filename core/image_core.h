@@ -1,6 +1,7 @@
 #ifndef CORE_IMAGE_H
 #define CORE_IMAGE_H
 
+#include <stdbool.h>
 
 
 // The CPU container for raw pixel data

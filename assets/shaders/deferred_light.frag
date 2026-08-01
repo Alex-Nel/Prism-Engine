@@ -14,7 +14,7 @@ uniform bool u_EnableSSAO;
 uniform vec3 u_ViewPos;
 
 // --- Arrays & Counts ---
-#define MAX_DIR_LIGHTS 8
+#define MAX_DIR_LIGHTS 4
 #define MAX_SHADOW_CASCADES 4
 
 // Comparison sampler: hardware does the depth test + bilinear PCF per tap.

@@ -1,4 +1,3 @@
-#include <stdbool.h>
 #include "image_core.h"
 #include "log_core.h"
 

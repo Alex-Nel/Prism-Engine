@@ -438,8 +438,6 @@ void OpenGL_EndShadowPass(Renderer* r)
 
 
 
-// --- OpenGL Render Pipeline Functions ---
-
 // Restores the default window framebuffer for forward rendering.
 void OpenGL_BindDefaultFramebuffer()
 {
