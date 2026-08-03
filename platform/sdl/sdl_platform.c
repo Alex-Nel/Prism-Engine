@@ -1,8 +1,10 @@
 #include "../platform_core.h"
+#include "core/event_core.h"
+
 #include "SDL3/SDL.h"
 #include "SDL3/SDL_events.h"
 #include "SDL3/SDL_keycode.h"
-#include "core/event_core.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -31,8 +33,10 @@ static Window* g_PlatformWindow = NULL; // Global ref for the watcher function
 
 
 // Translate SDL Keys to Engine Key enums
-static KeyCode TranslateKey(SDL_Keycode sdl_key)
+static KeyCode TranslateKey(SDL_Keycode sdl_key, SDL_Keymod mod)
 {
+    bool shift = (mod & SDL_KMOD_SHIFT) != 0;
+
     switch (sdl_key)
     {
         case SDLK_A: return KEYCODE_A;
@@ -62,31 +66,86 @@ static KeyCode TranslateKey(SDL_Keycode sdl_key)
         case SDLK_Y: return KEYCODE_Y;
         case SDLK_Z: return KEYCODE_Z;
         
-        case SDLK_0: return KEYCODE_0;
-        case SDLK_1: return KEYCODE_1;
-        case SDLK_2: return KEYCODE_2;
-        case SDLK_3: return KEYCODE_3;
-        case SDLK_4: return KEYCODE_4;
-        case SDLK_5: return KEYCODE_5;
-        case SDLK_6: return KEYCODE_6;
-        case SDLK_7: return KEYCODE_7;
-        case SDLK_8: return KEYCODE_8;
-        case SDLK_9: return KEYCODE_9;
+        case SDLK_0: return shift ? KEYCODE_RIGHTPAREN   : KEYCODE_0;
+        case SDLK_1: return shift ? KEYCODE_EXCLAIMATION : KEYCODE_1;
+        case SDLK_2: return shift ? KEYCODE_AT           : KEYCODE_2;
+        case SDLK_3: return shift ? KEYCODE_HASH         : KEYCODE_3;
+        case SDLK_4: return shift ? KEYCODE_DOLLAR       : KEYCODE_4;
+        case SDLK_5: return shift ? KEYCODE_PERCENT      : KEYCODE_5;
+        case SDLK_6: return shift ? KEYCODE_CARET        : KEYCODE_6;
+        case SDLK_7: return shift ? KEYCODE_AMPERSAND    : KEYCODE_7;
+        case SDLK_8: return shift ? KEYCODE_ASTERISK     : KEYCODE_8;
+        case SDLK_9: return shift ? KEYCODE_LEFTPAREN    : KEYCODE_9;
         
         case SDLK_ESCAPE: return KEYCODE_ESCAPE;
-        case SDLK_RETURN: return KEYCODE_ENTER;
+        case SDLK_F1:     return KEYCODE_F1;
+        case SDLK_F2:     return KEYCODE_F2;
+        case SDLK_F3:     return KEYCODE_F3;
+        case SDLK_F4:     return KEYCODE_F4;
+        case SDLK_F5:     return KEYCODE_F5;
+        case SDLK_F6:     return KEYCODE_F6;
+        case SDLK_F7:     return KEYCODE_F7;
+        case SDLK_F8:     return KEYCODE_F8;
+        case SDLK_F9:     return KEYCODE_F9;
+        case SDLK_F10:    return KEYCODE_F10;
+        case SDLK_F11:    return KEYCODE_F11;
+        case SDLK_F12:    return KEYCODE_F12;
+        case SDLK_DELETE: return KEYCODE_DELETE;
+
+        case SDLK_GRAVE:     return shift ? KEYCODE_TILDE : KEYCODE_GRAVE;
+        case SDLK_TILDE:     return KEYCODE_TILDE;
+        case SDLK_EXCLAIM:   return KEYCODE_EXCLAIMATION;
+        case SDLK_AT:        return KEYCODE_AT;
+        case SDLK_HASH:      return KEYCODE_HASH;
+        case SDLK_DOLLAR:    return KEYCODE_DOLLAR;
+        case SDLK_PERCENT:   return KEYCODE_PERCENT;
+        case SDLK_CARET:     return KEYCODE_CARET;
+        case SDLK_AMPERSAND: return KEYCODE_AMPERSAND;
+        case SDLK_ASTERISK:  return KEYCODE_ASTERISK;
+
+        case SDLK_LEFTPAREN:  return KEYCODE_LEFTPAREN;
+        case SDLK_RIGHTPAREN: return KEYCODE_RIGHTPAREN;
+        case SDLK_MINUS:      return shift ? KEYCODE_UNDERSCORE : KEYCODE_MINUS;
+        case SDLK_EQUALS:     return shift ? KEYCODE_PLUS       : KEYCODE_EQUALS;
+        case SDLK_UNDERSCORE: return KEYCODE_UNDERSCORE;
+        case SDLK_PLUS:       return KEYCODE_PLUS;
+        case SDLK_BACKSPACE:  return KEYCODE_BACKSPACE;
+
+        case SDLK_TAB:          return KEYCODE_TAB;
+        case SDLK_LEFTBRACKET:  return shift ? KEYCODE_LEFTBRACE  : KEYCODE_LEFTBRACKET;
+        case SDLK_RIGHTBRACKET: return shift ? KEYCODE_RIGHTBRACE : KEYCODE_RIGHTBRACKET;
+        case SDLK_BACKSLASH:    return shift ? KEYCODE_PIPE       : KEYCODE_BACKSLASH;
+        case SDLK_LEFTBRACE:    return KEYCODE_LEFTBRACE;
+        case SDLK_RIGHTBRACE:   return KEYCODE_RIGHTBRACE;
+        case SDLK_PIPE:         return KEYCODE_PIPE;
+
+        case SDLK_CAPSLOCK:      return KEYCODE_CAPSLOCK;
+        case SDLK_SEMICOLON:     return shift ? KEYCODE_COLON : KEYCODE_SEMICOLON;
+        case SDLK_APOSTROPHE:    return shift ? KEYCODE_QUOTE : KEYCODE_APOSTROPHE;
+        case SDLK_COLON:         return KEYCODE_COLON;
+        case SDLK_DBLAPOSTROPHE: return KEYCODE_QUOTE;
+        case SDLK_RETURN:        return KEYCODE_ENTER;
+
+        case SDLK_COMMA:    return shift ? KEYCODE_LESS     : KEYCODE_COMMA;
+        case SDLK_PERIOD:   return shift ? KEYCODE_GREATER  : KEYCODE_PERIOD;
+        case SDLK_SLASH:    return shift ? KEYCODE_QUESTION : KEYCODE_SLASH;
+        case SDLK_LESS:     return KEYCODE_LESS;
+        case SDLK_GREATER:  return KEYCODE_GREATER;
+        case SDLK_QUESTION: return KEYCODE_QUESTION;
+
         case SDLK_SPACE:  return KEYCODE_SPACE;
+
         case SDLK_LSHIFT: return KEYCODE_LEFTSHIFT;
         case SDLK_RSHIFT: return KEYCODE_RIGHTSHIFT;
-        case SDLK_LCTRL: return KEYCODE_LEFTCTRL;
-        case SDLK_RCTRL: return KEYCODE_RIGHTCTRL;
+        case SDLK_LCTRL:  return KEYCODE_LEFTCTRL;
+        case SDLK_RCTRL:  return KEYCODE_RIGHTCTRL;
+        case SDLK_LALT:   return KEYCODE_LEFTALT;
+        case SDLK_RALT:   return KEYCODE_RIGHTALT;
 
-        case SDLK_UP: return KEYCODE_UPARROW;
+        case SDLK_UP:    return KEYCODE_UPARROW;
         case SDLK_RIGHT: return KEYCODE_RIGHTARROW;
-        case SDLK_DOWN: return KEYCODE_DOWNARROW;
-        case SDLK_LEFT: return KEYCODE_LEFTARROW;
-
-        case SDLK_BACKSPACE: return KEYCODE_BACKSPACE;
+        case SDLK_DOWN:  return KEYCODE_DOWNARROW;
+        case SDLK_LEFT:  return KEYCODE_LEFTARROW;
         
         default: return KEYCODE_UNKNOWN;
     }
@@ -288,14 +347,11 @@ bool Platform_PollEvents(Event* e)
             case SDL_EVENT_KEY_DOWN:
             case SDL_EVENT_KEY_UP:
                 if (sdl_event.type == SDL_EVENT_KEY_DOWN)
-                {
                     e->type = EVENT_KEY_PRESSED;
-                }
                 else
-                {
                     e->type = EVENT_KEY_RELEASED;
-                }
-                e->key.key = TranslateKey(sdl_event.key.key);
+                
+                e->key.key = TranslateKey(sdl_event.key.key, sdl_event.key.mod);
                 
                 // If it's an unsupported key, ignore it
                 if (e->key.key == KEYCODE_UNKNOWN)
@@ -321,9 +377,8 @@ bool Platform_PollEvents(Event* e)
                 e->mouse_button.button = TranslateMouseButton(sdl_event.button.button);
                 
                 if (e->mouse_button.button == MOUSE_BUTTON_MAX)
-                {
                     e->type = EVENT_NONE;
-                }
+
                 break;
 
             case SDL_EVENT_MOUSE_WHEEL:
@@ -333,6 +388,7 @@ bool Platform_PollEvents(Event* e)
 
             case SDL_EVENT_TEXT_INPUT:
                 e->type = EVENT_TEXT_INPUT;
+
                 // Copy the max size, with NULL terminator
                 strncpy(e->text_input.text, sdl_event.text.text, 255);
                 e->text_input.text[255] = '\0';
