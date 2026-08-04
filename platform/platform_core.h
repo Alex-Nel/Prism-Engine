@@ -74,6 +74,15 @@ void Platform_SetRelativeMouseMode(Window* window, bool enabled);
 // Warps the mouse to the middle of the screen
 void Platform_WarpMouseToMiddle(Window* window);
 
+// Starts accepting text input from a window
+void Platform_StartTextInput(Window* window);
+
+// Stops accepting text input from a window
+void Platform_StopTextInput(Window* window);
+
+// Returns whether a window is currently accepting input
+bool Platform_IsTextInputActive(Window* window);
+
 
 
 #endif // PLATFORM_H

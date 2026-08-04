@@ -84,8 +84,11 @@ namespace Prism
     public:
         UI() = delete;
 
-        // Start a new UI window
+        // Start a new UI window. The title doubles as the window's identity, so it must stay the same every frame.
         static bool BeginWindow(const std::string& title, float x, float y, float width, float height, WindowFlags flags = WindowFlags::Default);
+
+        // Start a new UI window with an identity that is separate from its header text. 'id' must stay the same every frame, 'title' is free to change every frame.
+        static bool BeginWindow(const std::string& id, const std::string& title, float x, float y, float width, float height, WindowFlags flags = WindowFlags::Default);
 
         // End the current UI window
         static void EndWindow();
@@ -119,6 +122,9 @@ namespace Prism
 
         // Create a combo box (drop down box)
         static bool Combo(const std::vector<std::string>& items, int* selected, int item_height, float width, float height);
+
+        // Create a text input box
+        static void TextBox(char* buffer, int max_len);
 
         // Theming functions
         static void SetTheme(UITheme theme);

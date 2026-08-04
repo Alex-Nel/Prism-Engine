@@ -13,7 +13,11 @@ namespace Prism
 {
 
     bool UI::BeginWindow(const std::string& title, float x, float y, float width, float height, WindowFlags flags) {
-        return UI_BeginWindow(title.c_str(), x, y, width, height, static_cast<int>(flags));
+        return UI_BeginWindow(title.c_str(), title.c_str(), x, y, width, height, static_cast<int>(flags));
+    }
+
+    bool UI::BeginWindow(const std::string& id, const std::string& title, float x, float y, float width, float height, WindowFlags flags) {
+        return UI_BeginWindow(id.c_str(), title.c_str(), x, y, width, height, static_cast<int>(flags));
     }
 
     void UI::EndWindow() {
@@ -63,6 +67,10 @@ namespace Prism
             c_items.push_back(item.c_str());
         }
         return UI_Combo(c_items.data(), static_cast<int>(c_items.size()), selected, item_height, width, height);
+    }
+
+    void UI::TextBox(char* buffer, int max_len) {
+        UI_TextBox(buffer, max_len);
     }
 
     void UI::SetTheme(UITheme theme) {

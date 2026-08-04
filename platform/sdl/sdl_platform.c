@@ -2,8 +2,6 @@
 #include "core/event_core.h"
 
 #include "SDL3/SDL.h"
-#include "SDL3/SDL_events.h"
-#include "SDL3/SDL_keycode.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -569,4 +567,39 @@ void Platform_SetRelativeMouseMode(Window* window, bool enabled)
 void Platform_WarpMouseToMiddle(Window* window)
 {
     SDL_WarpMouseInWindow(window->sdl_window, window->width/2, window->height/2);
+}
+
+
+
+
+
+// Starts accepting text input from a window
+void Platform_StartTextInput(Window* window)
+{
+    if (window && window->sdl_window)
+        SDL_StartTextInput(window->sdl_window);
+}
+
+
+
+
+
+// Stops accepting text input from a window
+void Platform_StopTextInput(Window* window)
+{
+    if (window && window->sdl_window)
+        SDL_StopTextInput(window->sdl_window);
+}
+
+
+
+
+
+// Returns whether a window is currently accepting text input
+bool Platform_IsTextInputActive(Window* window)
+{
+    if (!window || !window->sdl_window)
+        return false;
+
+    return SDL_TextInputActive(window->sdl_window);
 }

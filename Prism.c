@@ -104,6 +104,25 @@ void Engine_SetPreUpdateCallback(EngineUpdateCallback callback)
 
 
 
+// Updates whether the engine should accept text input or not
+static void Engine_UpdateTextInput()
+{
+    bool wants_text_input = UI_WantsTextInput();
+
+    // The platform already knows if it is accepting text input, so only tell it about changes
+    if (wants_text_input == Platform_IsTextInputActive(engine.window))
+        return;
+
+    if (wants_text_input)
+        Platform_StartTextInput(engine.window);
+    else
+        Platform_StopTextInput(engine.window);
+}
+
+
+
+
+
 // A function to process window events without pausing main loop
 static void Engine_OnModalEvent(void* userdata)
 {
@@ -133,7 +152,9 @@ static void Engine_OnModalEvent(void* userdata)
     // Update scripts/animations
     Scene_Update(active_scene);
 
-    // Render and Swap Buffers directly!
+    Engine_UpdateTextInput();
+
+    // Render and Swap Buffers directly
     Engine_RenderScene(active_scene);
     Render_UIRender(engine.renderer, UI_GetContext(), w, h);
     Platform_SwapBuffers(engine.window);
@@ -171,7 +192,7 @@ void Engine_Run(Scene* active_scene)
         Event e;
         while (Platform_PollEvents(&e))
         {
-            bool ui_handled;
+            bool ui_handled = false;
             if (!Engine_IsMouseCaptured())
                 ui_handled = UI_ProcessEvent(&e);
 
@@ -205,6 +226,8 @@ void Engine_Run(Scene* active_scene)
 
         // Update scene and physics
         Scene_Update(active_scene);
+
+        Engine_UpdateTextInput();
 
         // Render scene
         Engine_RenderScene(active_scene);

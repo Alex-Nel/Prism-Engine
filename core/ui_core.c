@@ -17,6 +17,7 @@ static struct nk_color current_theme_table[NK_COLOR_COUNT];
 
 
 
+// Initializes the UI system (Nuklear and UI rendering)
 void UI_Init()
 {
     nk_init_default(&ctx, 0);
@@ -27,6 +28,7 @@ void UI_Init()
 
 
 
+// Shuts down the UI system
 void UI_Shutdown()
 {
     nk_free(&ctx);
@@ -36,6 +38,7 @@ void UI_Shutdown()
 
 
 
+// Starts the input loop for the UI
 void UI_InputBegin()
 {
     nk_input_begin(&ctx);
@@ -45,6 +48,7 @@ void UI_InputBegin()
 
 
 
+// Processes engine events to see if they relate to any active UI
 bool UI_ProcessEvent(Event* e)
 {
     if (e->type == EVENT_MOUSE_MOVED)
@@ -102,6 +106,7 @@ bool UI_ProcessEvent(Event* e)
 
 
 
+// Ends the input loop for the UI
 void UI_InputEnd()
 {
     nk_input_end(&ctx);
@@ -111,6 +116,24 @@ void UI_InputEnd()
 
 
 
+// Returns if the UI wants text input to be accepted.
+// A window keeps edit.active set for as long as one of its text fields holds keyboard focus
+bool UI_WantsTextInput()
+{
+    for (struct nk_window* win = ctx.begin; win != NULL; win = win->next)
+    {
+        if (win->edit.active)
+            return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+// Returns the Nuklear UI context
 struct nk_context* UI_GetContext()
 {
     return &ctx;
@@ -120,15 +143,17 @@ struct nk_context* UI_GetContext()
 
 
 
-bool UI_BeginWindow(const char* title, float x, float y, float width, float height, int flags)
+// Starts rendering a UI window with chosen flags
+bool UI_BeginWindow(const char* id, const char* title, float x, float y, float width, float height, int flags)
 {
-    return nk_begin(&ctx, title, nk_rect(x, y, width, height), (nk_flags)flags);
+    return nk_begin_titled(&ctx, id, title, nk_rect(x, y, width, height), (nk_flags)flags);
 }
 
 
 
 
 
+// Ends immediate rendering of a UI window
 void UI_EndWindow()
 {
     nk_end(&ctx);
@@ -138,6 +163,7 @@ void UI_EndWindow()
 
 
 
+// Lays a dynamic row in a UI window
 void UI_LayoutRowDynamic(float item_height, int cols)
 {
     nk_layout_row_dynamic(&ctx, item_height, cols);
@@ -147,6 +173,7 @@ void UI_LayoutRowDynamic(float item_height, int cols)
 
 
 
+// Draws a UI button with a label
 bool UI_Button(const char* label)
 {
     return nk_button_label(&ctx, label);
@@ -156,6 +183,7 @@ bool UI_Button(const char* label)
 
 
 
+// Draws a basic label in a window
 void UI_Label(const char* text)
 {
     nk_label(&ctx, text, NK_TEXT_LEFT);
@@ -165,6 +193,7 @@ void UI_Label(const char* text)
 
 
 
+// Draws a slider that counts in floats
 bool UI_SliderFloat(float min, float* val, float max, float step)
 {
     return nk_slider_float(&ctx, min, val, max, step);
@@ -174,6 +203,7 @@ bool UI_SliderFloat(float min, float* val, float max, float step)
 
 
 
+// Draws a slider that counts in ints
 bool UI_SliderInt(int min, int* val, int max, int step)
 {
     return nk_slider_int(&ctx, min, val, max, step);
@@ -183,6 +213,7 @@ bool UI_SliderInt(int min, int* val, int max, int step)
 
 
 
+// Draws a checkbox
 bool UI_Checkbox(const char* label, bool* active)
 {
     int is_active = *active ? 1 : 0;
@@ -195,6 +226,7 @@ bool UI_Checkbox(const char* label, bool* active)
 
 
 
+// Draws an active/non-active radio button 
 bool UI_RadioButton(const char* label, bool active)
 {
     return nk_option_label(&ctx, label, active ? 1 : 0);
@@ -204,6 +236,7 @@ bool UI_RadioButton(const char* label, bool active)
 
 
 
+// Draws a property window
 void UI_PropertyInt(const char* name, int min, int* val, int max, int step, float inc_per_pixel)
 {
     nk_property_int(&ctx, name, min, val, max, step, inc_per_pixel);
@@ -213,6 +246,7 @@ void UI_PropertyInt(const char* name, int min, int* val, int max, int step, floa
 
 
 
+// Draws a color picker with the output pointer
 bool UI_ColorPicker(Color* color)
 {
     struct nk_colorf col = { color->r, color->g, color->b, color->a };
@@ -231,6 +265,7 @@ bool UI_ColorPicker(Color* color)
 
 
 
+// Draws a combo box with chosen fields
 bool UI_Combo(const char** items, int count, int* selected, int item_height, float width, float height)
 {
     return nk_combobox(&ctx, items, count, selected, item_height, nk_vec2(width, height));
@@ -240,6 +275,17 @@ bool UI_Combo(const char** items, int count, int* selected, int item_height, flo
 
 
 
+// Draws a text box for input
+void UI_TextBox(char* buffer, int max_len)
+{
+    nk_edit_string_zero_terminated(&ctx, NK_EDIT_FIELD, buffer, max_len, nk_filter_default);
+}
+
+
+
+
+
+// Sets the theme of the UI globally
 void UI_SetTheme(int theme_id)
 {
     if (theme_id == 1)
@@ -368,6 +414,7 @@ void UI_SetTheme(int theme_id)
 
 
 
+// Sets the color style of a specific UI element
 void UI_SetElementStyleColor(int element_color_id, Color color)
 {
     if (element_color_id >= 0 && element_color_id < NK_COLOR_COUNT)

@@ -24,6 +24,9 @@ bool UI_ProcessEvent(Event* e);
 // End input processing for the frame
 void UI_InputEnd();
 
+// Returns if the UI wants text input to be accepted. Safe to call more than once per frame since it only reads the state.
+bool UI_WantsTextInput();
+
 // Get the global nuklear context
 struct nk_context* UI_GetContext();
 
@@ -50,7 +53,7 @@ typedef enum UIWindowFlags
 
 // --- UI Widget functions ---
 
-bool UI_BeginWindow(const char* title, float x, float y, float width, float height, int flags);
+bool UI_BeginWindow(const char* id, const char* title, float x, float y, float width, float height, int flags);
 void UI_EndWindow(void);
 void UI_LayoutRowDynamic(float item_height, int cols);
 bool UI_Button(const char* label);
@@ -63,6 +66,7 @@ bool UI_RadioButton(const char* label, bool active);
 void UI_PropertyInt(const char* name, int min, int* val, int max, int step, float inc_per_pixel);
 bool UI_ColorPicker(Color* color);
 bool UI_Combo(const char** items, int count, int* selected, int item_height, float width, float height);
+void UI_TextBox(char* buffer, int max_len);
 
 
 
