@@ -2,6 +2,7 @@
 
 #include <string>
 #include <cstdint>
+#include <utility>
 #include <vector>
 #include "../core/Math.hpp"
 #include "../AssetManager.hpp"
@@ -42,6 +43,22 @@ namespace Prism
 
 
 
+    namespace Detail
+    {
+        template<typename...>
+        inline constexpr bool AlwaysFalse = false;
+
+        template<typename T>
+        struct EntityComponentAccess
+        {
+            static constexpr bool supported = false;
+            static constexpr bool addable = false;
+            static constexpr bool removable = false;
+        };
+    }
+
+
+
     // --- Base Entity Class ---
     class PRISM_API Entity
     {
@@ -75,7 +92,6 @@ namespace Prism
         void AddModel(Prism::Model model);
         std::vector<Prism::Entity> GetChildren(bool recursive = true);
         Prism::Entity FindChildByName(const std::string& name) const;
-        Prism::Ray ScreenPointToRay(const Prism::Vector2& mouse_pos); // TODO: Make this a component method instead
 
 
 
@@ -168,6 +184,33 @@ namespace Prism
 
 
 
+        // --- Generic Component API ---
+
+        // Adds a supported component using the same arguments as its named Add function.
+        template<typename T, typename... Args>
+        T* AddComponent(Args&&... args);
+
+        // Returns the requested component, or nullptr if the entity does not have it.
+        template<typename T>
+        T* GetComponent();
+
+        template<typename T>
+        bool HasComponent();
+
+        // Returns matching components on child entities. The entity itself is not included.
+        template<typename T>
+        std::vector<T*> GetComponentsInChildren(bool recursive = true);
+
+        // Walks up the hierarchy and returns the first matching component.
+        template<typename T>
+        T* GetComponentInParent();
+
+        // Removes a supported removable component.
+        template<typename T>
+        void RemoveComponent();
+
+
+
         // --- Utility functions ---
 
         static Entity Find(const std::string& name);
@@ -200,4 +243,264 @@ namespace Prism
         template<typename T>
         T* GetScriptInParent();
     };
+
+
+
+
+
+    // Maps public component types to the existing named Entity API.
+    namespace Detail
+    {
+        template<>
+        struct EntityComponentAccess<Transform>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = true;
+            static constexpr bool removable = false;
+
+            static Transform* Get(Entity& entity) { return entity.GetTransform(); }
+            static Transform* Add(Entity& entity, const Vector3& pos, const Quaternion& rot, const Vector3& scale) { return entity.AddTransform(pos, rot, scale); }
+        };
+
+        template<>
+        struct EntityComponentAccess<MeshRendererComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = true;
+            static constexpr bool removable = true;
+
+            static MeshRendererComponent* Get(Entity& entity) { return entity.GetMeshRenderer(); }
+            static MeshRendererComponent* Add(Entity& entity, Mesh mesh, Material material) { return entity.AddMeshRenderer(mesh, material); }
+            static void Remove(Entity& entity) { entity.RemoveMeshRenderer(); }
+        };
+
+        template<>
+        struct EntityComponentAccess<SkinnedMeshRendererComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = true;
+            static constexpr bool removable = true;
+
+            static SkinnedMeshRendererComponent* Get(Entity& entity) { return entity.GetSkinnedMeshRenderer(); }
+            static SkinnedMeshRendererComponent* Add(Entity& entity, SkinnedMesh mesh, Material material, Entity root_animator = Entity()) { return entity.AddSkinnedMeshRenderer(mesh, material, root_animator); }
+            static void Remove(Entity& entity) { entity.RemoveSkinnedMeshRenderer(); }
+        };
+
+        template<>
+        struct EntityComponentAccess<RigidbodyComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = true;
+            static constexpr bool removable = true;
+
+            static RigidbodyComponent* Get(Entity& entity) { return entity.GetRigidbody(); }
+            static RigidbodyComponent* Add(Entity& entity, float mass) { return entity.AddRigidbody(mass); }
+            static void Remove(Entity& entity) { entity.RemoveRigidbody(); }
+        };
+
+        template<>
+        struct EntityComponentAccess<ColliderComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = false;
+            static constexpr bool removable = true;
+
+            static ColliderComponent* Get(Entity& entity) { return entity.GetCollider(); }
+            static void Remove(Entity& entity) { entity.RemoveCollider(); }
+        };
+
+        template<>
+        struct EntityComponentAccess<CameraComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = true;
+            static constexpr bool removable = true;
+
+            static CameraComponent* Get(Entity& entity) { return entity.GetCamera(); }
+            static CameraComponent* Add(Entity& entity, float fov_degrees) { return entity.AddCamera(fov_degrees); }
+            static void Remove(Entity& entity) { entity.RemoveCamera(); }
+        };
+
+        template<>
+        struct EntityComponentAccess<LightComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = true;
+            static constexpr bool removable = true;
+
+            static LightComponent* Get(Entity& entity) { return entity.GetLight(); }
+            static LightComponent* Add(Entity& entity, LightType type, const Color& color) { return entity.AddLight(type, color); }
+            static void Remove(Entity& entity) { entity.RemoveLight(); }
+        };
+
+        template<>
+        struct EntityComponentAccess<AudioListenerComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = true;
+            static constexpr bool removable = true;
+
+            static AudioListenerComponent* Get(Entity& entity) {return entity.GetAudioListener(); }
+            static AudioListenerComponent* Add(Entity& entity) {return entity.AddAudioListener(); }
+            static void Remove(Entity& entity)                 {entity.RemoveAudioListener(); }
+        };
+
+        template<>
+        struct EntityComponentAccess<AudioSourceComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = true;
+            static constexpr bool removable = true;
+
+            static AudioSourceComponent* Get(Entity& entity) { return entity.GetAudioSource(); }
+            static AudioSourceComponent* Add(Entity& entity) { return entity.AddAudioSource(); }
+            static void Remove(Entity& entity) { entity.RemoveAudioSource(); }
+        };
+
+        template<>
+        struct EntityComponentAccess<AnimatorComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = true;
+            static constexpr bool removable = true;
+
+            static AnimatorComponent* Get(Entity& entity) { return entity.GetAnimator(); }
+            static AnimatorComponent* Add(Entity& entity, void* raw_skeleton, const AnimationClip& default_clip) { return entity.AddAnimator(raw_skeleton, default_clip); }
+            static void Remove(Entity& entity) { entity.RemoveAnimator(); }
+        };
+
+        template<>
+        struct EntityComponentAccess<BoneAttachmentComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = false;
+            static constexpr bool removable = false;
+
+            static BoneAttachmentComponent* Get(Entity& entity) { return entity.GetBoneAttachment(); }
+        };
+
+        template<>
+        struct EntityComponentAccess<LineRendererComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = true;
+            static constexpr bool removable = true;
+
+            static LineRendererComponent* Get(Entity& entity) { return entity.GetLineRenderer(); }
+            static LineRendererComponent* Add(Entity& entity, Material* material = nullptr) { return entity.AddLineRenderer(material); }
+            static void Remove(Entity& entity) { entity.RemoveLineRenderer(); }
+        };
+
+        template<>
+        struct EntityComponentAccess<SpriteRendererComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = true;
+            static constexpr bool removable = true;
+
+            static SpriteRendererComponent* Get(Entity& entity) { return entity.GetSpriteRenderer(); }
+            static SpriteRendererComponent* Add(Entity& entity, Material* material = nullptr) { return entity.AddSpriteRenderer(material); }
+            static void Remove(Entity& entity) { entity.RemoveSpriteRenderer(); }
+        };
+    }
+
+
+
+
+
+    template<typename T, typename... Args>
+    T* Entity::AddComponent(Args&&... args)
+    {
+        using Access = Detail::EntityComponentAccess<T>;
+
+        if constexpr (!Access::supported) {
+            static_assert(Detail::AlwaysFalse<T>, "T is not a supported built-in component type");
+            return nullptr;
+        }
+        else if constexpr (!Access::addable) {
+            static_assert(Detail::AlwaysFalse<T>, "This component cannot be added generically; use its named Entity Add function");
+            return nullptr;
+        }
+        else {
+            return Access::Add(*this, std::forward<Args>(args)...);
+        }
+    }
+
+
+
+    template<typename T>
+    T* Entity::GetComponent()
+    {
+        using Access = Detail::EntityComponentAccess<T>;
+
+        if constexpr (!Access::supported) {
+            static_assert(Detail::AlwaysFalse<T>, "T is not a supported built-in component type");
+            return nullptr;
+        }
+        else {
+            return Access::Get(*this);
+        }
+    }
+
+
+
+    template<typename T>
+    bool Entity::HasComponent()
+    {
+        return GetComponent<T>() != nullptr;
+    }
+
+
+
+    template<typename T>
+    std::vector<T*> Entity::GetComponentsInChildren(bool recursive)
+    {
+        std::vector<T*> result;
+        std::vector<Entity> children = GetChildren(recursive);
+
+        for (Entity& child : children)
+        {
+            if (T* component = child.GetComponent<T>())
+                result.push_back(component);
+        }
+
+        return result;
+    }
+
+
+
+    template<typename T>
+    T* Entity::GetComponentInParent()
+    {
+        Entity current = GetParent();
+
+        while (current.IsValid())
+        {
+            if (T* component = current.GetComponent<T>())
+                return component;
+
+            current = current.GetParent();
+        }
+
+        return nullptr;
+    }
+
+
+
+    template<typename T>
+    void Entity::RemoveComponent()
+    {
+        using Access = Detail::EntityComponentAccess<T>;
+
+        if constexpr (!Access::supported) {
+            static_assert(Detail::AlwaysFalse<T>, "T is not a supported built-in component type");
+        }
+        else if constexpr (!Access::removable) {
+            static_assert(Detail::AlwaysFalse<T>, "This component cannot be removed generically");
+        }
+        else {
+            Access::Remove(*this);
+        }
+    }
+    
 }

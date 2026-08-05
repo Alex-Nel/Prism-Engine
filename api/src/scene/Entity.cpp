@@ -180,11 +180,13 @@ namespace Prism
         return this->GetAnimator();
     }
     Prism::LineRendererComponent* Entity::AddLineRenderer(Prism::Material* mat) {
-        ::Entity_AddLineRenderer(ToCore(*this), static_cast<::Material*>(mat->GetRaw()));
+        ::Material* raw_material = mat ? static_cast<::Material*>(mat->GetRaw()) : nullptr;
+        ::Entity_AddLineRenderer(ToCore(*this), raw_material);
         return this->GetLineRenderer();
     }
     Prism::SpriteRendererComponent* Entity::AddSpriteRenderer(Prism::Material* mat) {
-        ::Entity_AddSpriteRenderer(ToCore(*this), static_cast<::Material*>(mat->GetRaw()));
+        ::Material* raw_material = mat ? static_cast<::Material*>(mat->GetRaw()) : nullptr;
+        ::Entity_AddSpriteRenderer(ToCore(*this), raw_material);
         return this->GetSpriteRenderer();
     }
 
