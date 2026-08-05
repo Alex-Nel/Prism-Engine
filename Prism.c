@@ -65,6 +65,7 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
     Time_Init(engine.target_fps, Platform_GetTime, Platform_Delay);
 
     UI_Init();
+    UI_SetClipboardCallbacks(Platform_SetClipboardText, Platform_GetClipboardText, Platform_FreeClipboardText);
     Render_UIinit(engine.renderer, UI_GetContext());
 
     return true;

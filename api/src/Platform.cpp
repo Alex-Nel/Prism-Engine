@@ -24,4 +24,20 @@ namespace Prism
     {
         ::Platform_WarpMouseToMiddle(static_cast<::Window*>(window));
     }
+
+    bool Platform::SetClipboardText(const std::string& text)
+    {
+        return ::Platform_SetClipboardText(text.c_str());
+    }
+
+    std::string Platform::GetClipboardText()
+    {
+        char* text = ::Platform_GetClipboardText();
+        if (!text)
+            return {};
+
+        std::string result(text);
+        ::Platform_FreeClipboardText(text);
+        return result;
+    }
 }

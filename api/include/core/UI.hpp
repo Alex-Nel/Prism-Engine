@@ -96,17 +96,29 @@ namespace Prism
         // Create a new layout row. item_height is the height of the row. cols is how many items per row.
         static void LayoutRowDynamic(float item_height, int cols);
 
+        // Create a fixed-width layout row
+        static void LayoutRowStatic(float item_height, int item_width, int cols);
+
         // Create a button. Returns true if clicked.
         static bool Button(const std::string& label);
 
         // Create a text label
         static void Label(const std::string& text);
 
+        // Create a text label that wraps to fit its layout bounds
+        static void LabelWrapped(const std::string& text);
+
+        // Create an item that can be selected and deselected
+        static bool Selectable(const std::string& label, bool* selected);
+
         // Create a float slider
         static bool SliderFloat(float min, float* val, float max, float step);
 
         // Create an int slider
         static bool SliderInt(int min, int* val, int max, int step);
+
+        // Create an optionally interactive progress bar
+        static bool ProgressBar(uint32_t* value, uint32_t max, bool modifiable = false);
 
         // Create a checkbox
         static bool Checkbox(const std::string& label, bool* active);
@@ -117,6 +129,9 @@ namespace Prism
         // Create a property int slider/input
         static void PropertyInt(const std::string& name, int min, int* val, int max, int step, float inc_per_pixel);
 
+        // Create a property float slider/input
+        static void PropertyFloat(const std::string& name, float min, float* val, float max, float step, float inc_per_pixel);
+
         // Create a color picker
         static bool ColorPicker(Color* color);
 
@@ -125,6 +140,21 @@ namespace Prism
 
         // Create a text input box
         static void TextBox(char* buffer, int max_len);
+
+        // Create a multiline text input area
+        static void TextArea(char* buffer, int max_len);
+
+        // Start a scrollable group in the next layout cell. EndGroup must only be called if this returns true.
+        static bool BeginGroup(const std::string& id, const std::string& title, WindowFlags flags = WindowFlags::Bordered);
+
+        // End the current group
+        static void EndGroup();
+
+        // Create a horizontal separator
+        static void Separator(const Color& color, bool rounded = false);
+
+        // Show a tooltip when the next submitted widget is hovered over
+        static void Tooltip(const std::string& text);
 
         // Theming functions
         static void SetTheme(UITheme theme);

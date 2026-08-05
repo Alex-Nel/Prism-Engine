@@ -10,10 +10,61 @@
 
 #include "ui_core.h"
 
+#include <stdlib.h>
+#include <string.h>
+
 
 
 static struct nk_context ctx;
 static struct nk_color current_theme_table[NK_COLOR_COUNT];
+
+static UIClipboardSetCallback clipboard_set_text;
+static UIClipboardGetCallback clipboard_get_text;
+static UIClipboardFreeCallback clipboard_free_text;
+
+
+
+
+
+// Pastes UTF-8 clipboard text into the active Nuklear editor
+static void UI_ClipboardPaste(nk_handle userdata, struct nk_text_edit* edit)
+{
+    (void)userdata;
+
+    if (!clipboard_get_text || !clipboard_free_text)
+        return;
+
+    char* text = clipboard_get_text();
+    if (!text)
+        return;
+
+    nk_textedit_paste(edit, text, nk_strlen(text));
+    clipboard_free_text(text);
+}
+
+
+
+
+
+// Copies a non-null-terminated Nuklear selection to the system clipboard
+static void UI_ClipboardCopy(nk_handle userdata, const char* text, int len)
+{
+    (void)userdata;
+
+    if (!clipboard_set_text || !text || len <= 0)
+        return;
+
+    char* terminated_text = (char*)malloc((size_t)len + 1);
+    if (!terminated_text)
+        return;
+
+    memcpy(terminated_text, text, (size_t)len);
+    terminated_text[len] = '\0';
+    clipboard_set_text(terminated_text);
+    free(terminated_text);
+}
+
+
 
 
 
@@ -21,6 +72,8 @@ static struct nk_color current_theme_table[NK_COLOR_COUNT];
 void UI_Init()
 {
     nk_init_default(&ctx, 0);
+    ctx.clip.copy = UI_ClipboardCopy;
+    ctx.clip.paste = UI_ClipboardPaste;
     // Font setup is deferred to the UI renderer
 }
 
@@ -80,14 +133,23 @@ bool UI_ProcessEvent(Event* e)
     {
         int down = (e->type == EVENT_KEY_PRESSED) ? 1 : 0;
         
-        if (e->key.key == KEYCODE_LEFTCTRL || e->key.key == KEYCODE_RIGHTCTRL)        nk_input_key(&ctx, NK_KEY_CTRL, down);
-        else if (e->key.key == KEYCODE_LEFTSHIFT || e->key.key == KEYCODE_RIGHTSHIFT) nk_input_key(&ctx, NK_KEY_SHIFT, down);
+        // if (e->key.key == KEYCODE_LEFTCTRL || e->key.key == KEYCODE_RIGHTCTRL)        nk_input_key(&ctx, NK_KEY_CTRL, down);
+        // else if (e->key.key == KEYCODE_LEFTSHIFT || e->key.key == KEYCODE_RIGHTSHIFT) nk_input_key(&ctx, NK_KEY_SHIFT, down);
+        if (e->key.key == KEYCODE_LEFTCTRL || e->key.key == KEYCODE_RIGHTCTRL)         nk_input_key(&ctx, NK_KEY_CTRL, down);
+        else if (e->key.key == KEYCODE_LEFTSHIFT || e->key.key == KEYCODE_RIGHTSHIFT)  nk_input_key(&ctx, NK_KEY_SHIFT, down);
+        else if (e->key.key == KEYCODE_LEFTALT || e->key.key == KEYCODE_RIGHTALT)       nk_input_key(&ctx, NK_KEY_ALT, down);
+        else if (e->key.key == KEYCODE_DELETE)     nk_input_key(&ctx, NK_KEY_DEL, down);
         else if (e->key.key == KEYCODE_ENTER)      nk_input_key(&ctx, NK_KEY_ENTER, down);
+        else if (e->key.key == KEYCODE_TAB)        nk_input_key(&ctx, NK_KEY_TAB, down);
         else if (e->key.key == KEYCODE_BACKSPACE)  nk_input_key(&ctx, NK_KEY_BACKSPACE, down);
         else if (e->key.key == KEYCODE_LEFTARROW)  nk_input_key(&ctx, NK_KEY_LEFT, down);
         else if (e->key.key == KEYCODE_RIGHTARROW) nk_input_key(&ctx, NK_KEY_RIGHT, down);
         else if (e->key.key == KEYCODE_UPARROW)    nk_input_key(&ctx, NK_KEY_UP, down);
         else if (e->key.key == KEYCODE_DOWNARROW)  nk_input_key(&ctx, NK_KEY_DOWN, down);
+        else if (e->key.key == KEYCODE_C)          nk_input_key(&ctx, NK_KEY_COPY, down && ctx.input.keyboard.keys[NK_KEY_CTRL].down);
+        else if (e->key.key == KEYCODE_V)          nk_input_key(&ctx, NK_KEY_PASTE, down && ctx.input.keyboard.keys[NK_KEY_CTRL].down);
+        else if (e->key.key == KEYCODE_X)          nk_input_key(&ctx, NK_KEY_CUT, down && ctx.input.keyboard.keys[NK_KEY_CTRL].down);
+        else if (e->key.key == KEYCODE_A)          nk_input_key(&ctx, NK_KEY_TEXT_SELECT_ALL, down && ctx.input.keyboard.keys[NK_KEY_CTRL].down);
     }
     else if (e->type == EVENT_TEXT_INPUT)
     {
@@ -143,6 +205,18 @@ struct nk_context* UI_GetContext()
 
 
 
+// Supplies clipboard operations from the engine integration layer
+void UI_SetClipboardCallbacks(UIClipboardSetCallback set_text, UIClipboardGetCallback get_text, UIClipboardFreeCallback free_text)
+{
+    clipboard_set_text = set_text;
+    clipboard_get_text = get_text;
+    clipboard_free_text = free_text;
+}
+
+
+
+
+
 // Starts rendering a UI window with chosen flags
 bool UI_BeginWindow(const char* id, const char* title, float x, float y, float width, float height, int flags)
 {
@@ -173,6 +247,16 @@ void UI_LayoutRowDynamic(float item_height, int cols)
 
 
 
+// Lays a fixed-width row in a UI window
+void UI_LayoutRowStatic(float item_height, int item_width, int cols)
+{
+    nk_layout_row_static(&ctx, item_height, item_width, cols);
+}
+
+
+
+
+
 // Draws a UI button with a label
 bool UI_Button(const char* label)
 {
@@ -193,6 +277,29 @@ void UI_Label(const char* text)
 
 
 
+// Draws a label that wraps to fit its layout bounds
+void UI_LabelWrapped(const char* text)
+{
+    nk_label_wrap(&ctx, text);
+}
+
+
+
+
+
+// Draws an item that can be selected and deselected
+bool UI_Selectable(const char* label, bool* selected)
+{
+    int is_selected = *selected ? 1 : 0;
+    bool changed = nk_selectable_label(&ctx, label, NK_TEXT_LEFT, &is_selected);
+    *selected = is_selected != 0;
+    return changed;
+}
+
+
+
+
+
 // Draws a slider that counts in floats
 bool UI_SliderFloat(float min, float* val, float max, float step)
 {
@@ -207,6 +314,19 @@ bool UI_SliderFloat(float min, float* val, float max, float step)
 bool UI_SliderInt(int min, int* val, int max, int step)
 {
     return nk_slider_int(&ctx, min, val, max, step);
+}
+
+
+
+
+
+// Draws an optionally interactive progress bar
+bool UI_ProgressBar(uint32_t* value, uint32_t max, bool modifiable)
+{
+    nk_size current = (nk_size)*value;
+    bool changed = nk_progress(&ctx, &current, (nk_size)max, modifiable ? 1 : 0);
+    *value = (uint32_t)current;
+    return changed;
 }
 
 
@@ -246,6 +366,16 @@ void UI_PropertyInt(const char* name, int min, int* val, int max, int step, floa
 
 
 
+// Draws a float property with drag, buttons, and direct text input
+void UI_PropertyFloat(const char* name, float min, float* val, float max, float step, float inc_per_pixel)
+{
+    nk_property_float(&ctx, name, min, val, max, step, inc_per_pixel);
+}
+
+
+
+
+
 // Draws a color picker with the output pointer
 bool UI_ColorPicker(Color* color)
 {
@@ -279,6 +409,57 @@ bool UI_Combo(const char** items, int count, int* selected, int item_height, flo
 void UI_TextBox(char* buffer, int max_len)
 {
     nk_edit_string_zero_terminated(&ctx, NK_EDIT_FIELD, buffer, max_len, nk_filter_default);
+}
+
+
+
+
+
+// Draws a multiline text input area
+void UI_TextArea(char* buffer, int max_len)
+{
+    nk_edit_string_zero_terminated(&ctx, NK_EDIT_BOX, buffer, max_len, nk_filter_default);
+}
+
+
+
+
+
+// Starts a scrollable group panel in the next layout cell
+bool UI_BeginGroup(const char* id, const char* title, int flags)
+{
+    return nk_group_begin_titled(&ctx, id, title, (nk_flags)flags);
+}
+
+
+
+
+
+// Ends the current group. Only call this when UI_BeginGroup returned true.
+void UI_EndGroup(void)
+{
+    nk_group_end(&ctx);
+}
+
+
+
+
+
+// Draws a horizontal separator using the provided color
+void UI_Separator(Color color, bool rounded)
+{
+    nk_rule_horizontal(&ctx, nk_rgba_f(color.r, color.g, color.b, color.a), rounded ? 1 : 0);
+}
+
+
+
+
+
+// Shows a tooltip when the next submitted widget is hovered over
+void UI_Tooltip(const char* text)
+{
+    if (text && nk_widget_is_hovered(&ctx))
+        nk_tooltip(&ctx, text);
 }
 
 

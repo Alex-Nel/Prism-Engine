@@ -83,6 +83,15 @@ void Platform_StopTextInput(Window* window);
 // Returns whether a window is currently accepting input
 bool Platform_IsTextInputActive(Window* window);
 
+// Copies UTF-8 text to the system clipboard
+bool Platform_SetClipboardText(const char* text);
+
+// Returns allocated UTF-8 text from the system clipboard.
+char* Platform_GetClipboardText(void);
+
+// Releases text returned by Platform_GetClipboardText
+void Platform_FreeClipboardText(char* text);
+
 
 
 #endif // PLATFORM_H

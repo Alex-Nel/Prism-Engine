@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PrismAPI.hpp"
+#include <string>
 
 
 
@@ -28,6 +29,12 @@ namespace Prism
 
         // Forces the mouse cursor to the center of the screen
         static void WarpMouseToMiddle(void* window);
+
+        // Copies UTF-8 text to the system clipboard
+        static bool SetClipboardText(const std::string& text);
+
+        // Gets UTF-8 text from the system clipboard
+        static std::string GetClipboardText();
 
         // Future implementation
         // static void* GetActiveWindow();

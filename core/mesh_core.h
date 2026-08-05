@@ -43,16 +43,6 @@ typedef struct Vertex3DSkinned
 
 
 
-// Struct for a global scene light
-typedef struct DirectionalLight
-{
-    Vector3 direction;
-    Color color;
-    float ambient_strength;
-} DirectionalLight;
-
-
-
 // Struct for an Axis Aligned Bounding Box
 typedef struct AABB
 {

@@ -497,7 +497,7 @@ void Platform_SetWindowSize(Window* window, uint32_t width, uint32_t height)
 
 
 // Uses SDL_GetPerformanceCounter, a high-resolution timer
-double Platform_GetTime(void)
+double Platform_GetTime()
 {
     uint64_t counter = SDL_GetPerformanceCounter();
     uint64_t frequency = SDL_GetPerformanceFrequency();
@@ -602,4 +602,37 @@ bool Platform_IsTextInputActive(Window* window)
         return false;
 
     return SDL_TextInputActive(window->sdl_window);
+}
+
+
+
+
+
+// Copies UTF-8 text to the system clipboard
+bool Platform_SetClipboardText(const char* text)
+{
+    if (!text)
+        return false;
+
+    return SDL_SetClipboardText(text);
+}
+
+
+
+
+
+// Returns UTF-8 text allocated by SDL
+char* Platform_GetClipboardText()
+{
+    return SDL_GetClipboardText();
+}
+
+
+
+
+
+// Releases clipboard text allocated by SDL
+void Platform_FreeClipboardText(char* text)
+{
+    SDL_free(text);
 }

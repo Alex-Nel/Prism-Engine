@@ -28,6 +28,10 @@ namespace Prism
         UI_LayoutRowDynamic(item_height, cols);
     }
 
+    void UI::LayoutRowStatic(float item_height, int item_width, int cols) {
+        UI_LayoutRowStatic(item_height, item_width, cols);
+    }
+
     bool UI::Button(const std::string& label) {
         return UI_Button(label.c_str());
     }
@@ -36,12 +40,24 @@ namespace Prism
          UI_Label(text.c_str());
     }
 
+    void UI::LabelWrapped(const std::string& text) {
+        UI_LabelWrapped(text.c_str());
+    }
+
+    bool UI::Selectable(const std::string& label, bool* selected) {
+        return UI_Selectable(label.c_str(), selected);
+    }
+
     bool UI::SliderFloat(float min, float* val, float max, float step) {
         return UI_SliderFloat(min, val, max, step);
     }
 
     bool UI::SliderInt(int min, int* val, int max, int step) {
         return UI_SliderInt(min, val, max, step);
+    }
+
+    bool UI::ProgressBar(uint32_t* value, uint32_t max, bool modifiable) {
+        return UI_ProgressBar(value, max, modifiable);
     }
 
     bool UI::Checkbox(const std::string& label, bool* active) {
@@ -54,6 +70,10 @@ namespace Prism
 
     void UI::PropertyInt(const std::string& name, int min, int* val, int max, int step, float inc_per_pixel) {
         UI_PropertyInt(name.c_str(), min, val, max, step, inc_per_pixel);
+    }
+
+    void UI::PropertyFloat(const std::string& name, float min, float* val, float max, float step, float inc_per_pixel) {
+        UI_PropertyFloat(name.c_str(), min, val, max, step, inc_per_pixel);
     }
 
     bool UI::ColorPicker(Color* color) {
@@ -71,6 +91,26 @@ namespace Prism
 
     void UI::TextBox(char* buffer, int max_len) {
         UI_TextBox(buffer, max_len);
+    }
+
+    void UI::TextArea(char* buffer, int max_len) {
+        UI_TextArea(buffer, max_len);
+    }
+
+    bool UI::BeginGroup(const std::string& id, const std::string& title, WindowFlags flags) {
+        return UI_BeginGroup(id.c_str(), title.c_str(), static_cast<int>(flags));
+    }
+
+    void UI::EndGroup() {
+        UI_EndGroup();
+    }
+
+    void UI::Separator(const Color& color, bool rounded) {
+        UI_Separator(*reinterpret_cast<const ::Color*>(&color), rounded);
+    }
+
+    void UI::Tooltip(const std::string& text) {
+        UI_Tooltip(text.c_str());
     }
 
     void UI::SetTheme(UITheme theme) {
