@@ -536,38 +536,38 @@ void OpenGL_GenerateLightSphere(OpenGL_Backend* internal)
 void OpenGL_InitPipelines(OpenGL_Backend* internal)
 {
     // 1. Forward Pipeline (Main Lit Shaders)
-    internal->forward.default_shader = OpenGL_CompileInternalShaderFromFile(internal, "Foward Default", "assets/shaders/default.vert", NULL, "assets/shaders/default.frag");
-    internal->forward.animated_shader = OpenGL_CompileInternalShaderFromFile(internal, "Forward Animated", "assets/shaders/animated.vert", NULL, "assets/shaders/default.frag");
+    internal->forward.default_shader = OpenGL_CompileInternalShaderFromFile(internal, "Foward Default", "assets/shaders/forward/default.vert", NULL, "assets/shaders/forward/default.frag");
+    internal->forward.animated_shader = OpenGL_CompileInternalShaderFromFile(internal, "Forward Animated", "assets/shaders/forward/animated.vert", NULL, "assets/shaders/forward/default.frag");
     
     // 2. Deferred Pipeline
-    internal->deferred.deferred_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred Main", "assets/shaders/deferred_light.vert", NULL, "assets/shaders/deferred_light.frag");
-    internal->deferred.volume_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred Volume", "assets/shaders/deferred_volume.vert", NULL, "assets/shaders/deferred_volume.frag");
-    internal->deferred.spot_volume_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred Spot Volume", "assets/shaders/deferred_volume.vert", NULL, "assets/shaders/deferred_spot_volume.frag");
-    internal->deferred.post_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred Post", "assets/shaders/deferred_light.vert", NULL, "assets/shaders/deferred_post.frag");
+    internal->deferred.deferred_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred Main", "assets/shaders/deferred/deferred_light.vert", NULL, "assets/shaders/deferred/deferred_light.frag");
+    internal->deferred.volume_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred Volume", "assets/shaders/deferred/deferred_volume.vert", NULL, "assets/shaders/deferred/deferred_volume.frag");
+    internal->deferred.spot_volume_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred Spot Volume", "assets/shaders/deferred/deferred_volume.vert", NULL, "assets/shaders/deferred/deferred_spot_volume.frag");
+    internal->deferred.post_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred Post", "assets/shaders/deferred/deferred_light.vert", NULL, "assets/shaders/deferred/deferred_post.frag");
 
     // 3. Shadow Pipeline
-    internal->shadow.static_shader = OpenGL_CompileInternalShaderFromFile(internal, "Shadow Static", "assets/shaders/shadow.vert", NULL, "assets/shaders/shadow.frag");
-    internal->shadow.skinned_shader = OpenGL_CompileInternalShaderFromFile(internal, "Shadow Skinned", "assets/shaders/shadow_skinned.vert", NULL, "assets/shaders/shadow.frag");
-    internal->shadow.point_static_shader = OpenGL_CompileInternalShaderFromFile(internal, "Shadow Point Static", "assets/shaders/shadow_point_static.vert", "assets/shaders/shadow_point.geom", "assets/shaders/shadow_point.frag");
-    internal->shadow.point_skinned_shader = OpenGL_CompileInternalShaderFromFile(internal, "Shadow Point Skinned", "assets/shaders/shadow_point_skinned.vert", "assets/shaders/shadow_point.geom", "assets/shaders/shadow_point.frag");
+    internal->shadow.static_shader = OpenGL_CompileInternalShaderFromFile(internal, "Shadow Static", "assets/shaders/shadow/shadow.vert", NULL, "assets/shaders/shadow/shadow.frag");
+    internal->shadow.skinned_shader = OpenGL_CompileInternalShaderFromFile(internal, "Shadow Skinned", "assets/shaders/shadow/shadow_skinned.vert", NULL, "assets/shaders/shadow/shadow.frag");
+    internal->shadow.point_static_shader = OpenGL_CompileInternalShaderFromFile(internal, "Shadow Point Static", "assets/shaders/shadow/shadow_point_static.vert", "assets/shaders/shadow/shadow_point.geom", "assets/shaders/shadow/shadow_point.frag");
+    internal->shadow.point_skinned_shader = OpenGL_CompileInternalShaderFromFile(internal, "Shadow Point Skinned", "assets/shaders/shadow/shadow_point_skinned.vert", "assets/shaders/shadow/shadow_point.geom", "assets/shaders/shadow/shadow_point.frag");
 
     // 4. Skybox Pipeline
-    internal->skybox.default_shader = OpenGL_CompileInternalShaderFromFile(internal, "Skybox", "assets/shaders/skybox.vert", NULL, "assets/shaders/skybox.frag");
+    internal->skybox.default_shader = OpenGL_CompileInternalShaderFromFile(internal, "Skybox", "assets/shaders/skybox/skybox.vert", NULL, "assets/shaders/skybox/skybox.frag");
 
     // 5. UI Pipeline
-    internal->ui.shader = OpenGL_CompileInternalShaderFromFile(internal, "UI Shader", "assets/shaders/ui.vert", NULL, "assets/shaders/ui.frag");
+    internal->ui.shader = OpenGL_CompileInternalShaderFromFile(internal, "UI Shader", "assets/shaders/ui/ui.vert", NULL, "assets/shaders/ui/ui.frag");
 
     // 6. SSAO Pipeline
-    internal->ssao.g_buffer_shader = OpenGL_CompileInternalShaderFromFile(internal, "G-Buffer", "assets/shaders/g_buffer.vert", NULL, "assets/shaders/g_buffer.frag");
-    internal->ssao.g_buffer_skinned_shader = OpenGL_CompileInternalShaderFromFile(internal, "G-Buffer Skinned", "assets/shaders/g_buffer_skinned.vert", NULL, "assets/shaders/g_buffer.frag");
-    internal->ssao.ssao_shader = OpenGL_CompileInternalShaderFromFile(internal, "SSAO Compute", "assets/shaders/ssao.vert", NULL, "assets/shaders/ssao.frag");
-    internal->ssao.blur_shader = OpenGL_CompileInternalShaderFromFile(internal, "SSAO Blur", "assets/shaders/ssao.vert", NULL, "assets/shaders/ssao_blur.frag");
+    internal->ssao.g_buffer_shader = OpenGL_CompileInternalShaderFromFile(internal, "G-Buffer", "assets/shaders/ssao/g_buffer.vert", NULL, "assets/shaders/ssao/g_buffer.frag");
+    internal->ssao.g_buffer_skinned_shader = OpenGL_CompileInternalShaderFromFile(internal, "G-Buffer Skinned", "assets/shaders/ssao/g_buffer_skinned.vert", NULL, "assets/shaders/ssao/g_buffer.frag");
+    internal->ssao.ssao_shader = OpenGL_CompileInternalShaderFromFile(internal, "SSAO Compute", "assets/shaders/ssao/ssao.vert", NULL, "assets/shaders/ssao/ssao.frag");
+    internal->ssao.blur_shader = OpenGL_CompileInternalShaderFromFile(internal, "SSAO Blur", "assets/shaders/ssao/ssao.vert", NULL, "assets/shaders/ssao/ssao_blur.frag");
 
     // 7. IBL Precomputation Pipeline
-    internal->ibl.equirectangular_to_cubemap = OpenGL_CompileInternalShaderFromFile(internal, "Equirectangular to Cubemap", "assets/shaders/cubemap.vert", NULL, "assets/shaders/equirectangular_to_cubemap.frag");
-    internal->ibl.irradiance_convolution = OpenGL_CompileInternalShaderFromFile(internal, "Irradiance Convolution", "assets/shaders/cubemap.vert", NULL, "assets/shaders/irradiance_convolution.frag");
-    internal->ibl.prefilter = OpenGL_CompileInternalShaderFromFile(internal, "Prefilter", "assets/shaders/cubemap.vert", NULL, "assets/shaders/prefilter.frag");
-    internal->ibl.brdf = OpenGL_CompileInternalShaderFromFile(internal, "BRDF LUT", "assets/shaders/brdf.vert", NULL, "assets/shaders/brdf.frag");
+    internal->ibl.equirectangular_to_cubemap = OpenGL_CompileInternalShaderFromFile(internal, "Equirectangular to Cubemap", "assets/shaders/ibl/cubemap.vert", NULL, "assets/shaders/ibl/equirectangular_to_cubemap.frag");
+    internal->ibl.irradiance_convolution = OpenGL_CompileInternalShaderFromFile(internal, "Irradiance Convolution", "assets/shaders/ibl/cubemap.vert", NULL, "assets/shaders/ibl/irradiance_convolution.frag");
+    internal->ibl.prefilter = OpenGL_CompileInternalShaderFromFile(internal, "Prefilter", "assets/shaders/ibl/cubemap.vert", NULL, "assets/shaders/ibl/prefilter.frag");
+    internal->ibl.brdf = OpenGL_CompileInternalShaderFromFile(internal, "BRDF LUT", "assets/shaders/ibl/brdf.vert", NULL, "assets/shaders/ibl/brdf.frag");
 }
 
 
