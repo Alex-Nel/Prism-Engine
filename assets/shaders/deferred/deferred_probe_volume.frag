@@ -3,7 +3,6 @@
 
 
 out vec4 FragColor;
-in vec4 ClipSpacePos;
 
 uniform sampler2D gPosition;
 uniform sampler2D gNormal;

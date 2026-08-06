@@ -543,7 +543,7 @@ void OpenGL_InitPipelines(OpenGL_Backend* internal)
     internal->deferred.deferred_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred Main", "assets/shaders/deferred/deferred_light.vert", NULL, "assets/shaders/deferred/deferred_light.frag");
     internal->deferred.volume_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred Volume", "assets/shaders/deferred/deferred_volume.vert", NULL, "assets/shaders/deferred/deferred_volume.frag");
     internal->deferred.spot_volume_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred Spot Volume", "assets/shaders/deferred/deferred_volume.vert", NULL, "assets/shaders/deferred/deferred_spot_volume.frag");
-    internal->deferred.probe_volume_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred Probe Volume", "assets/shaders/deferred/deferred_volume.vert", NULL, "assets/shaders/deferred/deferred_probe_volume.frag");
+    internal->deferred.probe_volume_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred Probe Volume", "assets/shaders/deferred/deferred_light.vert", NULL, "assets/shaders/deferred/deferred_probe_volume.frag");
     internal->deferred.post_shader = OpenGL_CompileInternalShaderFromFile(internal, "Deferred Post", "assets/shaders/deferred/deferred_light.vert", NULL, "assets/shaders/deferred/deferred_post.frag");
 
     // 3. Shadow Pipeline

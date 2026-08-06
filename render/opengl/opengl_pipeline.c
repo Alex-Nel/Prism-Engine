@@ -784,8 +784,6 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
         glUniform1i(glGetUniformLocation(probe_program, "brdfLUT"), 8);
         glUniform1i(glGetUniformLocation(probe_program, "u_IBLDebugMode"), ibl_debug_mode);
 
-        glUniformMatrix4fv(glGetUniformLocation(probe_program, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
-        glUniformMatrix4fv(glGetUniformLocation(probe_program, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
         glUniform3fv(glGetUniformLocation(probe_program, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
         glUniform2f(glGetUniformLocation(probe_program, "u_ScreenSize"), (float)internal->state.window_width, (float)internal->state.window_height);
         glUniform1i(glGetUniformLocation(probe_program, "u_EnableSSAO"), internal->state.settings.enable_ssao ? 1 : 0);
@@ -803,8 +801,8 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
 
         glEnable(GL_BLEND);
         glBlendFunc(GL_ONE, GL_ONE);
-        glEnable(GL_CULL_FACE);
-        glBindVertexArray(internal->skybox.vao);
+        glDisable(GL_CULL_FACE);
+        glBindVertexArray(internal->quad_vao);
 
         for (uint32_t probe_index = 0; probe_index < internal->state.reflection_probe_count; probe_index++)
         {
@@ -836,24 +834,15 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
 
             Vector3 box_min = Vector3Subtract(probe->position, probe->box_extents);
             Vector3 box_max = Vector3Add(probe->position, probe->box_extents);
-            Matrix4 model = Matrix4Translate(probe->position);
-            model = Matrix4Multiply(model, Matrix4Scale(probe->box_extents));
-            bool camera_inside =
-                internal->state.camera_pos.x >= box_min.x && internal->state.camera_pos.x <= box_max.x &&
-                internal->state.camera_pos.y >= box_min.y && internal->state.camera_pos.y <= box_max.y &&
-                internal->state.camera_pos.z >= box_min.z && internal->state.camera_pos.z <= box_max.z;
-            
-            // The shared skybox cube is inward-wound.
-            glCullFace(camera_inside ? GL_BACK : GL_FRONT);
 
-            glUniformMatrix4fv(glGetUniformLocation(probe_program, "u_Model"), 1, GL_FALSE, (float*)&model);
             glUniform3fv(glGetUniformLocation(probe_program, "u_ProbePosition"), 1, (float*)&probe->position);
             glUniform3fv(glGetUniformLocation(probe_program, "u_ProbeBoxMin"), 1, (float*)&box_min);
             glUniform3fv(glGetUniformLocation(probe_program, "u_ProbeBoxMax"), 1, (float*)&box_max);
             glUniform1f(glGetUniformLocation(probe_program, "u_ProbeBlendDistance"), probe->blend_distance);
-            glDrawArrays(GL_TRIANGLES, 0, 36);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
         }
 
+        glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
         glDisable(GL_BLEND);
     }
