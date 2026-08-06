@@ -7,11 +7,13 @@ out vec4 FragColor;
 in vec2 TexCoord;
 in vec3 v_Normal;
 in vec3 v_FragPos;
+in mat3 v_TBN;
 
 
 // --- Global Uniforms ---
 
 uniform vec3 u_ViewPos;
+uniform bool u_CaptureLinearRadiance;
 
 
 
@@ -469,6 +471,11 @@ void main()
 
     // --- 3D Lighting for Forward Meshes ---
     vec3 norm = normalize(v_Normal);
+    if (u_Material.hasNormalMap)
+    {
+        vec3 mappedNormal = texture(u_Material.normalMap, TexCoord).rgb * 2.0 - 1.0;
+        norm = normalize(v_TBN * mappedNormal);
+    }
     if (!gl_FrontFacing)
         norm = -norm;
 
@@ -512,14 +519,21 @@ void main()
     }
 
 
-    // // --- (old) HDR Tone Mapping & Gamma ---
-    // totalLight = totalLight / (totalLight + vec3(1.0));
 
-    // --- HDR Tone Mapping (ACES Filmic) & Gamma ---
-    float exposure = u_Exposure > 0.001 ? u_Exposure : 1.0;
-    totalLight *= exposure;
-    totalLight = ACESFilm(totalLight);
-    totalLight = pow(totalLight, vec3(1.0 / gamma));
+    // // --- HDR Tone Mapping (ACES Filmic) & Gamma ---
+    // float exposure = u_Exposure > 0.001 ? u_Exposure : 1.0;
+    // totalLight *= exposure;
+    // totalLight = ACESFilm(totalLight);
+    // totalLight = pow(totalLight, vec3(1.0 / gamma));
+
+    // Probe captures must retain linear HDR radiance for convolution. Normal forward rendering still performs its display conversion here.
+    if (!u_CaptureLinearRadiance)
+    {
+        float exposure = u_Exposure > 0.001 ? u_Exposure : 1.0;
+        totalLight *= exposure;
+        totalLight = ACESFilm(totalLight);
+        totalLight = pow(totalLight, vec3(1.0 / gamma));
+    }
 
     FragColor = vec4(totalLight, texColor.a);
 }
