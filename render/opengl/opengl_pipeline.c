@@ -743,6 +743,8 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
 
     // Bind IBL Maps
     glUniform1i(glGetUniformLocation(def_prog, "u_HasIBL"), (internal->state.has_env_map && internal->state.env_map.has_ibl) ? 1 : 0);
+    const int ibl_debug_mode = 0; // Set to 1 for compressed RGB irradiance or 2 for logarithmic luminance.
+    glUniform1i(glGetUniformLocation(def_prog, "u_IBLDebugMode"), ibl_debug_mode);
     if (internal->state.has_env_map)
     {
         glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_CUBE_MAP, internal->texture_pool[internal->state.env_map.irradiance.id].id); glUniform1i(glGetUniformLocation(def_prog, "irradianceMap"), 5);
@@ -763,6 +765,98 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     glDisable(GL_DEPTH_TEST);
     glBindVertexArray(internal->quad_vao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
+
+
+    // --- Local IBL probe replacement volumes ---
+    if (internal->state.reflection_probe_count > 0 && internal->deferred.probe_volume_shader.id != 0)
+    {
+        GLuint probe_program = internal->shader_pool[internal->deferred.probe_volume_shader.id].program;
+        glUseProgram(probe_program);
+
+        glUniform1i(glGetUniformLocation(probe_program, "gPosition"), 0);
+        glUniform1i(glGetUniformLocation(probe_program, "gNormal"), 1);
+        glUniform1i(glGetUniformLocation(probe_program, "gAlbedoSpec"), 2);
+        glUniform1i(glGetUniformLocation(probe_program, "ssaoMap"), 3);
+        glUniform1i(glGetUniformLocation(probe_program, "localIrradianceMap"), 4);
+        glUniform1i(glGetUniformLocation(probe_program, "localPrefilterMap"), 5);
+        glUniform1i(glGetUniformLocation(probe_program, "globalIrradianceMap"), 6);
+        glUniform1i(glGetUniformLocation(probe_program, "globalPrefilterMap"), 7);
+        glUniform1i(glGetUniformLocation(probe_program, "brdfLUT"), 8);
+        glUniform1i(glGetUniformLocation(probe_program, "u_IBLDebugMode"), ibl_debug_mode);
+
+        glUniformMatrix4fv(glGetUniformLocation(probe_program, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
+        glUniformMatrix4fv(glGetUniformLocation(probe_program, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+        glUniform3fv(glGetUniformLocation(probe_program, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
+        glUniform2f(glGetUniformLocation(probe_program, "u_ScreenSize"), (float)internal->state.window_width, (float)internal->state.window_height);
+        glUniform1i(glGetUniformLocation(probe_program, "u_EnableSSAO"), internal->state.settings.enable_ssao ? 1 : 0);
+        OpenGL_UploadCommonUniforms(probe_program, &internal->state);
+
+        bool has_global_ibl = internal->state.has_env_map && internal->state.env_map.has_ibl;
+        glUniform1i(glGetUniformLocation(probe_program, "u_HasGlobalIBL"), has_global_ibl ? 1 : 0);
+
+        glActiveTexture(GL_TEXTURE6);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, has_global_ibl ? internal->texture_pool[internal->state.env_map.irradiance.id].id : 0);
+        glActiveTexture(GL_TEXTURE7);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, has_global_ibl ? internal->texture_pool[internal->state.env_map.prefilter.id].id : 0);
+        glActiveTexture(GL_TEXTURE8);
+        glBindTexture(GL_TEXTURE_2D, has_global_ibl ? internal->texture_pool[internal->state.env_map.brdf_lut.id].id : 0);
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_ONE, GL_ONE);
+        glEnable(GL_CULL_FACE);
+        glBindVertexArray(internal->skybox.vao);
+
+        for (uint32_t probe_index = 0; probe_index < internal->state.reflection_probe_count; probe_index++)
+        {
+            ReflectionProbeData* probe = &internal->state.reflection_probes[probe_index];
+            GLReflectionProbe* captured = NULL;
+            for (uint32_t slot_index = 0; slot_index < MAX_REFLECTION_PROBES; slot_index++)
+            {
+                GLReflectionProbe* candidate = &internal->reflection_probes[slot_index];
+                if (candidate->active && candidate->entity_id == probe->entity_id)
+                {
+                    captured = candidate;
+                    break;
+                }
+            }
+
+            if (!captured || captured->environment.irradiance.id == 0)
+                continue;
+
+            glActiveTexture(GL_TEXTURE4);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, internal->texture_pool[captured->environment.irradiance.id].id);
+            glActiveTexture(GL_TEXTURE5);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, internal->texture_pool[captured->environment.prefilter.id].id);
+
+            if (!has_global_ibl && captured->environment.brdf_lut.id != 0)
+            {
+                glActiveTexture(GL_TEXTURE8);
+                glBindTexture(GL_TEXTURE_2D, internal->texture_pool[captured->environment.brdf_lut.id].id);
+            }
+
+            Vector3 box_min = Vector3Subtract(probe->position, probe->box_extents);
+            Vector3 box_max = Vector3Add(probe->position, probe->box_extents);
+            Matrix4 model = Matrix4Translate(probe->position);
+            model = Matrix4Multiply(model, Matrix4Scale(probe->box_extents));
+            bool camera_inside =
+                internal->state.camera_pos.x >= box_min.x && internal->state.camera_pos.x <= box_max.x &&
+                internal->state.camera_pos.y >= box_min.y && internal->state.camera_pos.y <= box_max.y &&
+                internal->state.camera_pos.z >= box_min.z && internal->state.camera_pos.z <= box_max.z;
+            
+            // The shared skybox cube is inward-wound.
+            glCullFace(camera_inside ? GL_BACK : GL_FRONT);
+
+            glUniformMatrix4fv(glGetUniformLocation(probe_program, "u_Model"), 1, GL_FALSE, (float*)&model);
+            glUniform3fv(glGetUniformLocation(probe_program, "u_ProbePosition"), 1, (float*)&probe->position);
+            glUniform3fv(glGetUniformLocation(probe_program, "u_ProbeBoxMin"), 1, (float*)&box_min);
+            glUniform3fv(glGetUniformLocation(probe_program, "u_ProbeBoxMax"), 1, (float*)&box_max);
+            glUniform1f(glGetUniformLocation(probe_program, "u_ProbeBlendDistance"), probe->blend_distance);
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+        }
+
+        glCullFace(GL_BACK);
+        glDisable(GL_BLEND);
+    }
 
 
 
@@ -794,7 +888,7 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     glBindVertexArray(internal->deferred.sphere_vao);
 
     int shadow_point_index = 0;
-    for (uint32_t i = 0; i < internal->state.point_light_count; i++)
+    for (uint32_t i = 0; i < internal->state.point_light_count && ibl_debug_mode == 0; i++)
     {
         PointLightData* pl = &internal->state.point_lights[i];
 
@@ -871,7 +965,7 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
 
 
     int shadow_spot_index = 0;
-    for (uint32_t i = 0; i < internal->state.spot_light_count; i++)
+    for (uint32_t i = 0; i < internal->state.spot_light_count && ibl_debug_mode == 0; i++)
     {
         SpotLightData* sl = &internal->state.spot_lights[i];
 
@@ -1014,8 +1108,8 @@ void ExecuteSSAOPass(OpenGL_Backend* internal)
 
 
 
-// Executes a forward rendering loop (used for both Opaque and Transparent batches)
-void OpenGL_RenderCommandBatch(OpenGL_Backend* internal, uint32_t start_idx, uint32_t end_idx)
+// Executes a forward rendering loop. Probe capture forces the engine's linear forward shaders so custom display shaders cannot tone-map captured radiance.
+static void OpenGL_RenderCommandBatchMode(OpenGL_Backend* internal, uint32_t start_idx, uint32_t end_idx, bool probe_capture)
 {
     uint32_t current_shader = 0;
     uint32_t current_texture = 0;
@@ -1026,7 +1120,10 @@ void OpenGL_RenderCommandBatch(OpenGL_Backend* internal, uint32_t start_idx, uin
         if (!internal->mesh_pool[cmd->mesh.id].active)
             continue;
 
-        ShaderHandle target_handle = cmd->shader;
+        if (probe_capture && !cmd->include_in_probe_capture)
+            continue;
+
+        ShaderHandle target_handle = probe_capture ? (ShaderHandle){0} : cmd->shader;
         if (target_handle.id == 0)
             target_handle = (cmd->bone_matrices != NULL && internal->mesh_pool[cmd->mesh.id].is_skinned) ? internal->forward.animated_shader : internal->forward.default_shader;
 
@@ -1052,9 +1149,20 @@ void OpenGL_RenderCommandBatch(OpenGL_Backend* internal, uint32_t start_idx, uin
 
             GLint enable_ssao_loc = glGetUniformLocation(gl_shader->program, "u_EnableSSAO");
             if (enable_ssao_loc != -1)
-                glUniform1i(enable_ssao_loc, internal->state.settings.enable_ssao ? 1 : 0);
+                glUniform1i(enable_ssao_loc, probe_capture ? 0 : (internal->state.settings.enable_ssao ? 1 : 0));
 
             OpenGL_UploadLightUniforms(gl_shader->program, &internal->state);
+
+            GLint capture_loc = glGetUniformLocation(gl_shader->program, "u_CaptureLinearRadiance");
+            if (capture_loc != -1)
+                glUniform1i(capture_loc, probe_capture ? 1 : 0);
+
+            if (probe_capture)
+            {
+                GLint ambient_loc = glGetUniformLocation(gl_shader->program, "u_GlobalAmbientIllumination");
+                if (ambient_loc != -1)
+                    glUniform1f(ambient_loc, 0.0f);
+            }
         }
 
 
@@ -1098,7 +1206,7 @@ void OpenGL_RenderCommandBatch(OpenGL_Backend* internal, uint32_t start_idx, uin
         glUniform3fv(glGetUniformLocation(gl_shader->program, "u_Material.tint"), 1, (float*)&cmd->mat_props.albedo_tint);
         glUniform1f(glGetUniformLocation(gl_shader->program, "u_Material.metallicFactor"), cmd->mat_props.metallic_factor);
         glUniform1f(glGetUniformLocation(gl_shader->program, "u_Material.roughnessFactor"), cmd->mat_props.roughness_factor);
-        glUniform1f(glGetUniformLocation(gl_shader->program, "u_ReceiveShadows"), cmd->receive_shadows ? 1.0f : 0.0f);
+        glUniform1f(glGetUniformLocation(gl_shader->program, "u_ReceiveShadows"), (!probe_capture && cmd->receive_shadows) ? 1.0f : 0.0f);
 
         GLint bone_loc = glGetUniformLocation(gl_shader->program, "u_BoneMatrices");
         if (bone_loc != -1)
@@ -1127,6 +1235,516 @@ void OpenGL_RenderCommandBatch(OpenGL_Backend* internal, uint32_t start_idx, uin
         GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
         glBindVertexArray(gl_mesh->vao);
         glDrawElements(GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+void OpenGL_RenderCommandBatch(OpenGL_Backend* internal, uint32_t start_idx, uint32_t end_idx)
+{
+    OpenGL_RenderCommandBatchMode(internal, start_idx, end_idx, false);
+}
+
+
+
+
+
+
+
+
+
+
+static void OpenGL_ReleaseProbeEnvironment(OpenGL_Backend* internal, EnvironmentMap* environment)
+{
+    TextureHandle handles[3] = {
+        environment->skybox,
+        environment->irradiance,
+        environment->prefilter
+    };
+
+    for (uint32_t i = 0; i < 3; i++)
+    {
+        uint32_t id = handles[i].id;
+        if (id == 0 || id >= MAX_RESOURCES || !internal->texture_pool[id].active)
+            continue;
+
+        if (internal->texture_pool[id].id != 0)
+            glDeleteTextures(1, &internal->texture_pool[id].id);
+
+        internal->texture_pool[id].id = 0;
+        internal->texture_pool[id].active = false;
+    }
+
+    memset(environment, 0, sizeof(*environment));
+}
+
+
+
+
+
+
+
+
+
+
+static bool OpenGL_ReserveProbeEnvironment(OpenGL_Backend* internal, EnvironmentMap* environment)
+{
+    uint32_t ids[3] = {0, 0, 0};
+    uint32_t found = 0;
+
+    for (uint32_t i = 4; i < MAX_RESOURCES && found < 3; i++)
+    {
+        if (!internal->texture_pool[i].active)
+        {
+            ids[found++] = i;
+            internal->texture_pool[i].active = true;
+            internal->texture_pool[i].id = 0;
+        }
+    }
+
+    if (found != 3)
+    {
+        for (uint32_t i = 0; i < found; i++)
+            internal->texture_pool[ids[i]].active = false;
+
+        return false;
+    }
+
+    memset(environment, 0, sizeof(*environment));
+    environment->skybox = (TextureHandle){ids[0]};
+    environment->irradiance = (TextureHandle){ids[1]};
+    environment->prefilter = (TextureHandle){ids[2]};
+    environment->brdf_lut = internal->state.has_probe_source_env_map ? internal->state.probe_source_env_map.brdf_lut : (TextureHandle){0};
+    environment->has_ibl = true;
+
+    return true;
+}
+
+
+
+
+
+
+
+
+
+
+static void OpenGL_GetCubemapCaptureMatrices(Matrix4* projection, Matrix4 views[6], Vector3 position)
+{
+    *projection = Matrix4Perspective(90.0f * (3.14159265359f / 180.0f), 1.0f, 0.1f, 500.0f);
+    views[0] = Matrix4LookAt(position, Vector3Add(position, (Vector3){ 1, 0, 0}), (Vector3){0,-1, 0});
+    views[1] = Matrix4LookAt(position, Vector3Add(position, (Vector3){-1, 0, 0}), (Vector3){0,-1, 0});
+    views[2] = Matrix4LookAt(position, Vector3Add(position, (Vector3){ 0, 1, 0}), (Vector3){0, 0, 1});
+    views[3] = Matrix4LookAt(position, Vector3Add(position, (Vector3){ 0,-1, 0}), (Vector3){0, 0,-1});
+    views[4] = Matrix4LookAt(position, Vector3Add(position, (Vector3){ 0, 0, 1}), (Vector3){0,-1, 0});
+    views[5] = Matrix4LookAt(position, Vector3Add(position, (Vector3){ 0, 0,-1}), (Vector3){0,-1, 0});
+}
+
+
+
+
+
+
+
+
+
+
+static bool OpenGL_ConvolveProbeCubemap(OpenGL_Backend* internal, EnvironmentMap* environment, GLuint radiance_cubemap)
+{
+    Matrix4 capture_projection;
+    Matrix4 capture_views[6];
+    OpenGL_GetCubemapCaptureMatrices(&capture_projection, capture_views, (Vector3){0, 0, 0});
+
+    GLuint irradiance_map = 0;
+    glGenTextures(1, &irradiance_map);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, irradiance_map);
+
+    for (uint32_t face = 0; face < 6; face++)
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, 0, GL_RGB16F, 32, 32, 0, GL_RGB, GL_FLOAT, NULL);
+    
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->ibl.capture_fbo);
+    glBindRenderbuffer(GL_RENDERBUFFER, internal->ibl.capture_rbo);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 32, 32);
+    glDrawBuffer(GL_COLOR_ATTACHMENT0);
+
+    GLuint program = internal->shader_pool[internal->ibl.irradiance_convolution.id].program;
+    glUseProgram(program);
+    glUniform1i(glGetUniformLocation(program, "environmentMap"), 0);
+    glUniformMatrix4fv(glGetUniformLocation(program, "projection"), 1, GL_FALSE, (float*)&capture_projection);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, radiance_cubemap);
+    glViewport(0, 0, 32, 32);
+
+    for (uint32_t face = 0; face < 6; face++)
+    {
+        glUniformMatrix4fv(glGetUniformLocation(program, "view"), 1, GL_FALSE, (float*)&capture_views[face]);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, irradiance_map, 0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glBindVertexArray(internal->skybox.vao);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+    }
+
+    GLuint prefilter_map = 0;
+    glGenTextures(1, &prefilter_map);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, prefilter_map);
+    
+    for (uint32_t face = 0; face < 6; face++)
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, 0, GL_RGB16F, 128, 128, 0, GL_RGB, GL_FLOAT, NULL);
+    
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+
+    program = internal->shader_pool[internal->ibl.prefilter.id].program;
+    glUseProgram(program);
+    glUniform1i(glGetUniformLocation(program, "environmentMap"), 0);
+    glUniformMatrix4fv(glGetUniformLocation(program, "projection"), 1, GL_FALSE, (float*)&capture_projection);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, radiance_cubemap);
+
+    const uint32_t mip_count = 5;
+    for (uint32_t mip = 0; mip < mip_count; mip++)
+    {
+        uint32_t mip_width = 128u >> mip;
+        uint32_t mip_height = 128u >> mip;
+        glBindRenderbuffer(GL_RENDERBUFFER, internal->ibl.capture_rbo);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mip_width, mip_height);
+        glViewport(0, 0, mip_width, mip_height);
+        glUniform1f(glGetUniformLocation(program, "roughness"), (float)mip / (float)(mip_count - 1));
+
+        for (uint32_t face = 0; face < 6; face++)
+        {
+            glUniformMatrix4fv(glGetUniformLocation(program, "view"), 1, GL_FALSE, (float*)&capture_views[face]);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, prefilter_map, mip);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            glBindVertexArray(internal->skybox.vao);
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+        }
+    }
+
+    internal->texture_pool[environment->irradiance.id].id = irradiance_map;
+    internal->texture_pool[environment->prefilter.id].id = prefilter_map;
+
+    return true;
+}
+
+
+
+
+
+
+
+
+
+
+static bool OpenGL_CaptureReflectionProbe(OpenGL_Backend* internal, const ReflectionProbeData* probe, uint32_t opaque_count, EnvironmentMap* environment)
+{
+    if (internal->forward.default_shader.id == 0 || internal->ibl.irradiance_convolution.id == 0 || internal->ibl.prefilter.id == 0)
+        return false;
+
+    if (!OpenGL_ReserveProbeEnvironment(internal, environment))
+        return false;
+
+    uint32_t resolution = probe->capture_resolution;
+    if (resolution < 32)  resolution = 32;
+    if (resolution > 512) resolution = 512;
+
+    GLuint radiance_cubemap = 0;
+    glGenTextures(1, &radiance_cubemap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, radiance_cubemap);
+
+    for (uint32_t face = 0; face < 6; face++)
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, 0, GL_RGB16F, resolution, resolution, 0, GL_RGB, GL_FLOAT, NULL);
+    
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    internal->texture_pool[environment->skybox.id].id = radiance_cubemap;
+
+    Matrix4 saved_view = internal->state.view_matrix;
+    Matrix4 saved_projection = internal->state.projection_matrix;
+    Vector3 saved_camera_position = internal->state.camera_pos;
+
+    float saved_ambient_strengths[MAX_DIR_LIGHTS];
+    for (uint32_t i = 0; i < internal->state.dir_light_count; i++)
+    {
+        saved_ambient_strengths[i] = internal->state.dir_lights[i].ambient_strength;
+        internal->state.dir_lights[i].ambient_strength = 0.0f;
+    }
+
+    GLint old_viewport[4];
+    GLfloat old_clear_color[4];
+    glGetIntegerv(GL_VIEWPORT, old_viewport);
+    glGetFloatv(GL_COLOR_CLEAR_VALUE, old_clear_color);
+
+    Matrix4 capture_projection;
+    Matrix4 capture_views[6];
+    OpenGL_GetCubemapCaptureMatrices(&capture_projection, capture_views, probe->position);
+    internal->state.projection_matrix = capture_projection;
+    internal->state.camera_pos = probe->position;
+
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->ibl.capture_fbo);
+    glBindRenderbuffer(GL_RENDERBUFFER, internal->ibl.capture_rbo);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, resolution, resolution);
+    glDrawBuffer(GL_COLOR_ATTACHMENT0);
+    glViewport(0, 0, resolution, resolution);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
+    glDepthFunc(GL_LESS);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+
+    for (uint32_t face = 0; face < 6; face++)
+    {
+        internal->state.view_matrix = capture_views[face];
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, radiance_cubemap, 0);
+        
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        {
+            OpenGL_ReleaseProbeEnvironment(internal, environment);
+            internal->state.view_matrix = saved_view;
+            internal->state.projection_matrix = saved_projection;
+            internal->state.camera_pos = saved_camera_position;
+            
+            for (uint32_t i = 0; i < internal->state.dir_light_count; i++)
+                internal->state.dir_lights[i].ambient_strength = saved_ambient_strengths[i];
+            
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glViewport(old_viewport[0], old_viewport[1], old_viewport[2], old_viewport[3]);
+            glClearColor(old_clear_color[0], old_clear_color[1], old_clear_color[2], old_clear_color[3]);
+            glDepthMask(GL_TRUE);
+            glDepthFunc(GL_LESS);
+            glEnable(GL_CULL_FACE);
+            glCullFace(GL_BACK);
+            glBindRenderbuffer(GL_RENDERBUFFER, internal->ibl.capture_rbo);
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
+
+            return false;
+        }
+
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        OpenGL_RenderCommandBatchMode(internal, 0, opaque_count, true);
+
+        if (internal->state.has_probe_source_env_map &&
+            internal->state.probe_source_env_map.skybox.id > 0 &&
+            internal->state.probe_source_env_map.skybox.id < MAX_RESOURCES &&
+            internal->texture_pool[internal->state.probe_source_env_map.skybox.id].active &&
+            internal->ibl.probe_skybox.id > 0 &&
+            internal->shader_pool[internal->ibl.probe_skybox.id].active)
+        {
+            GLuint sky_program = internal->shader_pool[internal->ibl.probe_skybox.id].program;
+            glDepthFunc(GL_LEQUAL);
+            glDepthMask(GL_FALSE);
+            glDisable(GL_CULL_FACE);
+            glUseProgram(sky_program);
+            glUniformMatrix4fv(glGetUniformLocation(sky_program, "u_View"), 1, GL_FALSE, (float*)&capture_views[face]);
+            glUniformMatrix4fv(glGetUniformLocation(sky_program, "u_Projection"), 1, GL_FALSE, (float*)&capture_projection);
+            glUniform1i(glGetUniformLocation(sky_program, "u_IsHDR"), internal->state.probe_source_env_map.has_ibl ? 1 : 0);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, internal->texture_pool[internal->state.probe_source_env_map.skybox.id].id);
+            glUniform1i(glGetUniformLocation(sky_program, "u_Skybox"), 0);
+            glBindVertexArray(internal->skybox.vao);
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+            glDepthMask(GL_TRUE);
+            glDepthFunc(GL_LESS);
+            glEnable(GL_CULL_FACE);
+        }
+    }
+
+    glBindTexture(GL_TEXTURE_CUBE_MAP, radiance_cubemap);
+    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+    bool success = OpenGL_ConvolveProbeCubemap(internal, environment, radiance_cubemap);
+
+    internal->state.view_matrix = saved_view;
+    internal->state.projection_matrix = saved_projection;
+    internal->state.camera_pos = saved_camera_position;
+    for (uint32_t i = 0; i < internal->state.dir_light_count; i++)
+        internal->state.dir_lights[i].ambient_strength = saved_ambient_strengths[i];
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(old_viewport[0], old_viewport[1], old_viewport[2], old_viewport[3]);
+    glClearColor(old_clear_color[0], old_clear_color[1], old_clear_color[2], old_clear_color[3]);
+    glDepthMask(GL_TRUE);
+    glDepthFunc(GL_LESS);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+
+    // Leave the shared IBL capture target in its canonical size so an HDR
+    // environment loaded later can immediately render complete 512x512 faces.
+    glBindRenderbuffer(GL_RENDERBUFFER, internal->ibl.capture_rbo);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
+    
+    return success;
+}
+
+
+
+
+
+
+
+
+
+
+static bool OpenGL_Vector3NearlyEqual(Vector3 a, Vector3 b)
+{
+    const float epsilon = 0.0001f;
+    return fabsf(a.x - b.x) < epsilon &&
+           fabsf(a.y - b.y) < epsilon &&
+           fabsf(a.z - b.z) < epsilon;
+}
+
+
+
+
+
+
+
+
+
+
+static GLReflectionProbe* OpenGL_FindOrCreateReflectionProbe(OpenGL_Backend* internal, uint32_t entity_id)
+{
+    GLReflectionProbe* free_slot = NULL;
+    
+    for (uint32_t i = 0; i < MAX_REFLECTION_PROBES; i++)
+    {
+        GLReflectionProbe* slot = &internal->reflection_probes[i];
+        
+        if (slot->active && slot->entity_id == entity_id)
+            return slot;
+
+        if (!slot->active && !free_slot)
+            free_slot = slot;
+    }
+
+    if (free_slot)
+    {
+        memset(free_slot, 0, sizeof(*free_slot));
+        free_slot->active = true;
+        free_slot->entity_id = entity_id;
+    }
+
+    return free_slot;
+}
+
+
+
+
+
+
+
+
+
+
+static void OpenGL_UpdateReflectionProbes(OpenGL_Backend* internal, uint32_t opaque_count)
+{
+    for (uint32_t i = 0; i < MAX_REFLECTION_PROBES; i++)
+        internal->reflection_probes[i].seen_this_frame = false;
+
+    for (uint32_t i = 0; i < internal->state.reflection_probe_count; i++)
+    {
+        ReflectionProbeData* data = &internal->state.reflection_probes[i];
+        GLReflectionProbe* slot = OpenGL_FindOrCreateReflectionProbe(internal, data->entity_id);
+        
+        if (!slot)
+            continue;
+
+        slot->seen_this_frame = true;
+        bool needs_capture =
+            slot->captured_revision != data->revision ||
+            slot->capture_resolution != data->capture_resolution ||
+            slot->captured_global_skybox_id != (internal->state.has_probe_source_env_map ? internal->state.probe_source_env_map.skybox.id : 0) ||
+            !OpenGL_Vector3NearlyEqual(slot->captured_position, data->position) ||
+            slot->environment.irradiance.id == 0;
+
+        if (!needs_capture)
+        {
+            if (data->output_environment)
+                *data->output_environment = slot->environment;
+            if (data->output_dirty)
+                *data->output_dirty = false;
+            if (data->output_captured)
+                *data->output_captured = true;
+
+            continue;
+        }
+
+        if (slot->environment.skybox.id != 0)
+            OpenGL_ReleaseProbeEnvironment(internal, &slot->environment);
+
+        GLuint timer_query = 0;
+        glGenQueries(1, &timer_query);
+        glBeginQuery(GL_TIME_ELAPSED, timer_query);
+        bool capture_succeeded = OpenGL_CaptureReflectionProbe(internal, data, opaque_count, &slot->environment);
+        glEndQuery(GL_TIME_ELAPSED);
+
+        GLuint64 elapsed_nanoseconds = 0;
+        glGetQueryObjectui64v(timer_query, GL_QUERY_RESULT, &elapsed_nanoseconds);
+        glDeleteQueries(1, &timer_query);
+
+        if (capture_succeeded)
+        {
+            slot->captured_revision = data->revision;
+            slot->captured_position = data->position;
+            slot->capture_resolution = data->capture_resolution;
+            slot->captured_global_skybox_id = internal->state.has_probe_source_env_map ? internal->state.probe_source_env_map.skybox.id : 0;
+            
+            if (data->output_environment)
+                *data->output_environment = slot->environment;
+            if (data->output_dirty)
+                *data->output_dirty = false;
+            if (data->output_captured)
+                *data->output_captured = true;
+            
+            Log_Info(
+                "Captured local IBL probe %u at %u x %u in %.2f ms",
+                data->entity_id,
+                data->capture_resolution,
+                data->capture_resolution,
+                (double)elapsed_nanoseconds / 1000000.0
+            );
+        }
+        else
+        {
+            if (data->output_environment)
+                memset(data->output_environment, 0, sizeof(*data->output_environment));
+            if (data->output_dirty)
+                *data->output_dirty = true;
+            if (data->output_captured)
+                *data->output_captured = false;
+            
+            Log_Error("Failed to capture local IBL probe %u", data->entity_id);
+        }
+    }
+
+    for (uint32_t i = 0; i < MAX_REFLECTION_PROBES; i++)
+    {
+        GLReflectionProbe* slot = &internal->reflection_probes[i];
+        if (slot->active && !slot->seen_this_frame)
+        {
+            OpenGL_ReleaseProbeEnvironment(internal, &slot->environment);
+            memset(slot, 0, sizeof(*slot));
+        }
     }
 }
 
@@ -1223,8 +1841,16 @@ void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
     for (uint32_t i = 0; i < packet->spot_light_count; i++)
         internal->state.spot_lights[i] = packet->spot_lights[i];
 
+    internal->state.reflection_probe_count = packet->reflection_probe_count;
+    if (internal->state.reflection_probe_count > MAX_REFLECTION_PROBES)
+        internal->state.reflection_probe_count = MAX_REFLECTION_PROBES;
+    for (uint32_t i = 0; i < internal->state.reflection_probe_count; i++)
+        internal->state.reflection_probes[i] = packet->reflection_probes[i];
+
     internal->state.has_env_map = packet->has_env_map;
     internal->state.env_map = packet->env_map;
+    internal->state.has_probe_source_env_map = packet->has_probe_source_env_map;
+    internal->state.probe_source_env_map = packet->probe_source_env_map;
     internal->state.settings.enable_ssao = packet->enable_ssao;
     internal->state.global_ambient_color = packet->global_ambient_color;
     internal->state.global_ambient_illumination = packet->global_ambient_illumination;
@@ -1256,7 +1882,7 @@ void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
 void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader,
                           TextureHandle albedo, TextureHandle normal, TextureHandle metallic, TextureHandle roughness, TextureHandle ao,
                           MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices,
-                          bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows)
+                          bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows, bool include_in_probe_capture)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
@@ -1277,7 +1903,8 @@ void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader,
         is_transparent,
         depth_distance,
         cast_shadows,
-        receive_shadows
+        receive_shadows,
+        include_in_probe_capture
     };
 }
 
@@ -1344,6 +1971,9 @@ void OpenGL_EndFrame(Renderer* r)
             break;
         }
     }
+
+    // Generate dirty local probes from the complete static opaque queue before the camera's normal deferred pass consumes that queue.
+    OpenGL_UpdateReflectionProbes(internal, transparent_start_idx);
 
 
 

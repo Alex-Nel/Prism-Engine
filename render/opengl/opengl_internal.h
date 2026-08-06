@@ -48,6 +48,9 @@ typedef struct RenderState
     SpotLightData spot_lights[MAX_SPOT_LIGHTS];
     uint32_t spot_light_count;
 
+    ReflectionProbeData reflection_probes[MAX_REFLECTION_PROBES];
+    uint32_t reflection_probe_count;
+
     Matrix4 light_space_matrices[MAX_SHADOW_CASCADES];
     Matrix4 spot_light_matrices[MAX_SHADOW_CASTING_SPOTLIGHTS];
 
@@ -64,6 +67,8 @@ typedef struct RenderState
 
     bool has_env_map;
     EnvironmentMap env_map;
+    bool has_probe_source_env_map;
+    EnvironmentMap probe_source_env_map;
 } RenderState;
 
 
@@ -105,6 +110,21 @@ typedef struct GLTexture
 
 
 
+// Struct for holding reflection probes for OpenGL
+typedef struct GLReflectionProbe
+{
+    bool active;
+    bool seen_this_frame;
+    uint32_t entity_id;
+    uint32_t captured_revision;
+    Vector3 captured_position;
+    uint32_t capture_resolution;
+    uint32_t captured_global_skybox_id;
+    EnvironmentMap environment;
+} GLReflectionProbe;
+
+
+
 
 
 // Struct for a render command. Contains mesh, shader, texture, material, and transform data
@@ -126,6 +146,7 @@ typedef struct RenderCommand
     float depth_distance;
     bool cast_shadows;
     bool receive_shadows;
+    bool include_in_probe_capture;
 } RenderCommand;
 
 
@@ -146,6 +167,7 @@ typedef struct GL_DeferredPipeline
     ShaderHandle deferred_shader;
     ShaderHandle volume_shader;
     ShaderHandle spot_volume_shader;
+    ShaderHandle probe_volume_shader;
     ShaderHandle post_shader;
     uint32_t lighting_fbo;
     uint32_t lighting_texture;
@@ -234,6 +256,7 @@ typedef struct GL_IBLPipeline
     ShaderHandle irradiance_convolution;
     ShaderHandle prefilter;
     ShaderHandle brdf;
+    ShaderHandle probe_skybox;
     
     uint32_t capture_fbo;
     uint32_t capture_rbo;
@@ -258,6 +281,7 @@ typedef struct OpenGL_Backend
 
     RenderCommand command_queue[MAX_COMMANDS];
     uint32_t command_count;
+    GLReflectionProbe reflection_probes[MAX_REFLECTION_PROBES];
 
     uint32_t quad_vao;
     uint32_t quad_vbo;
@@ -361,7 +385,7 @@ void OpenGL_RenderCommandBatch(OpenGL_Backend* internal, uint32_t start_idx, uin
 void OpenGL_DrawSkybox(OpenGL_Backend* internal);
 
 void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet);
-void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle albedo, TextureHandle normal, TextureHandle metallic, TextureHandle roughness, TextureHandle ao, MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows);
+void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle albedo, TextureHandle normal, TextureHandle metallic, TextureHandle roughness, TextureHandle ao, MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows, bool include_in_probe_capture);
 void OpenGL_EndFrame(Renderer* r);
 
 

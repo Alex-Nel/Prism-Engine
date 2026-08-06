@@ -22,6 +22,7 @@
 
 #define MAX_RESOURCES 8192
 #define MAX_COMMANDS 32768
+#define MAX_REFLECTION_PROBES 16
 
 #define SHADOW_MAP_RESOLUTION 4096
 #define MAX_SHADOW_CASCADES 4
@@ -99,6 +100,26 @@ typedef struct SpotLightData
 
 
 
+// Struct for reflection probe data
+typedef struct ReflectionProbeData
+{
+    uint32_t entity_id;
+    Vector3 position;
+    Vector3 box_extents;
+    float blend_distance;
+    int32_t priority;
+    uint32_t capture_resolution;
+    uint32_t revision;
+    bool needs_capture;
+    EnvironmentMap* output_environment;
+    bool* output_dirty;
+    bool* output_captured;
+} ReflectionProbeData;
+
+
+
+
+
 // Struct for a render packet to send to renderer
 typedef struct RenderPacket
 {
@@ -118,6 +139,9 @@ typedef struct RenderPacket
     SpotLightData* spot_lights; 
     uint32_t spot_light_count;
 
+    ReflectionProbeData* reflection_probes;
+    uint32_t reflection_probe_count;
+
     uint32_t shadow_cascade_count;
     Matrix4 light_space_matrices[MAX_SHADOW_CASCADES];
     float shadow_texel_world_sizes[MAX_SHADOW_CASCADES];
@@ -134,6 +158,8 @@ typedef struct RenderPacket
 
     bool has_env_map;
     EnvironmentMap env_map;
+    bool has_probe_source_env_map;
+    EnvironmentMap probe_source_env_map;
 } RenderPacket;
 
 
@@ -210,7 +236,7 @@ typedef struct Renderer
     void (*BeginShadowPass)(Renderer* r, const RenderPacket* packet);
     void (*EndShadowPass)(Renderer* r);
     void (*BeginFrame)(Renderer* r, const RenderPacket* packet);
-    void (*Submit)(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle albedo, TextureHandle normal, TextureHandle metallic, TextureHandle roughness, TextureHandle ao, MaterialProperties mat, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows);
+    void (*Submit)(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle albedo, TextureHandle normal, TextureHandle metallic, TextureHandle roughness, TextureHandle ao, MaterialProperties mat, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows, bool include_in_probe_capture);
     void (*EndFrame)(Renderer* r);
 
 
@@ -419,10 +445,10 @@ static inline void Render_BeginFrame(Renderer* r, const RenderPacket* packet)
 }
 
 // Adds an object to the draw queue
-static inline void Render_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle albedo, TextureHandle normal, TextureHandle metallic, TextureHandle roughness, TextureHandle ao, MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows)
+static inline void Render_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle albedo, TextureHandle normal, TextureHandle metallic, TextureHandle roughness, TextureHandle ao, MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows, bool include_in_probe_capture)
 {
     if (r && r->Submit)
-        r->Submit(r, mesh, shader, albedo, normal, metallic, roughness, ao, mat_props, transform, bone_matrices, is_transparent, depth_distance, cast_shadows, receive_shadows);
+        r->Submit(r, mesh, shader, albedo, normal, metallic, roughness, ao, mat_props, transform, bone_matrices, is_transparent, depth_distance, cast_shadows, receive_shadows, include_in_probe_capture);
 }
 
 // Sorts the queue, binds the state, and executes the actual GPU draw calls

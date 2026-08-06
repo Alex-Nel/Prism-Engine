@@ -261,6 +261,20 @@ bool Scene_Save(Scene* scene, const char* filepath)
             // TODO: Save audio clip name instead of handle
         }
 
+        // TODO: add line and sprite renderers
+
+        // --- Save Local IBL Probes ---
+        if (scene->component_masks[i] & COMPONENT_REFLECTION_PROBE)
+        {
+            ReflectionProbeComponent* probe = &scene->reflection_probes[i];
+            cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "reflection_probe");
+            cJSON_AddBoolToObject(comp_obj, "active", probe->is_active);
+            cJSON_AddItemToObject(comp_obj, "box_extents", SaveVec3(probe->box_extents));
+            cJSON_AddNumberToObject(comp_obj, "blend_distance", probe->blend_distance);
+            cJSON_AddNumberToObject(comp_obj, "priority", probe->priority);
+            cJSON_AddNumberToObject(comp_obj, "capture_resolution", probe->capture_resolution);
+        }
+
 
         // --- Save Scripts ---
         if (scene->component_masks[i] & COMPONENT_SCRIPT)
@@ -571,6 +585,31 @@ bool Scene_Load(Scene* scene, const char* filepath)
             // if (clip_name) {
             //     as->clip = Asset_GetAudioClipByName(clip_name->valuestring);
             // }
+        }
+
+
+        // TODO: Add sprite and line renderers
+
+
+        // --- Load Local IBL Probes ---
+        if (mask & COMPONENT_REFLECTION_PROBE)
+        {
+            cJSON* comp_obj = cJSON_GetObjectItemCaseSensitive(entity_json, "reflection_probe");
+            if (comp_obj)
+            {
+                Vector3 extents = LoadVec3(cJSON_GetObjectItemCaseSensitive(comp_obj, "box_extents"));
+                cJSON* blend = cJSON_GetObjectItemCaseSensitive(comp_obj, "blend_distance");
+                cJSON* resolution = cJSON_GetObjectItemCaseSensitive(comp_obj, "capture_resolution");
+                Entity_AddReflectionProbe(e, extents, blend ? (float)blend->valuedouble : 1.0f, resolution ? (uint32_t)resolution->valueint : 128 );
+
+                ReflectionProbeComponent* probe = Entity_GetReflectionProbe(e);
+                cJSON* active = cJSON_GetObjectItemCaseSensitive(comp_obj, "active");
+                cJSON* priority = cJSON_GetObjectItemCaseSensitive(comp_obj, "priority");
+                if (active) probe->is_active = active->valueint != 0;
+                if (priority) probe->priority = priority->valueint;
+                probe->dirty = true;
+                probe->captured = false;
+            }
         }
 
 
