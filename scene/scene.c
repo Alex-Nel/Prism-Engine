@@ -1434,6 +1434,13 @@ void Scene_SetEnvironmentMap(Scene* scene, EnvironmentMap* env_map)
 
     scene->env_map = env_map;
     scene->has_env_map = (env_map != NULL);
+
+    // Set all reflection probes in the scene as dirty
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (scene->component_masks[i] & COMPONENT_REFLECTION_PROBE)
+            ReflectionProbe_MarkDirty(&scene->reflection_probes[i]);
+    }
 }
 
 
@@ -1447,6 +1454,14 @@ void Scene_RemoveEnvironmentMap(Scene* scene)
         return;
     
     scene->has_env_map = false;
+    scene->env_map = NULL;
+
+    // Set all reflection probes in the scene as dirty
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (scene->component_masks[i] & COMPONENT_REFLECTION_PROBE)
+            ReflectionProbe_MarkDirty(&scene->reflection_probes[i]);
+    }
 }
 
 

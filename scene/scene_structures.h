@@ -72,7 +72,8 @@ typedef enum
     COMPONENT_BONE_ATTACHMENT          = 1 << 12,
     COMPONENT_LINE_RENDERER            = 1 << 13,
     COMPONENT_SPRITE_RENDERER          = 1 << 14,
-    COMPONENT_SCRIPT                   = 1 << 15
+    COMPONENT_REFLECTION_PROBE         = 1 << 15,
+    COMPONENT_SCRIPT                   = 1 << 16
 } ComponentMask;
 
 
@@ -420,6 +421,28 @@ typedef struct SpriteRendererComponent
 
 
 
+// A local IBL volume. Its radiance cubemap is captured once and regenerated whenever the probe revision changes.
+typedef struct ReflectionProbeComponent
+{
+    Entity entity;
+    bool is_active;
+
+    Vector3 box_extents;
+    float blend_distance;
+    
+    int32_t priority;
+    uint32_t capture_resolution;
+    uint32_t revision;
+    
+    bool dirty;
+    bool captured;
+    
+    Vector3 last_capture_position;
+    EnvironmentMap environment;
+} ReflectionProbeComponent;
+
+
+
 // Forward decleration of cJSON struct
 struct cJSON;
 
@@ -490,6 +513,7 @@ typedef struct Scene
     BoneAttachmentComponent bone_attachments[MAX_ENTITIES];
     LineRendererComponent line_renderers[MAX_ENTITIES];
     SpriteRendererComponent sprite_renderers[MAX_ENTITIES];
+    ReflectionProbeComponent reflection_probes[MAX_ENTITIES];
     ScriptComponent scripts[MAX_ENTITIES];
 
     uint32_t main_camera_id;

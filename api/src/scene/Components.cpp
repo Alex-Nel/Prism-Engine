@@ -405,4 +405,26 @@ namespace Prism
         ::Color c = static_cast<::Scene*>(e.scene)->sprite_renderers[e.id].color;
         return Prism::Color(c.r, c.g, c.b, c.a);
     }
+
+
+
+    // ==========================================
+    // Reflection Probe Component Implementation
+    // ==========================================
+
+    void ReflectionProbeComponent::SetBoxExtents(const Prism::Vector3& extents) {
+        ::ReflectionProbe_SetBoxExtents(reinterpret_cast<::ReflectionProbeComponent*>(this), ::Vector3{extents.x, extents.y, extents.z} );
+    }
+    void ReflectionProbeComponent::SetBlendDistance(float distance) {
+        ::ReflectionProbe_SetBlendDistance(reinterpret_cast<::ReflectionProbeComponent*>(this), distance);
+    }
+    void ReflectionProbeComponent::SetPriority(int32_t new_priority) {
+        ::ReflectionProbe_SetPriority(reinterpret_cast<::ReflectionProbeComponent*>(this), new_priority);
+    }
+    void ReflectionProbeComponent::SetCaptureResolution(uint32_t resolution) {
+        ::ReflectionProbe_SetCaptureResolution(reinterpret_cast<::ReflectionProbeComponent*>(this), resolution);
+    }
+    void ReflectionProbeComponent::MarkDirty() {
+        ::ReflectionProbe_MarkDirty(reinterpret_cast<::ReflectionProbeComponent*>(this));
+    }
 }

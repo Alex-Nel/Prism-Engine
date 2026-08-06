@@ -537,4 +537,35 @@ namespace Prism
         void SetColor(const Prism::Color& color);
         Prism::Color GetColor() const;
     };
+
+
+
+    // ==========================================
+    // Local Reflection / Irradiance Probe
+    // ==========================================
+
+    struct PRISM_API ReflectionProbeComponent
+    {
+    public:
+        Prism::Entity entity;
+        bool is_active;
+        Prism::Vector3 box_extents;
+        float blend_distance;
+        int32_t priority;
+        uint32_t capture_resolution;
+        uint32_t revision;
+    private:
+        bool dirty;
+        bool captured;
+
+    public:
+        void SetActive(bool active) { this->is_active = active; }
+        bool IsActive() const { return this->is_active; }
+        void SetBoxExtents(const Prism::Vector3& extents);
+        void SetBlendDistance(float distance);
+        void SetPriority(int32_t new_priority);
+        void SetCaptureResolution(uint32_t resolution);
+        void MarkDirty();
+    };
+
 }

@@ -189,6 +189,10 @@ namespace Prism
         ::Entity_AddSpriteRenderer(ToCore(*this), raw_material);
         return this->GetSpriteRenderer();
     }
+    Prism::ReflectionProbeComponent* Entity::AddReflectionProbe(const Prism::Vector3& box_extents, float blend_distance, uint32_t capture_resolution) {
+        ::Entity_AddReflectionProbe(ToCore(*this), ::Vector3{box_extents.x, box_extents.y, box_extents.z}, blend_distance, capture_resolution);
+        return this->GetReflectionProbe();
+    }
 
 
 
@@ -239,6 +243,9 @@ namespace Prism
     }
     Prism::SpriteRendererComponent* Entity::GetSpriteRenderer() {
         return reinterpret_cast<Prism::SpriteRendererComponent*>(::Entity_GetSpriteRenderer(ToCore(*this)));
+    }
+    Prism::ReflectionProbeComponent* Entity::GetReflectionProbe() {
+        return reinterpret_cast<Prism::ReflectionProbeComponent*>(::Entity_GetReflectionProbe(ToCore(*this)));
     }
 
 
@@ -630,6 +637,9 @@ namespace Prism
     }
     void Entity::RemoveSpriteRenderer() {
         ::Entity_RemoveComponent(ToCore(*this), COMPONENT_SPRITE_RENDERER);
+    }
+    void Entity::RemoveReflectionProbe() {
+        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_REFLECTION_PROBE);
     }
 
 

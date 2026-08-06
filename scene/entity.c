@@ -1131,6 +1131,31 @@ void Entity_AddSpriteRenderer(Entity entity, Material* material)
 
 
 
+// Adds a local reflection/irradiance probe volume.
+void Entity_AddReflectionProbe(Entity entity, Vector3 box_extents, float blend_distance, uint32_t capture_resolution)
+{
+    if (!Entity_IsValid(entity))
+        return;
+
+    ReflectionProbeComponent* probe = &entity.scene->reflection_probes[entity.id];
+    // memset(probe, 0, sizeof(*probe));
+    probe->entity = entity;
+    probe->is_active = true;
+    probe->box_extents = box_extents;
+    probe->blend_distance = blend_distance;
+    probe->priority = 0;
+    probe->capture_resolution = capture_resolution > 0 ? capture_resolution : 128;
+    probe->revision = 1;
+    probe->dirty = true;
+    probe->captured = false;
+
+    entity.scene->component_masks[entity.id] |= COMPONENT_REFLECTION_PROBE;
+}
+
+
+
+
+
 // Adds a custom script to an entity
 void Entity_BindScript(Entity entity, ScriptInstance new_script)
 {
@@ -1466,6 +1491,22 @@ SpriteRendererComponent* Entity_GetSpriteRenderer(Entity entity)
 
     if ((entity.scene->component_masks[entity.id] & COMPONENT_SPRITE_RENDERER) == COMPONENT_SPRITE_RENDERER)
         return &entity.scene->sprite_renderers[entity.id];
+
+    return NULL;
+}
+
+
+
+
+
+// Returns an entity's local reflection probe.
+ReflectionProbeComponent* Entity_GetReflectionProbe(Entity entity)
+{
+    if (!Entity_IsValid(entity))
+        return NULL;
+
+    if ((entity.scene->component_masks[entity.id] & COMPONENT_REFLECTION_PROBE) == COMPONENT_REFLECTION_PROBE)
+        return &entity.scene->reflection_probes[entity.id];
 
     return NULL;
 }
