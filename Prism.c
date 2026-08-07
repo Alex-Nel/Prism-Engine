@@ -406,7 +406,7 @@ void Engine_GatherSceneLights(Scene* scene, RenderPacket* packet, DirectionalLig
 
 
 
-// Gathers active local IBL probes. This packet only describes their world-space volumes and capture revisions.
+// Gathers active local IBL probes as value data. Capture results are copied back explicitly after rendering
 void Engine_GatherReflectionProbes(Scene* scene, RenderPacket* packet, ReflectionProbeData* probes)
 {
     uint32_t count = 0;
@@ -450,9 +450,9 @@ void Engine_GatherReflectionProbes(Scene* scene, RenderPacket* packet, Reflectio
         candidate.capture_resolution = probe->capture_resolution;
         candidate.revision = probe->revision;
         candidate.needs_capture = probe->dirty || !probe->captured;
-        candidate.output_environment = &probe->environment;
-        candidate.output_dirty = &probe->dirty;
-        candidate.output_captured = &probe->captured;
+        candidate.environment = probe->environment;
+        candidate.dirty = probe->dirty;
+        candidate.captured = probe->captured;
 
         if (count < MAX_REFLECTION_PROBES)
         {
@@ -481,6 +481,26 @@ void Engine_GatherReflectionProbes(Scene* scene, RenderPacket* packet, Reflectio
     {
         ReflectionProbeComponent* selected = &scene->reflection_probes[probes[i].entity_id];
         selected->last_capture_position = probes[i].position;
+    }
+}
+
+
+
+
+
+// Applies reflection probe changes from the renderer back to the components
+void Engine_ApplyReflectionProbeResults(Scene* scene, const ReflectionProbeData* probes, uint32_t probe_count)
+{
+    for (uint32_t i = 0; i < probe_count; i++)
+    {
+        uint32_t entity_id = probes[i].entity_id;
+        if (entity_id >= MAX_ENTITIES || !(scene->component_masks[entity_id] & COMPONENT_REFLECTION_PROBE))
+            continue;
+
+        ReflectionProbeComponent* component = &scene->reflection_probes[entity_id];
+        component->environment = probes[i].environment;
+        component->dirty = probes[i].dirty;
+        component->captured = probes[i].captured;
     }
 }
 
@@ -1071,6 +1091,7 @@ void Engine_RenderScene(Scene* scene)
 
         // End Forward Pass
         Render_EndFrame(engine.renderer);
+        Engine_ApplyReflectionProbeResults(scene, active_reflection_probes, packet.reflection_probe_count);
         probe_capture_requested = false;
     }
 }

@@ -1668,12 +1668,10 @@ static void OpenGL_UpdateReflectionProbes(OpenGL_Backend* internal, uint32_t opa
 
         if (!needs_capture)
         {
-            if (data->output_environment)
-                *data->output_environment = slot->environment;
-            if (data->output_dirty)
-                *data->output_dirty = false;
-            if (data->output_captured)
-                *data->output_captured = true;
+            data->environment = slot->environment;
+            data->dirty = false;
+            data->captured = true;
+            data->needs_capture = false;
 
             continue;
         }
@@ -1698,12 +1696,10 @@ static void OpenGL_UpdateReflectionProbes(OpenGL_Backend* internal, uint32_t opa
             slot->capture_resolution = data->capture_resolution;
             slot->captured_global_skybox_id = internal->state.has_probe_source_env_map ? internal->state.probe_source_env_map.skybox.id : 0;
             
-            if (data->output_environment)
-                *data->output_environment = slot->environment;
-            if (data->output_dirty)
-                *data->output_dirty = false;
-            if (data->output_captured)
-                *data->output_captured = true;
+            data->environment = slot->environment;
+            data->dirty = false;
+            data->captured = true;
+            data->needs_capture = false;
             
             Log_Info(
                 "Captured local IBL probe %u at %u x %u in %.2f ms",
@@ -1715,12 +1711,10 @@ static void OpenGL_UpdateReflectionProbes(OpenGL_Backend* internal, uint32_t opa
         }
         else
         {
-            if (data->output_environment)
-                memset(data->output_environment, 0, sizeof(*data->output_environment));
-            if (data->output_dirty)
-                *data->output_dirty = true;
-            if (data->output_captured)
-                *data->output_captured = false;
+            memset(&data->environment, 0, sizeof(data->environment));
+            data->dirty = true;
+            data->captured = false;
+            data->needs_capture = true;
             
             Log_Error("Failed to capture local IBL probe %u", data->entity_id);
         }
@@ -1833,6 +1827,8 @@ void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
     internal->state.reflection_probe_count = packet->reflection_probe_count;
     if (internal->state.reflection_probe_count > MAX_REFLECTION_PROBES)
         internal->state.reflection_probe_count = MAX_REFLECTION_PROBES;
+
+    internal->state.reflection_probe_results = packet->reflection_probes;
     for (uint32_t i = 0; i < internal->state.reflection_probe_count; i++)
         internal->state.reflection_probes[i] = packet->reflection_probes[i];
 
@@ -1963,6 +1959,19 @@ void OpenGL_EndFrame(Renderer* r)
 
     // Generate dirty local probes from the complete static opaque queue before the camera's normal deferred pass consumes that queue.
     OpenGL_UpdateReflectionProbes(internal, transparent_start_idx);
+
+    if (internal->state.reflection_probe_results)
+    {
+        for (uint32_t i = 0; i < internal->state.reflection_probe_count; i++)
+        {
+            internal->state.reflection_probe_results[i].environment = internal->state.reflection_probes[i].environment;
+            internal->state.reflection_probe_results[i].dirty = internal->state.reflection_probes[i].dirty;
+            internal->state.reflection_probe_results[i].captured = internal->state.reflection_probes[i].captured;
+            internal->state.reflection_probe_results[i].needs_capture = internal->state.reflection_probes[i].needs_capture;
+        }
+        
+        internal->state.reflection_probe_results = NULL;
+    }
 
 
 

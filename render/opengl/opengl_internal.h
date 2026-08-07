@@ -50,6 +50,7 @@ typedef struct RenderState
 
     ReflectionProbeData reflection_probes[MAX_REFLECTION_PROBES];
     uint32_t reflection_probe_count;
+    ReflectionProbeData* reflection_probe_results;
 
     Matrix4 light_space_matrices[MAX_SHADOW_CASCADES];
     Matrix4 spot_light_matrices[MAX_SHADOW_CASTING_SPOTLIGHTS];

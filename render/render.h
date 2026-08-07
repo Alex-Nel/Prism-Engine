@@ -111,9 +111,9 @@ typedef struct ReflectionProbeData
     uint32_t capture_resolution;
     uint32_t revision;
     bool needs_capture;
-    EnvironmentMap* output_environment;
-    bool* output_dirty;
-    bool* output_captured;
+    EnvironmentMap environment;
+    bool dirty;
+    bool captured;
 } ReflectionProbeData;
 
 

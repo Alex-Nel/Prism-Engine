@@ -1138,7 +1138,6 @@ void Entity_AddReflectionProbe(Entity entity, Vector3 box_extents, float blend_d
         return;
 
     ReflectionProbeComponent* probe = &entity.scene->reflection_probes[entity.id];
-    // memset(probe, 0, sizeof(*probe));
     probe->entity = entity;
     probe->is_active = true;
     probe->box_extents = box_extents;
