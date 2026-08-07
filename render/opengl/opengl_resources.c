@@ -361,18 +361,33 @@ EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels,
     glBindTexture(GL_TEXTURE_2D, internal->texture_pool[hdr_tex.id].id);
     glUniformMatrix4fv(glGetUniformLocation(prog, "projection"), 1, GL_FALSE, (float*)&captureProjection);
     
-    glViewport(0, 0, 512, 512); 
+    glViewport(0, 0, 512, 512);
     glBindFramebuffer(GL_FRAMEBUFFER, internal->ibl.capture_fbo);
+    // The same capture renderbuffer is reused by local-probe prefilter mips, whose final pass leaves it at 8x8.
+    // Restore matching 512x512 depth storage before attaching HDR cubemap faces or the framebuffer is incomplete.
+    glBindRenderbuffer(GL_RENDERBUFFER, internal->ibl.capture_rbo);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, internal->ibl.capture_rbo);
+    glDrawBuffer(GL_COLOR_ATTACHMENT0);
+
     for (unsigned int i = 0; i < 6; i++)
     {
         glUniformMatrix4fv(glGetUniformLocation(prog, "view"), 1, GL_FALSE, (float*)&captureViews[i]);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, envCubemap, 0);
+
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        {
+            Log_Error("HDR cubemap capture framebuffer is incomplete on face %u", i);
+            break;
+        }
+        
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
         glBindVertexArray(internal->skybox.vao);
         glDrawArrays(GL_TRIANGLES, 0, 36);
         glBindVertexArray(0);
     }
+    
     glBindTexture(GL_TEXTURE_CUBE_MAP, envCubemap);
     glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 

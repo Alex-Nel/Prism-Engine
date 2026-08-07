@@ -107,6 +107,7 @@ void Entity_AddAnimator(Entity entity, void* raw_skeleton, void* raw_clip);
 void Entity_AddBoneAttachment(Entity entity, int bone_index, Matrix4 offset);
 void Entity_AddLineRenderer(Entity entity, Material* material);
 void Entity_AddSpriteRenderer(Entity entity, Material* material);
+void Entity_AddReflectionProbe(Entity entity, Vector3 box_extents, float blend_distance, uint32_t capture_resolution);
 void Entity_BindScript(Entity entity, ScriptInstance new_script);
 void Script_SetActive(Entity entity, void* instance_data, bool active);
 void Bridge_SpawnScript(Entity raw_e, const char* class_name, struct cJSON* json_data);
@@ -132,6 +133,7 @@ AnimatorComponent* Entity_GetAnimator(Entity entity);
 BoneAttachmentComponent* Entity_GetBoneAttachment(Entity entity);
 LineRendererComponent* Entity_GetLineRenderer(Entity entity);
 SpriteRendererComponent* Entity_GetSpriteRenderer(Entity entity);
+ReflectionProbeComponent* Entity_GetReflectionProbe(Entity entity);
 ScriptComponent* Entity_GetScripts(Entity entity);
 
 
@@ -203,6 +205,15 @@ void LineRenderer_ClearPoints(LineRendererComponent* line);
 void LineRenderer_SetPoint(LineRendererComponent* line, uint32_t index, Vector3 point);
 Vector3 LineRenderer_GetPoint(LineRendererComponent* line, uint32_t index);
 void LineRenderer_SetPoints(LineRendererComponent* line, Vector3* points, uint32_t count);
+
+
+
+// --- Reflection Probe Functions ---
+void ReflectionProbe_SetBoxExtents(ReflectionProbeComponent* probe, Vector3 extents);
+void ReflectionProbe_SetBlendDistance(ReflectionProbeComponent* probe, float blend_distance);
+void ReflectionProbe_SetPriority(ReflectionProbeComponent* probe, int32_t priority);
+void ReflectionProbe_SetCaptureResolution(ReflectionProbeComponent* probe, uint32_t resolution);
+void ReflectionProbe_MarkDirty(ReflectionProbeComponent* probe);
 
 
 

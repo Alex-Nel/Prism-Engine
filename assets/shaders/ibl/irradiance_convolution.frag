@@ -18,7 +18,8 @@ void main()
     vec3 N = normalize(WorldPos);
     vec3 irradiance = vec3(0.0);
     
-    vec3 up    = vec3(0.0, 1.0, 0.0);
+    // Avoid a degenerate basis when a cubemap sample direction is parallel to world up (the centers of the +Y and -Y cubemap faces).
+    vec3 up    = abs(N.y) < 0.999 ? vec3(0.0, 1.0, 0.0) : vec3(0.0, 0.0, 1.0);
     vec3 right = normalize(cross(up, N));
     up         = normalize(cross(N, right));
        

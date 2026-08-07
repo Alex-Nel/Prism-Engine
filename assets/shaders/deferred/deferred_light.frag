@@ -15,6 +15,7 @@ uniform bool u_HasIBL;
 uniform samplerCube irradianceMap;
 uniform samplerCube prefilterMap;
 uniform sampler2D brdfLUT;
+uniform int u_IBLDebugMode; // 0 = disabled, 1 = Reinhard-compressed RGB, 2 = logarithmic luminance.
 
 // --- Global Uniforms ---
 uniform vec3 u_ViewPos;
@@ -373,15 +374,16 @@ void main()
     vec2 TexCoords = gl_FragCoord.xy / vec2(textureSize(gPosition, 0));
 
     vec3 fragPos = texture(gPosition, TexCoords).xyz;
-    vec3 normal = texture(gNormal, TexCoords).xyz;
+    vec3 sampledNormal = texture(gNormal, TexCoords).xyz;
     vec3 albedo = texture(gAlbedoSpec, TexCoords).rgb;
 
     float metallic = texture(gPosition, TexCoords).a;
     float roughness = texture(gAlbedoSpec, TexCoords).a;
 
-    if (length(normal) < 0.1)
+    if (length(sampledNormal) < 0.1)
         discard;
 
+    vec3 normal = normalize(sampledNormal);
     float ao = abs(texture(gNormal, TexCoords).a);
     if (u_EnableSSAO)
         ao *= texture(ssaoMap, TexCoords).r;
@@ -425,6 +427,23 @@ void main()
 
     // The post shader corrects for gamma
     FragColor = vec4(totalLight, 1.0);
+
+    // Raw irradiance is commonly greater than 1.0 and therefore appears white after the normal ACES post pass.
+    if (u_HasIBL && u_IBLDebugMode != 0)
+    {
+        vec3 debugIrradiance = texture(irradianceMap, normalize(normal)).rgb;
+        if (u_IBLDebugMode == 1)
+        {
+            FragColor = vec4(debugIrradiance / (debugIrradiance + vec3(1.0)), 1.0);
+        }
+        else
+        {
+            float luminance = dot(debugIrradiance, vec3(0.2126, 0.7152, 0.0722));
+            float compressed = clamp(log2(1.0 + luminance) / log2(17.0), 0.0, 1.0);
+            
+            FragColor = vec4(vec3(compressed), 1.0);
+        }
+    }
 
 
     // --- Debugging the fragment shader, uncomment one to see the image ---

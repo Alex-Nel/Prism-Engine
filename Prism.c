@@ -319,6 +319,22 @@ static int CompareCameraOrder(const void* a, const void* b)
 
 
 
+// Compares probe priority
+static int CompareProbePriority(const void* a, const void* b)
+{
+    const ReflectionProbeData* probe_a = (const ReflectionProbeData*)a;
+    const ReflectionProbeData* probe_b = (const ReflectionProbeData*)b;
+
+    if (probe_a->priority == probe_b->priority)
+        return 0;
+
+    return probe_a->priority > probe_b->priority ? -1 : 1;
+}
+
+
+
+
+
 // Gathers all the lights in a scene and puts them in a render packet
 void Engine_GatherSceneLights(Scene* scene, RenderPacket* packet, DirectionalLightData* dir_lights, PointLightData* point_lights, SpotLightData* spot_lights)
 {
@@ -384,6 +400,108 @@ void Engine_GatherSceneLights(Scene* scene, RenderPacket* packet, DirectionalLig
     packet->point_light_count = point_count;
     packet->spot_lights = spot_lights;
     packet->spot_light_count = spot_count;
+}
+
+
+
+
+
+// Gathers active local IBL probes as value data. Capture results are copied back explicitly after rendering
+void Engine_GatherReflectionProbes(Scene* scene, RenderPacket* packet, ReflectionProbeData* probes)
+{
+    uint32_t count = 0;
+    const uint32_t required_mask = COMPONENT_TRANSFORM | COMPONENT_REFLECTION_PROBE;
+
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i] || (scene->component_masks[i] & required_mask) != required_mask)
+            continue;
+
+        ReflectionProbeComponent* probe = &scene->reflection_probes[i];
+        if (!probe->is_active)
+        {
+            probe->dirty = true;
+            probe->captured = false;
+            memset(&probe->environment, 0, sizeof(probe->environment));
+            continue;
+        }
+
+        Transform* transform = &scene->transforms[i];
+        Vector3 world_scale = Transform_GetGlobalScale(transform);
+        Vector3 world_position = Transform_GetGlobalPosition(transform);
+        if (probe->captured && (fabsf(world_position.x - probe->last_capture_position.x) > 0.0001f ||
+                                fabsf(world_position.y - probe->last_capture_position.y) > 0.0001f ||
+                                fabsf(world_position.z - probe->last_capture_position.z) > 0.0001f))
+        {
+            ReflectionProbe_MarkDirty(probe);
+        }
+
+        ReflectionProbeData candidate = {0};
+
+        candidate.entity_id = i;
+        candidate.position = world_position;
+        candidate.box_extents = (Vector3){
+            fabsf(probe->box_extents.x * world_scale.x),
+            fabsf(probe->box_extents.y * world_scale.y),
+            fabsf(probe->box_extents.z * world_scale.z)
+        };
+        candidate.blend_distance = probe->blend_distance;
+        candidate.priority = probe->priority;
+        candidate.capture_resolution = probe->capture_resolution;
+        candidate.revision = probe->revision;
+        candidate.needs_capture = probe->dirty || !probe->captured;
+        candidate.environment = probe->environment;
+        candidate.dirty = probe->dirty;
+        candidate.captured = probe->captured;
+
+        if (count < MAX_REFLECTION_PROBES)
+        {
+            probes[count++] = candidate;
+        }
+        else
+        {
+            uint32_t lowest_index = 0;
+            for (uint32_t slot = 1; slot < count; slot++)
+            {
+                if (probes[slot].priority < probes[lowest_index].priority)
+                    lowest_index = slot;
+            }
+
+            if (candidate.priority > probes[lowest_index].priority)
+                probes[lowest_index] = candidate;
+        }
+    }
+
+    packet->reflection_probes = probes;
+    packet->reflection_probe_count = count;
+
+    qsort(probes, count, sizeof(ReflectionProbeData), CompareProbePriority);
+
+    for (uint32_t i = 0; i < count; i++)
+    {
+        ReflectionProbeComponent* selected = &scene->reflection_probes[probes[i].entity_id];
+        selected->last_capture_position = probes[i].position;
+    }
+}
+
+
+
+
+
+// Applies reflection probe changes from the renderer back to the components
+void Engine_ApplyReflectionProbeResults(Scene* scene, const ReflectionProbeData* probes, uint32_t probe_count)
+{
+    for (uint32_t i = 0; i < probe_count; i++)
+    {
+        uint32_t entity_id = probes[i].entity_id;
+        if (entity_id >= MAX_ENTITIES || !(scene->component_masks[entity_id] & COMPONENT_REFLECTION_PROBE))
+            continue;
+
+        ReflectionProbeComponent* component = &scene->reflection_probes[entity_id];
+        component->environment = probes[i].environment;
+        component->dirty = probes[i].dirty;
+        component->captured = probes[i].captured;
+    }
 }
 
 
@@ -625,7 +743,7 @@ void Engine_ExecuteShadowPass(Scene* scene, RenderPacket* packet)
         Render_Submit(engine.renderer, rc->mesh->gpu_handle, DEFAULT_SHADER,
                       DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE,
                       (MaterialProperties){0}, t->world_matrix, NULL,
-                      false, 0.0f, rc->casts_shadows, rc->receives_shadows);
+                      false, 0.0f, rc->casts_shadows, rc->receives_shadows, false);
     }
 
 
@@ -660,7 +778,7 @@ void Engine_ExecuteShadowPass(Scene* scene, RenderPacket* packet)
         Render_Submit(engine.renderer, rc->mesh->gpu_handle, DEFAULT_SHADER,
                       DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE,
                       (MaterialProperties){0}, t->world_matrix, bone_ptr,
-                      false, 0.0f, rc->casts_shadows, rc->receives_shadows);
+                      false, 0.0f, rc->casts_shadows, rc->receives_shadows, false);
     }
 
     Render_EndShadowPass(engine.renderer);
@@ -713,7 +831,7 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
             continue;
 
         Transform* t = &scene->transforms[i];
-        if (!Frustum_ContainsAABB(cam_frustum, rc->mesh->local_bounds, t->world_matrix))
+        if (cam_frustum && !Frustum_ContainsAABB(cam_frustum, rc->mesh->local_bounds, t->world_matrix))
             continue;
 
         ShaderHandle shader = DEFAULT_SHADER;
@@ -726,9 +844,12 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
         TextureHandle roughness = rc->material->roughness_map ? rc->material->roughness_map->gpu_handle : (TextureHandle){0};
         TextureHandle ao = rc->material->ao_map ? rc->material->ao_map->gpu_handle : (TextureHandle){0};
         
+        // Ensure only static geometry gets included in probe captures (i.e. no physics, animations or custom scripts)
+        bool include_in_probe_capture = (scene->component_masks[i] & (COMPONENT_RIGIDBODY | COMPONENT_SCRIPT | COMPONENT_ANIMATOR)) == 0;
+
         Render_Submit(engine.renderer, rc->mesh->gpu_handle, shader,
                       albedo, normal, metallic, roughness, ao, rc->material->properties,
-                      t->world_matrix, NULL, false, 0.0f, rc->casts_shadows, rc->receives_shadows);
+                      t->world_matrix, NULL, false, 0.0f, rc->casts_shadows, rc->receives_shadows, include_in_probe_capture);
     }
 
 
@@ -745,7 +866,7 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
             continue;
 
         Transform* t = &scene->transforms[i];
-        if (!Frustum_ContainsAABB(cam_frustum, rc->pose_bounds, t->world_matrix))
+        if (cam_frustum && !Frustum_ContainsAABB(cam_frustum, rc->pose_bounds, t->world_matrix))
             continue;
 
         Matrix4* bone_ptr = NULL;
@@ -768,7 +889,7 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
         
         Render_Submit(engine.renderer, rc->mesh->gpu_handle, shader,
                       albedo, normal, metallic, roughness, ao, rc->material->properties,
-                      t->world_matrix, bone_ptr, false, 0.0f, rc->casts_shadows, rc->receives_shadows);
+                      t->world_matrix, bone_ptr, false, 0.0f, rc->casts_shadows, rc->receives_shadows, false);
     }
 
 
@@ -799,7 +920,7 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
 
         Render_Submit(engine.renderer, line->dynamic_mesh->gpu_handle, shader,
                       albedo, normal, metallic, roughness, ao,
-                      local_props, Matrix4Identity(), NULL, false, 0.0f, false, false);
+                      local_props, Matrix4Identity(), NULL, false, 0.0f, false, false, false);
     }
 
 
@@ -844,7 +965,7 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
 
         Render_Submit(engine.renderer, sprite->quad->gpu_handle, shader,
                       albedo, normal, metallic, roughness, ao,
-                      local_props, final_sprite_matrix, NULL, true, dist_sq, false, false);
+                      local_props, final_sprite_matrix, NULL, true, dist_sq, false, false, false);
     }
 }
 
@@ -882,18 +1003,34 @@ void Engine_RenderScene(Scene* scene)
         packet.gamma = cur_settings.gamma;
     
     packet.has_env_map = scene->has_env_map;
+    packet.has_probe_source_env_map = scene->has_env_map;
 
     if (scene->has_env_map && scene->env_map)
+    {
         packet.env_map = *scene->env_map;
+        packet.probe_source_env_map = *scene->env_map;
+    }
 
     // --- Get all Point Lights from the ECS ---
     DirectionalLightData active_dir_lights[MAX_RESOURCES];
     PointLightData active_point_lights[MAX_RESOURCES];
     SpotLightData active_spot_lights[MAX_RESOURCES];
+    ReflectionProbeData active_reflection_probes[MAX_REFLECTION_PROBES];
 
 
     // Fille the packet with all the lights in the scene
     Engine_GatherSceneLights(scene, &packet, active_dir_lights, active_point_lights, active_spot_lights);
+    Engine_GatherReflectionProbes(scene, &packet, active_reflection_probes);
+    
+    bool probe_capture_requested = false;
+    for (uint32_t i = 0; i < packet.reflection_probe_count; i++)
+    {
+        if (packet.reflection_probes[i].needs_capture)
+        {
+            probe_capture_requested = true;
+            break;
+        }
+    }
 
     // If there are directional lights, render all shadows
     if (packet.dir_light_count > 0)
@@ -950,10 +1087,12 @@ void Engine_RenderScene(Scene* scene)
         Render_BeginFrame(engine.renderer, &packet);
 
         // Submit all visible geometry
-        Engine_SubmitVisibleGeometry(scene, &cam_frustum, global_pos, cam_comp->culling_masks);
+        Engine_SubmitVisibleGeometry(scene, probe_capture_requested ? NULL : &cam_frustum, global_pos, cam_comp->culling_masks);
 
         // End Forward Pass
         Render_EndFrame(engine.renderer);
+        Engine_ApplyReflectionProbeResults(scene, active_reflection_probes, packet.reflection_probe_count);
+        probe_capture_requested = false;
     }
 }
 

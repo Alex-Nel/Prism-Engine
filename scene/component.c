@@ -523,3 +523,92 @@ void LineRenderer_SetPoints(LineRendererComponent* line, Vector3* points, uint32
     for (uint32_t i = 0; i < line->point_count; i++)
         line->points[i] = points[i];
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Marks a reflection probe as dirty
+void ReflectionProbe_MarkDirty(ReflectionProbeComponent* probe)
+{
+    if (!probe)
+        return;
+
+    probe->revision++;
+    if (probe->revision == 0)
+        probe->revision = 1;
+
+    probe->dirty = true;
+    probe->captured = false;
+}
+
+
+
+
+
+// Sets the box extents of a reflection probe
+void ReflectionProbe_SetBoxExtents(ReflectionProbeComponent* probe, Vector3 extents)
+{
+    if (!probe)
+        return;
+
+    probe->box_extents.x = extents.x > 0.001f ? extents.x : 0.001f;
+    probe->box_extents.y = extents.y > 0.001f ? extents.y : 0.001f;
+    probe->box_extents.z = extents.z > 0.001f ? extents.z : 0.001f;
+    ReflectionProbe_MarkDirty(probe);
+}
+
+
+
+
+
+// Sets the blend distance of a reflection probe
+void ReflectionProbe_SetBlendDistance(ReflectionProbeComponent* probe, float blend_distance)
+{
+    if (!probe)
+        return;
+
+    probe->blend_distance = blend_distance > 0.0f ? blend_distance : 0.0f;
+    ReflectionProbe_MarkDirty(probe);
+}
+
+
+
+
+
+// Sets the priority of a reflection probe
+void ReflectionProbe_SetPriority(ReflectionProbeComponent* probe, int32_t priority)
+{
+    if (!probe)
+        return;
+
+    probe->priority = priority;
+    ReflectionProbe_MarkDirty(probe);
+}
+
+
+
+
+
+// Sets the capture resolution of a reflection probe
+void ReflectionProbe_SetCaptureResolution(ReflectionProbeComponent* probe, uint32_t resolution)
+{
+    if (!probe)
+        return;
+
+    if (resolution < 32) resolution = 32;
+    if (resolution > 512) resolution = 512;
+
+    probe->capture_resolution = resolution;
+    ReflectionProbe_MarkDirty(probe);
+}

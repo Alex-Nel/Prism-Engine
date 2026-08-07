@@ -27,8 +27,11 @@ vec3 ACESFilm(vec3 x)
 
 void main()
 {
-    vec3 flippedCoords = vec3(-TexCoords.x, TexCoords.y, TexCoords.z);
-    vec3 color = texture(u_Skybox, flippedCoords).rgb;
+    // HDR cubemaps are generated with OpenGL's standard face convention and
+    // are sampled directly by the IBL shaders. The legacy six-image skybox
+    // loader swaps its X faces, so only that path needs the compatibility flip.
+    vec3 sampleCoords = u_IsHDR ? TexCoords : vec3(-TexCoords.x, TexCoords.y, TexCoords.z);
+    vec3 color = texture(u_Skybox, sampleCoords).rgb;
 
     float exposure = u_Exposure > 0.001 ? u_Exposure : 1.0;
     color *= exposure;

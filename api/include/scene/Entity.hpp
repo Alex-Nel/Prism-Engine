@@ -30,6 +30,7 @@ namespace Prism
     struct BoneAttachmentComponent;
     struct LineRendererComponent;
     struct SpriteRendererComponent;
+    struct ReflectionProbeComponent;
 
 
 
@@ -113,6 +114,7 @@ namespace Prism
         Prism::AnimatorComponent* AddAnimator(void* raw_skeleton, const Prism::AnimationClip& default_clip);
         Prism::LineRendererComponent* AddLineRenderer(Prism::Material* mat = nullptr);
         Prism::SpriteRendererComponent* AddSpriteRenderer(Prism::Material* mat = nullptr);
+        Prism::ReflectionProbeComponent* AddReflectionProbe(const Prism::Vector3& box_extents, float blend_distance = 1.0f, uint32_t capture_resolution = 128);
 
 
 
@@ -132,6 +134,7 @@ namespace Prism
         Prism::BoneAttachmentComponent* GetBoneAttachment();
         Prism::LineRendererComponent* GetLineRenderer();
         Prism::SpriteRendererComponent* GetSpriteRenderer();
+        Prism::ReflectionProbeComponent* GetReflectionProbe();
 
 
 
@@ -150,6 +153,7 @@ namespace Prism
         std::vector<Prism::BoneAttachmentComponent*> GetBoneAttachmentsInChildren(bool recursive = true);
         std::vector<Prism::LineRendererComponent*> GetLineRenderersInChildren(bool recursive = true);
         std::vector<Prism::SpriteRendererComponent*> GetSpriteRenderersInChildren(bool recursive = true);
+        // TODO: Add for ReflectionProbe
         
         
         Prism::Transform* GetTransformInParent();
@@ -165,6 +169,7 @@ namespace Prism
         Prism::BoneAttachmentComponent* GetBoneAttachmentInParent();
         Prism::LineRendererComponent* GetLineRendererInParent();
         Prism::SpriteRendererComponent* GetSpriteRendererInParent();
+        // TODO: Add for ReflectionProbe
 
 
 
@@ -181,6 +186,7 @@ namespace Prism
         void RemoveAnimator();
         void RemoveLineRenderer();
         void RemoveSpriteRenderer();
+        void RemoveReflectionProbe();
 
 
 
@@ -401,6 +407,18 @@ namespace Prism
             static SpriteRendererComponent* Get(Entity& entity) { return entity.GetSpriteRenderer(); }
             static SpriteRendererComponent* Add(Entity& entity, Material* material = nullptr) { return entity.AddSpriteRenderer(material); }
             static void Remove(Entity& entity) { entity.RemoveSpriteRenderer(); }
+        };
+
+        template<>
+        struct EntityComponentAccess<ReflectionProbeComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = true;
+            static constexpr bool removable = true;
+
+            static ReflectionProbeComponent* Get(Entity& entity) { return entity.GetReflectionProbe(); }
+            static ReflectionProbeComponent* Add(Entity& entity, const Vector3& extents, float blend_distance = 1.0f, uint32_t resolution = 128) { return entity.AddReflectionProbe(extents, blend_distance, resolution); }
+            static void Remove(Entity& entity) { entity.RemoveReflectionProbe(); }
         };
     }
 
