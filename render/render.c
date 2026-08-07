@@ -5,10 +5,10 @@
 
 
 // Forward declerations of backend specific initialization functions
+extern Renderer* Headless_Init();
 extern Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t init_height);
 // extern Renderer* Vulkan_Init(Render_LoadProcFn load_proc);
 // extern Renderer* DirectX_Init(Render_LoadProcFn load_proc);
-extern Renderer* Headless_Init();
 // extern Renderer* SoftwareRenderer_Init(Render_LoadProcFn load_proc);
 
 
@@ -16,8 +16,6 @@ extern Renderer* Headless_Init();
 // Initializes the backend depending on the API chosen
 Renderer* Render_Init(GraphicsAPI api, Render_LoadProcFn load_proc, uint32_t init_width, uint32_t init_height)
 {
-    Log_Info("API Chosen: %d", api);
-    
     switch (api)
     {
         case GRAPHICS_API_OPENGL:

@@ -42,12 +42,11 @@ bool Audio_Init()
     ma_result result = ma_engine_init(NULL, &backend->engine);
     if (result != MA_SUCCESS)
     {
-        Log_Error("Failed to initialize audio engine");
+        Log_Error("ERROR: Failed to initialize audio engine");
         free(backend);
         return false;
     }
 
-    Log_Info("Audio engine initialized successfully.");
     return true;
 }
 
@@ -172,12 +171,12 @@ AudioClipHandle Audio_LoadClip(const char* filepath)
 
     if (id == 0)
     {
-        Log_Warning("Audio clip pool is full!");
+        Log_Warning("WARNING: Audio clip pool is full");
         return (AudioClipHandle){0};
     }
 
     // Load the sound file into memory using Miniaudio
-    // MA_SOUND_FLAG_DECODE flags it to load fully into RAM.
+    // MA_SOUND_FLAG_DECODE flags it to load fully into memory.
     ma_result result = ma_sound_init_from_file(
         &backend->engine, 
         filepath, 
@@ -189,7 +188,7 @@ AudioClipHandle Audio_LoadClip(const char* filepath)
 
     if (result != MA_SUCCESS)
     {
-        Log_Error("Failed to load audio clip: %s", filepath);
+        Log_Error("ERROR: Failed to load audio clip: %s", filepath);
         return (AudioClipHandle){0};
     }
 

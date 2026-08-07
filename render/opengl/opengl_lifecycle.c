@@ -31,7 +31,7 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     // Load OpenGL functions using the provided loader
     if (!gladLoadGLLoader((GLADloadproc)load_proc))
     {
-        Log_Error("Failed to initialize OpenGL loader!");
+        Log_Error("ERROR: Failed to initialize OpenGL loader.");
         free(internal);
         free(r);
         return NULL;
@@ -231,7 +231,7 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, internal->ssao.gDepth);
 
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-        Log_Error("G-Buffer Framebuffer not complete!");
+        Log_Error("ERROR: G-Buffer Framebuffer not complete.");
 
     // --- Generate linear HDR lighting target ---
     glGenFramebuffers(1, &internal->deferred.lighting_fbo);
@@ -247,7 +247,7 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, internal->deferred.lighting_texture, 0);
 
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-        Log_Error("Deferred lighting framebuffer not complete!");
+        Log_Error("ERROR: Deferred lighting framebuffer not complete!");
 
     // --- Generate SSAO FBOs ---
     glGenFramebuffers(1, &internal->ssao.ssaoFBO);  

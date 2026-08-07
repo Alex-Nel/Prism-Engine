@@ -15,7 +15,7 @@ Scene* Scene_Create()
     if (scene)
         Scene_Init(scene);
     else
-        Log_Error("Failed to allocate memory for Scene!");
+        Log_Error("ERROR: Failed to allocate memory for Scene");
     
     return scene;
 }

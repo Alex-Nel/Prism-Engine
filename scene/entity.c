@@ -823,7 +823,7 @@ void Entity_AddColliderBoxAuto(Entity entity, bool is_trigger)
     // Ensure the entity actually has a mesh to read
     if (!(entity.scene->component_masks[entity.id] & COMPONENT_MESH_RENDERER))
     {
-        Log_Warning("WARNING: Cannot Auto-Fit Box Collider. Entity has no Mesh!");
+        Log_Warning("WARNING: Cannot Auto-Fit Box Collider. Entity has no Mesh.");
         return;
     }
 
@@ -889,7 +889,7 @@ void Entity_AddColliderMesh(Entity entity, Mesh* mesh, bool is_trigger, bool is_
     
     if (!mesh)
     {
-        Log_Error("CRITICAL: Tried to add Mesh Collider to an invalid mesh.");
+        Log_Error("ERROR: Tried to add Mesh Collider to an invalid mesh.");
         return;
     }
 
@@ -947,7 +947,7 @@ void Entity_AddRigidbody(Entity entity, float mass)
     // If the entity doesn't have a collider, return
     if (!(entity.scene->component_masks[entity.id] & COMPONENT_COLLIDER))
     {
-        Log_Warning("WARNING: Entity must have a Collider BEFORE adding a Rigidbody!\n");
+        Log_Warning("WARNING: Entity must have a Collider BEFORE adding a Rigidbody\n");
         return;
     }
 
@@ -1165,7 +1165,7 @@ void Entity_BindScript(Entity entity, ScriptInstance new_script)
     // Check if the number of custom script has been maxed out
     if (script_comp->count >= MAX_SCRIPTS_PER_ENTITY)
     {
-        Log_Error("WARNING: Entity %d exceeded maximum scripts (%d)!\n", entity.id, MAX_SCRIPTS_PER_ENTITY);
+        Log_Error("ERROR: Entity %d exceeded maximum scripts limit of (%d)\n", entity.id, MAX_SCRIPTS_PER_ENTITY);
         return;
     }
     

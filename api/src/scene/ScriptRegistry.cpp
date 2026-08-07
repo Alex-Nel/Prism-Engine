@@ -24,7 +24,7 @@ namespace Prism
         }
         else
         {
-            Debug_Warn("Script class %s not found in Registry!", className.c_str());
+            Debug_Warning("Script class %s not found in Registry!", className.c_str());
         }
     }
 

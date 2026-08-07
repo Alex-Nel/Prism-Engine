@@ -19,6 +19,7 @@ typedef enum LogLevel
 
 
 void Log_Message(LogLevel level, const char* file, int line, const char* format, ...);
+void Log_MessageV(LogLevel level, const char* file, int line, const char* format, va_list args);
 
 
 #endif

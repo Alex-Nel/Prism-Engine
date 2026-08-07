@@ -11,14 +11,15 @@ ImageData Image_Load(const char* filepath, bool inverted)
 {
     ImageData data = {0};
     
-    // OpenGL expects the Y=0 coordinate to be at the bottom of the image.
     // Most image formats put Y=0 at the top. This flips it so textures aren't upside down
     stbi_set_flip_vertically_on_load(inverted); 
     
-    // stbi_load automatically allocates the memory and decodes the image. Force 4 channels (RGBA) for 100% memory alignment safety with OpenGL.
+    // stbi_load automatically allocates the memory and decodes the image. Force 4 channels (RGBA) for memory alignment safety
     data.pixels = stbi_load(filepath, &data.width, &data.height, &data.channels, 4);
     if (data.pixels)
         data.channels = 4;
+    else
+        Log_Error("ERROR: Failed to load HDR image: %s", filepath);
 
     return data;
 }
@@ -30,7 +31,7 @@ ImageData Image_LoadFromMemory(const unsigned char* buffer, int length, bool inv
 {
     ImageData img = {0};
     
-    // Keep the image right-side up for OpenGL
+    // Keep the image right-side up
     stbi_set_flip_vertically_on_load(inverted); 
     
     // Read directly from the RAM buffer instead of the hard drive
@@ -39,7 +40,7 @@ ImageData Image_LoadFromMemory(const unsigned char* buffer, int length, bool inv
     if (img.pixels)
         img.channels = 4; // Force 4 channels (RGBA)
     else
-        Log_Error("Failed to load embedded image from memory!");
+        Log_Error("ERROR: Failed to load embedded image from memory");
     
     return img;
 }
@@ -127,7 +128,7 @@ ImageDataFloat Image_LoadFloat(const char* filepath, bool inverted)
     }
     else
     {
-        Log_Error("Failed to load HDR image: %s", filepath);
+        Log_Error("ERROR: Failed to load HDR image: %s", filepath);
     }
 
     return data;

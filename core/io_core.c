@@ -8,7 +8,7 @@ char* IO_ReadTextFile(const char* filepath)
     FILE* file = fopen(filepath, "rb");
     if (!file)
     {
-        Log_Error("Failed to open file: %s\n", filepath);
+        Log_Error("ERROR: Failed to open file: %s\n", filepath);
         return NULL;
     }
 

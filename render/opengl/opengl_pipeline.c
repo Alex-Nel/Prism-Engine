@@ -1701,13 +1701,14 @@ static void OpenGL_UpdateReflectionProbes(OpenGL_Backend* internal, uint32_t opa
             data->captured = true;
             data->needs_capture = false;
             
-            Log_Info(
-                "Captured local IBL probe %u at %u x %u in %.2f ms",
-                data->entity_id,
-                data->capture_resolution,
-                data->capture_resolution,
-                (double)elapsed_nanoseconds / 1000000.0
-            );
+            // Uncomment to log info about probe
+            // Log_Info(
+            //     "Captured local IBL probe %u at %u x %u in %.2f ms",
+            //     data->entity_id,
+            //     data->capture_resolution,
+            //     data->capture_resolution,
+            //     (double)elapsed_nanoseconds / 1000000.0
+            // );
         }
         else
         {
@@ -1716,7 +1717,7 @@ static void OpenGL_UpdateReflectionProbes(OpenGL_Backend* internal, uint32_t opa
             data->captured = false;
             data->needs_capture = true;
             
-            Log_Error("Failed to capture local IBL probe %u", data->entity_id);
+            Log_Error("ERROR: Failed to capture local IBL probe %u", data->entity_id);
         }
     }
 

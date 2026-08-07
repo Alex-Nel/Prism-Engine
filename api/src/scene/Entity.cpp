@@ -655,7 +655,7 @@ namespace Prism
         
         if (!active_scene_ptr)
         {
-            Debug_Warn("No active scene");
+            Debug_Warning("No active scene");
             return Entity(); // Returns invalid entity
         }
 

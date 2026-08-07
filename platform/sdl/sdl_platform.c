@@ -176,19 +176,19 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
     {
         if (!SDL_Init(SDL_INIT_EVENTS))
         {
-            Log_Error("SDL Headless Init Error: %s\n", SDL_GetError());
+            Log_Error("ERROR: SDL Headless Init Error: %s\n", SDL_GetError());
             return NULL;
         }
 
 
-        Log_Info("SDL Initialized in headless mode (No Video).");
+        Log_Info("INFO: SDL Initialized in headless mode (No Video).");
         return NULL;
     }
 
 
     if (!SDL_Init(SDL_INIT_VIDEO))
     {
-        Log_Error("SDL_Init Error: %s\n", SDL_GetError());
+        Log_Error("ERROR: SDL_Init Error: %s\n", SDL_GetError());
         return NULL;
     }
 
@@ -213,7 +213,7 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
     }
     else if (api == GRAPHICS_API_VULKAN)
     {
-        // TODO implement vulkan stuff, and other API stuff
+        // TODO: implement vulkan stuff, and other API stuff
         window_flags |= SDL_WINDOW_VULKAN;
     }
 
@@ -221,7 +221,7 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
     win->sdl_window = SDL_CreateWindow(title, width, height, window_flags);
     if (!win->sdl_window)
     {
-        Log_Error("SDL_CreateWindow Error: %s\n", SDL_GetError());
+        Log_Error("ERROR: SDL_CreateWindow Error: %s\n", SDL_GetError());
         return false;
     }
 
@@ -231,7 +231,7 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
         win->gl_context = SDL_GL_CreateContext(win->sdl_window);
         if (!win->gl_context)
         {
-            Log_Error("SDL_GL_CreateContext Error: %s\n", SDL_GetError());
+            Log_Error("ERROR: SDL_GL_CreateContext Error: %s\n", SDL_GetError());
             return false;
         }
     }

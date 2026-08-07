@@ -124,7 +124,7 @@ void Collider_SetBoxExtents(Entity entity, Vector3 new_extents)
 
     if (c->type != COLLIDER_BOX)
     {
-        Log_Warning("Attempting to set box extents for a non-box collider");
+        Log_Warning("WARNING: Attempting to set box extents for a non-box collider");
         return;
     }
 
@@ -153,7 +153,7 @@ void Collider_SetSphereRadius(Entity entity, float new_radius)
 
     if (c->type != COLLIDER_SPHERE)
     {
-        Log_Warning("Attempting to set radius for a non-sphere collider");
+        Log_Warning("WARNING: Attempting to set radius for a non-sphere collider");
         return;
     }
 
@@ -181,7 +181,7 @@ void Collider_SetMeshScale(Entity entity, Vector3 new_scale)
 
     if (c->type != COLLIDER_MESH)
     {
-        Log_Warning("Attempting to set mesh scale for a non-mesh collider");
+        Log_Warning("WARNING: Attempting to set mesh scale for a non-mesh collider");
         return;
     }
 
@@ -435,7 +435,7 @@ void MeshRenderer_SetMaterial(MeshRendererComponent* r, Material* material)
 {
     if (!r)
     {
-        Log_Error("Renderable does not exist");
+        Log_Error("ERROR: Renderer component does not exist");
         return;
     }
 

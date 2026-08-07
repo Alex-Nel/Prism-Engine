@@ -377,7 +377,7 @@ EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels,
 
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
         {
-            Log_Error("HDR cubemap capture framebuffer is incomplete on face %u", i);
+            Log_Error("ERROR: HDR cubemap capture framebuffer is incomplete on face %u", i);
             break;
         }
         
@@ -553,7 +553,7 @@ ShaderHandle OpenGL_CreateShader(Renderer* r, const char* vertex_source, const c
     if (!success)
     {
         glGetShaderInfoLog(vs, 512, NULL, infoLog);
-        Log_Error("ERROR: Vertex Shader Compilation Failed!\n%s\n", infoLog);
+        Log_Error("ERROR: Vertex Shader Compilation Failed.\nInfo: %s\n", infoLog);
     }
 
     // Create fragment shader
@@ -565,7 +565,7 @@ ShaderHandle OpenGL_CreateShader(Renderer* r, const char* vertex_source, const c
     if (!success)
     {
         glGetShaderInfoLog(fs, 512, NULL, infoLog);
-        Log_Error("ERROR: Fragment Shader Compilation Failed!\n%s\n", infoLog);
+        Log_Error("ERROR: Fragment Shader Compilation Failed.\nInfo: %s\n", infoLog);
     }
 
     // Create complete shader
@@ -580,7 +580,7 @@ ShaderHandle OpenGL_CreateShader(Renderer* r, const char* vertex_source, const c
     if (!success)
     {
         glGetProgramInfoLog(shader->program, 512, NULL, infoLog);
-        Log_Error("ERROR: Shader Program Linking Failed!\n%s\n", infoLog);
+        Log_Error("ERROR: Shader Program Linking Failed.\nInfo: %s\n", infoLog);
     }
 
     glDeleteShader(vs);
@@ -609,7 +609,7 @@ ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const char* 
     
     if (slot == 0)
     {
-        Log_Error("Failed to allocate internal shader: %s (Pool full)", name);
+        Log_Error("ERROR: Failed to allocate internal shader: %s (Pool full)", name);
         return (ShaderHandle){0};
     }
 
@@ -625,7 +625,7 @@ ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const char* 
     if (!success)
     {
         glGetShaderInfoLog(vertex, 1024, NULL, infoLog);
-        Log_Error("Internal Vertex Shader Compilation Failed (%s):\n%s", name, infoLog);
+        Log_Error("ERROR: Internal Vertex Shader Compilation Failed (%s):\n%s", name, infoLog);
     }
 
     GLuint geometry = 0;
@@ -639,7 +639,7 @@ ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const char* 
         if (!success)
         {
             glGetShaderInfoLog(geometry, 1024, NULL, infoLog);
-            Log_Error("Internal Geometry Shader Compilation Failed (%s):\n%s", name, infoLog);
+            Log_Error("ERROR: Internal Geometry Shader Compilation Failed (%s):\n%s", name, infoLog);
         }
     }
 
@@ -652,7 +652,7 @@ ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const char* 
     if (!success)
     {
         glGetShaderInfoLog(fragment, 1024, NULL, infoLog);
-        Log_Error("Internal Fragment Shader Compilation Failed (%s):\n%s", name, infoLog);
+        Log_Error("ERROR: Internal Fragment Shader Compilation Failed (%s):\n%s", name, infoLog);
     }
 
     // Link Program
@@ -667,7 +667,7 @@ ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const char* 
     if (!success)
     {
         glGetProgramInfoLog(program, 1024, NULL, infoLog);
-        Log_Error("Internal Shader Linking Failed (%s):\n%s", name, infoLog);
+        Log_Error("ERROR: Internal Shader Linking Failed (%s):\n%s", name, infoLog);
         glDeleteProgram(program);
 
         // Clean up shaders

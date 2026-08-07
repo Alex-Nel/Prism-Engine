@@ -273,7 +273,7 @@ static int GetOrAddBone(Skeleton* skeleton, const char* bone_name, Matrix4 inver
 
     if (skeleton->bone_count >= MAX_BONES)
     {
-        Log_Warning("Max Bones exceeded. Model might look broken");
+        Log_Warning("WARNING: Max Bones exceeded. Model might look broken");
         return 0;
     }
 
@@ -363,7 +363,7 @@ static Texture* Asset_LoadAssimpTexture(const struct aiScene* scene, const struc
         }
         else
         {
-            Log_Warning("Uncompressed embedded textures are not supported!");
+            Log_Warning("WARNING: Uncompressed embedded textures are not supported");
             return NULL;
         }
     }
@@ -415,7 +415,7 @@ static Texture* Asset_LoadAssimpTexture(const struct aiScene* scene, const struc
         }
         else
         {
-            Log_Warning("ASSIMP: Could not find texture %s", clean_filename);
+            Log_Warning("ASSIMP WARNING: Could not find texture %s", clean_filename);
         }
     }
 
@@ -563,7 +563,7 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
         {
             if (skinned_mesh_count >= MAX_CACHED_SKINNED_MESHES)
             {
-                Log_Error("CRITICAL: Skinned mesh cache limit reached!");
+                Log_Error("ERROR: Skinned mesh cache limit reached.");
                 continue;
             }
 
@@ -657,7 +657,7 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
         {
             if (mesh_count >= MAX_CACHED_MESHES)
             {
-                Log_Error("CRITICAL: Static mesh cache limit reached!");
+                Log_Error("ERROR: Static mesh cache limit reached.");
                 continue; // Skip loading this sub-mesh to prevent a crash
             }
 
@@ -844,7 +844,7 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
     if (model_count < MAX_CACHED_MODELS)
         model_cache[model_count++] = new_model;
     else
-        Log_Warning("MAX_CACHED_MODESL reached");
+        Log_Warning("WARNING: MAX_CACHED_MODELS limit (%d) reached", MAX_CACHED_MODELS);
 
     return new_model;
 }
@@ -867,7 +867,7 @@ Mesh* Asset_LoadMesh(const char* name, const char* filepath)
     fastObjMesh* mesh = fast_obj_read(filepath);
     if (!mesh)
     {
-        Log_Warning("CRITICAL: Failed to load OBJ: %s\n", filepath);
+        Log_Warning("WARNING: Failed to load OBJ: %s\n", filepath);
         return NULL;
     }
 
@@ -954,7 +954,7 @@ Mesh* Asset_LoadMesh(const char* name, const char* filepath)
     // Check if we've reached the maximum cached meshes
     if (mesh_count >= MAX_CACHED_MESHES)
     {
-        Log_Warning("MAX_CACHED_MESHES reached. Cannot cache %s", name);
+        Log_Warning("WARNING: MAX_CACHED_MESHES (%d) reached. Cannot cache %s", MAX_CACHED_MESHES, name);
         free(final_vertices);
         free(final_indices);
         fast_obj_destroy(mesh);
@@ -1034,7 +1034,7 @@ Material* Asset_CreateMaterial(Shader* shader, Texture* albedo)
 {
     if (material_count >= MAX_MATERIALS)
     {
-        Log_Error("Material pool full!");
+        Log_Error("ERROR: Material pool full");
         return NULL;
     }
     
@@ -1075,7 +1075,7 @@ Mesh* Asset_CreateDynamicMesh(uint32_t max_vertices, uint32_t max_indices)
 {
     if (mesh_count >= MAX_CACHED_MESHES)
     {
-        Log_Error("Cannot create dynamic mesh. MAX_CACHED_MESHES reached.");
+        Log_Error("ERROR: Cannot create dynamic mesh. MAX_CACHED_MESHES (%d) reached.", MAX_CACHED_MESHES);
         return NULL;
     }
 
@@ -1176,7 +1176,7 @@ Shader* Asset_LoadShader(const char* name, const char* vert_path, const char* fr
     // Check if max shader count has been reached
     if (shader_count >= MAX_CACHED_SHADERS)
     {
-        Log_Error("CRITICAL: Asset Manager out of shader cache space!\n");
+        Log_Error("ERROR: Asset Manager out of shader cache space.\n");
         return NULL;
     }
 
@@ -1188,7 +1188,7 @@ Shader* Asset_LoadShader(const char* name, const char* vert_path, const char* fr
 
     if (!v_src || !f_src)
     {
-        Log_Error("CRITICAL: Failed to read shader files for '%s'\n", name);
+        Log_Error("ERROR: Failed to read shader files for '%s'\n", name);
         if (v_src) free(v_src);
         if (f_src) free(f_src);
         return NULL;
@@ -1230,7 +1230,7 @@ Texture* Asset_LoadTexture(const char* name, const char* filepath)
     ImageData img = Image_Load(filepath, true);
     if (!img.pixels)
     {
-        Log_Error("CRITICAL: Failed to load texture: %s\n", filepath);
+        Log_Error("ERROR: Failed to load texture: %s\n", filepath);
         return NULL;
     }
 
@@ -1278,7 +1278,7 @@ Texture* Asset_LoadCubemapTexture(const char* name, const char* right, const cha
         images[i] = Image_Load(paths[i], false);
         if (!images[i].pixels)
         {
-            Log_Error("CRITICAL: Failed to load Cube Map face: %s\n", paths[i]);
+            Log_Error("ERROR: Failed to load Cube Map face: %s\n", paths[i]);
             failed = true;
             break; // Stop loading if one fails
         }
@@ -1347,7 +1347,7 @@ EnvironmentMap* Asset_LoadEnvironmentMap(const char* filepath)
     ImageDataFloat img = Image_LoadFloat(filepath, true);
     if (!img.pixels)
     {
-        Log_Error("Failed to load HDR environment map: %s", filepath);
+        Log_Error("ERROR: Failed to load HDR environment map: %s", filepath);
         return NULL;
     }
 

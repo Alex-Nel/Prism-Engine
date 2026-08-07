@@ -24,7 +24,6 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
         Log_Error("Window failed to initialize.\n");
         return false;
     }
-    Log_Info("Window Initialized");
 
     // Get the Procedure address if OpenGL is used
     void* proc_addr;
@@ -42,7 +41,6 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
         return false;
     }
     engine.renderer = renderer;
-    Log_Info("Renderer Initialized");
 
     // Initialize default renderer settings
     RendererSettings default_settings = {
@@ -55,18 +53,19 @@ bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t windo
     // Set renderer clear color to pure white
     Engine_SetClearColor(0.8f, 0.8f, 0.8f, 1.0f);
 
-    engine.is_running = true;
-    engine.accumulator = 0.0f;
+    // Initialize UI
+    UI_Init();
+    UI_SetClipboardCallbacks(Platform_SetClipboardText, Platform_GetClipboardText, Platform_FreeClipboardText);
+    Render_UIinit(engine.renderer, UI_GetContext());
 
-    // Core moduels init
+    // Core modules init
     Input_Init();
     Audio_Init();
     Asset_Init(renderer);
     Time_Init(engine.target_fps, Platform_GetTime, Platform_Delay);
 
-    UI_Init();
-    UI_SetClipboardCallbacks(Platform_SetClipboardText, Platform_GetClipboardText, Platform_FreeClipboardText);
-    Render_UIinit(engine.renderer, UI_GetContext());
+    engine.is_running = true;
+    engine.accumulator = 0.0f;
 
     return true;
 }
