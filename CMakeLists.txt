@@ -120,7 +120,7 @@ file(GLOB_RECURSE ENGINE_SRCS
     "scene/*.c" "scene/*.cpp"
     "assets/*.c" "assets/*.cpp"
     "include/glad/*.c"
-    "Prism.c"
+    "runtime/*.c"
 )
 
 # 2. The Public API Implementation (C++ headers)
