@@ -1,6 +1,6 @@
 #include "../../core/log_core.h"
 #include "../../core/ui_core.h"
-#include "../../include/glad/glad.h"
+#include "../../external/glad/glad.h"
 #include "../render.h"
 
 #define NK_INCLUDE_FIXED_TYPES
@@ -10,7 +10,7 @@
 #define NK_INCLUDE_VERTEX_BUFFER_OUTPUT
 #define NK_INCLUDE_FONT_BAKING
 #define NK_INCLUDE_DEFAULT_FONT
-#include "../../include/nuklear.h"
+#include "../../external/nuklear.h"
 
 #include <stddef.h>
 #include <stdlib.h>

@@ -4,7 +4,7 @@
 #include <string.h>
 
 #define MINIAUDIO_IMPLEMENTATION
-#include "../include/miniaudio.h"
+#include "../external/miniaudio.h"
 
 
 

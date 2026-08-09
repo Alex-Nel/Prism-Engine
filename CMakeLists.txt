@@ -119,7 +119,7 @@ file(GLOB_RECURSE ENGINE_SRCS
     "render/headless/*.c" "render/headless/*.cpp"
     "scene/*.c" "scene/*.cpp"
     "assets/*.c" "assets/*.cpp"
-    "include/glad/*.c"
+    "external/glad/*.c"
     "runtime/*.c"
 )
 
@@ -147,10 +147,10 @@ target_include_directories(PrismEngineLib PUBLIC
 
 # PRIVATE: These are needed to compile, but they're blocked from the user.
 target_include_directories(PrismEngineLib PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}         # Allows api source to include needed headers
-    ${CMAKE_CURRENT_SOURCE_DIR}/include # Hides internal vendor headers (glad, stb)
-    ${box3d_SOURCE_DIR}/src             # Hides physics library
-    ${cjson_SOURCE_DIR}                 # Hides JSON library
+    ${CMAKE_CURRENT_SOURCE_DIR}          # Allows api source to include needed headers
+    ${CMAKE_CURRENT_SOURCE_DIR}/external # Hides internal vendor headers (glad, stb)
+    ${box3d_SOURCE_DIR}/src              # Hides physics library
+    ${cjson_SOURCE_DIR}                  # Hides JSON library
 )
 
 # PRIVATE: The engine uses these libraries natively.
