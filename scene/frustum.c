@@ -1,4 +1,4 @@
-#include "engine_runtime.h"
+#include "frustum.h"
 
 
 
@@ -133,70 +133,6 @@ bool Frustum_ContainsAABB(Frustum* frustum, AABB local_aabb, Matrix4 world_matri
 
 
 
-// TODO - Deprecated function (Could be useful for something else)
-// Builds a texel-snapped light-space matrix that fully contains the eight frustum corners of one cascade slice
-void ComputeCascadeLightMatrix(const Vector3 corners[8], Vector3 light_dir, Vector3 up, float light_distance, Matrix4* out_light_space, float* out_texel_world_size)
-{
-    Vector3 center = {0.0f, 0.0f, 0.0f};
-    for (int k = 0; k < 8; k++)
-    {
-        center.x += corners[k].x;
-        center.y += corners[k].y;
-        center.z += corners[k].z;
-    }
-    center.x *= 0.125f;
-    center.y *= 0.125f;
-    center.z *= 0.125f;
-
-    Vector3 light_pos = {
-        center.x - light_dir.x * light_distance,
-        center.y - light_dir.y * light_distance,
-        center.z - light_dir.z * light_distance
-    };
-    Matrix4 light_view = Matrix4LookAt(light_pos, center, up);
-
-    float min_x = FLT_MAX, max_x = -FLT_MAX;
-    float min_y = FLT_MAX, max_y = -FLT_MAX;
-
-    for (int k = 0; k < 8; k++)
-    {
-        Vector4 ls = Matrix4MultiplyVector4(light_view, (Vector4){corners[k].x, corners[k].y, corners[k].z, 1.0f});
-        if (ls.x < min_x) min_x = ls.x;
-        if (ls.x > max_x) max_x = ls.x;
-        if (ls.y < min_y) min_y = ls.y;
-        if (ls.y > max_y) max_y = ls.y;
-    }
-
-    // float texel_world_size = fmaxf(max_x - min_x, max_y - min_y) / (float)SHADOW_MAP_RESOLUTION;
-    // RendererSettings cur_settings = Render_GetSettings(engine.renderer);
-    RendererSettings cur_settings = {0};
-    float cur_shadow_res = (float)(cur_settings.shadow_map_resolution > 0 ? cur_settings.shadow_map_resolution : SHADOW_MAP_RESOLUTION);
-    float texel_world_size = fmaxf(max_x - min_x, max_y - min_y) / cur_shadow_res;
-    if (texel_world_size <= 0.0f)
-        texel_world_size = 0.001f;
-
-    // Snap XY bounds outward to whole texels so shadows stay stable when the camera moves.
-    min_x = floorf(min_x / texel_world_size) * texel_world_size;
-    min_y = floorf(min_y / texel_world_size) * texel_world_size;
-    max_x = ceilf(max_x / texel_world_size) * texel_world_size;
-    max_y = ceilf(max_y / texel_world_size) * texel_world_size;
-
-    // Pull visible geometry away from the shadow-map UV edges (reduces PCF border leaks).
-    float edge_margin = texel_world_size * 4.0f;
-    min_x -= edge_margin;
-    min_y -= edge_margin;
-    max_x += edge_margin;
-    max_y += edge_margin;
-
-    Matrix4 light_proj = Matrix4Ortho(min_x, max_x, min_y, max_y, 0.1f, 2.0f * light_distance);
-    *out_light_space = Matrix4Multiply(light_proj, light_view);
-    *out_texel_world_size = texel_world_size;
-}
-
-
-
-
-
 // Builds the eight world-space corners of a camera frustum slice.
 void BuildFrustumSliceCorners(Vector3 cam_pos, Vector3 cam_fwd, Vector3 cam_right, Vector3 cam_up, float aspect, float tan_half, float split_near, float split_far, Vector3 corners[8])
 {
@@ -241,3 +177,70 @@ void BuildFrustumSliceCorners(Vector3 cam_pos, Vector3 cam_fwd, Vector3 cam_righ
                             far_center.y - cam_right.y * far_w + cam_up.y * far_h,
                             far_center.z - cam_right.z * far_w + cam_up.z * far_h };
 }
+
+
+
+
+
+// TODO - Deprecated function (Could be useful for something else)
+// Builds a texel-snapped light-space matrix that fully contains the eight frustum corners of one cascade slice
+// void ComputeCascadeLightMatrix(const Vector3 corners[8], Vector3 light_dir, Vector3 up, float light_distance, Matrix4* out_light_space, float* out_texel_world_size)
+// {
+//     Vector3 center = {0.0f, 0.0f, 0.0f};
+//     for (int k = 0; k < 8; k++)
+//     {
+//         center.x += corners[k].x;
+//         center.y += corners[k].y;
+//         center.z += corners[k].z;
+//     }
+//     center.x *= 0.125f;
+//     center.y *= 0.125f;
+//     center.z *= 0.125f;
+
+//     Vector3 light_pos = {
+//         center.x - light_dir.x * light_distance,
+//         center.y - light_dir.y * light_distance,
+//         center.z - light_dir.z * light_distance
+//     };
+//     Matrix4 light_view = Matrix4LookAt(light_pos, center, up);
+
+//     float min_x = FLT_MAX, max_x = -FLT_MAX;
+//     float min_y = FLT_MAX, max_y = -FLT_MAX;
+
+//     for (int k = 0; k < 8; k++)
+//     {
+//         Vector4 ls = Matrix4MultiplyVector4(light_view, (Vector4){corners[k].x, corners[k].y, corners[k].z, 1.0f});
+//         if (ls.x < min_x) min_x = ls.x;
+//         if (ls.x > max_x) max_x = ls.x;
+//         if (ls.y < min_y) min_y = ls.y;
+//         if (ls.y > max_y) max_y = ls.y;
+//     }
+
+//     // float texel_world_size = fmaxf(max_x - min_x, max_y - min_y) / (float)SHADOW_MAP_RESOLUTION;
+//     RendererSettings cur_settings = Render_GetSettings(engine.renderer);
+//     float cur_shadow_res = (float)(cur_settings.shadow_map_resolution > 0 ? cur_settings.shadow_map_resolution : SHADOW_MAP_RESOLUTION);
+//     float texel_world_size = fmaxf(max_x - min_x, max_y - min_y) / cur_shadow_res;
+//     if (texel_world_size <= 0.0f)
+//         texel_world_size = 0.001f;
+
+//     // Snap XY bounds outward to whole texels so shadows stay stable when the camera moves.
+//     min_x = floorf(min_x / texel_world_size) * texel_world_size;
+//     min_y = floorf(min_y / texel_world_size) * texel_world_size;
+//     max_x = ceilf(max_x / texel_world_size) * texel_world_size;
+//     max_y = ceilf(max_y / texel_world_size) * texel_world_size;
+
+//     // Pull visible geometry away from the shadow-map UV edges (reduces PCF border leaks).
+//     float edge_margin = texel_world_size * 4.0f;
+//     min_x -= edge_margin;
+//     min_y -= edge_margin;
+//     max_x += edge_margin;
+//     max_y += edge_margin;
+
+//     Matrix4 light_proj = Matrix4Ortho(min_x, max_x, min_y, max_y, 0.1f, 2.0f * light_distance);
+//     *out_light_space = Matrix4Multiply(light_proj, light_view);
+//     *out_texel_world_size = texel_world_size;
+// }
+
+
+
+

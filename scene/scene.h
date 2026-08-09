@@ -12,6 +12,7 @@
 #include "../audio/audio.h"
 #include "../assets/asset_manager.h"
 #include "physics_bridge.h"
+#include "frustum.h"
 #include "scene_structures.h"
 
 
