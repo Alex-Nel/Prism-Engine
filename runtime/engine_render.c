@@ -1,310 +1,4 @@
-#include "Prism.h"
-#include "core/ui_core.h"
-#include "platform/platform_core.h"
-#include "render/render.h"
-#include <stddef.h>
-#include <stdlib.h>
-
-
-// Internal state
-static PrismEngine engine;
-
-static EngineUpdateCallback g_PreUpdateCallback = NULL;
-
-
-// Initializes all engine systems
-bool Engine_Init(const char* window_title, uint32_t window_width, uint32_t window_height, uint32_t target_fps, GraphicsAPI api)
-{
-    engine.target_fps = target_fps;
-
-    // Platform Init
-    engine.window = Platform_Init(window_title, window_width, window_height, api);
-    if (!engine.window && api != GRAPHICS_API_NONE)
-    {
-        Log_Error("Window failed to initialize.\n");
-        return false;
-    }
-
-    // Get the Procedure address if OpenGL is used
-    void* proc_addr;
-    if (api == GRAPHICS_API_OPENGL)
-        proc_addr = Platform_GetProcAddress;
-    else
-        proc_addr = NULL;
-    
-    // Render Init
-    Renderer* renderer = Render_Init(api, proc_addr, window_width, window_height);
-    if (!renderer)
-    {
-        Platform_Shutdown(engine.window);
-        Log_Error("Renderer failed to initialize.\n");
-        return false;
-    }
-    engine.renderer = renderer;
-
-    // Initialize default renderer settings
-    RendererSettings default_settings = {
-        .enable_ssao = false,
-        .shadow_map_resolution = SHADOW_MAP_RESOLUTION,
-        .gamma = 2.2f
-    };
-    Render_SetSettings(engine.renderer, &default_settings);
-
-    // Set renderer clear color to pure white
-    Engine_SetClearColor(0.8f, 0.8f, 0.8f, 1.0f);
-
-    // Initialize UI
-    UI_Init();
-    UI_SetClipboardCallbacks(Platform_SetClipboardText, Platform_GetClipboardText, Platform_FreeClipboardText);
-    Render_UIinit(engine.renderer, UI_GetContext());
-
-    // Core modules init
-    Input_Init();
-    Audio_Init();
-    Asset_Init(renderer);
-    Time_Init(engine.target_fps, Platform_GetTime, Platform_Delay);
-
-    engine.is_running = true;
-    engine.accumulator = 0.0f;
-
-    return true;
-}
-
-
-
-
-
-// Get a pointer to the main window
-Window* Engine_GetMainWindow()
-{
-    return engine.window;
-}
-
-
-
-
-
-// Get a pointer to the main renderer
-Renderer* Engine_GetRenderer()
-{
-    return engine.renderer;
-}
-
-
-
-
-
-// Sets the custom callback function
-void Engine_SetPreUpdateCallback(EngineUpdateCallback callback)
-{
-    g_PreUpdateCallback = callback;
-}
-
-
-
-
-
-// Updates whether the engine should accept text input or not
-static void Engine_UpdateTextInput()
-{
-    bool wants_text_input = UI_WantsTextInput();
-
-    // The platform already knows if it is accepting text input, so only tell it about changes
-    if (wants_text_input == Platform_IsTextInputActive(engine.window))
-        return;
-
-    if (wants_text_input)
-        Platform_StartTextInput(engine.window);
-    else
-        Platform_StopTextInput(engine.window);
-}
-
-
-
-
-
-// A function to process window events without pausing main loop
-static void Engine_OnModalEvent(void* userdata)
-{
-    Scene* active_scene = (Scene*)userdata;
-    if (!active_scene)
-        return;
-
-    // Force the renderer to update its viewport immediately
-    uint32_t w = Platform_GetWindowWidth(engine.window);
-    uint32_t h = Platform_GetWindowHeight(engine.window);
-    
-    if (w > 0 && h > 0)
-        Render_SetViewport(engine.renderer, 0, 0, w, h);
-
-    // Tick the time to prevent physics/animation explosions when we let go
-    Time_Tick();
-
-    engine.accumulator += Time_DeltaTime();
-
-    float fixed_dt = Time_FixedDeltaTime();
-    while (engine.accumulator >= fixed_dt)
-    {
-        Scene_FixedUpdate(active_scene);
-        engine.accumulator -= fixed_dt;
-    }
-
-    // Update scripts/animations
-    Scene_Update(active_scene);
-
-    Engine_UpdateTextInput();
-
-    // Render and Swap Buffers directly
-    Engine_RenderScene(active_scene);
-    Render_UIRender(engine.renderer, UI_GetContext(), w, h);
-    Platform_SwapBuffers(engine.window);
-}
-
-
-
-
-
-// Runs the engine, updates and renders the scene
-void Engine_Run(Scene* active_scene)
-{
-    if (!active_scene)
-    {
-        Log_Error("Cannot run engine without an active scene");
-        return;
-    }
-
-    Platform_SetEventWatchCallback(Engine_OnModalEvent, active_scene);
-
-    Log_Info("Running Scene");
-
-    engine.accumulator = 0.0f;
-
-    while (engine.is_running)
-    {
-        // Advance the engine clock
-        Time_Tick();
-
-        engine.accumulator += Time_DeltaTime();
-
-        UI_InputBegin();
-        
-        // Poll through events
-        Event e;
-        while (Platform_PollEvents(&e))
-        {
-            bool ui_handled = false;
-            if (!Engine_IsMouseCaptured())
-                ui_handled = UI_ProcessEvent(&e);
-
-            if (!ui_handled)
-                Input_ProcessEvent(&e);
-            
-            if (e.type == EVENT_WINDOW_CLOSE)
-            {
-                engine.is_running = false;
-            }
-            else if (e.type == EVENT_WINDOW_RESIZE)
-            {
-                Render_SetViewport(engine.renderer, 0, 0, e.window_resize.width, e.window_resize.height);
-                Platform_SetWindowSize(engine.window, e.window_resize.width, e.window_resize.height);
-            }
-        }
-
-        UI_InputEnd();
-
-        // If the API registered a custom callback, call it
-        if (g_PreUpdateCallback != NULL)
-            g_PreUpdateCallback();
-
-        // Update accumulator and fixed updates
-        float fixed_dt = Time_FixedDeltaTime();
-        while (engine.accumulator >= fixed_dt)
-        {
-            Scene_FixedUpdate(active_scene);
-            engine.accumulator -= fixed_dt;
-        }
-
-        // Update scene and physics
-        Scene_Update(active_scene);
-
-        Engine_UpdateTextInput();
-
-        // Render scene
-        Engine_RenderScene(active_scene);
-
-        // Render UI
-        Render_UIRender(engine.renderer, UI_GetContext(), Platform_GetWindowWidth(engine.window), Platform_GetWindowHeight(engine.window));
-
-        // Process destroy queue
-        Scene_ProcessDestroyQueue(active_scene);
-        
-        // Swap Buffers & Reset Input arrays
-        Engine_EndFrame(); 
-    }
-}
-
-
-
-
-
-// *Deprecated* - Use Engine_Run instead
-// Continues running the engine. Returns true if it's still running
-bool Engine_IsRunning()
-{
-    if (!engine.is_running) return false;
-
-    // Advance the engine clock
-    Time_Tick();
-
-    // Event Routing Loop
-    Event e;
-    while (Platform_PollEvents(&e))
-    {
-        // Feed the input manager
-        Input_ProcessEvent(&e);
-
-        // Route structural events to other modules
-        switch (e.type)
-        {
-            case EVENT_WINDOW_CLOSE:
-                engine.is_running = false;
-                break;
-                
-            case EVENT_WINDOW_RESIZE:
-                Render_SetViewport(engine.renderer, 0, 0, e.window_resize.width, e.window_resize.height);
-                Platform_SetWindowSize(engine.window, e.window_resize.width, e.window_resize.height);
-                Log_Info("Window resized to: %d, %d\n", e.window_resize.width, e.window_resize.height);
-                break;
-                
-            default:
-                break;
-        }
-    }
-
-    return engine.is_running;
-}
-
-
-
-
-
-// Sets the clear color of the renderer
-void Engine_SetClearColor(float red, float green, float blue, float alpha)
-{
-    Render_SetClearColor(engine.renderer, red, green, blue, alpha);
-}
-
-
-
-
-
-
-
-
-
-
-
-
+#include "engine_runtime.h"
 
 
 
@@ -335,7 +29,7 @@ static int CompareProbePriority(const void* a, const void* b)
 
 
 // Gathers all the lights in a scene and puts them in a render packet
-void Engine_GatherSceneLights(Scene* scene, RenderPacket* packet, DirectionalLightData* dir_lights, PointLightData* point_lights, SpotLightData* spot_lights)
+void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderPacket* packet, DirectionalLightData* dir_lights, PointLightData* point_lights, SpotLightData* spot_lights)
 {
     uint32_t dir_count = 0, point_count = 0, spot_count = 0;
     uint32_t light_mask = COMPONENT_TRANSFORM | COMPONENT_LIGHT;
@@ -405,8 +99,13 @@ void Engine_GatherSceneLights(Scene* scene, RenderPacket* packet, DirectionalLig
 
 
 
+
+
+
+
+
 // Gathers active local IBL probes as value data. Capture results are copied back explicitly after rendering
-void Engine_GatherReflectionProbes(Scene* scene, RenderPacket* packet, ReflectionProbeData* probes)
+void Engine_GatherReflectionProbes(PrismEngine* engine, Scene* scene, RenderPacket* packet, ReflectionProbeData* probes)
 {
     uint32_t count = 0;
     const uint32_t required_mask = COMPONENT_TRANSFORM | COMPONENT_REFLECTION_PROBE;
@@ -487,8 +186,13 @@ void Engine_GatherReflectionProbes(Scene* scene, RenderPacket* packet, Reflectio
 
 
 
+
+
+
+
+
 // Applies reflection probe changes from the renderer back to the components
-void Engine_ApplyReflectionProbeResults(Scene* scene, const ReflectionProbeData* probes, uint32_t probe_count)
+void Engine_ApplyReflectionProbeResults(PrismEngine* engine, Scene* scene, const ReflectionProbeData* probes, uint32_t probe_count)
 {
     for (uint32_t i = 0; i < probe_count; i++)
     {
@@ -507,8 +211,13 @@ void Engine_ApplyReflectionProbeResults(Scene* scene, const ReflectionProbeData*
 
 
 
+
+
+
+
+
 // Executes the shadow pass of the rendering pipeline with a rendering packet
-void Engine_ExecuteShadowPass(Scene* scene, RenderPacket* packet)
+void Engine_ExecuteShadowPass(PrismEngine* engine, Scene* scene, RenderPacket* packet)
 {
     DirectionalLightData* shadow_light = &packet->dir_lights[0];
     Vector3 light_dir = shadow_light->direction;
@@ -561,7 +270,7 @@ void Engine_ExecuteShadowPass(Scene* scene, RenderPacket* packet)
             cam_pos.y + cam_fwd.y * shadow_box_size * 0.5f,
             cam_pos.z + cam_fwd.z * shadow_box_size * 0.5f
         };
-        RendererSettings cur_settings = Render_GetSettings(engine.renderer);
+        RendererSettings cur_settings = Render_GetSettings(engine->renderer);
         float cur_shadow_res = (float)SHADOW_MAP_RESOLUTION;
         if (cur_settings.shadow_map_resolution > 0)
             cur_shadow_res = (float)cur_settings.shadow_map_resolution;
@@ -679,7 +388,7 @@ void Engine_ExecuteShadowPass(Scene* scene, RenderPacket* packet)
             radius = ceilf(radius / 16.0f) * 16.0f;
             
             float shadow_box_size = radius; 
-            RendererSettings cur_settings = Render_GetSettings(engine.renderer);
+            RendererSettings cur_settings = Render_GetSettings(engine->renderer);
             float cur_shadow_res = (float)SHADOW_MAP_RESOLUTION;
             if (cur_settings.shadow_map_resolution > 0)
                 cur_shadow_res = (float)cur_settings.shadow_map_resolution;
@@ -714,7 +423,7 @@ void Engine_ExecuteShadowPass(Scene* scene, RenderPacket* packet)
     }
 
     // Begin Shadow Pass
-    Render_BeginShadowPass(engine.renderer, packet);
+    Render_BeginShadowPass(engine->renderer, packet);
 
     float cull_dist = shadow_light->shadow_max_distance + 50.0f; 
     float cull_dist_sq = cull_dist * cull_dist;
@@ -739,7 +448,7 @@ void Engine_ExecuteShadowPass(Scene* scene, RenderPacket* packet)
         if ((dx*dx + dy*dy + dz*dz) > cull_dist_sq)
             continue; // Too far to cast a visible shadow
 
-        Render_Submit(engine.renderer, rc->mesh->gpu_handle, DEFAULT_SHADER,
+        Render_Submit(engine->renderer, rc->mesh->gpu_handle, DEFAULT_SHADER,
                       DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE,
                       (MaterialProperties){0}, t->world_matrix, NULL,
                       false, 0.0f, rc->casts_shadows, rc->receives_shadows, false);
@@ -774,21 +483,26 @@ void Engine_ExecuteShadowPass(Scene* scene, RenderPacket* packet)
         else if (scene->component_masks[i] & COMPONENT_ANIMATOR)
             bone_ptr = scene->animators[i].final_bone_matrices;
 
-        Render_Submit(engine.renderer, rc->mesh->gpu_handle, DEFAULT_SHADER,
+        Render_Submit(engine->renderer, rc->mesh->gpu_handle, DEFAULT_SHADER,
                       DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE,
                       (MaterialProperties){0}, t->world_matrix, bone_ptr,
                       false, 0.0f, rc->casts_shadows, rc->receives_shadows, false);
     }
 
-    Render_EndShadowPass(engine.renderer);
+    Render_EndShadowPass(engine->renderer);
 }
 
 
 
 
 
+
+
+
+
+
 // Gathers and sorts all cameras in a scene
-uint32_t Engine_GatherAndSortCameras(Scene* scene, ActiveCamera* active_cameras)
+uint32_t Engine_GatherAndSortCameras(PrismEngine* engine, Scene* scene, ActiveCamera* active_cameras)
 {
     uint32_t camera_count = 0;
     uint32_t cam_mask = COMPONENT_TRANSFORM | COMPONENT_CAMERA;
@@ -815,8 +529,13 @@ uint32_t Engine_GatherAndSortCameras(Scene* scene, ActiveCamera* active_cameras)
 
 
 
+
+
+
+
+
 // Submits all visible geometry to the renderer
-void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 cam_pos, uint32_t culling_masks)
+void Engine_SubmitVisibleGeometry(PrismEngine* engine, Scene* scene, Frustum* cam_frustum, Vector3 cam_pos, uint32_t culling_masks)
 {
     // --- Static Meshes ---
     uint32_t req_mesh_mask = COMPONENT_TRANSFORM | COMPONENT_MESH_RENDERER;
@@ -846,7 +565,7 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
         // Ensure only static geometry gets included in probe captures (i.e. no physics, animations or custom scripts)
         bool include_in_probe_capture = (scene->component_masks[i] & (COMPONENT_RIGIDBODY | COMPONENT_SCRIPT | COMPONENT_ANIMATOR)) == 0;
 
-        Render_Submit(engine.renderer, rc->mesh->gpu_handle, shader,
+        Render_Submit(engine->renderer, rc->mesh->gpu_handle, shader,
                       albedo, normal, metallic, roughness, ao, rc->material->properties,
                       t->world_matrix, NULL, false, 0.0f, rc->casts_shadows, rc->receives_shadows, include_in_probe_capture);
     }
@@ -886,7 +605,7 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
         TextureHandle roughness = rc->material->roughness_map ? rc->material->roughness_map->gpu_handle : (TextureHandle){0};
         TextureHandle ao = rc->material->ao_map ? rc->material->ao_map->gpu_handle : (TextureHandle){0};
         
-        Render_Submit(engine.renderer, rc->mesh->gpu_handle, shader,
+        Render_Submit(engine->renderer, rc->mesh->gpu_handle, shader,
                       albedo, normal, metallic, roughness, ao, rc->material->properties,
                       t->world_matrix, bone_ptr, false, 0.0f, rc->casts_shadows, rc->receives_shadows, false);
     }
@@ -917,7 +636,7 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
         TextureHandle roughness = line->material->roughness_map ? line->material->roughness_map->gpu_handle : (TextureHandle){0};
         TextureHandle ao = line->material->ao_map ? line->material->ao_map->gpu_handle : (TextureHandle){0};
 
-        Render_Submit(engine.renderer, line->dynamic_mesh->gpu_handle, shader,
+        Render_Submit(engine->renderer, line->dynamic_mesh->gpu_handle, shader,
                       albedo, normal, metallic, roughness, ao,
                       local_props, Matrix4Identity(), NULL, false, 0.0f, false, false, false);
     }
@@ -962,7 +681,7 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
         TextureHandle roughness = sprite->material->roughness_map ? sprite->material->roughness_map->gpu_handle : (TextureHandle){0};
         TextureHandle ao = sprite->material->ao_map ? sprite->material->ao_map->gpu_handle : (TextureHandle){0};
 
-        Render_Submit(engine.renderer, sprite->quad->gpu_handle, shader,
+        Render_Submit(engine->renderer, sprite->quad->gpu_handle, shader,
                       albedo, normal, metallic, roughness, ao,
                       local_props, final_sprite_matrix, NULL, true, dist_sq, false, false, false);
     }
@@ -972,14 +691,19 @@ void Engine_SubmitVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 ca
 
 
 
+
+
+
+
+
 // Renders a specified scene
-void Engine_RenderScene(Scene* scene)
+void Engine_RenderScene(PrismEngine* engine, Scene* scene)
 {
     if (!scene)
         return;
 
-    uint32_t win_w = Platform_GetWindowWidth(engine.window);
-    uint32_t win_h = Platform_GetWindowHeight(engine.window);
+    uint32_t win_w = Platform_GetWindowWidth(engine->window);
+    uint32_t win_h = Platform_GetWindowHeight(engine->window);
 
     CameraComponent* cam = &scene->cameras[scene->main_camera_id];
     if (win_w > 0 && win_h > 0)
@@ -992,7 +716,7 @@ void Engine_RenderScene(Scene* scene)
 
     // Make an empty render packet to send to the renderer
     RenderPacket packet = {0};
-    RendererSettings cur_settings = Render_GetSettings(engine.renderer);
+    RendererSettings cur_settings = Render_GetSettings(engine->renderer);
     packet.enable_ssao = cur_settings.enable_ssao;
     packet.global_ambient_color = scene->ambient_color;
     packet.global_ambient_illumination = scene->ambient_illumination;
@@ -1018,8 +742,8 @@ void Engine_RenderScene(Scene* scene)
 
 
     // Fille the packet with all the lights in the scene
-    Engine_GatherSceneLights(scene, &packet, active_dir_lights, active_point_lights, active_spot_lights);
-    Engine_GatherReflectionProbes(scene, &packet, active_reflection_probes);
+    Engine_GatherSceneLights(engine, scene, &packet, active_dir_lights, active_point_lights, active_spot_lights);
+    Engine_GatherReflectionProbes(engine, scene, &packet, active_reflection_probes);
     
     bool probe_capture_requested = false;
     for (uint32_t i = 0; i < packet.reflection_probe_count; i++)
@@ -1033,12 +757,12 @@ void Engine_RenderScene(Scene* scene)
 
     // If there are directional lights, render all shadows
     if (packet.dir_light_count > 0)
-        Engine_ExecuteShadowPass(scene, &packet);
+        Engine_ExecuteShadowPass(engine, scene, &packet);
     
 
     // Gather and sort cameras
     ActiveCamera active_cameras[MAX_ENTITIES];
-    uint32_t camera_count = Engine_GatherAndSortCameras(scene, active_cameras);
+    uint32_t camera_count = Engine_GatherAndSortCameras(engine, scene, active_cameras);
 
 
     // Execute render pass per camera
@@ -1061,12 +785,12 @@ void Engine_RenderScene(Scene* scene)
         if (cam_comp->clear_flags == CLEAR_COLOR_AND_DEPTH)
         {
             Color bg = scene->background_color;
-            Render_SetClearColor(engine.renderer, bg.r, bg.g, bg.b, bg.a);
-            Render_Clear(engine.renderer);
+            Render_SetClearColor(engine->renderer, bg.r, bg.g, bg.b, bg.a);
+            Render_Clear(engine->renderer);
         }
         else if (cam_comp->clear_flags == CLEAR_DEPTH_ONLY)
         {
-            Render_ClearDepth(engine.renderer);
+            Render_ClearDepth(engine->renderer);
         }
 
         // Setup Camera Matrices
@@ -1083,358 +807,14 @@ void Engine_RenderScene(Scene* scene)
         Frustum cam_frustum = Frustum_ExtractFromMatrix(view_proj);
 
         // Begin Forward Pass
-        Render_BeginFrame(engine.renderer, &packet);
+        Render_BeginFrame(engine->renderer, &packet);
 
         // Submit all visible geometry
-        Engine_SubmitVisibleGeometry(scene, probe_capture_requested ? NULL : &cam_frustum, global_pos, cam_comp->culling_masks);
+        Engine_SubmitVisibleGeometry(engine, scene, probe_capture_requested ? NULL : &cam_frustum, global_pos, cam_comp->culling_masks);
 
         // End Forward Pass
-        Render_EndFrame(engine.renderer);
-        Engine_ApplyReflectionProbeResults(scene, active_reflection_probes, packet.reflection_probe_count);
+        Render_EndFrame(engine->renderer);
+        Engine_ApplyReflectionProbeResults(engine, scene, active_reflection_probes, packet.reflection_probe_count);
         probe_capture_requested = false;
     }
-}
-
-
-
-
-
-// Renders the frame, swaps the buffers and updates the input
-void Engine_EndFrame()
-{
-    if (!engine.is_running)
-        return;
-
-    // Swap the OS window buffers to display the new frame
-    Platform_SwapBuffers(engine.window);
-
-    // Cycle the input arrays for the next frame
-    Input_Update();
-}
-
-
-
-
-
-// Shuts down the renderer and platform
-void Engine_Shutdown()
-{
-    UI_Shutdown();
-    Audio_Shutdown();
-    Render_UIShutdown(engine.renderer);
-    Render_Shutdown(engine.renderer);
-    if (engine.window)
-    {
-        Platform_Shutdown(engine.window);
-    }
-}
-
-
-
-
-
-
-
-
-
-
-// Captures the mouse to the window
-void Engine_CaptureMouse()
-{
-    Platform_SetRelativeMouseMode(engine.window, true);
-}
-
-
-
-
-
-// Releases the mouse from the window
-void Engine_ReleaseMouse()
-{
-    Platform_SetRelativeMouseMode(engine.window, false);
-    Platform_WarpMouseToMiddle(engine.window);
-}
-
-
-
-
-
-// Returns if the mouse is captured
-bool Engine_IsMouseCaptured()
-{
-    return Platform_IsMouseCaptured(engine.window);
-}
-
-
-
-
-
-
-
-
-
-// Sets the engines target FPS
-void Engine_SetTargetFPS(uint32_t fps)
-{
-    engine.target_fps = fps;
-    Time_SetTargetFPS(fps);
-}
-
-
-// Returns the current target FPS
-uint32_t Engine_GetTargetFPS()
-{
-    return Time_GetTargetFPS();
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// --- Frustum Function ---
-
-
-
-// Normalizes the plane equation so the normal has a length of 1
-static inline void NormalizePlane(FrustumPlane* p) 
-{
-    float length = sqrtf(p->normal.x * p->normal.x + p->normal.y * p->normal.y + p->normal.z * p->normal.z);
-    
-    if (length > 0.0001f)
-    {
-        p->normal.x /= length;
-        p->normal.y /= length;
-        p->normal.z /= length;
-        p->distance /= length;
-    }
-}
-
-
-
-
-
-// Extracts the 6 planes from a view-projection matrix
-Frustum Frustum_ExtractFromMatrix(Matrix4 vp)
-{
-    Frustum f;
-
-    // Left Plane (Row 3 + Row 0)
-    f.planes[0].normal.x = vp.m30 + vp.m00;
-    f.planes[0].normal.y = vp.m31 + vp.m01;
-    f.planes[0].normal.z = vp.m32 + vp.m02;
-    f.planes[0].distance = vp.m33 + vp.m03;
-
-    // Right Plane (Column 3 - Row 0)
-    f.planes[1].normal.x = vp.m30 - vp.m00;
-    f.planes[1].normal.y = vp.m31 - vp.m01;
-    f.planes[1].normal.z = vp.m32 - vp.m02;
-    f.planes[1].distance = vp.m33 - vp.m03;
-
-    // Bottom Plane (Row 3 + Row 1)
-    f.planes[2].normal.x = vp.m30 + vp.m10;
-    f.planes[2].normal.y = vp.m31 + vp.m11;
-    f.planes[2].normal.z = vp.m32 + vp.m12;
-    f.planes[2].distance = vp.m33 + vp.m13;
-
-    // Top Plane (Row 3 - Row 1)
-    f.planes[3].normal.x = vp.m30 - vp.m10;
-    f.planes[3].normal.y = vp.m31 - vp.m11;
-    f.planes[3].normal.z = vp.m32 - vp.m12;
-    f.planes[3].distance = vp.m33 - vp.m13;
-
-    // Near Plane (Row 3 + Row 2)
-    f.planes[4].normal.x = vp.m30 + vp.m20;
-    f.planes[4].normal.y = vp.m31 + vp.m21;
-    f.planes[4].normal.z = vp.m32 + vp.m22;
-    f.planes[4].distance = vp.m33 + vp.m23;
-
-    // Far Plane (Row 3 - Row 2)
-    f.planes[5].normal.x = vp.m30 - vp.m20;
-    f.planes[5].normal.y = vp.m31 - vp.m21;
-    f.planes[5].normal.z = vp.m32 - vp.m22;
-    f.planes[5].distance = vp.m33 - vp.m23;
-
-    // Normalize all planes
-    for (int i = 0; i < 6; i++)
-        NormalizePlane(&f.planes[i]);
-
-    return f;
-}
-
-
-
-
-
-// Checks if a sphere is inside the frustum
-bool Frustum_ContainsAABB(Frustum* frustum, AABB local_aabb, Matrix4 world_matrix)
-{
-    // Calculate local center and extents (half-sizes)
-    Vector3 center_local = {
-        (local_aabb.max.x + local_aabb.min.x) * 0.5f,
-        (local_aabb.max.y + local_aabb.min.y) * 0.5f,
-        (local_aabb.max.z + local_aabb.min.z) * 0.5f
-    };
-
-    Vector3 extents_local = {
-        (local_aabb.max.x - local_aabb.min.x) * 0.5f,
-        (local_aabb.max.y - local_aabb.min.y) * 0.5f,
-        (local_aabb.max.z - local_aabb.min.z) * 0.5f
-    };
-
-    // Transform the local center into a global center
-    Vector3 center_world;
-    center_world.x = world_matrix.m00 * center_local.x + world_matrix.m01 * center_local.y + world_matrix.m02 * center_local.z + world_matrix.m03;
-    center_world.y = world_matrix.m10 * center_local.x + world_matrix.m11 * center_local.y + world_matrix.m12 * center_local.z + world_matrix.m13;
-    center_world.z = world_matrix.m20 * center_local.x + world_matrix.m21 * center_local.y + world_matrix.m22 * center_local.z + world_matrix.m23;
-
-    // Transform the local extents into global extents (Uses absolute rotation/scale values)
-    Vector3 extents_world;
-    extents_world.x = fabsf(world_matrix.m00) * extents_local.x + fabsf(world_matrix.m01) * extents_local.y + fabsf(world_matrix.m02) * extents_local.z;
-    extents_world.y = fabsf(world_matrix.m10) * extents_local.x + fabsf(world_matrix.m11) * extents_local.y + fabsf(world_matrix.m12) * extents_local.z;
-    extents_world.z = fabsf(world_matrix.m20) * extents_local.x + fabsf(world_matrix.m21) * extents_local.y + fabsf(world_matrix.m22) * extents_local.z;
-
-    // Test the generated World AABB against the 6 planes
-    for (int i = 0; i < 6; i++) 
-    {
-        FrustumPlane plane = frustum->planes[i];
-
-        // Compute the "radius" of the AABB along this specific plane's normal
-        float r = extents_world.x * fabsf(plane.normal.x) +
-                  extents_world.y * fabsf(plane.normal.y) +
-                  extents_world.z * fabsf(plane.normal.z);
-
-        // Compute distance from the center of the AABB to the plane
-        float d = plane.normal.x * center_world.x +
-                  plane.normal.y * center_world.y +
-                  plane.normal.z * center_world.z +
-                  plane.distance;
-
-        // If the distance is less than -r, the box is completely behind the plane
-        if (d < -r)
-            return false;
-    }
-
-    return true; // The box is visible
-}
-
-
-
-
-
-// TODO - Deprecated function (Could be useful for something else)
-// Builds a texel-snapped light-space matrix that fully contains the eight frustum corners of one cascade slice
-void ComputeCascadeLightMatrix(const Vector3 corners[8], Vector3 light_dir, Vector3 up, float light_distance, Matrix4* out_light_space, float* out_texel_world_size)
-{
-    Vector3 center = {0.0f, 0.0f, 0.0f};
-    for (int k = 0; k < 8; k++)
-    {
-        center.x += corners[k].x;
-        center.y += corners[k].y;
-        center.z += corners[k].z;
-    }
-    center.x *= 0.125f;
-    center.y *= 0.125f;
-    center.z *= 0.125f;
-
-    Vector3 light_pos = {
-        center.x - light_dir.x * light_distance,
-        center.y - light_dir.y * light_distance,
-        center.z - light_dir.z * light_distance
-    };
-    Matrix4 light_view = Matrix4LookAt(light_pos, center, up);
-
-    float min_x = FLT_MAX, max_x = -FLT_MAX;
-    float min_y = FLT_MAX, max_y = -FLT_MAX;
-
-    for (int k = 0; k < 8; k++)
-    {
-        Vector4 ls = Matrix4MultiplyVector4(light_view, (Vector4){corners[k].x, corners[k].y, corners[k].z, 1.0f});
-        if (ls.x < min_x) min_x = ls.x;
-        if (ls.x > max_x) max_x = ls.x;
-        if (ls.y < min_y) min_y = ls.y;
-        if (ls.y > max_y) max_y = ls.y;
-    }
-
-    // float texel_world_size = fmaxf(max_x - min_x, max_y - min_y) / (float)SHADOW_MAP_RESOLUTION;
-    RendererSettings cur_settings = Render_GetSettings(engine.renderer);
-    float cur_shadow_res = (float)(cur_settings.shadow_map_resolution > 0 ? cur_settings.shadow_map_resolution : SHADOW_MAP_RESOLUTION);
-    float texel_world_size = fmaxf(max_x - min_x, max_y - min_y) / cur_shadow_res;
-    if (texel_world_size <= 0.0f)
-        texel_world_size = 0.001f;
-
-    // Snap XY bounds outward to whole texels so shadows stay stable when the camera moves.
-    min_x = floorf(min_x / texel_world_size) * texel_world_size;
-    min_y = floorf(min_y / texel_world_size) * texel_world_size;
-    max_x = ceilf(max_x / texel_world_size) * texel_world_size;
-    max_y = ceilf(max_y / texel_world_size) * texel_world_size;
-
-    // Pull visible geometry away from the shadow-map UV edges (reduces PCF border leaks).
-    float edge_margin = texel_world_size * 4.0f;
-    min_x -= edge_margin;
-    min_y -= edge_margin;
-    max_x += edge_margin;
-    max_y += edge_margin;
-
-    Matrix4 light_proj = Matrix4Ortho(min_x, max_x, min_y, max_y, 0.1f, 2.0f * light_distance);
-    *out_light_space = Matrix4Multiply(light_proj, light_view);
-    *out_texel_world_size = texel_world_size;
-}
-
-
-
-
-
-// Builds the eight world-space corners of a camera frustum slice.
-void BuildFrustumSliceCorners(Vector3 cam_pos, Vector3 cam_fwd, Vector3 cam_right, Vector3 cam_up, float aspect, float tan_half, float split_near, float split_far, Vector3 corners[8])
-{
-    float near_h = split_near * tan_half;
-    float near_w = near_h * aspect;
-    float far_h = split_far * tan_half;
-    float far_w = far_h * aspect;
-
-    Vector3 near_center = {
-        cam_pos.x + cam_fwd.x * split_near,
-        cam_pos.y + cam_fwd.y * split_near,
-        cam_pos.z + cam_fwd.z * split_near
-    };
-    Vector3 far_center = {
-        cam_pos.x + cam_fwd.x * split_far,
-        cam_pos.y + cam_fwd.y * split_far,
-        cam_pos.z + cam_fwd.z * split_far
-    };
-
-    corners[0] = (Vector3){ near_center.x - cam_right.x * near_w - cam_up.x * near_h,
-                            near_center.y - cam_right.y * near_w - cam_up.y * near_h,
-                            near_center.z - cam_right.z * near_w - cam_up.z * near_h };
-    corners[1] = (Vector3){ near_center.x + cam_right.x * near_w - cam_up.x * near_h,
-                            near_center.y + cam_right.y * near_w - cam_up.y * near_h,
-                            near_center.z + cam_right.z * near_w - cam_up.z * near_h };
-    corners[2] = (Vector3){ near_center.x + cam_right.x * near_w + cam_up.x * near_h,
-                            near_center.y + cam_right.y * near_w + cam_up.y * near_h,
-                            near_center.z + cam_right.z * near_w + cam_up.z * near_h };
-    corners[3] = (Vector3){ near_center.x - cam_right.x * near_w + cam_up.x * near_h,
-                            near_center.y - cam_right.y * near_w + cam_up.y * near_h,
-                            near_center.z - cam_right.z * near_w + cam_up.z * near_h };
-    corners[4] = (Vector3){ far_center.x - cam_right.x * far_w - cam_up.x * far_h,
-                            far_center.y - cam_right.y * far_w - cam_up.y * far_h,
-                            far_center.z - cam_right.z * far_w - cam_up.z * far_h };
-    corners[5] = (Vector3){ far_center.x + cam_right.x * far_w - cam_up.x * far_h,
-                            far_center.y + cam_right.y * far_w - cam_up.y * far_h,
-                            far_center.z + cam_right.z * far_w - cam_up.z * far_h };
-    corners[6] = (Vector3){ far_center.x + cam_right.x * far_w + cam_up.x * far_h,
-                            far_center.y + cam_right.y * far_w + cam_up.y * far_h,
-                            far_center.z + cam_right.z * far_w + cam_up.z * far_h };
-    corners[7] = (Vector3){ far_center.x - cam_right.x * far_w + cam_up.x * far_h,
-                            far_center.y - cam_right.y * far_w + cam_up.y * far_h,
-                            far_center.z - cam_right.z * far_w + cam_up.z * far_h };
 }
