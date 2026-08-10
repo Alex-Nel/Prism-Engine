@@ -328,12 +328,29 @@ namespace Prism
         void SetActive(bool active) { this->is_active = active; }
         bool IsActive() const { return this->is_active; }
 
-
         void SetLayerAndMask(CollisionLayer layer, int mask);
-        void SetBoxExtents(const Prism::Vector3& new_extents);
-        void SetSphereRadius(float new_radius);
-        void SetMeshScale(const Prism::Vector3& new_scale);
         void SetConvex(bool is_convex);
+    };
+
+
+
+    struct PRISM_API BoxColliderComponent : public ColliderComponent
+    {
+        void SetBoxExtents(const Prism::Vector3& new_extents);
+    };
+
+
+
+    struct PRISM_API SphereColliderComponent : public ColliderComponent
+    {
+        void SetSphereRadius(float new_radius);
+    };
+
+
+
+    struct PRISM_API MeshColliderComponent : public ColliderComponent
+    {
+        void SetMeshScale(const Prism::Vector3& new_scale);
     };
 
 

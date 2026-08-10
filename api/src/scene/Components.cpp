@@ -276,40 +276,23 @@ namespace Prism
         ::Collider_SetLayerAndMask(raw_e, static_cast<::CollisionLayer>(layer), mask);
     }
 
-    void ColliderComponent::SetBoxExtents(const Prism::Vector3& new_extents) {
-        if (type != COLLIDER_BOX)
-        {
-            Debug_Warning("Attempted to set box extents on a non-box collider!");
-            return;
-        }
+    void BoxColliderComponent::SetBoxExtents(const Prism::Vector3& new_extents) {
         ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
         ::Collider_SetBoxExtents(raw_e, {new_extents.x, new_extents.y, new_extents.z});
     }
 
-    void ColliderComponent::SetSphereRadius(float new_radius) {
-        if (type != COLLIDER_SPHERE)
-        {
-            Debug_Warning("Attempted to set sphere radius on a non-sphere collider!");
-            return;
-        }
+    void SphereColliderComponent::SetSphereRadius(float new_radius) {
         ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
         ::Collider_SetSphereRadius(raw_e, new_radius);
     }
 
-    void ColliderComponent::SetMeshScale(const Prism::Vector3& new_scale) {
-        if (type != COLLIDER_MESH)
-        {
-            Debug_Warning("Attempted to set mesh scale on a non-mesh collider!");
-            return;
-        }
+    void MeshColliderComponent::SetMeshScale(const Prism::Vector3& new_scale) {
         ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
         ::Collider_SetMeshScale(raw_e, {new_scale.x, new_scale.y, new_scale.z});
     }
 
-    void ColliderComponent::SetConvex(bool is_convex)
-    {
-        if (type != COLLIDER_MESH)
-        {
+    void ColliderComponent::SetConvex(bool is_convex) {
+        if (type != COLLIDER_MESH) {
             Debug_Warning("Only mesh colliders can be convex");
             return;
         }

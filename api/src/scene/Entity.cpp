@@ -645,6 +645,54 @@ namespace Prism
 
 
     // ==========================================
+    // Component Access
+    // ==========================================
+
+    Prism::BoxColliderComponent* Detail::EntityComponentAccess<BoxColliderComponent>::Get(Entity& entity)  {
+        Prism::ColliderComponent* comp = entity.GetCollider();
+        if (comp != nullptr && comp->type == COLLIDER_BOX)
+            return static_cast<BoxColliderComponent*>(comp);
+        return nullptr;
+    }
+
+    Prism::BoxColliderComponent* Detail::EntityComponentAccess<BoxColliderComponent>::Add(Entity& entity) {
+        Prism::ColliderComponent* comp = entity.AddColliderBoxAuto();
+        if (comp != nullptr && comp->type == COLLIDER_BOX)
+            return static_cast<BoxColliderComponent*>(comp);
+        return nullptr;
+    }
+
+    Prism::SphereColliderComponent* Detail::EntityComponentAccess<SphereColliderComponent>::Get(Entity& entity)  {
+        Prism::ColliderComponent* comp = entity.GetCollider();
+        if (comp != nullptr && comp->type == COLLIDER_SPHERE)
+            return static_cast<SphereColliderComponent*>(comp);
+        return nullptr;
+    }
+
+    Prism::SphereColliderComponent* Detail::EntityComponentAccess<SphereColliderComponent>::Add(Entity& entity) {
+        Prism::ColliderComponent* comp = entity.AddColliderBoxAuto();
+        if (comp != nullptr && comp->type == COLLIDER_SPHERE)
+            return static_cast<SphereColliderComponent*>(comp);
+        return nullptr;
+    }
+
+    Prism::MeshColliderComponent* Detail::EntityComponentAccess<MeshColliderComponent>::Get(Entity& entity)  {
+        Prism::ColliderComponent* comp = entity.GetCollider();
+        if (comp != nullptr && comp->type == COLLIDER_MESH)
+            return static_cast<MeshColliderComponent*>(comp);
+        return nullptr;
+    }
+
+    Prism::MeshColliderComponent* Detail::EntityComponentAccess<MeshColliderComponent>::Add(Entity& entity) {
+        Prism::ColliderComponent* comp = entity.AddColliderBoxAuto();
+        if (comp != nullptr && comp->type == COLLIDER_MESH)
+            return static_cast<MeshColliderComponent*>(comp);
+        return nullptr;
+    }
+
+
+
+    // ==========================================
     // Utility
     // ==========================================
     

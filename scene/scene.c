@@ -1034,11 +1034,9 @@ void Scene_SyncPhysicsPreSim(Scene* scene)
             {
                 Vector3 global_pos = Transform_GetGlobalPosition(t);
                 Quaternion global_rot = Transform_GetGlobalRotation(t);
-                Vector3 global_scale = Transform_GetGlobalScale(t);
 
                 Physics_SetBodyPosition(c->physics_handle, global_pos);
                 Physics_SetBodyRotation(c->physics_handle, global_rot);
-                Physics_SetBodyScale(c->physics_handle, global_scale);
 
                 if (is_dynamic)
                     Physics_SetLinearVelocity(c->physics_handle, (Vector3){0,0,0});

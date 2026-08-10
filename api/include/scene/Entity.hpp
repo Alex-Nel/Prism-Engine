@@ -22,6 +22,9 @@ namespace Prism
     struct SkinnedMeshRendererComponent;
     struct RigidbodyComponent;
     struct ColliderComponent;
+    struct BoxColliderComponent;
+    struct SphereColliderComponent;
+    struct MeshColliderComponent;
     struct CameraComponent;
     struct LightComponent;
     struct AudioListenerComponent;
@@ -258,7 +261,7 @@ namespace Prism
     namespace Detail
     {
         template<>
-        struct EntityComponentAccess<Transform>
+        struct PRISM_API EntityComponentAccess<Transform>
         {
             static constexpr bool supported = true;
             static constexpr bool addable = true;
@@ -269,7 +272,7 @@ namespace Prism
         };
 
         template<>
-        struct EntityComponentAccess<MeshRendererComponent>
+        struct PRISM_API EntityComponentAccess<MeshRendererComponent>
         {
             static constexpr bool supported = true;
             static constexpr bool addable = true;
@@ -281,7 +284,7 @@ namespace Prism
         };
 
         template<>
-        struct EntityComponentAccess<SkinnedMeshRendererComponent>
+        struct PRISM_API EntityComponentAccess<SkinnedMeshRendererComponent>
         {
             static constexpr bool supported = true;
             static constexpr bool addable = true;
@@ -293,7 +296,7 @@ namespace Prism
         };
 
         template<>
-        struct EntityComponentAccess<RigidbodyComponent>
+        struct PRISM_API EntityComponentAccess<RigidbodyComponent>
         {
             static constexpr bool supported = true;
             static constexpr bool addable = true;
@@ -305,7 +308,7 @@ namespace Prism
         };
 
         template<>
-        struct EntityComponentAccess<ColliderComponent>
+        struct PRISM_API EntityComponentAccess<ColliderComponent>
         {
             static constexpr bool supported = true;
             static constexpr bool addable = false;
@@ -316,7 +319,43 @@ namespace Prism
         };
 
         template<>
-        struct EntityComponentAccess<CameraComponent>
+        struct PRISM_API EntityComponentAccess<BoxColliderComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = true;
+            static constexpr bool removable = true;
+
+            static BoxColliderComponent* Get(Entity& entity);
+            static BoxColliderComponent* Add(Entity& entity);
+            static void Remove(Entity& entity) { entity.RemoveCollider(); }
+        };
+
+        template<>
+        struct PRISM_API EntityComponentAccess<SphereColliderComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = true;
+            static constexpr bool removable = true;
+
+            static SphereColliderComponent* Get(Entity& entity);
+            static SphereColliderComponent* Add(Entity& entity);
+            static void Remove(Entity& entity) { entity.RemoveCollider(); }
+        };
+
+        template<>
+        struct PRISM_API EntityComponentAccess<MeshColliderComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = true;
+            static constexpr bool removable = true;
+
+            static MeshColliderComponent* Get(Entity& entity);
+            static MeshColliderComponent* Add(Entity& entity);
+            static void Remove(Entity& entity) { entity.RemoveCollider(); }
+        };
+
+        template<>
+        struct PRISM_API EntityComponentAccess<CameraComponent>
         {
             static constexpr bool supported = true;
             static constexpr bool addable = true;
@@ -328,7 +367,7 @@ namespace Prism
         };
 
         template<>
-        struct EntityComponentAccess<LightComponent>
+        struct PRISM_API EntityComponentAccess<LightComponent>
         {
             static constexpr bool supported = true;
             static constexpr bool addable = true;
@@ -340,7 +379,7 @@ namespace Prism
         };
 
         template<>
-        struct EntityComponentAccess<AudioListenerComponent>
+        struct PRISM_API EntityComponentAccess<AudioListenerComponent>
         {
             static constexpr bool supported = true;
             static constexpr bool addable = true;
@@ -352,7 +391,7 @@ namespace Prism
         };
 
         template<>
-        struct EntityComponentAccess<AudioSourceComponent>
+        struct PRISM_API EntityComponentAccess<AudioSourceComponent>
         {
             static constexpr bool supported = true;
             static constexpr bool addable = true;
@@ -364,7 +403,7 @@ namespace Prism
         };
 
         template<>
-        struct EntityComponentAccess<AnimatorComponent>
+        struct PRISM_API EntityComponentAccess<AnimatorComponent>
         {
             static constexpr bool supported = true;
             static constexpr bool addable = true;
@@ -376,7 +415,7 @@ namespace Prism
         };
 
         template<>
-        struct EntityComponentAccess<BoneAttachmentComponent>
+        struct PRISM_API EntityComponentAccess<BoneAttachmentComponent>
         {
             static constexpr bool supported = true;
             static constexpr bool addable = false;
@@ -386,7 +425,7 @@ namespace Prism
         };
 
         template<>
-        struct EntityComponentAccess<LineRendererComponent>
+        struct PRISM_API EntityComponentAccess<LineRendererComponent>
         {
             static constexpr bool supported = true;
             static constexpr bool addable = true;
@@ -398,7 +437,7 @@ namespace Prism
         };
 
         template<>
-        struct EntityComponentAccess<SpriteRendererComponent>
+        struct PRISM_API EntityComponentAccess<SpriteRendererComponent>
         {
             static constexpr bool supported = true;
             static constexpr bool addable = true;
@@ -410,7 +449,7 @@ namespace Prism
         };
 
         template<>
-        struct EntityComponentAccess<ReflectionProbeComponent>
+        struct PRISM_API EntityComponentAccess<ReflectionProbeComponent>
         {
             static constexpr bool supported = true;
             static constexpr bool addable = true;

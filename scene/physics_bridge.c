@@ -1,5 +1,4 @@
 #include "physics_bridge.h"
-#include "box3d/math_functions.h"
 #include <box3d/box3d.h>
 #include <stdlib.h>
 #include <string.h>
@@ -752,11 +751,11 @@ void Physics_SetBodyScale(PhysicsBodyHandle body, Vector3 scale)
 
     w->current_scale = scale;
     b3ShapeId shapeId;
-    if (b3Body_GetShapes(w->bodyId, &shapeId, 1) != 1)
-        return;
 
     if (w->type == COLLIDER_BOX)
     {
+        if (b3Body_GetShapes(w->bodyId, &shapeId, 1) != 1)
+            return;
         Vector3 scaled_extents = (Vector3){ w->base_extents.x * scale.x, w->base_extents.y * scale.y, w->base_extents.z * scale.z };
         b3BoxHull boxHull = b3MakeBoxHull(scaled_extents.x / 2.0f, scaled_extents.y / 2.0f, scaled_extents.z / 2.0f);
         b3Shape_SetHull(shapeId, &boxHull.base);
@@ -764,6 +763,8 @@ void Physics_SetBodyScale(PhysicsBodyHandle body, Vector3 scale)
     }
     else if (w->type == COLLIDER_SPHERE)
     {
+        if (b3Body_GetShapes(w->bodyId, &shapeId, 1) != 1)
+            return;
         float max_s = scale.x > scale.y ? (scale.x > scale.z ? scale.x : scale.z) : (scale.y > scale.z ? scale.y : scale.z);
         b3Sphere sphere = b3Shape_GetSphere(shapeId);
         sphere.radius = w->base_radius * max_s;
@@ -789,6 +790,9 @@ void Physics_SetBodyScale(PhysicsBodyHandle body, Vector3 scale)
     {
         if (w->convex_hull)
         {
+            if (b3Body_GetShapes(w->bodyId, &shapeId, 1) != 1)
+                return;
+
             bool is_sensor = b3Shape_IsSensor(shapeId);
             b3Filter filter = b3Shape_GetFilter(shapeId);
             void* user_data = b3Shape_GetUserData(shapeId);
