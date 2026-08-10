@@ -1,4 +1,4 @@
-# Prism Engine
+<h1 align="center">Prism Engine</h1>
 
 A 3D engine aimed at being minimal, yet comprehensive for real projects. It includes a **data-oriented Entity Component System**, API agnostic renderer, **SDL3** support for windowing and input, **box3d** physics for rigid bodies, raycasts, and collision callbacks, **Open Asset Importer** for asset management, and cJSON for serialization.
 
@@ -8,15 +8,15 @@ A 3D engine aimed at being minimal, yet comprehensive for real projects. It incl
 
 | Feature | Details |
 |------|----------------|
-| **Scene system** | Custom Entity Component System with several built in components. Parent/child hierarchy for transforms; Support for up to **32,768** entities |
-| **Rendering backends** | API-agnostic rendering layer with customizable settings (SSAO, Gamma, etc.). Utilizes a Deferred Renderer. Support for **OpenGL** and Headless mode. |
-| **Materials & meshes** | Supports Physically Based Rendering with custom shaders and material properties. Built in default meshes (quad / cube / sphere). Custom meshes/models using **Open Asset Importer**, with support for multiple file types. |
+| **Scene system** | Custom Entity Component System with several built in components. Parent/child hierarchy for transforms. Support for up to **32,768** entities |
+| **Rendering backends** | API-agnostic rendering layer with customizable settings (SSAO, Gamma, etc.). Utilizes a hybrid Deferred and Forward Renderer. Support for **OpenGL** and Headless mode. |
+| **Materials & meshes** | Supports Physically-Based Rendering with custom shaders and material properties. Built in default meshes (quad / cube / sphere). Custom mesh/model support using **Open Asset Importer**, with support for multiple file types. |
 | **Physics** | **Box3d** physics integration. Box, sphere, mesh, and convex colliders and triggers. Support for collision layers & masks, rigidbodies, single & multi raycasts, and custom physics callbacks. |
 | **Scripting** | Easy to use C++ scripting API in an OOP design. |
 
 ---
 
-## Project structure
+## Repo Structure
 
 ```
 Prism Engine/
@@ -27,8 +27,8 @@ Prism Engine/
 ├── include/                   # Third-party headers - GLAD, miniaudio, stb_image
 ├── platform/                  # Window and OS API declaration and usage using SDL3
 ├── render/                    # Render interface and backend implementation (Currently OpenGL and Headless only)
-├── scene/                     # Scene system, ECS, physics integration
-└── Prism.c / Prism.h          # Engine lifecycle. Ties all modules.
+├── runtime/                   # Engine runtime for initializing, running, and main rendering loop
+└── scene/                     # Scene system, ECS, physics integration
 ```
 
 ---
@@ -43,19 +43,18 @@ Prism Engine/
 
 
 ```bash
-mkdir build                  - Create a build folder
-cmake -S . -B build          - Generate build files ( additionally add -DCMAKE_BUILD_TYPE=Debug to do debug builds )
-cmake --build build          - Start build ( static and dynamic library options are available )
+mkdir build                  // Create a build folder
+cmake -S . -B build          // Generate build files ( add -DCMAKE_BUILD_TYPE=Debug for debug builds )
+cmake --build build          // Start build ( static and dynamic library options are available )
 ```
-(CMake should automatically fetch SDL3, Box3d, cJSON, and AssImp if you don't have it.)
 
-Result: **`libPrismEngine.dll`** (or **`libPrismEngine.so`** on Linux), and **`libPrismEngine.a`** for building static.
+Result: **`libPrismEngineLib.dll`** (or **`libPrismEngineLib.so`** on Linux), and **`libPrismEngineLib.a`** for building static.
 
 
 ## Usage (minimal)
 
 Prerequisites:
-1. All C++ Headers are in **`api/include`**. **`api/include/Prism.hpp`** includes all other headers.
+1. All C++ Headers are in **`api/include`**. **`api/include/Prism.hpp`** will include everything.
 2. Link with Prism lib file (.dll/.so). If linking statically, you'll need to link with SDL3, Box3d, AssImp, and cJSON.
 
 Basic Usage:
@@ -66,17 +65,16 @@ Basic Usage:
 5. When exiting, run **`Prism::Engine::Shutdown()`**
 
 
-
-
-## Running Engine
-
-All assets used are relative to the executable's path (unless providing an absolute path). No sample textures or models provided, so add your own.
+*All assets used are relative to the executable's path (unless providing an absolute path).*
 
 ---
 
 ## Future plans
 
-Implementing Vulkan/DirectX backends. Tooling like an editor and map maker. More thorough C++ scripting API, and potentially a different scripting language.
+- Implementing Vulkan/DirectX backends.
+- Tooling like an editor and map maker.
+- More thorough C++ scripting API
+- Potentially a different scripting language.
 
 ---
 
