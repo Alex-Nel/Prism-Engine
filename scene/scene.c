@@ -63,6 +63,11 @@ void Scene_Init(Scene* scene)
     scene->ambient_color = (Color){1.0f, 1.0f, 1.0f, 1.0f};
     scene->ambient_illumination = 0.15f;
     scene->exposure = 1.0f;
+
+    // Set UI variables
+    scene->ui_hovered_entity_id = ENTITY_NONE;
+    scene->ui_pressed_entity_id = ENTITY_NONE;
+    scene->ui_blocks_pointer = false;
 }
 
 

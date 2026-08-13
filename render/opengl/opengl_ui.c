@@ -204,3 +204,113 @@ void OpenGL_UIRender(Renderer* r, void* nk_ctx_void, uint32_t width, uint32_t he
     glEnable(GL_CULL_FACE);
     glBindVertexArray(0);
 }
+
+
+
+
+
+
+
+
+
+
+// Starts the overlay state in OpenGL
+static void OpenGL_BeginOverlayState(OpenGL_Backend* internal, uint32_t width, uint32_t height)
+{
+    GLfloat ortho[4][4] = {
+        {2.0f, 0.0f, 0.0f, 0.0f},
+        {0.0f,-2.0f, 0.0f, 0.0f},
+        {0.0f, 0.0f,-1.0f, 0.0f},
+        {-1.0f,1.0f, 0.0f, 1.0f},
+    };
+    ortho[0][0] /= (GLfloat)width;
+    ortho[1][1] /= (GLfloat)height;
+
+    glEnable(GL_BLEND);
+    glBlendEquation(GL_FUNC_ADD);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_SCISSOR_TEST);
+    glActiveTexture(GL_TEXTURE0);
+
+    glUseProgram(internal->shader_pool[internal->ui.shader.id].program);
+    glUniform1i(internal->ui.uniform_tex, 0);
+    glUniformMatrix4fv(internal->ui.uniform_proj, 1, GL_FALSE, &ortho[0][0]);
+
+    glBindVertexArray(internal->ui.vao);
+    glBindBuffer(GL_ARRAY_BUFFER, internal->ui.vbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, internal->ui.ebo);
+}
+
+
+
+
+
+
+
+
+
+
+// Ends the overlay state in OpenGL
+static void OpenGL_EndOverlayState(void)
+{
+    glDisable(GL_BLEND);
+    glDisable(GL_SCISSOR_TEST);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glBindVertexArray(0);
+}
+
+
+
+
+
+
+
+
+
+
+// Draws all overlays
+void OpenGL_DrawOverlay(Renderer* r, const OverlayDrawList* list, uint32_t width, uint32_t height)
+{
+    if (!r || !list || width == 0 || height == 0)
+        return;
+    if (list->command_count == 0 || list->index_count == 0)
+        return;
+
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    OpenGL_BeginOverlayState(internal, width, height);
+
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(list->vertex_count * sizeof(OverlayVertex)), list->vertices, GL_STREAM_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr)(list->index_count * sizeof(uint16_t)), list->indices, GL_STREAM_DRAW);
+
+    for (uint32_t i = 0; i < list->command_count; i++)
+    {
+        const OverlayDrawCmd* cmd = &list->commands[i];
+        if (cmd->index_count == 0)
+            continue;
+
+        GLuint tex = internal->default_white_texture;
+        if (cmd->texture.id != 0 && cmd->texture.id < MAX_RESOURCES && internal->texture_pool[cmd->texture.id].active)
+            tex = internal->texture_pool[cmd->texture.id].id;
+        glBindTexture(GL_TEXTURE_2D, tex);
+
+        float clip_x = cmd->clip_w > 0.0f ? cmd->clip_x : 0.0f;
+        float clip_y = cmd->clip_h > 0.0f ? cmd->clip_y : 0.0f;
+        float clip_w = cmd->clip_w > 0.0f ? cmd->clip_w : (float)width;
+        float clip_h = cmd->clip_h > 0.0f ? cmd->clip_h : (float)height;
+
+        glScissor(
+            (GLint)clip_x,
+            (GLint)((float)height - (clip_y + clip_h)),
+            (GLint)clip_w,
+            (GLint)clip_h
+        );
+
+        const void* offset = (const void*)(uintptr_t)(cmd->index_offset * sizeof(uint16_t));
+        glDrawElements(GL_TRIANGLES, (GLsizei)cmd->index_count, GL_UNSIGNED_SHORT, offset);
+    }
+
+    OpenGL_EndOverlayState();
+}

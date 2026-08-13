@@ -8,6 +8,7 @@
 #include "../core/mesh_core.h"
 #include "../core/log_core.h"
 #include "../core/io_core.h"
+#include "../core/overlay_core.h"
 
 
 
@@ -246,6 +247,7 @@ typedef struct Renderer
     void (*UIinit)(Renderer* r, void* nk_ctx);
     void (*UIShutdown)(Renderer* r);
     void (*UIRender)(Renderer* r, void* nk_ctx, uint32_t width, uint32_t height);
+    void (*DrawOverlay)(Renderer* r, const OverlayDrawList* list, uint32_t width, uint32_t height);
 
 
 
@@ -481,6 +483,13 @@ static inline void Render_UIRender(Renderer* r, void* nk_ctx, uint32_t width, ui
 {
     if (r && r->UIRender)
         r->UIRender(r, nk_ctx, width, height);
+}
+
+// Renders any Overlay
+static inline void Render_DrawOverlay(Renderer* r, const OverlayDrawList* list, uint32_t width, uint32_t height)
+{
+    if (r && r->DrawOverlay)
+        r->DrawOverlay(r, list, width, height);
 }
 
 

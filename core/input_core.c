@@ -88,6 +88,14 @@ void Input_Update()
 
 
 
+// Clears current mouse button state
+void Input_ClearMouseButtons()
+{
+    memset(current_mouse_buttons, 0, sizeof(current_mouse_buttons));
+}
+
+
+
 
 
 

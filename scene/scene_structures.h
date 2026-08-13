@@ -476,7 +476,7 @@ typedef struct UICanvasComponent
     Entity entity;
     bool is_active;
 
-    UICanvasScaleMode render_mode;
+    UICanvasRenderMode render_mode;
     int sort_order;
     UICanvasScaleMode scale_mode;
     Vector2 reference_resolution;
@@ -499,7 +499,7 @@ typedef struct RectTransformComponent
     Vector2 size_delta;
     Vector2 anchored_position;
     Vector2 local_scale;
-    float loca_rotation_z;
+    float local_rotation_z;
 
     float screen_x;
     float screen_y;

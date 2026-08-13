@@ -9,6 +9,7 @@
 #include "../core/math_core.h"
 #include "../core/time_core.h"
 #include "../core/log_core.h"
+#include "../core/overlay_core.h"
 #include "../audio/audio.h"
 #include "../assets/asset_manager.h"
 #include "physics_bridge.h"
@@ -38,6 +39,10 @@ void Scene_UpdateAnimators(Scene* scene, float delta_time);
 void Scene_UpdateSkinnedMeshBounds(Scene* scene);
 void Scene_UpdateBoneAttachments(Scene* scene);
 void Scene_UpdateTransforms(Scene* scene);
+void Scene_UpdateUILayout(Scene* scene, uint32_t window_w, uint32_t window_h);
+void Scene_ProcessUIPointer(Scene* scene, float mouse_x, float mouse_y, bool mouse_captured);
+void Scene_BuildUIOverlay(Scene* scene, OverlayDrawList* out_list);
+bool Scene_UIBlocksPointer(Scene* scene);
 
 void Scene_SyncPhysicsPreSim(Scene* scene);
 void Scene_StepPhysicsAndCollisions(Scene* scene);
@@ -109,6 +114,11 @@ void Entity_AddBoneAttachment(Entity entity, int bone_index, Matrix4 offset);
 void Entity_AddLineRenderer(Entity entity, Material* material);
 void Entity_AddSpriteRenderer(Entity entity, Material* material);
 void Entity_AddReflectionProbe(Entity entity, Vector3 box_extents, float blend_distance, uint32_t capture_resolution);
+void Entity_AddUICanvas(Entity entity);
+void Entity_AddRectTransform(Entity entity);
+void Entity_AddUIImage(Entity entity, Texture* texture);
+void Entity_AddUIText(Entity entity, const char* text, Font* font);
+void Entity_AddUIButton(Entity entity);
 void Entity_BindScript(Entity entity, ScriptInstance new_script);
 void Script_SetActive(Entity entity, void* instance_data, bool active);
 void Bridge_SpawnScript(Entity raw_e, const char* class_name, struct cJSON* json_data);
@@ -135,6 +145,11 @@ BoneAttachmentComponent* Entity_GetBoneAttachment(Entity entity);
 LineRendererComponent* Entity_GetLineRenderer(Entity entity);
 SpriteRendererComponent* Entity_GetSpriteRenderer(Entity entity);
 ReflectionProbeComponent* Entity_GetReflectionProbe(Entity entity);
+UICanvasComponent* Entity_GetUICanvas(Entity entity);
+RectTransformComponent* Entity_GetRectTransform(Entity entity);
+UIImageComponent* Entity_GetUIImage(Entity entity);
+UITextComponent* Entity_GetUIText(Entity entity);
+UIButtonComponent* Entity_GetUIButton(Entity entity);
 ScriptComponent* Entity_GetScripts(Entity entity);
 
 
@@ -210,11 +225,24 @@ void LineRenderer_SetPoints(LineRendererComponent* line, Vector3* points, uint32
 
 
 // --- Reflection Probe Functions ---
+
 void ReflectionProbe_SetBoxExtents(ReflectionProbeComponent* probe, Vector3 extents);
 void ReflectionProbe_SetBlendDistance(ReflectionProbeComponent* probe, float blend_distance);
 void ReflectionProbe_SetPriority(ReflectionProbeComponent* probe, int32_t priority);
 void ReflectionProbe_SetCaptureResolution(ReflectionProbeComponent* probe, uint32_t resolution);
 void ReflectionProbe_MarkDirty(ReflectionProbeComponent* probe);
+
+
+
+// --- UI Functions ---
+
+void RectTransform_MarkDirty(Entity entity);
+void RectTransform_SetAnchoredPosition(Entity entity, Vector2 position);
+void RectTransform_SetSizeDelta(Entity entity, Vector2 size);
+void RectTransform_SetAnchors(Entity entity, Vector2 min, Vector2 max);
+void RectTransform_SetPivot(Entity entity, Vector2 pivot);
+void RectTransform_SetLocalScale(Entity entity, Vector2 scale);
+void RectTransform_SetLocalRotationZ(Entity entity, float degrees);
 
 
 

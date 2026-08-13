@@ -421,6 +421,7 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     r->UIinit = OpenGL_UIinit;
     r->UIShutdown = OpenGL_UIShutdown;
     r->UIRender = OpenGL_UIRender;
+    r->DrawOverlay = OpenGL_DrawOverlay;
     
     return r;
 }

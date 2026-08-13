@@ -13,6 +13,7 @@
 #include "../core/mesh_core.h"
 #include "../core/image_core.h"
 #include "../core/log_core.h"
+#include "../core/font_core.h"
 
 
 
@@ -21,6 +22,7 @@
 #define MAX_CACHED_MESHES 8192
 #define MAX_CACHED_SKINNED_MESHES 8192
 #define MAX_CACHED_MODELS 8192
+#define MAX_CACHED_FONTS 256
 #define MAX_MATERIALS 8192
 
 
@@ -43,6 +45,9 @@ static uint32_t skinned_mesh_count = 0;
 
 static Model* model_cache[MAX_CACHED_MODELS];
 static uint32_t model_count = 0;
+
+static Font font_cache[MAX_CACHED_FONTS];
+static uint32_t font_count = 0;
 
 static Material material_pool[MAX_MATERIALS];
 static uint32_t material_count = 0;
@@ -76,6 +81,7 @@ void Asset_Init(Renderer* r)
     texture_count = 0;
     mesh_count = 0;
     material_count = 0;
+    font_count = 0;
 }
 
 
@@ -1421,6 +1427,67 @@ EnvironmentMap* Asset_LoadEnvironmentMapFromSkybox(const char* name, const char*
 
 
 
+// Loads a Font from disk
+Font* Asset_LoadFont(const char* name, const char* filepath, float pixel_height)
+{
+    if (!name || !filepath)
+        return NULL;
+
+    for (uint32_t i = 0; i < font_count; i++)
+    {
+        if (strcmp(font_cache[i].name, name) == 0)
+            return &font_cache[i];
+    }
+
+    if (font_count >= MAX_CACHED_FONTS)
+    {
+        Log_Error("ERROR: Font cache is full");
+        return NULL;
+    }
+
+    ImageData atlas = {0};
+    Font baked = {0};
+    if (!Font_BakeFromFile(&baked, filepath, pixel_height, &atlas))
+        return NULL;
+
+    TextureHandle handle = Render_CreateTexture(renderer, atlas.pixels, atlas.width, atlas.height, atlas.channels);
+    Image_Free(&atlas);
+
+    if (texture_count >= MAX_CACHED_TEXTURES)
+    {
+        Log_Error("ERROR: Texture cache is full while loading font");
+        return NULL;
+    }
+
+    Texture* atlas_tex = &texture_cache[texture_count];
+    strncpy(atlas_tex->name, name, MAX_NAME_LENGTH - 1);
+    atlas_tex->name[MAX_NAME_LENGTH - 1] = '\0';
+    atlas_tex->id = texture_count;
+    atlas_tex->gpu_handle = handle;
+    atlas_tex->width = baked.atlas_width;
+    atlas_tex->height = baked.atlas_height;
+    atlas_tex->channels = 4;
+    texture_count++;
+
+    Font* font = &font_cache[font_count];
+    *font = baked;
+    strncpy(font->name, name, MAX_NAME_LENGTH - 1);
+    font->name[MAX_NAME_LENGTH - 1] = '\0';
+    font->texture_atlas = atlas_tex;
+    font_count++;
+
+    return font;
+}
+
+
+
+
+
+
+
+
+
+
 // Generate built in quad mesh (basic square)
 Mesh* Asset_GetBuiltinQuad()
 {
@@ -1771,6 +1838,19 @@ Texture* Asset_GetTextureByName(const char* name)
 {
     for (uint32_t i = 0; i < texture_count; i++)
         if (strcmp(texture_cache[i].name, name) == 0) return &texture_cache[i];
+
+    return NULL;
+}
+
+
+
+
+
+// Look up a Font by its string name
+Font* Asset_GetFontByName(const char* name)
+{
+    for (uint32_t i = 0; i < font_count; i++)
+        if (strcmp(font_cache[i].name, name) == 0) return &font_cache[i];
 
     return NULL;
 }

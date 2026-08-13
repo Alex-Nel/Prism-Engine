@@ -12,7 +12,10 @@ void Input_Init();
 void Input_ProcessEvent(const Event* event);
 
 // Called at the end of the main loop
-void Input_Update(); 
+void Input_Update();
+
+// Clears current mouse button state
+void Input_ClearMouseButtons();
 
 
 // Keyboard State functions

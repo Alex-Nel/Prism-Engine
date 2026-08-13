@@ -1155,6 +1155,165 @@ void Entity_AddReflectionProbe(Entity entity, Vector3 box_extents, float blend_d
 
 
 
+// Initializes a default rect transform
+static void Entity_InitDefaultRectTransform(Entity entity, bool stretch)
+{
+    RectTransformComponent* rect = &entity.scene->rect_transforms[entity.id];
+    rect->entity = entity;
+    
+    if (stretch)
+    {
+        rect->anchor_min = (Vector2){0.0f, 0.0f};
+        rect->anchor_max = (Vector2){1.0f, 1.0f};
+        rect->size_delta = (Vector2){0.0f, 0.0f};
+    }
+    else
+    {
+        rect->anchor_min = (Vector2){0.5f, 0.5f};
+        rect->anchor_max = (Vector2){0.5f, 0.5f};
+        rect->size_delta = (Vector2){100.0f, 100.0f};
+    }
+
+    rect->pivot = (Vector2){0.5f, 0.5f};
+    rect->anchored_position = (Vector2){0.0f, 0.0f};
+    rect->local_scale = (Vector2){1.0f, 1.0f};
+    rect->local_rotation_z = 0.0f;
+    rect->screen_x = 0.0f;
+    rect->screen_y = 0.0f;
+    rect->screen_width = 0.0f;
+    rect->screen_height = 0.0f;
+    rect->is_dirty = true;
+    
+    entity.scene->component_masks[entity.id] |= COMPONENT_UI_RECT_TRANSFORM;
+}
+
+
+
+
+
+// Adds a Rect Transform
+void Entity_AddRectTransform(Entity entity)
+{
+    if (!Entity_IsValid(entity))
+        return;
+    if (entity.scene->component_masks[entity.id] & COMPONENT_UI_RECT_TRANSFORM)
+        return;
+
+    Entity_InitDefaultRectTransform(entity, false);
+}
+
+
+
+
+
+// Adds a UI Canvas component
+void Entity_AddUICanvas(Entity entity)
+{
+    if (!Entity_IsValid(entity))
+        return;
+
+    if (!(entity.scene->component_masks[entity.id] & COMPONENT_UI_RECT_TRANSFORM))
+        Entity_InitDefaultRectTransform(entity, true);
+
+    UICanvasComponent* canvas = &entity.scene->ui_canvases[entity.id];
+    canvas->entity = entity;
+    canvas->is_active = true;
+    canvas->render_mode = UI_CANVAS_OVERLAY;
+    canvas->sort_order = 0;
+    canvas->scale_mode = UI_CANVAS_SCALE_WITH_SCREEN_SIZE;
+    canvas->reference_resolution = (Vector2){1920.0f, 1080.0f};
+    canvas->match_width_or_height = 0.5f;
+    canvas->blocks_raycasts = true;
+    canvas->scale_factor = 1.0f;
+
+    entity.scene->component_masks[entity.id] |= COMPONENT_UI_CANVAS;
+    RectTransform_MarkDirty(entity);
+}
+
+
+
+
+
+// Adds a UI image component
+void Entity_AddUIImage(Entity entity, Texture* texture)
+{
+    if (!Entity_IsValid(entity))
+        return;
+
+    if (!(entity.scene->component_masks[entity.id] & COMPONENT_UI_RECT_TRANSFORM))
+        Entity_InitDefaultRectTransform(entity, false);
+
+    UIImageComponent* image = &entity.scene->ui_images[entity.id];
+    image->entity = entity;
+    image->is_active = true;
+    image->texture = texture;
+    image->color = (Color){1.0f, 1.0f, 1.0f, 1.0f};
+    image->raycast_target = true;
+
+    entity.scene->component_masks[entity.id] |= COMPONENT_UI_IMAGE;
+}
+
+
+
+
+
+// Adds a UI text component
+void Entity_AddUIText(Entity entity, const char* text, Font* font)
+{
+    if (!Entity_IsValid(entity))
+        return;
+
+    if (!(entity.scene->component_masks[entity.id] & COMPONENT_UI_RECT_TRANSFORM))
+        Entity_InitDefaultRectTransform(entity, false);
+
+    UITextComponent* ui_text = &entity.scene->ui_texts[entity.id];
+    ui_text->entity = entity;
+    ui_text->is_active = true;
+    ui_text->text[0] = '\0';
+    if (text)
+        strncpy(ui_text->text, text, 255);
+    ui_text->text[255] = '\0';
+    ui_text->font = font;
+    ui_text->color = (Color){1.0f, 1.0f, 1.0f, 1.0f};
+    ui_text->alignment = UI_TEXT_ALIGN_LEFT;
+    ui_text->font_size = font ? font->size : 32.0f;
+    ui_text->wrap = false;
+    ui_text->raycast_target = false;
+
+    entity.scene->component_masks[entity.id] |= COMPONENT_UI_TEXT;
+}
+
+
+
+
+
+// Adds a UI button component
+void Entity_AddUIButton(Entity entity)
+{
+    if (!Entity_IsValid(entity))
+        return;
+
+    if (!(entity.scene->component_masks[entity.id] & COMPONENT_UI_RECT_TRANSFORM))
+        Entity_InitDefaultRectTransform(entity, false);
+
+    UIButtonComponent* button = &entity.scene->ui_buttons[entity.id];
+    button->entity = entity;
+    button->is_active = true;
+    button->interactable = true;
+    button->current_state = UI_BUTTON_STATE_NORMAL;
+    button->color_normal = (Color){1.0f, 1.0f, 1.0f, 1.0f};
+    button->color_hovered = (Color){0.85f, 0.85f, 0.85f, 1.0f};
+    button->color_pressed = (Color){0.7f, 0.7f, 0.7f, 1.0f};
+    button->color_disabled = (Color){0.5f, 0.5f, 0.5f, 0.5f};
+    button->clicked_this_frame = false;
+
+    entity.scene->component_masks[entity.id] |= COMPONENT_UI_BUTTON;
+}
+
+
+
+
+
 // Adds a custom script to an entity
 void Entity_BindScript(Entity entity, ScriptInstance new_script)
 {
@@ -1514,13 +1673,95 @@ ReflectionProbeComponent* Entity_GetReflectionProbe(Entity entity)
 
 
 
+// Returns an entities UI canvas
+UICanvasComponent* Entity_GetUICanvas(Entity entity)
+{
+    if (!Entity_IsValid(entity))
+        return NULL;
+    
+    if ((entity.scene->component_masks[entity.id] & COMPONENT_UI_CANVAS) == COMPONENT_UI_CANVAS)
+        return &entity.scene->ui_canvases[entity.id];
+    
+    return NULL;
+}
+
+
+
+
+
+// Returns an entities Rect Transform
+RectTransformComponent* Entity_GetRectTransform(Entity entity)
+{
+    if (!Entity_IsValid(entity))
+        return NULL;
+    
+    if ((entity.scene->component_masks[entity.id] & COMPONENT_UI_RECT_TRANSFORM) == COMPONENT_UI_RECT_TRANSFORM)
+        return &entity.scene->rect_transforms[entity.id];
+    
+    return NULL;
+}
+
+
+
+
+
+// Returns an entities UI image
+UIImageComponent* Entity_GetUIImage(Entity entity)
+{
+    if (!Entity_IsValid(entity))
+        return NULL;
+    
+    if ((entity.scene->component_masks[entity.id] & COMPONENT_UI_IMAGE) == COMPONENT_UI_IMAGE)
+        return &entity.scene->ui_images[entity.id];
+    
+    return NULL;
+}
+
+
+
+
+
+// Returns an entities UI Text
+UITextComponent* Entity_GetUIText(Entity entity)
+{
+    if (!Entity_IsValid(entity))
+        return NULL;
+    
+    if ((entity.scene->component_masks[entity.id] & COMPONENT_UI_TEXT) == COMPONENT_UI_TEXT)
+        return &entity.scene->ui_texts[entity.id];
+    
+    return NULL;
+}
+
+
+
+
+
+// Returns an entities UI Button
+UIButtonComponent* Entity_GetUIButton(Entity entity)
+{
+    if (!Entity_IsValid(entity))
+        return NULL;
+    
+    if ((entity.scene->component_masks[entity.id] & COMPONENT_UI_BUTTON) == COMPONENT_UI_BUTTON)
+        return &entity.scene->ui_buttons[entity.id];
+    
+    return NULL;
+}
+
+
+
+
+
 // Returns the pointer to all the entities scripts
 ScriptComponent* Entity_GetScripts(Entity entity)
 {
-    if (!Entity_IsValid(entity)) return NULL;
+    if (!Entity_IsValid(entity))
+        return NULL;
     
     // Check if the entity actually has any scripts
-    if (!(entity.scene->component_masks[entity.id] & COMPONENT_SCRIPT)) return NULL;
+    if (!(entity.scene->component_masks[entity.id] & COMPONENT_SCRIPT))
+        return NULL;
 
     return &entity.scene->scripts[entity.id];
 }

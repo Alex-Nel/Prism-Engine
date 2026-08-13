@@ -15,6 +15,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 
 
@@ -398,3 +399,4 @@ void OpenGL_EndFrame(Renderer* r);
 void OpenGL_UIinit(Renderer* r, void* nk_ctx_void);
 void OpenGL_UIShutdown(Renderer* r);
 void OpenGL_UIRender(Renderer* r, void* nk_ctx_void, uint32_t width, uint32_t height);
+void OpenGL_DrawOverlay(Renderer* r, const OverlayDrawList* list, uint32_t width, uint32_t height);
