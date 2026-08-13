@@ -5,6 +5,7 @@
 #include "physics_bridge.h"
 #include "../audio/audio.h"
 #include "../core/math_core.h"
+#include "../core/font_core.h"
 #include "../core/mesh_core.h"
 
 
@@ -73,20 +74,13 @@ typedef enum
     COMPONENT_LINE_RENDERER            = 1 << 13,
     COMPONENT_SPRITE_RENDERER          = 1 << 14,
     COMPONENT_REFLECTION_PROBE         = 1 << 15,
-    COMPONENT_SCRIPT                   = 1 << 16
+    COMPONENT_UI_CANVAS                = 1 << 16,
+    COMPONENT_UI_RECT_TRANSFORM        = 1 << 17,
+    COMPONENT_UI_IMAGE                 = 1 << 18,
+    COMPONENT_UI_TEXT                  = 1 << 19,
+    COMPONENT_UI_BUTTON                = 1 << 20,
+    COMPONENT_SCRIPT                   = 1 << 21
 } ComponentMask;
-
-
-
-
-
-// Enum for differnet light types
-typedef enum LightType 
-{
-    LIGHT_DIRECTIONAL = 0,
-    LIGHT_POINT = 1,
-    LIGHT_SPOT = 2
-} LightType;
 
 
 
@@ -136,6 +130,8 @@ typedef void (*ScriptEnableFunc)(Entity entity, void* instance_data);
 typedef void (*ScriptDisableFunc)(Entity entity, void* instance_data);
 // On Collision function (any kind)
 typedef void (*CollisionCallback)(Entity self, Entity other, void* instance_data);
+// Pointer / UI event function
+typedef void (*PointerCallback)(Entity entity, void* instance_data);
 
 
 
@@ -240,6 +236,16 @@ typedef struct CameraComponent
     uint32_t viewport_width;
     uint32_t viewport_height;
 } CameraComponent;
+
+
+
+// Enum for differnet light types
+typedef enum LightType 
+{
+    LIGHT_DIRECTIONAL = 0,
+    LIGHT_POINT = 1,
+    LIGHT_SPOT = 2
+} LightType;
 
 
 
@@ -443,6 +449,135 @@ typedef struct ReflectionProbeComponent
 
 
 
+// ----- UI Components -----
+
+// Enum for the render mode of a UI
+typedef enum UICanvasRenderMode
+{
+    UI_CANVAS_OVERLAY = 0,
+    UI_CANVAS_CAMERA = 1,
+    UI_CANVAS_WORLD = 2
+} UICanvasRenderMode;
+
+
+
+// Enum for the scaling mode of a UI
+typedef enum UICanvasScaleMode
+{
+    UI_CANVAS_CONSTANT_PIXEL_SIZE = 0,
+    UI_CANVAS_SCALE_WITH_SCREEN_SIZE = 1
+} UICanvasScaleMode;
+
+
+
+// A UI Canvas that holds multiple UI components
+typedef struct UICanvasComponent
+{
+    Entity entity;
+    bool is_active;
+
+    UICanvasScaleMode render_mode;
+    int sort_order;
+    UICanvasScaleMode scale_mode;
+    Vector2 reference_resolution;
+    float match_width_or_height;
+    bool blocks_raycasts;
+
+    float scale_factor;
+} UICanvasComponent;
+
+
+
+// A rectangular transform for UI entities
+typedef struct RectTransformComponent
+{
+    Entity entity;
+
+    Vector2 anchor_min;
+    Vector2 anchor_max;
+    Vector2 pivot;
+    Vector2 size_delta;
+    Vector2 anchored_position;
+    Vector2 local_scale;
+    float loca_rotation_z;
+
+    float screen_x;
+    float screen_y;
+    float screen_width;
+    float screen_height;
+
+    bool is_dirty;
+} RectTransformComponent;
+
+
+
+// A UI image component
+typedef struct UIImageComponent
+{
+    Entity entity;
+    bool is_active;
+    Texture* texture;
+    Color color;
+    bool raycast_target;
+} UIImageComponent;
+
+
+
+// Enum for text alignment
+typedef enum UITextAlignment
+{
+    UI_TEXT_ALIGN_LEFT,
+    UI_TEXT_ALIGN_CENTER,
+    UI_TEXT_ALIGN_RIGHT
+} UITextAlignment;
+
+
+
+// A UI text component
+typedef struct UITextComponent
+{
+    Entity entity;
+    bool is_active;
+    char text[256];
+    Font* font;
+    Color color;
+    UITextAlignment alignment;
+    float font_size;
+    bool wrap;
+    bool raycast_target;
+} UITextComponent;
+
+
+
+// An enum for the state of a button component
+typedef enum UIButtonState
+{
+    UI_BUTTON_STATE_NORMAL,
+    UI_BUTTON_STATE_HOVERED,
+    UI_BUTTON_STATE_PRESSED,
+    UI_BUTTON_STATE_DISABLED
+} UIButtonState;
+
+
+
+// A UI button component
+typedef struct UIButtonComponent
+{
+    Entity entity;
+    bool is_active;
+    bool interactable;
+    
+    UIButtonState current_state;
+    Color color_normal;
+    Color color_hovered;
+    Color color_pressed;
+    Color color_disabled;
+
+    bool clicked_this_frame;
+} UIButtonComponent;
+
+
+
 // Forward decleration of cJSON struct
 struct cJSON;
 
@@ -469,6 +604,12 @@ typedef struct ScriptInstance
     CollisionCallback OnCollisionEnter;
     CollisionCallback OnCollisionStay;
     CollisionCallback OnCollisionExit;
+
+    PointerCallback OnPointerEnter;
+    PointerCallback OnPointerExit;
+    PointerCallback OnPointerDown;
+    PointerCallback OnPointerUp;
+    PointerCallback OnPointerClick;
 
     void (*OnSerialize)(Entity entity, void* instance_data, struct cJSON* json);
     void (*OnDeserialize)(Entity entity, void* instance_data, struct cJSON* json);
@@ -514,7 +655,18 @@ typedef struct Scene
     LineRendererComponent line_renderers[MAX_ENTITIES];
     SpriteRendererComponent sprite_renderers[MAX_ENTITIES];
     ReflectionProbeComponent reflection_probes[MAX_ENTITIES];
+    UICanvasComponent ui_canvases[MAX_ENTITIES];
+    RectTransformComponent rect_transforms[MAX_ENTITIES];
+    UIImageComponent ui_images[MAX_ENTITIES];
+    UITextComponent ui_texts[MAX_ENTITIES];
+    UIButtonComponent ui_buttons[MAX_ENTITIES];
     ScriptComponent scripts[MAX_ENTITIES];
+
+    bool ui_blocks_pointer;
+    uint32_t ui_hovered_entity_id;
+    uint32_t ui_pressed_entity_id;
+    uint32_t ui_window_width;
+    uint32_t ui_window_height;
 
     uint32_t main_camera_id;
     PhysicsWorldHandle physics_world;

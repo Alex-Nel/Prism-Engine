@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+
+
 char* IO_ReadTextFile(const char* filepath)
 {
     // Open the file in binary read mode
@@ -31,5 +33,48 @@ char* IO_ReadTextFile(const char* filepath)
 
     fclose(file);
     
+    return buffer;
+}
+
+
+
+
+
+unsigned char* IO_ReadBinaryFile(const char* filepath, int* out_size)
+{
+    if (out_size)
+        *out_size = 0;
+
+    FILE* file = fopen(filepath, "rb");
+    if (!file)
+    {
+        Log_Error("ERROR: Failed to open file: %s\n", filepath);
+        return NULL;
+    }
+
+    fseek(file, 0, SEEK_END);
+    long length = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    if (length < 0)
+    {
+        fclose(file);
+        return NULL;
+    }
+
+    unsigned char* buffer = (unsigned char*)malloc((size_t)length + 1);
+    if (!buffer)
+    {
+        fclose(file);
+        return NULL;
+    }
+
+    size_t read_length = fread(buffer, 1, (size_t)length, file);
+    buffer[read_length] = '\0';
+    fclose(file);
+
+    if (out_size)
+        *out_size = (int)read_length;
+
     return buffer;
 }
