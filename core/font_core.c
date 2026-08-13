@@ -1,3 +1,4 @@
+#define STBTT_STATIC
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "font_core.h"
 #include "io_core.h"

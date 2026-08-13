@@ -129,6 +129,27 @@ namespace Prism
             static_cast<Behavior*>(data)->OnCollisionExit(Entity(other.id, other.scene));
     }
 
+    inline void Bridge_OnPointerEnter(::Entity self, void* data) {
+        if (data)
+            static_cast<Behavior*>(data)->OnPointerEnter();
+    }
+    inline void Bridge_OnPointerExit(::Entity self, void* data) {
+        if (data)
+            static_cast<Behavior*>(data)->OnPointerExit();
+    }
+    inline void Bridge_OnPointerDown(::Entity self, void* data) {
+        if (data)
+            static_cast<Behavior*>(data)->OnPointerDown();
+    }
+    inline void Bridge_OnPointerUp(::Entity self, void* data) {
+        if (data)
+            static_cast<Behavior*>(data)->OnPointerUp();
+    }
+    inline void Bridge_OnPointerClick(::Entity self, void* data) {
+        if (data)
+            static_cast<Behavior*>(data)->OnPointerClick();
+    }
+
     inline void Bridge_OnSerialize(::Entity e, void* data, cJSON* json) {
         if (data)
             static_cast<Behavior*>(data)->OnSerialize(json);
@@ -162,6 +183,12 @@ namespace Prism
         script.OnCollisionEnter = Bridge_OnCollisionEnter;
         script.OnCollisionStay = Bridge_OnCollisionStay;
         script.OnCollisionExit = Bridge_OnCollisionExit;
+
+        script.OnPointerEnter = Bridge_OnPointerEnter;
+        script.OnPointerExit = Bridge_OnPointerExit;
+        script.OnPointerDown = Bridge_OnPointerDown;
+        script.OnPointerUp = Bridge_OnPointerUp;
+        script.OnPointerClick = Bridge_OnPointerClick;
 
         script.OnSerialize = Bridge_OnSerialize;
         script.OnDeserialize = Bridge_OnDeserialize;

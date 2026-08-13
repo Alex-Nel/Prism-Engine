@@ -17,6 +17,8 @@ typedef struct PrismEngine
     float accumulator;
     uint32_t target_fps;
     EngineUpdateCallback pre_update_callback;
+    OverlayDrawList ui_overlay;
+    bool ui_wants_mouse;
 } PrismEngine;
 
 
@@ -106,6 +108,9 @@ uint32_t Engine_GetTargetFPS(PrismEngine* engine);
 
 // Sets the clear color of an engines renderer
 void Engine_SetClearColor(PrismEngine* engine, float r, float g, float b, float a);
+
+// Signifies that the UI wants the mouse
+bool Engine_UIWantsMouse(PrismEngine* engine);
 
 
 

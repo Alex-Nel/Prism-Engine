@@ -5,6 +5,7 @@
 extern "C"
 {
     #include "../../../scene/scene.h"
+    #include <cstring>
 }
 
 
@@ -409,5 +410,51 @@ namespace Prism
     }
     void ReflectionProbeComponent::MarkDirty() {
         ::ReflectionProbe_MarkDirty(reinterpret_cast<::ReflectionProbeComponent*>(this));
+    }
+
+
+
+    // ==========================================
+    // Rect Transform Component Implementation
+    // ==========================================
+
+    void RectTransformComponent::SetAnchoredPosition(const Prism::Vector2& position) {
+        ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::RectTransform_SetAnchoredPosition(raw, ::Vector2{position.x, position.y});
+    }
+    void RectTransformComponent::SetSizeDelta(const Prism::Vector2& size) {
+        ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::RectTransform_SetSizeDelta(raw, ::Vector2{size.x, size.y});
+    }
+    void RectTransformComponent::SetAnchors(const Prism::Vector2& min, const Prism::Vector2& max) {
+        ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::RectTransform_SetAnchors(raw, ::Vector2{min.x, min.y}, ::Vector2{max.x, max.y});
+    }
+    void RectTransformComponent::SetPivot(const Prism::Vector2& pivot) {
+        ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::RectTransform_SetPivot(raw, ::Vector2{pivot.x, pivot.y});
+    }
+    void RectTransformComponent::SetLocalScale(const Prism::Vector2& scale) {
+        ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::RectTransform_SetLocalScale(raw, ::Vector2{scale.x, scale.y});
+    }
+    void RectTransformComponent::SetLocalRotationZ(float degrees) {
+        ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::RectTransform_SetLocalRotationZ(raw, degrees);
+    }
+    void RectTransformComponent::MarkDirty() {
+        ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::RectTransform_MarkDirty(raw);
+    }
+
+
+
+    // ==========================================
+    // UI Text Component Implementation
+    // ==========================================
+
+    void UITextComponent::SetText(const std::string& value) {
+        strncpy(this->text, value.c_str(), 255);
+        this->text[255] = '\0';
     }
 }

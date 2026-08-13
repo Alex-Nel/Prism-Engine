@@ -34,6 +34,11 @@ namespace Prism
     struct LineRendererComponent;
     struct SpriteRendererComponent;
     struct ReflectionProbeComponent;
+    struct UICanvasComponent;
+    struct RectTransformComponent;
+    struct UIImageComponent;
+    struct UITextComponent;
+    struct UIButtonComponent;
 
 
 
@@ -118,6 +123,11 @@ namespace Prism
         Prism::LineRendererComponent* AddLineRenderer(Prism::Material* mat = nullptr);
         Prism::SpriteRendererComponent* AddSpriteRenderer(Prism::Material* mat = nullptr);
         Prism::ReflectionProbeComponent* AddReflectionProbe(const Prism::Vector3& box_extents, float blend_distance = 1.0f, uint32_t capture_resolution = 128);
+        Prism::UICanvasComponent* AddUICanvas();
+        Prism::RectTransformComponent* AddRectTransform();
+        Prism::UIImageComponent* AddUIImage(Prism::Texture texture = Prism::Texture());
+        Prism::UITextComponent* AddUIText(const std::string& text = "", Prism::Font font = Prism::Font());
+        Prism::UIButtonComponent* AddUIButton();
 
 
 
@@ -138,6 +148,11 @@ namespace Prism
         Prism::LineRendererComponent* GetLineRenderer();
         Prism::SpriteRendererComponent* GetSpriteRenderer();
         Prism::ReflectionProbeComponent* GetReflectionProbe();
+        Prism::UICanvasComponent* GetUICanvas();
+        Prism::RectTransformComponent* GetRectTransform();
+        Prism::UIImageComponent* GetUIImage();
+        Prism::UITextComponent* GetUIText();
+        Prism::UIButtonComponent* GetUIButton();
 
 
 
@@ -190,6 +205,11 @@ namespace Prism
         void RemoveLineRenderer();
         void RemoveSpriteRenderer();
         void RemoveReflectionProbe();
+        void RemoveUICanvas();
+        void RemoveRectTransform();
+        void RemoveUIImage();
+        void RemoveUIText();
+        void RemoveUIButton();
 
 
 
@@ -458,6 +478,66 @@ namespace Prism
             static ReflectionProbeComponent* Get(Entity& entity) { return entity.GetReflectionProbe(); }
             static ReflectionProbeComponent* Add(Entity& entity, const Vector3& extents, float blend_distance = 1.0f, uint32_t resolution = 128) { return entity.AddReflectionProbe(extents, blend_distance, resolution); }
             static void Remove(Entity& entity) { entity.RemoveReflectionProbe(); }
+        };
+
+        template<>
+        struct PRISM_API EntityComponentAccess<UICanvasComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = true;
+            static constexpr bool removable = true;
+
+            static UICanvasComponent* Get(Entity& entity) { return entity.GetUICanvas(); }
+            static UICanvasComponent* Add(Entity& entity) { return entity.AddUICanvas(); }
+            static void Remove(Entity& entity) { entity.RemoveUICanvas(); }
+        };
+
+        template<>
+        struct PRISM_API EntityComponentAccess<RectTransformComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = true;
+            static constexpr bool removable = true;
+
+            static RectTransformComponent* Get(Entity& entity) { return entity.GetRectTransform(); }
+            static RectTransformComponent* Add(Entity& entity) { return entity.AddRectTransform(); }
+            static void Remove(Entity& entity) { entity.RemoveRectTransform(); }
+        };
+
+        template<>
+        struct PRISM_API EntityComponentAccess<UIImageComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = true;
+            static constexpr bool removable = true;
+
+            static UIImageComponent* Get(Entity& entity) { return entity.GetUIImage(); }
+            static UIImageComponent* Add(Entity& entity, Texture texture = Texture()) { return entity.AddUIImage(texture); }
+            static void Remove(Entity& entity) { entity.RemoveUIImage(); }
+        };
+
+        template<>
+        struct PRISM_API EntityComponentAccess<UITextComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = true;
+            static constexpr bool removable = true;
+
+            static UITextComponent* Get(Entity& entity) { return entity.GetUIText(); }
+            static UITextComponent* Add(Entity& entity, const std::string& text = "", Font font = Font()) { return entity.AddUIText(text, font); }
+            static void Remove(Entity& entity) { entity.RemoveUIText(); }
+        };
+
+        template<>
+        struct PRISM_API EntityComponentAccess<UIButtonComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = true;
+            static constexpr bool removable = true;
+
+            static UIButtonComponent* Get(Entity& entity) { return entity.GetUIButton(); }
+            static UIButtonComponent* Add(Entity& entity) { return entity.AddUIButton(); }
+            static void Remove(Entity& entity) { entity.RemoveUIButton(); }
         };
     }
 

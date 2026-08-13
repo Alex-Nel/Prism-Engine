@@ -5,6 +5,14 @@
 
 
 
+static cJSON* SaveVec2(Vector2 v)
+{
+    cJSON* arr = cJSON_CreateArray();
+    cJSON_AddItemToArray(arr, cJSON_CreateNumber(v.x));
+    cJSON_AddItemToArray(arr, cJSON_CreateNumber(v.y));
+    return arr;
+}
+
 static cJSON* SaveVec3(Vector3 v)
 {
     cJSON* arr = cJSON_CreateArray();
@@ -32,6 +40,17 @@ static cJSON* SaveColor(Color c)
     cJSON_AddItemToArray(arr, cJSON_CreateNumber(c.b));
     cJSON_AddItemToArray(arr, cJSON_CreateNumber(c.a));
     return arr;
+}
+
+static Vector2 LoadVec2(cJSON* arr)
+{
+    if (!arr || cJSON_GetArraySize(arr) < 2)
+        return (Vector2){0,0};
+
+    return (Vector2){
+        (float)cJSON_GetArrayItem(arr, 0)->valuedouble,
+        (float)cJSON_GetArrayItem(arr, 1)->valuedouble
+    };
 }
 
 static Vector3 LoadVec3(cJSON* arr)
@@ -273,6 +292,80 @@ bool Scene_Save(Scene* scene, const char* filepath)
             cJSON_AddNumberToObject(comp_obj, "blend_distance", probe->blend_distance);
             cJSON_AddNumberToObject(comp_obj, "priority", probe->priority);
             cJSON_AddNumberToObject(comp_obj, "capture_resolution", probe->capture_resolution);
+        }
+
+
+        // --- Save UI Canvas ---
+        if (scene->component_masks[i] & COMPONENT_UI_CANVAS)
+        {
+            UICanvasComponent* canvas = &scene->ui_canvases[i];
+            cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "ui_canvas");
+            cJSON_AddBoolToObject(comp_obj, "active", canvas->is_active);
+            cJSON_AddNumberToObject(comp_obj, "render_mode", canvas->render_mode);
+            cJSON_AddNumberToObject(comp_obj, "sort_order", canvas->sort_order);
+            cJSON_AddNumberToObject(comp_obj, "scale_mode", canvas->scale_mode);
+            cJSON_AddItemToObject(comp_obj, "reference_resolution", SaveVec2(canvas->reference_resolution));
+            cJSON_AddNumberToObject(comp_obj, "match_width_or_height", canvas->match_width_or_height);
+            cJSON_AddBoolToObject(comp_obj, "blocks_raycasts", canvas->blocks_raycasts);
+        }
+
+
+        // --- Save UI Rect Transform ---
+        if (scene->component_masks[i] & COMPONENT_UI_RECT_TRANSFORM)
+        {
+            RectTransformComponent* rect = &scene->rect_transforms[i];
+            cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "rect_transform");
+            cJSON_AddItemToObject(comp_obj, "anchor_min", SaveVec2(rect->anchor_min));
+            cJSON_AddItemToObject(comp_obj, "anchor_max", SaveVec2(rect->anchor_max));
+            cJSON_AddItemToObject(comp_obj, "pivot", SaveVec2(rect->pivot));
+            cJSON_AddItemToObject(comp_obj, "size_delta", SaveVec2(rect->size_delta));
+            cJSON_AddItemToObject(comp_obj, "anchored_position", SaveVec2(rect->anchored_position));
+            cJSON_AddItemToObject(comp_obj, "local_scale", SaveVec2(rect->local_scale));
+            cJSON_AddNumberToObject(comp_obj, "local_rotation_z", rect->local_rotation_z);
+        }
+
+
+        // --- Save UI image ---
+        if (scene->component_masks[i] & COMPONENT_UI_IMAGE)
+        {
+            UIImageComponent* image = &scene->ui_images[i];
+            cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "ui_image");
+            cJSON_AddBoolToObject(comp_obj, "active", image->is_active);
+            if (image->texture)
+                cJSON_AddStringToObject(comp_obj, "texture_name", image->texture->name);
+            cJSON_AddItemToObject(comp_obj, "color", SaveColor(image->color));
+            cJSON_AddBoolToObject(comp_obj, "raycast_target", image->raycast_target);
+        }
+
+
+        // --- Save UI Text ---
+        if (scene->component_masks[i] & COMPONENT_UI_TEXT)
+        {
+            UITextComponent* text = &scene->ui_texts[i];
+            cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "ui_text");
+            cJSON_AddBoolToObject(comp_obj, "active", text->is_active);
+            cJSON_AddStringToObject(comp_obj, "text", text->text);
+            if (text->font)
+                cJSON_AddStringToObject(comp_obj, "font_name", text->font->name);
+            cJSON_AddItemToObject(comp_obj, "color", SaveColor(text->color));
+            cJSON_AddNumberToObject(comp_obj, "alignment", text->alignment);
+            cJSON_AddNumberToObject(comp_obj, "font_size", text->font_size);
+            cJSON_AddBoolToObject(comp_obj, "wrap", text->wrap);
+            cJSON_AddBoolToObject(comp_obj, "raycast_target", text->raycast_target);
+        }
+
+
+        // --- Save UI Button ---
+        if (scene->component_masks[i] & COMPONENT_UI_BUTTON)
+        {
+            UIButtonComponent* button = &scene->ui_buttons[i];
+            cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "ui_button");
+            cJSON_AddBoolToObject(comp_obj, "active", button->is_active);
+            cJSON_AddBoolToObject(comp_obj, "interactable", button->interactable);
+            cJSON_AddItemToObject(comp_obj, "color_normal", SaveColor(button->color_normal));
+            cJSON_AddItemToObject(comp_obj, "color_hovered", SaveColor(button->color_hovered));
+            cJSON_AddItemToObject(comp_obj, "color_pressed", SaveColor(button->color_pressed));
+            cJSON_AddItemToObject(comp_obj, "color_disabled", SaveColor(button->color_disabled));
         }
 
 
@@ -609,6 +702,140 @@ bool Scene_Load(Scene* scene, const char* filepath)
                 if (priority) probe->priority = priority->valueint;
                 probe->dirty = true;
                 probe->captured = false;
+            }
+        }
+
+
+        // --- Loads a rect transform ---
+        if (mask & COMPONENT_UI_RECT_TRANSFORM)
+        {
+            cJSON* comp_obj = cJSON_GetObjectItemCaseSensitive(entity_json, "rect_transform");
+            Entity_AddRectTransform(e);
+            RectTransformComponent* rect = Entity_GetRectTransform(e);
+            if (comp_obj && rect)
+            {
+                rect->anchor_min = LoadVec2(cJSON_GetObjectItemCaseSensitive(comp_obj, "anchor_min"));
+                rect->anchor_max = LoadVec2(cJSON_GetObjectItemCaseSensitive(comp_obj, "anchor_max"));
+                rect->pivot = LoadVec2(cJSON_GetObjectItemCaseSensitive(comp_obj, "pivot"));
+                rect->size_delta = LoadVec2(cJSON_GetObjectItemCaseSensitive(comp_obj, "size_delta"));
+                rect->anchored_position = LoadVec2(cJSON_GetObjectItemCaseSensitive(comp_obj, "anchored_position"));
+                cJSON* local_scale = cJSON_GetObjectItemCaseSensitive(comp_obj, "local_scale");
+                if (local_scale)
+                    rect->local_scale = LoadVec2(local_scale);
+                cJSON* rot = cJSON_GetObjectItemCaseSensitive(comp_obj, "local_rotation_z");
+                if (rot)
+                    rect->local_rotation_z = (float)rot->valuedouble;
+                rect->is_dirty = true;
+            }
+        }
+
+
+        // --- Loads a UI Canvas ---
+        if (mask & COMPONENT_UI_CANVAS)
+        {
+            cJSON* comp_obj = cJSON_GetObjectItemCaseSensitive(entity_json, "ui_canvas");
+            Entity_AddUICanvas(e);
+            UICanvasComponent* canvas = Entity_GetUICanvas(e);
+            if (comp_obj && canvas)
+            {
+                cJSON* active = cJSON_GetObjectItemCaseSensitive(comp_obj, "active");
+                if (active) canvas->is_active = active->valueint != 0;
+                cJSON* render_mode = cJSON_GetObjectItemCaseSensitive(comp_obj, "render_mode");
+                if (render_mode) canvas->render_mode = (UICanvasRenderMode)render_mode->valueint;
+                cJSON* sort_order = cJSON_GetObjectItemCaseSensitive(comp_obj, "sort_order");
+                if (sort_order) canvas->sort_order = sort_order->valueint;
+                cJSON* scale_mode = cJSON_GetObjectItemCaseSensitive(comp_obj, "scale_mode");
+                if (scale_mode) canvas->scale_mode = (UICanvasScaleMode)scale_mode->valueint;
+                cJSON* reference = cJSON_GetObjectItemCaseSensitive(comp_obj, "reference_resolution");
+                if (reference) canvas->reference_resolution = LoadVec2(reference);
+                cJSON* match = cJSON_GetObjectItemCaseSensitive(comp_obj, "match_width_or_height");
+                if (match) canvas->match_width_or_height = (float)match->valuedouble;
+                cJSON* blocks = cJSON_GetObjectItemCaseSensitive(comp_obj, "blocks_raycasts");
+                if (blocks) canvas->blocks_raycasts = blocks->valueint != 0;
+            }
+        }
+
+
+        // --- Loads a UI Image ---
+        if (mask & COMPONENT_UI_IMAGE)
+        {
+            cJSON* comp_obj = cJSON_GetObjectItemCaseSensitive(entity_json, "ui_image");
+            Texture* tex = NULL;
+            if (comp_obj)
+            {
+                cJSON* tex_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "texture_name");
+                if (tex_name && cJSON_IsString(tex_name))
+                    tex = Asset_GetTextureByName(tex_name->valuestring);
+            }
+            Entity_AddUIImage(e, tex);
+            UIImageComponent* image = Entity_GetUIImage(e);
+            if (comp_obj && image)
+            {
+                cJSON* active = cJSON_GetObjectItemCaseSensitive(comp_obj, "active");
+                if (active) image->is_active = active->valueint != 0;
+                cJSON* color = cJSON_GetObjectItemCaseSensitive(comp_obj, "color");
+                if (color) image->color = LoadColor(color);
+                cJSON* raycast = cJSON_GetObjectItemCaseSensitive(comp_obj, "raycast_target");
+                if (raycast) image->raycast_target = raycast->valueint != 0;
+            }
+        }
+
+
+        // --- Loads a UI Text ---
+        if (mask & COMPONENT_UI_TEXT)
+        {
+            cJSON* comp_obj = cJSON_GetObjectItemCaseSensitive(entity_json, "ui_text");
+            const char* text_value = "";
+            Font* font = NULL;
+            if (comp_obj)
+            {
+                cJSON* text_json = cJSON_GetObjectItemCaseSensitive(comp_obj, "text");
+                if (text_json && cJSON_IsString(text_json))
+                    text_value = text_json->valuestring;
+                cJSON* font_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "font_name");
+                if (font_name && cJSON_IsString(font_name))
+                    font = Asset_GetFontByName(font_name->valuestring);
+            }
+            Entity_AddUIText(e, text_value, font);
+            UITextComponent* text = Entity_GetUIText(e);
+            if (comp_obj && text)
+            {
+                cJSON* active = cJSON_GetObjectItemCaseSensitive(comp_obj, "active");
+                if (active) text->is_active = active->valueint != 0;
+                cJSON* color = cJSON_GetObjectItemCaseSensitive(comp_obj, "color");
+                if (color) text->color = LoadColor(color);
+                cJSON* alignment = cJSON_GetObjectItemCaseSensitive(comp_obj, "alignment");
+                if (alignment) text->alignment = (UITextAlignment)alignment->valueint;
+                cJSON* font_size = cJSON_GetObjectItemCaseSensitive(comp_obj, "font_size");
+                if (font_size) text->font_size = (float)font_size->valuedouble;
+                cJSON* wrap = cJSON_GetObjectItemCaseSensitive(comp_obj, "wrap");
+                if (wrap) text->wrap = wrap->valueint != 0;
+                cJSON* raycast = cJSON_GetObjectItemCaseSensitive(comp_obj, "raycast_target");
+                if (raycast) text->raycast_target = raycast->valueint != 0;
+            }
+        }
+
+
+        // --- Loads a UI Button ---
+        if (mask & COMPONENT_UI_BUTTON)
+        {
+            cJSON* comp_obj = cJSON_GetObjectItemCaseSensitive(entity_json, "ui_button");
+            Entity_AddUIButton(e);
+            UIButtonComponent* button = Entity_GetUIButton(e);
+            if (comp_obj && button)
+            {
+                cJSON* active = cJSON_GetObjectItemCaseSensitive(comp_obj, "active");
+                if (active) button->is_active = active->valueint != 0;
+                cJSON* interactable = cJSON_GetObjectItemCaseSensitive(comp_obj, "interactable");
+                if (interactable) button->interactable = interactable->valueint != 0;
+                cJSON* c_normal = cJSON_GetObjectItemCaseSensitive(comp_obj, "color_normal");
+                if (c_normal) button->color_normal = LoadColor(c_normal);
+                cJSON* c_hovered = cJSON_GetObjectItemCaseSensitive(comp_obj, "color_hovered");
+                if (c_hovered) button->color_hovered = LoadColor(c_hovered);
+                cJSON* c_pressed = cJSON_GetObjectItemCaseSensitive(comp_obj, "color_pressed");
+                if (c_pressed) button->color_pressed = LoadColor(c_pressed);
+                cJSON* c_disabled = cJSON_GetObjectItemCaseSensitive(comp_obj, "color_disabled");
+                if (c_disabled) button->color_disabled = LoadColor(c_disabled);
             }
         }
 

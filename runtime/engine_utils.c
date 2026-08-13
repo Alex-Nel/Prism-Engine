@@ -76,3 +76,13 @@ void Engine_SetClearColor(PrismEngine* engine, float red, float green, float blu
 {
     Render_SetClearColor(engine->renderer, red, green, blue, alpha);
 }
+
+
+
+
+
+// Signifies that the UI wants the mouse
+bool Engine_UIWantsMouse(PrismEngine* engine)
+{
+    return engine && engine->ui_wants_mouse;
+}
