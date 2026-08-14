@@ -587,13 +587,6 @@ namespace Prism
     // UI Canvas Wrapper
     // ==========================================
 
-    enum UICanvasRenderMode
-    {
-        UI_CANVAS_OVERLAY = 0,
-        UI_CANVAS_CAMERA = 1,
-        UI_CANVAS_WORLD = 2
-    };
-
     enum UICanvasScaleMode
     {
         UI_CANVAS_CONSTANT_PIXEL_SIZE = 0,
@@ -621,7 +614,6 @@ namespace Prism
     {
         Prism::Entity entity;
         bool is_active;
-        UICanvasRenderMode render_mode;
         int sort_order;
         UICanvasScaleMode scale_mode;
         Prism::Vector2 reference_resolution;
@@ -629,12 +621,12 @@ namespace Prism
         bool blocks_raycasts;
         float scale_factor;
 
-        void SetActive(bool active) { this->is_active = active; }
+        void SetActive(bool active);
         bool IsActive() const { return this->is_active; }
         void SetSortOrder(int order) { this->sort_order = order; }
-        void SetScaleMode(UICanvasScaleMode mode) { this->scale_mode = mode; }
-        void SetReferenceResolution(const Prism::Vector2& resolution) { this->reference_resolution = resolution; }
-        void SetMatchWidthOrHeight(float match) { this->match_width_or_height = match; }
+        void SetScaleMode(UICanvasScaleMode mode);
+        void SetReferenceResolution(const Prism::Vector2& resolution);
+        void SetMatchWidthOrHeight(float match);
         void SetBlocksRaycasts(bool blocks) { this->blocks_raycasts = blocks; }
     };
 
@@ -652,8 +644,6 @@ namespace Prism
         Prism::Vector2 pivot;
         Prism::Vector2 size_delta;
         Prism::Vector2 anchored_position;
-        Prism::Vector2 local_scale;
-        float local_rotation_z;
         float screen_x;
         float screen_y;
         float screen_width;
@@ -664,8 +654,6 @@ namespace Prism
         void SetSizeDelta(const Prism::Vector2& size);
         void SetAnchors(const Prism::Vector2& min, const Prism::Vector2& max);
         void SetPivot(const Prism::Vector2& pivot);
-        void SetLocalScale(const Prism::Vector2& scale);
-        void SetLocalRotationZ(float degrees);
         void MarkDirty();
         Prism::Vector2 GetScreenPosition() const { return Prism::Vector2(screen_x, screen_y); }
         Prism::Vector2 GetScreenSize() const { return Prism::Vector2(screen_width, screen_height); }

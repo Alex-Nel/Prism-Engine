@@ -1,4 +1,5 @@
 #include "scene.h"
+#include "ui_internal.h"
 
 
 
@@ -145,7 +146,8 @@ void Entity_SetParent(Entity child, Entity parent)
     }
 
     // Make sure to rebuild the matrix since the space just changed
-    child_t->is_dirty = true; 
+    child_t->is_dirty = true;
+    RectTransform_MarkDirty(child);
 }
 
 
@@ -204,6 +206,7 @@ void Entity_RemoveParent(Entity child)
 
     // Rebuild world matrix
     child_t->is_dirty = true;
+    RectTransform_MarkDirty(child);
 }
 
 
@@ -223,6 +226,7 @@ void Entity_SetActive(Entity entity, bool active)
     // Flag the transform as dirty to make the Scene Graph re-evaluate its transform + children
     Transform* t = Entity_GetTransform(entity);
     if (t) t->is_dirty = true;
+    RectTransform_MarkDirty(entity);
 
     // Update the physics state if it has a collider
     if (entity.scene->component_masks[entity.id] & COMPONENT_COLLIDER)
@@ -542,6 +546,24 @@ void Entity_RemoveComponent(Entity entity, ComponentMask component)
             free(anim->final_bone_matrices);
             anim->final_bone_matrices = NULL;
         }
+    }
+
+    if (component & COMPONENT_UI_RECT_TRANSFORM)
+    {
+        component |= COMPONENT_UI_CANVAS | COMPONENT_UI_IMAGE | COMPONENT_UI_TEXT | COMPONENT_UI_BUTTON;
+    }
+
+    const ComponentMask ui_components = COMPONENT_UI_CANVAS | COMPONENT_UI_RECT_TRANSFORM | COMPONENT_UI_IMAGE | COMPONENT_UI_TEXT | COMPONENT_UI_BUTTON;
+    if ((component & ui_components) && entity.scene->retained_ui)
+    {
+        RetainedUIContext* ui = entity.scene->retained_ui;
+        if (ui->hovered_entity_id == entity.id)
+            ui->hovered_entity_id = ENTITY_NONE;
+        if (ui->pressed_entity_id == entity.id)
+            ui->pressed_entity_id = ENTITY_NONE;
+
+        ui->blocks_pointer = false;
+        ui->layout_dirty = true;
     }
     
 
@@ -1158,7 +1180,11 @@ void Entity_AddReflectionProbe(Entity entity, Vector3 box_extents, float blend_d
 // Initializes a default rect transform
 static void Entity_InitDefaultRectTransform(Entity entity, bool stretch)
 {
-    RectTransformComponent* rect = &entity.scene->rect_transforms[entity.id];
+    RetainedUIContext* ui = RetainedUI_EnsureContext(entity.scene);
+    if (!ui)
+        return;
+
+    RectTransformComponent* rect = &ui->rect_transforms[entity.id];
     rect->entity = entity;
     
     if (stretch)
@@ -1176,8 +1202,6 @@ static void Entity_InitDefaultRectTransform(Entity entity, bool stretch)
 
     rect->pivot = (Vector2){0.5f, 0.5f};
     rect->anchored_position = (Vector2){0.0f, 0.0f};
-    rect->local_scale = (Vector2){1.0f, 1.0f};
-    rect->local_rotation_z = 0.0f;
     rect->screen_x = 0.0f;
     rect->screen_y = 0.0f;
     rect->screen_width = 0.0f;
@@ -1185,6 +1209,7 @@ static void Entity_InitDefaultRectTransform(Entity entity, bool stretch)
     rect->is_dirty = true;
     
     entity.scene->component_masks[entity.id] |= COMPONENT_UI_RECT_TRANSFORM;
+    ui->layout_dirty = true;
 }
 
 
@@ -1212,13 +1237,16 @@ void Entity_AddUICanvas(Entity entity)
     if (!Entity_IsValid(entity))
         return;
 
+    RetainedUIContext* ui = RetainedUI_EnsureContext(entity.scene);
+    if (!ui)
+        return;
+
     if (!(entity.scene->component_masks[entity.id] & COMPONENT_UI_RECT_TRANSFORM))
         Entity_InitDefaultRectTransform(entity, true);
 
-    UICanvasComponent* canvas = &entity.scene->ui_canvases[entity.id];
+    UICanvasComponent* canvas = &ui->canvases[entity.id];
     canvas->entity = entity;
     canvas->is_active = true;
-    canvas->render_mode = UI_CANVAS_OVERLAY;
     canvas->sort_order = 0;
     canvas->scale_mode = UI_CANVAS_SCALE_WITH_SCREEN_SIZE;
     canvas->reference_resolution = (Vector2){1920.0f, 1080.0f};
@@ -1240,10 +1268,14 @@ void Entity_AddUIImage(Entity entity, Texture* texture)
     if (!Entity_IsValid(entity))
         return;
 
+    RetainedUIContext* ui = RetainedUI_EnsureContext(entity.scene);
+    if (!ui)
+        return;
+
     if (!(entity.scene->component_masks[entity.id] & COMPONENT_UI_RECT_TRANSFORM))
         Entity_InitDefaultRectTransform(entity, false);
 
-    UIImageComponent* image = &entity.scene->ui_images[entity.id];
+    UIImageComponent* image = &ui->images[entity.id];
     image->entity = entity;
     image->is_active = true;
     image->texture = texture;
@@ -1263,10 +1295,14 @@ void Entity_AddUIText(Entity entity, const char* text, Font* font)
     if (!Entity_IsValid(entity))
         return;
 
+    RetainedUIContext* ui = RetainedUI_EnsureContext(entity.scene);
+    if (!ui)
+        return;
+
     if (!(entity.scene->component_masks[entity.id] & COMPONENT_UI_RECT_TRANSFORM))
         Entity_InitDefaultRectTransform(entity, false);
 
-    UITextComponent* ui_text = &entity.scene->ui_texts[entity.id];
+    UITextComponent* ui_text = &ui->texts[entity.id];
     ui_text->entity = entity;
     ui_text->is_active = true;
     ui_text->text[0] = '\0';
@@ -1293,10 +1329,14 @@ void Entity_AddUIButton(Entity entity)
     if (!Entity_IsValid(entity))
         return;
 
+    RetainedUIContext* ui = RetainedUI_EnsureContext(entity.scene);
+    if (!ui)
+        return;
+
     if (!(entity.scene->component_masks[entity.id] & COMPONENT_UI_RECT_TRANSFORM))
         Entity_InitDefaultRectTransform(entity, false);
 
-    UIButtonComponent* button = &entity.scene->ui_buttons[entity.id];
+    UIButtonComponent* button = &ui->buttons[entity.id];
     button->entity = entity;
     button->is_active = true;
     button->interactable = true;
@@ -1679,8 +1719,8 @@ UICanvasComponent* Entity_GetUICanvas(Entity entity)
     if (!Entity_IsValid(entity))
         return NULL;
     
-    if ((entity.scene->component_masks[entity.id] & COMPONENT_UI_CANVAS) == COMPONENT_UI_CANVAS)
-        return &entity.scene->ui_canvases[entity.id];
+    if (entity.scene->retained_ui && (entity.scene->component_masks[entity.id] & COMPONENT_UI_CANVAS) == COMPONENT_UI_CANVAS)
+        return &entity.scene->retained_ui->canvases[entity.id];
     
     return NULL;
 }
@@ -1695,8 +1735,8 @@ RectTransformComponent* Entity_GetRectTransform(Entity entity)
     if (!Entity_IsValid(entity))
         return NULL;
     
-    if ((entity.scene->component_masks[entity.id] & COMPONENT_UI_RECT_TRANSFORM) == COMPONENT_UI_RECT_TRANSFORM)
-        return &entity.scene->rect_transforms[entity.id];
+    if (entity.scene->retained_ui && (entity.scene->component_masks[entity.id] & COMPONENT_UI_RECT_TRANSFORM) == COMPONENT_UI_RECT_TRANSFORM)
+        return &entity.scene->retained_ui->rect_transforms[entity.id];
     
     return NULL;
 }
@@ -1711,8 +1751,8 @@ UIImageComponent* Entity_GetUIImage(Entity entity)
     if (!Entity_IsValid(entity))
         return NULL;
     
-    if ((entity.scene->component_masks[entity.id] & COMPONENT_UI_IMAGE) == COMPONENT_UI_IMAGE)
-        return &entity.scene->ui_images[entity.id];
+    if (entity.scene->retained_ui && (entity.scene->component_masks[entity.id] & COMPONENT_UI_IMAGE) == COMPONENT_UI_IMAGE)
+        return &entity.scene->retained_ui->images[entity.id];
     
     return NULL;
 }
@@ -1727,8 +1767,8 @@ UITextComponent* Entity_GetUIText(Entity entity)
     if (!Entity_IsValid(entity))
         return NULL;
     
-    if ((entity.scene->component_masks[entity.id] & COMPONENT_UI_TEXT) == COMPONENT_UI_TEXT)
-        return &entity.scene->ui_texts[entity.id];
+    if (entity.scene->retained_ui && (entity.scene->component_masks[entity.id] & COMPONENT_UI_TEXT) == COMPONENT_UI_TEXT)
+        return &entity.scene->retained_ui->texts[entity.id];
     
     return NULL;
 }
@@ -1743,8 +1783,8 @@ UIButtonComponent* Entity_GetUIButton(Entity entity)
     if (!Entity_IsValid(entity))
         return NULL;
     
-    if ((entity.scene->component_masks[entity.id] & COMPONENT_UI_BUTTON) == COMPONENT_UI_BUTTON)
-        return &entity.scene->ui_buttons[entity.id];
+    if (entity.scene->retained_ui && (entity.scene->component_masks[entity.id] & COMPONENT_UI_BUTTON) == COMPONENT_UI_BUTTON)
+        return &entity.scene->retained_ui->buttons[entity.id];
     
     return NULL;
 }

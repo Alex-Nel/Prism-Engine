@@ -30,7 +30,8 @@ void Scene_Destroy(Scene* scene)
     if (!scene) return;
 
     // Shutdown physics, free any internal allocations
-    Scene_ShutdownPhysics(scene); 
+    Scene_ShutdownPhysics(scene);
+    RetainedUI_Shutdown(scene);
     
     // Free the struct
     free(scene);
@@ -63,11 +64,6 @@ void Scene_Init(Scene* scene)
     scene->ambient_color = (Color){1.0f, 1.0f, 1.0f, 1.0f};
     scene->ambient_illumination = 0.15f;
     scene->exposure = 1.0f;
-
-    // Set UI variables
-    scene->ui_hovered_entity_id = ENTITY_NONE;
-    scene->ui_pressed_entity_id = ENTITY_NONE;
-    scene->ui_blocks_pointer = false;
 }
 
 
@@ -115,6 +111,8 @@ void Scene_Clear(Scene* scene)
             scene->names[i].name[0] = '\0';
         }
     }
+
+    RetainedUI_Reset(scene);
 }
 
 

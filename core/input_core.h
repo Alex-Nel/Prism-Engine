@@ -15,7 +15,7 @@ void Input_ProcessEvent(const Event* event);
 void Input_Update();
 
 // Clears current mouse button state
-void Input_ClearMouseButtons();
+void Input_ConsumeMouseButton(MouseButton button);
 
 
 // Keyboard State functions

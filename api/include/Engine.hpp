@@ -57,7 +57,6 @@ namespace Prism
         static void CaptureMouse();
         static void ReleaseMouse();
         static bool IsMouseCaptured();
-        static bool UIWantsMouse();
         static void SetTargetFPS(uint32_t fps);
         static uint32_t GetTargetFPS();
         static void SetVSync(bool enabled);

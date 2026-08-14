@@ -9,12 +9,12 @@
 #include "../core/math_core.h"
 #include "../core/time_core.h"
 #include "../core/log_core.h"
-#include "../core/overlay_core.h"
 #include "../audio/audio.h"
 #include "../assets/asset_manager.h"
 #include "physics_bridge.h"
 #include "frustum.h"
 #include "scene_structures.h"
+#include "ui.h"
 
 
 
@@ -39,10 +39,6 @@ void Scene_UpdateAnimators(Scene* scene, float delta_time);
 void Scene_UpdateSkinnedMeshBounds(Scene* scene);
 void Scene_UpdateBoneAttachments(Scene* scene);
 void Scene_UpdateTransforms(Scene* scene);
-void Scene_UpdateUILayout(Scene* scene, uint32_t window_w, uint32_t window_h);
-void Scene_ProcessUIPointer(Scene* scene, float mouse_x, float mouse_y, bool mouse_captured);
-void Scene_BuildUIOverlay(Scene* scene, OverlayDrawList* out_list);
-bool Scene_UIBlocksPointer(Scene* scene);
 
 void Scene_SyncPhysicsPreSim(Scene* scene);
 void Scene_StepPhysicsAndCollisions(Scene* scene);
@@ -232,17 +228,6 @@ void ReflectionProbe_SetPriority(ReflectionProbeComponent* probe, int32_t priori
 void ReflectionProbe_SetCaptureResolution(ReflectionProbeComponent* probe, uint32_t resolution);
 void ReflectionProbe_MarkDirty(ReflectionProbeComponent* probe);
 
-
-
-// --- UI Functions ---
-
-void RectTransform_MarkDirty(Entity entity);
-void RectTransform_SetAnchoredPosition(Entity entity, Vector2 position);
-void RectTransform_SetSizeDelta(Entity entity, Vector2 size);
-void RectTransform_SetAnchors(Entity entity, Vector2 min, Vector2 max);
-void RectTransform_SetPivot(Entity entity, Vector2 pivot);
-void RectTransform_SetLocalScale(Entity entity, Vector2 scale);
-void RectTransform_SetLocalRotationZ(Entity entity, float degrees);
 
 
 

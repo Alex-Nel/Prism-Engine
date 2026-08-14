@@ -252,6 +252,20 @@ typedef struct GL_UIPipeline
 } GL_UIPipeline;
 
 
+typedef struct GL_OverlayPipeline
+{
+    GLuint vbo, vao, ebo;
+    ShaderHandle shader;
+
+    GLint attrib_pos;
+    GLint attrib_uv;
+    GLint attrib_col;
+
+    GLint uniform_tex;
+    GLint uniform_proj;
+} GL_OverlayPipeline;
+
+
 typedef struct GL_IBLPipeline
 {
     ShaderHandle equirectangular_to_cubemap;
@@ -296,6 +310,7 @@ typedef struct OpenGL_Backend
     GL_SSAOPipeline     ssao;
     GL_SkyboxPipeline   skybox;
     GL_UIPipeline       ui;
+    GL_OverlayPipeline  overlay;
     GL_IBLPipeline      ibl;
 
     GLuint default_white_texture;
@@ -399,4 +414,6 @@ void OpenGL_EndFrame(Renderer* r);
 void OpenGL_UIinit(Renderer* r, void* nk_ctx_void);
 void OpenGL_UIShutdown(Renderer* r);
 void OpenGL_UIRender(Renderer* r, void* nk_ctx_void, uint32_t width, uint32_t height);
+void OpenGL_OverlayInit(Renderer* r);
+void OpenGL_OverlayShutdown(Renderer* r);
 void OpenGL_DrawOverlay(Renderer* r, const OverlayDrawList* list, uint32_t width, uint32_t height);

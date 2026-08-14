@@ -384,6 +384,7 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
 
 
     r->backend_internal_data = internal;
+    OpenGL_OverlayInit(r);
 
     r->api = GRAPHICS_API_OPENGL;
     r->Shutdown = OpenGL_Shutdown;
@@ -439,6 +440,8 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
 void OpenGL_Shutdown(Renderer* r)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+
+    OpenGL_OverlayShutdown(r);
 
     // Clear out any pending draw commands
     internal->command_count = 0;
@@ -556,8 +559,9 @@ void OpenGL_InitPipelines(OpenGL_Backend* internal)
     // 4. Skybox Pipeline
     internal->skybox.default_shader = OpenGL_CompileInternalShaderFromFile(internal, "Skybox", "assets/shaders/skybox/skybox.vert", NULL, "assets/shaders/skybox/skybox.frag");
 
-    // 5. UI Pipeline
+    // 5. Immediate UI and retained overlay pipelines
     internal->ui.shader = OpenGL_CompileInternalShaderFromFile(internal, "UI Shader", "assets/shaders/ui/ui.vert", NULL, "assets/shaders/ui/ui.frag");
+    internal->overlay.shader = OpenGL_CompileInternalShaderFromFile(internal, "Overlay Shader", "assets/shaders/ui/ui.vert", NULL, "assets/shaders/ui/ui.frag");
 
     // 6. SSAO Pipeline
     internal->ssao.g_buffer_shader = OpenGL_CompileInternalShaderFromFile(internal, "G-Buffer", "assets/shaders/ssao/g_buffer.vert", NULL, "assets/shaders/ssao/g_buffer.frag");

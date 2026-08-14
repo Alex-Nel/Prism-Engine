@@ -298,10 +298,9 @@ bool Scene_Save(Scene* scene, const char* filepath)
         // --- Save UI Canvas ---
         if (scene->component_masks[i] & COMPONENT_UI_CANVAS)
         {
-            UICanvasComponent* canvas = &scene->ui_canvases[i];
+            UICanvasComponent* canvas = Entity_GetUICanvas((Entity){i, scene});
             cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "ui_canvas");
             cJSON_AddBoolToObject(comp_obj, "active", canvas->is_active);
-            cJSON_AddNumberToObject(comp_obj, "render_mode", canvas->render_mode);
             cJSON_AddNumberToObject(comp_obj, "sort_order", canvas->sort_order);
             cJSON_AddNumberToObject(comp_obj, "scale_mode", canvas->scale_mode);
             cJSON_AddItemToObject(comp_obj, "reference_resolution", SaveVec2(canvas->reference_resolution));
@@ -313,22 +312,20 @@ bool Scene_Save(Scene* scene, const char* filepath)
         // --- Save UI Rect Transform ---
         if (scene->component_masks[i] & COMPONENT_UI_RECT_TRANSFORM)
         {
-            RectTransformComponent* rect = &scene->rect_transforms[i];
+            RectTransformComponent* rect = Entity_GetRectTransform((Entity){i, scene});
             cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "rect_transform");
             cJSON_AddItemToObject(comp_obj, "anchor_min", SaveVec2(rect->anchor_min));
             cJSON_AddItemToObject(comp_obj, "anchor_max", SaveVec2(rect->anchor_max));
             cJSON_AddItemToObject(comp_obj, "pivot", SaveVec2(rect->pivot));
             cJSON_AddItemToObject(comp_obj, "size_delta", SaveVec2(rect->size_delta));
             cJSON_AddItemToObject(comp_obj, "anchored_position", SaveVec2(rect->anchored_position));
-            cJSON_AddItemToObject(comp_obj, "local_scale", SaveVec2(rect->local_scale));
-            cJSON_AddNumberToObject(comp_obj, "local_rotation_z", rect->local_rotation_z);
         }
 
 
         // --- Save UI image ---
         if (scene->component_masks[i] & COMPONENT_UI_IMAGE)
         {
-            UIImageComponent* image = &scene->ui_images[i];
+            UIImageComponent* image = Entity_GetUIImage((Entity){i, scene});
             cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "ui_image");
             cJSON_AddBoolToObject(comp_obj, "active", image->is_active);
             if (image->texture)
@@ -341,7 +338,7 @@ bool Scene_Save(Scene* scene, const char* filepath)
         // --- Save UI Text ---
         if (scene->component_masks[i] & COMPONENT_UI_TEXT)
         {
-            UITextComponent* text = &scene->ui_texts[i];
+            UITextComponent* text = Entity_GetUIText((Entity){i, scene});
             cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "ui_text");
             cJSON_AddBoolToObject(comp_obj, "active", text->is_active);
             cJSON_AddStringToObject(comp_obj, "text", text->text);
@@ -358,7 +355,7 @@ bool Scene_Save(Scene* scene, const char* filepath)
         // --- Save UI Button ---
         if (scene->component_masks[i] & COMPONENT_UI_BUTTON)
         {
-            UIButtonComponent* button = &scene->ui_buttons[i];
+            UIButtonComponent* button = Entity_GetUIButton((Entity){i, scene});
             cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "ui_button");
             cJSON_AddBoolToObject(comp_obj, "active", button->is_active);
             cJSON_AddBoolToObject(comp_obj, "interactable", button->interactable);
@@ -719,13 +716,8 @@ bool Scene_Load(Scene* scene, const char* filepath)
                 rect->pivot = LoadVec2(cJSON_GetObjectItemCaseSensitive(comp_obj, "pivot"));
                 rect->size_delta = LoadVec2(cJSON_GetObjectItemCaseSensitive(comp_obj, "size_delta"));
                 rect->anchored_position = LoadVec2(cJSON_GetObjectItemCaseSensitive(comp_obj, "anchored_position"));
-                cJSON* local_scale = cJSON_GetObjectItemCaseSensitive(comp_obj, "local_scale");
-                if (local_scale)
-                    rect->local_scale = LoadVec2(local_scale);
-                cJSON* rot = cJSON_GetObjectItemCaseSensitive(comp_obj, "local_rotation_z");
-                if (rot)
-                    rect->local_rotation_z = (float)rot->valuedouble;
                 rect->is_dirty = true;
+                RectTransform_MarkDirty(e);
             }
         }
 
@@ -740,8 +732,6 @@ bool Scene_Load(Scene* scene, const char* filepath)
             {
                 cJSON* active = cJSON_GetObjectItemCaseSensitive(comp_obj, "active");
                 if (active) canvas->is_active = active->valueint != 0;
-                cJSON* render_mode = cJSON_GetObjectItemCaseSensitive(comp_obj, "render_mode");
-                if (render_mode) canvas->render_mode = (UICanvasRenderMode)render_mode->valueint;
                 cJSON* sort_order = cJSON_GetObjectItemCaseSensitive(comp_obj, "sort_order");
                 if (sort_order) canvas->sort_order = sort_order->valueint;
                 cJSON* scale_mode = cJSON_GetObjectItemCaseSensitive(comp_obj, "scale_mode");

@@ -10,6 +10,7 @@ static bool previous_keys[KEYCODE_MAX];
 
 static bool current_mouse_buttons[MOUSE_BUTTON_MAX];
 static bool previous_mouse_buttons[MOUSE_BUTTON_MAX];
+static bool consumed_mouse_buttons[MOUSE_BUTTON_MAX];
 
 // --- Mouse Data ---
 static float mouse_x, mouse_y;
@@ -25,6 +26,7 @@ void Input_Init()
     memset(previous_keys, 0, sizeof(previous_keys));
     memset(current_mouse_buttons, 0, sizeof(current_mouse_buttons));
     memset(previous_mouse_buttons, 0, sizeof(previous_mouse_buttons));
+    memset(consumed_mouse_buttons, 0, sizeof(consumed_mouse_buttons));
     
     mouse_x = 0; mouse_y = 0;
     mouse_delta_x = 0; mouse_delta_y = 0;
@@ -79,6 +81,7 @@ void Input_Update()
     // Copy current state to previous state for the next frame
     memcpy(previous_keys, current_keys, sizeof(current_keys));
     memcpy(previous_mouse_buttons, current_mouse_buttons, sizeof(current_mouse_buttons));
+    memset(consumed_mouse_buttons, 0, sizeof(consumed_mouse_buttons));
     
     // Reset deltas
     mouse_delta_x = 0;
@@ -89,9 +92,10 @@ void Input_Update()
 
 
 // Clears current mouse button state
-void Input_ClearMouseButtons()
+void Input_ConsumeMouseButton(MouseButton button)
 {
-    memset(current_mouse_buttons, 0, sizeof(current_mouse_buttons));
+    if (button >= 0 && button < MOUSE_BUTTON_MAX)
+        consumed_mouse_buttons[button] = true;
 }
 
 
@@ -125,19 +129,19 @@ bool Input_IsKeyReleased(KeyCode key) {
 // Returns whether a mouse button is held down at all
 bool Input_IsMouseButtonDown(MouseButton button)
 {
-    return current_mouse_buttons[button];
+    return !consumed_mouse_buttons[button] && current_mouse_buttons[button];
 }
 
 // Returns wheter a mouse buttons is pressed for a single frame (not held down)
 bool Input_IsMouseButtonPressed(MouseButton button)
 {
-    return current_mouse_buttons[button] && !previous_mouse_buttons[button];
+    return !consumed_mouse_buttons[button] && current_mouse_buttons[button] && !previous_mouse_buttons[button];
 }
 
 // Returns if a mouse button is released at all
 bool Input_IsMouseButtonReleased(MouseButton button)
 {
-    return !current_mouse_buttons[button] && previous_mouse_buttons[button];
+    return !consumed_mouse_buttons[button] && !current_mouse_buttons[button] && previous_mouse_buttons[button];
 }
 
 

@@ -61,10 +61,6 @@ namespace Prism
         return ::Engine_IsMouseCaptured(&s_engine);
     }
 
-    bool Engine::UIWantsMouse() {
-        return ::Engine_UIWantsMouse(&s_engine);
-    }
-
     void Engine::SetTargetFPS(uint32_t fps) {
         ::Engine_SetTargetFPS(&s_engine, fps);
     }

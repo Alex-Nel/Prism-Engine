@@ -54,9 +54,6 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
     Asset_Init(renderer);
     Time_Init(engine->target_fps, Platform_GetTime, Platform_Delay);
 
-    OverlayDrawList_Init(&engine->ui_overlay);
-    engine->ui_wants_mouse = false;
-
     engine->is_running = true;
     engine->accumulator = 0.0f;
 
@@ -70,7 +67,6 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
 // Shuts down all systems
 void Engine_Shutdown(PrismEngine* engine)
 {
-    OverlayDrawList_Free(&engine->ui_overlay);
     UI_Shutdown();
     Audio_Shutdown();
     Render_UIShutdown(engine->renderer);
@@ -103,11 +99,7 @@ static void Engine_TickRetainedUI(PrismEngine* engine, Scene* active_scene)
     float mouse_y = 0.0f;
     Input_GetMousePosition(&mouse_x, &mouse_y);
 
-    Scene_UpdateUILayout(active_scene, w, h);
-    Scene_ProcessUIPointer(active_scene, mouse_x, mouse_y, Engine_IsMouseCaptured(engine));
-    engine->ui_wants_mouse = Scene_UIBlocksPointer(active_scene);
-    if (engine->ui_wants_mouse)
-        Input_ClearMouseButtons();
+    RetainedUI_PreUpdate(active_scene, w, h, mouse_x, mouse_y, Engine_IsMouseCaptured(engine));
 }
 
 
@@ -119,9 +111,8 @@ static void Engine_DrawRetainedUI(PrismEngine* engine, Scene* active_scene)
 {
     uint32_t w = Platform_GetWindowWidth(engine->window);
     uint32_t h = Platform_GetWindowHeight(engine->window);
-    Scene_UpdateUILayout(active_scene, w, h);
-    Scene_BuildUIOverlay(active_scene, &engine->ui_overlay);
-    Render_DrawOverlay(engine->renderer, &engine->ui_overlay, w, h);
+    
+    RetainedUI_Render(active_scene, engine->renderer, w, h);
 }
 
 

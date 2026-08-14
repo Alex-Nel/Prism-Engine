@@ -110,6 +110,8 @@ typedef struct Entity
 // ID for an invalid entity
 #define ENTITY_NONE (uint32_t) 0xFFFFFFFF
 
+#include "ui.h"
+
 
 
 
@@ -449,133 +451,6 @@ typedef struct ReflectionProbeComponent
 
 
 
-// ----- UI Components -----
-
-// Enum for the render mode of a UI
-typedef enum UICanvasRenderMode
-{
-    UI_CANVAS_OVERLAY = 0,
-    UI_CANVAS_CAMERA = 1,
-    UI_CANVAS_WORLD = 2
-} UICanvasRenderMode;
-
-
-
-// Enum for the scaling mode of a UI
-typedef enum UICanvasScaleMode
-{
-    UI_CANVAS_CONSTANT_PIXEL_SIZE = 0,
-    UI_CANVAS_SCALE_WITH_SCREEN_SIZE = 1
-} UICanvasScaleMode;
-
-
-
-// A UI Canvas that holds multiple UI components
-typedef struct UICanvasComponent
-{
-    Entity entity;
-    bool is_active;
-
-    UICanvasRenderMode render_mode;
-    int sort_order;
-    UICanvasScaleMode scale_mode;
-    Vector2 reference_resolution;
-    float match_width_or_height;
-    bool blocks_raycasts;
-
-    float scale_factor;
-} UICanvasComponent;
-
-
-
-// A rectangular transform for UI entities
-typedef struct RectTransformComponent
-{
-    Entity entity;
-
-    Vector2 anchor_min;
-    Vector2 anchor_max;
-    Vector2 pivot;
-    Vector2 size_delta;
-    Vector2 anchored_position;
-    Vector2 local_scale;
-    float local_rotation_z;
-
-    float screen_x;
-    float screen_y;
-    float screen_width;
-    float screen_height;
-
-    bool is_dirty;
-} RectTransformComponent;
-
-
-
-// A UI image component
-typedef struct UIImageComponent
-{
-    Entity entity;
-    bool is_active;
-    Texture* texture;
-    Color color;
-    bool raycast_target;
-} UIImageComponent;
-
-
-
-// Enum for text alignment
-typedef enum UITextAlignment
-{
-    UI_TEXT_ALIGN_LEFT,
-    UI_TEXT_ALIGN_CENTER,
-    UI_TEXT_ALIGN_RIGHT
-} UITextAlignment;
-
-
-
-// A UI text component
-typedef struct UITextComponent
-{
-    Entity entity;
-    bool is_active;
-    char text[256];
-    Font* font;
-    Color color;
-    UITextAlignment alignment;
-    float font_size;
-    bool wrap;
-    bool raycast_target;
-} UITextComponent;
-
-
-
-// An enum for the state of a button component
-typedef enum UIButtonState
-{
-    UI_BUTTON_STATE_NORMAL,
-    UI_BUTTON_STATE_HOVERED,
-    UI_BUTTON_STATE_PRESSED,
-    UI_BUTTON_STATE_DISABLED
-} UIButtonState;
-
-
-
-// A UI button component
-typedef struct UIButtonComponent
-{
-    Entity entity;
-    bool is_active;
-    bool interactable;
-    
-    UIButtonState current_state;
-    Color color_normal;
-    Color color_hovered;
-    Color color_pressed;
-    Color color_disabled;
-
-    bool clicked_this_frame;
-} UIButtonComponent;
-
 
 
 // Forward decleration of cJSON struct
@@ -628,6 +503,13 @@ typedef struct ScriptComponent
 
 
 
+// The Context for the retained UI
+typedef struct RetainedUIContext RetainedUIContext;
+
+
+
+
+
 // --- The Scene Struct ---
 typedef struct Scene
 {
@@ -655,18 +537,9 @@ typedef struct Scene
     LineRendererComponent line_renderers[MAX_ENTITIES];
     SpriteRendererComponent sprite_renderers[MAX_ENTITIES];
     ReflectionProbeComponent reflection_probes[MAX_ENTITIES];
-    UICanvasComponent ui_canvases[MAX_ENTITIES];
-    RectTransformComponent rect_transforms[MAX_ENTITIES];
-    UIImageComponent ui_images[MAX_ENTITIES];
-    UITextComponent ui_texts[MAX_ENTITIES];
-    UIButtonComponent ui_buttons[MAX_ENTITIES];
     ScriptComponent scripts[MAX_ENTITIES];
 
-    bool ui_blocks_pointer;
-    uint32_t ui_hovered_entity_id;
-    uint32_t ui_pressed_entity_id;
-    uint32_t ui_window_width;
-    uint32_t ui_window_height;
+    RetainedUIContext* retained_ui;
 
     uint32_t main_camera_id;
     PhysicsWorldHandle physics_world;

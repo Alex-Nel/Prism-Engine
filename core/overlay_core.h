@@ -8,7 +8,7 @@
 
 
 
-// Vertex layout matches Nuklear's nk_draw_vertex so the UI shader/VAO can be reused.
+// Compact vertex format used by the generic 2D overlay renderer.
 typedef struct OverlayVertex
 {
     float position[2];
