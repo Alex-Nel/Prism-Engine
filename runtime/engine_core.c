@@ -1,6 +1,9 @@
 #include "engine_runtime.h"
 
 
+static OverlayDrawList s_retained_ui_draw_list;
+
+
 
 // Initializes all engine systems
 bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_width, uint32_t window_height, uint32_t target_fps, GraphicsAPI api)
@@ -54,6 +57,11 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
     Asset_Init(renderer);
     Time_Init(engine->target_fps, Platform_GetTime, Platform_Delay);
 
+    if (!s_retained_ui_draw_list.vertices)
+        OverlayDrawList_Init(&s_retained_ui_draw_list);
+    else
+        OverlayDrawList_Reset(&s_retained_ui_draw_list);
+
     engine->is_running = true;
     engine->accumulator = 0.0f;
 
@@ -67,6 +75,7 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
 // Shuts down all systems
 void Engine_Shutdown(PrismEngine* engine)
 {
+    OverlayDrawList_Free(&s_retained_ui_draw_list);
     UI_Shutdown();
     Audio_Shutdown();
     Render_UIShutdown(engine->renderer);
@@ -109,10 +118,16 @@ static void Engine_TickRetainedUI(PrismEngine* engine, Scene* active_scene)
 // Draws the retained UI
 static void Engine_DrawRetainedUI(PrismEngine* engine, Scene* active_scene)
 {
+    if (!engine->renderer || !active_scene)
+        return;
+
     uint32_t w = Platform_GetWindowWidth(engine->window);
     uint32_t h = Platform_GetWindowHeight(engine->window);
     
-    RetainedUI_Render(active_scene, engine->renderer, w, h);
+    RetainedUI_UpdateLayout(active_scene, w, h);
+    RetainedUI_BuildOverlay(active_scene, &s_retained_ui_draw_list);
+    
+    Render_DrawOverlay(engine->renderer, &s_retained_ui_draw_list, w, h);
 }
 
 

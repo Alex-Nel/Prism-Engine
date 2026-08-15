@@ -1,4 +1,4 @@
-#include "ui_internal.h"
+#include "scene.h"
 #include <stdlib.h>
 
 
@@ -55,16 +55,15 @@ static void EmitImage(Scene* scene, uint32_t id, OverlayDrawList* list, float cl
     if (!(scene->component_masks[id] & COMPONENT_UI_IMAGE))
         return;
 
-    RetainedUIContext* ui = scene->retained_ui;
-    UIImageComponent* image = &ui->images[id];
+    UIImageComponent* image = &scene->ui_images[id];
     if (!image->is_active)
         return;
 
-    RectTransformComponent* rect = &ui->rect_transforms[id];
+    RectTransformComponent* rect = &scene->ui_rect_transforms[id];
     Color color = image->color;
     if (scene->component_masks[id] & COMPONENT_UI_BUTTON)
     {
-        UIButtonComponent* button = &ui->buttons[id];
+        UIButtonComponent* button = &scene->ui_buttons[id];
         Color tint = button->color_normal;
         if (!button->is_active || !button->interactable)
             tint = button->color_disabled;
@@ -108,12 +107,11 @@ static void EmitText(Scene* scene, uint32_t id, OverlayDrawList* list, float cli
     if (!(scene->component_masks[id] & COMPONENT_UI_TEXT))
         return;
 
-    RetainedUIContext* ui = scene->retained_ui;
-    UITextComponent* text = &ui->texts[id];
+    UITextComponent* text = &scene->ui_texts[id];
     if (!text->is_active || !text->font || !text->font->texture_atlas || text->text[0] == '\0')
         return;
 
-    RectTransformComponent* rect = &ui->rect_transforms[id];
+    RectTransformComponent* rect = &scene->ui_rect_transforms[id];
     Font* font = text->font;
     float scale = font->size > 0.0f ? text->font_size / font->size : 1.0f;
     float wrap_width = text->wrap ? rect->screen_width : 0.0f;
@@ -245,18 +243,17 @@ static void DrawUITree(Scene* scene, uint32_t entity_id, OverlayDrawList* list, 
 
 
 // Builds the overlay for every UI element in a scene
-void RetainedUI_BuildOverlayInternal(Scene* scene)
+void RetainedUI_BuildOverlay(Scene* scene, OverlayDrawList* out_list)
 {
-    RetainedUIContext* ui = scene->retained_ui;
-    OverlayDrawList_Reset(&ui->draw_list);
+    OverlayDrawList_Reset(out_list);
 
     uint32_t canvas_count = RetainedUI_GatherCanvases(scene);
-    qsort(ui->canvas_entries, canvas_count, sizeof(UICanvasSortEntry), CompareCanvasDrawOrder);
+    qsort(g_ui_state.canvas_entries, canvas_count, sizeof(UICanvasSortEntry), CompareCanvasDrawOrder);
 
     for (uint32_t i = 0; i < canvas_count; i++)
     {
-        uint32_t id = ui->canvas_entries[i].entity_id;
-        RectTransformComponent* rect = &ui->rect_transforms[id];
-        DrawUITree(scene, id, &ui->draw_list, rect->screen_x, rect->screen_y, rect->screen_width, rect->screen_height);
+        uint32_t id = g_ui_state.canvas_entries[i].entity_id;
+        RectTransformComponent* rect = &scene->ui_rect_transforms[id];
+        DrawUITree(scene, id, out_list, rect->screen_x, rect->screen_y, rect->screen_width, rect->screen_height);
     }
 }

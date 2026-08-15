@@ -1,4 +1,4 @@
-#include "ui_internal.h"
+#include "scene.h"
 
 
 
@@ -32,9 +32,8 @@ static void LayoutRectChild(Scene* scene, uint32_t entity_id,
     if (entity_id == ENTITY_NONE)
         return;
 
-    RetainedUIContext* ui = scene->retained_ui;
     bool has_rect = (scene->component_masks[entity_id] & COMPONENT_UI_RECT_TRANSFORM) != 0;
-    RectTransformComponent* rect = has_rect ? &ui->rect_transforms[entity_id] : NULL;
+    RectTransformComponent* rect = has_rect ? &scene->ui_rect_transforms[entity_id] : NULL;
     bool needs_update = force || (rect && rect->is_dirty);
 
     if (rect && parent_rect && needs_update)
@@ -64,25 +63,24 @@ static void LayoutRectChild(Scene* scene, uint32_t entity_id,
 
 
 // Updates the layout of the UI
-void RetainedUI_UpdateLayoutInternal(Scene* scene, uint32_t window_w, uint32_t window_h)
+void RetainedUI_UpdateLayout(Scene* scene, uint32_t window_w, uint32_t window_h)
 {
-    if (!scene || !scene->retained_ui || window_w == 0 || window_h == 0)
+    if (!scene || window_w == 0 || window_h == 0)
         return;
 
-    RetainedUIContext* ui = scene->retained_ui;
-    bool window_changed = ui->window_width != window_w || ui->window_height != window_h;
-    if (!window_changed && !ui->layout_dirty)
+    bool window_changed = g_ui_state.window_width != window_w || g_ui_state.window_height != window_h;
+    if (!window_changed && !g_ui_state.layout_dirty)
         return;
 
-    ui->window_width = window_w;
-    ui->window_height = window_h;
+    g_ui_state.window_width = window_w;
+    g_ui_state.window_height = window_h;
 
     uint32_t canvas_count = RetainedUI_GatherCanvases(scene);
     for (uint32_t i = 0; i < canvas_count; i++)
     {
-        uint32_t id = ui->canvas_entries[i].entity_id;
-        UICanvasComponent* canvas = &ui->canvases[id];
-        RectTransformComponent* rect = &ui->rect_transforms[id];
+        uint32_t id = g_ui_state.canvas_entries[i].entity_id;
+        UICanvasComponent* canvas = &scene->ui_canvases[id];
+        RectTransformComponent* rect = &scene->ui_rect_transforms[id];
 
         canvas->scale_factor = ComputeCanvasScale(canvas, window_w, window_h);
         if (canvas->scale_factor <= 0.0f)
@@ -102,5 +100,5 @@ void RetainedUI_UpdateLayoutInternal(Scene* scene, uint32_t window_w, uint32_t w
         }
     }
 
-    ui->layout_dirty = false;
+    g_ui_state.layout_dirty = false;
 }

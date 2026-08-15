@@ -14,7 +14,6 @@
 #include "physics_bridge.h"
 #include "frustum.h"
 #include "scene_structures.h"
-#include "ui.h"
 
 
 
@@ -60,6 +59,26 @@ void Scene_SetExposure(Scene* scene, float exposure);
 float Scene_GetExposure(Scene* scene);
 bool Scene_Raycast(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hit, int collision_mask, bool hit_triggers);
 int Scene_RaycastAll(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hits, int max_hits, int collision_mask, bool hit_triggers);
+
+
+
+// --- Retained UI API ---
+
+void RetainedUI_Reset(Scene* scene);
+void RetainedUI_Shutdown(Scene* scene);
+void RetainedUI_PreUpdate(Scene* scene, uint32_t window_w, uint32_t window_h, float mouse_x, float mouse_y, bool mouse_captured);
+
+uint32_t RetainedUI_GatherCanvases(Scene* scene);
+void RetainedUI_UpdateLayout(Scene* scene, uint32_t window_w, uint32_t window_h);
+void RetainedUI_ProcessPointerInternal(Scene* scene, float mouse_x, float mouse_y, bool mouse_captured);
+void RetainedUI_BuildOverlay(Scene* scene, struct OverlayDrawList* out_list);
+
+
+
+
+
+
+
 
 
 
@@ -150,6 +169,13 @@ ScriptComponent* Entity_GetScripts(Entity entity);
 
 
 
+
+
+
+
+
+
+
 // --- Transform Setters and Getters ---
 
 void Transform_SetLocalPosition(Transform* t, Vector3 position);
@@ -227,6 +253,31 @@ void ReflectionProbe_SetBlendDistance(ReflectionProbeComponent* probe, float ble
 void ReflectionProbe_SetPriority(ReflectionProbeComponent* probe, int32_t priority);
 void ReflectionProbe_SetCaptureResolution(ReflectionProbeComponent* probe, uint32_t resolution);
 void ReflectionProbe_MarkDirty(ReflectionProbeComponent* probe);
+
+
+
+// --- UI Canvas Functions ---
+
+void UICanvas_SetActive(Entity entity, bool active);
+void UICanvas_SetScaleMode(Entity entity, UICanvasScaleMode mode);
+void UICanvas_SetReferenceResolution(Entity entity, Vector2 resolution);
+void UICanvas_SetMatchWidthOrHeight(Entity entity, float match);
+
+
+
+// --- UI Rect Transform Functions ---
+
+void RectTransform_MarkDirty(Entity entity);
+void RectTransform_SetAnchoredPosition(Entity entity, Vector2 position);
+void RectTransform_SetSizeDelta(Entity entity, Vector2 size);
+void RectTransform_SetAnchors(Entity entity, Vector2 min, Vector2 max);
+void RectTransform_SetPivot(Entity entity, Vector2 pivot);
+
+
+
+// --- UI Text Transform Functions ---
+
+void UIText_SetText(Entity entity, const char* text);
 
 
 

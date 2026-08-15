@@ -86,17 +86,6 @@ typedef enum
 
 
 
-// Defines what the camera wipes before drawing
-typedef enum CameraClearFlags {
-    CLEAR_COLOR_AND_DEPTH = 0,
-    CLEAR_DEPTH_ONLY = 1,
-    CLEAR_NONE = 2
-} CameraClearFlags;
-
-
-
-
-
 typedef struct Scene Scene;
 
 // Struct for an entity
@@ -109,8 +98,6 @@ typedef struct Entity
 
 // ID for an invalid entity
 #define ENTITY_NONE (uint32_t) 0xFFFFFFFF
-
-#include "ui.h"
 
 
 
@@ -214,6 +201,15 @@ typedef struct SkinnedMeshRendererComponent
 
     uint32_t root_animator_entity_id;
 } SkinnedMeshRendererComponent;
+
+
+
+// Defines what the camera wipes before drawing
+typedef enum CameraClearFlags {
+    CLEAR_COLOR_AND_DEPTH = 0,
+    CLEAR_DEPTH_ONLY = 1,
+    CLEAR_NONE = 2
+} CameraClearFlags;
 
 
 
@@ -453,6 +449,136 @@ typedef struct ReflectionProbeComponent
 
 
 
+// --- Retained UI Components ---
+
+// Enum for the scale mode of a canvas
+typedef enum UICanvasScaleMode
+{
+    UI_CANVAS_CONSTANT_PIXEL_SIZE = 0,
+    UI_CANVAS_SCALE_WITH_SCREEN_SIZE = 1
+} UICanvasScaleMode;
+
+
+
+// Enum for the alignment of a UI Text component
+typedef enum UITextAlignment
+{
+    UI_TEXT_ALIGN_LEFT,
+    UI_TEXT_ALIGN_CENTER,
+    UI_TEXT_ALIGN_RIGHT
+} UITextAlignment;
+
+
+
+// Enum for the state of a UI Button component
+typedef enum UIButtonState
+{
+    UI_BUTTON_STATE_NORMAL,
+    UI_BUTTON_STATE_HOVERED,
+    UI_BUTTON_STATE_PRESSED,
+    UI_BUTTON_STATE_DISABLED
+} UIButtonState;
+
+
+
+// Enum for each of the pointer events
+typedef enum UIPointerEvent
+{
+    UI_POINTER_ENTER,
+    UI_POINTER_EXIT,
+    UI_POINTER_DOWN,
+    UI_POINTER_UP,
+    UI_POINTER_CLICK
+} UIPointerEvent;
+
+
+
+// A UI Canvas that contains several other UI components
+typedef struct UICanvasComponent
+{
+    Entity entity;
+    bool is_active;
+
+    int sort_order;
+    UICanvasScaleMode scale_mode;
+    Vector2 reference_resolution;
+    float match_width_or_height;
+    bool blocks_raycasts;
+
+    float scale_factor;
+} UICanvasComponent;
+
+
+
+// A Rect Transform, required for any UI component
+typedef struct RectTransformComponent
+{
+    Entity entity;
+
+    Vector2 anchor_min;
+    Vector2 anchor_max;
+    Vector2 pivot;
+    Vector2 size_delta;
+    Vector2 anchored_position;
+
+    float screen_x;
+    float screen_y;
+    float screen_width;
+    float screen_height;
+
+    bool is_dirty;
+} RectTransformComponent;
+
+
+
+// A UI Image component, renders a image as an overlay
+typedef struct UIImageComponent
+{
+    Entity entity;
+    bool is_active;
+    Texture* texture;
+    Color color;
+    bool raycast_target;
+} UIImageComponent;
+
+
+
+// A UI Text component, renders text
+typedef struct UITextComponent
+{
+    Entity entity;
+    bool is_active;
+    char text[256];
+    Font* font;
+    Color color;
+    UITextAlignment alignment;
+    float font_size;
+    bool wrap;
+    bool raycast_target;
+} UITextComponent;
+
+
+
+// A UI Button component, renders an interactable button
+typedef struct UIButtonComponent
+{
+    Entity entity;
+    bool is_active;
+    bool interactable;
+
+    UIButtonState current_state;
+    Color color_normal;
+    Color color_hovered;
+    Color color_pressed;
+    Color color_disabled;
+
+    bool clicked_this_frame;
+} UIButtonComponent;
+
+
+
+
+
 // Forward decleration of cJSON struct
 struct cJSON;
 
@@ -503,8 +629,45 @@ typedef struct ScriptComponent
 
 
 
-// The Context for the retained UI
-typedef struct RetainedUIContext RetainedUIContext;
+
+
+
+
+
+// --- Retained UI State ---
+
+// An entry for the order of Canvases
+typedef struct UICanvasSortEntry
+{
+    uint32_t entity_id;
+    int sort_order;
+} UICanvasSortEntry;
+
+
+
+// The state of the retained UI
+typedef struct RetainedUIState
+{
+    UICanvasSortEntry canvas_entries[MAX_ENTITIES];
+    uint32_t canvas_count;
+
+    uint32_t hovered_entity_id;
+    uint32_t pressed_entity_id;
+    uint32_t window_width;
+    uint32_t window_height;
+    bool blocks_pointer;
+    bool layout_dirty;
+} RetainedUIState;
+
+
+
+// Extern variable for the state of the UI
+extern RetainedUIState g_ui_state;
+
+
+
+
+
 
 
 
@@ -514,10 +677,10 @@ typedef struct RetainedUIContext RetainedUIContext;
 typedef struct Scene
 {
     uint32_t component_masks[MAX_ENTITIES];
-
     bool is_active_self[MAX_ENTITIES];
     bool is_active_in_hierarchy[MAX_ENTITIES];
     
+
 
     // The scenes component arrays
     
@@ -537,13 +700,23 @@ typedef struct Scene
     LineRendererComponent line_renderers[MAX_ENTITIES];
     SpriteRendererComponent sprite_renderers[MAX_ENTITIES];
     ReflectionProbeComponent reflection_probes[MAX_ENTITIES];
+    
+    UICanvasComponent ui_canvases[MAX_ENTITIES];
+    RectTransformComponent ui_rect_transforms[MAX_ENTITIES];
+    UIImageComponent ui_images[MAX_ENTITIES];
+    UITextComponent ui_texts[MAX_ENTITIES];
+    UIButtonComponent ui_buttons[MAX_ENTITIES];
+    
     ScriptComponent scripts[MAX_ENTITIES];
 
-    RetainedUIContext* retained_ui;
+
+
+    // Other Variables for the state of this scene
 
     uint32_t main_camera_id;
     PhysicsWorldHandle physics_world;
     Vector3 gravity;
+
 
 
     // Variables for the skybox
@@ -554,6 +727,7 @@ typedef struct Scene
     Color ambient_color;
     float ambient_illumination;
     float exposure;
+
 
 
     // Variables for entities to remove
