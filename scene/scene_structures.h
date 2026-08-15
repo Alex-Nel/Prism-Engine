@@ -515,11 +515,12 @@ typedef struct RectTransformComponent
 {
     Entity entity;
 
-    Vector2 anchor_min;
-    Vector2 anchor_max;
-    Vector2 pivot;
-    Vector2 size_delta;
-    Vector2 anchored_position;
+    // Vector2's are interpreted as:   (0, 0) top left   (1, 1) bottom right
+    Vector2 anchor_min;          // The minimum (normalized) point where the element binds itself to the parent.
+    Vector2 anchor_max;          // The maximum (normalized) point where the element binds itself to the parent.
+    Vector2 pivot;               // The "Center" of the UI element, where position/rotataing/scaling is relative to.
+    Vector2 size_delta;          // The absolute width/height if anchors are equal, or the margins/padding if their not
+    Vector2 anchored_position;   // The 'offset' if anchors are equal, or an offset from the center of the stretched rectangle.
 
     float screen_x;
     float screen_y;
