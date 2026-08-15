@@ -126,6 +126,15 @@ namespace Prism
         return Prism::SkinnedMesh(c_mesh);
     }
 
+    Texture AssetManager::GetTextureByName(std::string name) {
+        ::Texture* c_text = ::Asset_GetTextureByName(name.c_str());
+        return Prism::Texture(c_text);
+    }
+
+    Font AssetManager::GetFontByName(const std::string& name) {
+        return Prism::Font(::Asset_GetFontByName(name.c_str()));
+    }
+
 
 
     // ==========================================
@@ -158,9 +167,9 @@ namespace Prism
         return Prism::Texture(raw_tex);
     }
 
-    Texture AssetManager::GetTextureByName(std::string name) {
-        ::Texture* c_text = ::Asset_GetTextureByName(name.c_str());
-        return Prism::Texture(c_text);
+    Font AssetManager::LoadFont(const std::string& name, const std::string& filepath, float pixel_height) {
+        ::Font* h = ::Asset_LoadFont(name.c_str(), filepath.c_str(), pixel_height);
+        return Prism::Font(h);
     }
 
 

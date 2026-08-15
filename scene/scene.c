@@ -30,7 +30,8 @@ void Scene_Destroy(Scene* scene)
     if (!scene) return;
 
     // Shutdown physics, free any internal allocations
-    Scene_ShutdownPhysics(scene); 
+    Scene_ShutdownPhysics(scene);
+    RetainedUI_Shutdown(scene);
     
     // Free the struct
     free(scene);
@@ -110,6 +111,8 @@ void Scene_Clear(Scene* scene)
             scene->names[i].name[0] = '\0';
         }
     }
+
+    RetainedUI_Reset(scene);
 }
 
 

@@ -4,6 +4,7 @@
 
 
 #include "../core/mesh_core.h"
+#include "../core/font_core.h"
 #include "render/render.h"
 
 
@@ -57,6 +58,7 @@ Texture* Asset_LoadTexture(const char* name, const char* filepath);
 Texture* Asset_LoadCubemapTexture(const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back);
 EnvironmentMap* Asset_LoadEnvironmentMap(const char* filepath);
 EnvironmentMap* Asset_LoadEnvironmentMapFromSkybox(const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back);
+Font* Asset_LoadFont(const char* name, const char* filepath, float pixel_height);
 Shader* Asset_LoadShader(const char* name, const char* vert_path, const char* frag_path);
 
 
@@ -97,6 +99,7 @@ Model* Asset_GetModelByName(const char* name);
 Mesh* Asset_GetMeshByName(const char* name);
 SkinnedMesh* Asset_GetSkinnedMeshByName(const char* name);
 Texture* Asset_GetTextureByName(const char* name);
+Font* Asset_GetFontByName(const char* name);
 
 
 

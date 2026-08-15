@@ -31,6 +31,11 @@ static void Headless_BeginFrame(Renderer* r, const RenderPacket* packet) {}
 static void Headless_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle albedo, TextureHandle normal, TextureHandle metallic, TextureHandle roughness, TextureHandle ao, MaterialProperties mat, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows, bool include_in_probe_capture) {}
 static void Headless_EndFrame(Renderer* r) {}
 
+static void Headless_UIinit(Renderer* r, void* nk_ctx) { (void)r; (void)nk_ctx; }
+static void Headless_UIShutdown(Renderer* r) { (void)r; }
+static void Headless_UIRender(Renderer* r, void* nk_ctx, uint32_t width, uint32_t height) { (void)r; (void)nk_ctx; (void)width; (void)height; }
+static void Headless_DrawOverlay(Renderer* r, const OverlayDrawList* list, uint32_t width, uint32_t height) { (void)r; (void)list; (void)width; (void)height; }
+
 
 // --- Fake Resource Creators ---
 
@@ -118,6 +123,11 @@ Renderer* Headless_Init()
     r->BeginFrame = Headless_BeginFrame;
     r->Submit = Headless_Submit;
     r->EndFrame = Headless_EndFrame;
+
+    r->UIinit = Headless_UIinit;
+    r->UIShutdown = Headless_UIShutdown;
+    r->UIRender = Headless_UIRender;
+    r->DrawOverlay = Headless_DrawOverlay;
 
     return r;
 }

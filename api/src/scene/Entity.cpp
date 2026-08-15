@@ -193,6 +193,26 @@ namespace Prism
         ::Entity_AddReflectionProbe(ToCore(*this), ::Vector3{box_extents.x, box_extents.y, box_extents.z}, blend_distance, capture_resolution);
         return this->GetReflectionProbe();
     }
+    Prism::UICanvasComponent* Entity::AddUICanvas() {
+        ::Entity_AddUICanvas(ToCore(*this));
+        return this->GetUICanvas();
+    }
+    Prism::RectTransformComponent* Entity::AddRectTransform() {
+        ::Entity_AddRectTransform(ToCore(*this));
+        return this->GetRectTransform();
+    }
+    Prism::UIImageComponent* Entity::AddUIImage(Prism::Texture texture) {
+        ::Entity_AddUIImage(ToCore(*this), static_cast<::Texture*>(texture.GetRaw()));
+        return this->GetUIImage();
+    }
+    Prism::UITextComponent* Entity::AddUIText(const std::string& text, Prism::Font font) {
+        ::Entity_AddUIText(ToCore(*this), text.c_str(), static_cast<::Font*>(font.GetRaw()));
+        return this->GetUIText();
+    }
+    Prism::UIButtonComponent* Entity::AddUIButton() {
+        ::Entity_AddUIButton(ToCore(*this));
+        return this->GetUIButton();
+    }
 
 
 
@@ -246,6 +266,21 @@ namespace Prism
     }
     Prism::ReflectionProbeComponent* Entity::GetReflectionProbe() {
         return reinterpret_cast<Prism::ReflectionProbeComponent*>(::Entity_GetReflectionProbe(ToCore(*this)));
+    }
+    Prism::UICanvasComponent* Entity::GetUICanvas() {
+        return reinterpret_cast<Prism::UICanvasComponent*>(::Entity_GetUICanvas(ToCore(*this)));
+    }
+    Prism::RectTransformComponent* Entity::GetRectTransform() {
+        return reinterpret_cast<Prism::RectTransformComponent*>(::Entity_GetRectTransform(ToCore(*this)));
+    }
+    Prism::UIImageComponent* Entity::GetUIImage() {
+        return reinterpret_cast<Prism::UIImageComponent*>(::Entity_GetUIImage(ToCore(*this)));
+    }
+    Prism::UITextComponent* Entity::GetUIText() {
+        return reinterpret_cast<Prism::UITextComponent*>(::Entity_GetUIText(ToCore(*this)));
+    }
+    Prism::UIButtonComponent* Entity::GetUIButton() {
+        return reinterpret_cast<Prism::UIButtonComponent*>(::Entity_GetUIButton(ToCore(*this)));
     }
 
 
@@ -640,6 +675,21 @@ namespace Prism
     }
     void Entity::RemoveReflectionProbe() {
         ::Entity_RemoveComponent(ToCore(*this), COMPONENT_REFLECTION_PROBE);
+    }
+    void Entity::RemoveUICanvas() {
+        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_UI_CANVAS);
+    }
+    void Entity::RemoveRectTransform() {
+        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_UI_RECT_TRANSFORM);
+    }
+    void Entity::RemoveUIImage() {
+        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_UI_IMAGE);
+    }
+    void Entity::RemoveUIText() {
+        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_UI_TEXT);
+    }
+    void Entity::RemoveUIButton() {
+        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_UI_BUTTON);
     }
 
 

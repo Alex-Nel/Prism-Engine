@@ -5,7 +5,21 @@
 extern "C"
 {
     #include "../../../scene/scene.h"
+    #include <cstring>
+    #include <cstddef>
 }
+
+
+static_assert(sizeof(Prism::UICanvasComponent) == sizeof(::UICanvasComponent), "UICanvasComponent bridge layout mismatch");
+static_assert(sizeof(Prism::RectTransformComponent) == sizeof(::RectTransformComponent), "RectTransformComponent bridge layout mismatch");
+static_assert(sizeof(Prism::UIImageComponent) == sizeof(::UIImageComponent), "UIImageComponent bridge layout mismatch");
+static_assert(sizeof(Prism::UITextComponent) == sizeof(::UITextComponent), "UITextComponent bridge layout mismatch");
+static_assert(sizeof(Prism::UIButtonComponent) == sizeof(::UIButtonComponent), "UIButtonComponent bridge layout mismatch");
+static_assert(offsetof(Prism::UICanvasComponent, sort_order) == offsetof(::UICanvasComponent, sort_order), "UICanvasComponent field offset mismatch");
+static_assert(offsetof(Prism::RectTransformComponent, anchored_position) == offsetof(::RectTransformComponent, anchored_position), "RectTransformComponent field offset mismatch");
+static_assert(offsetof(Prism::UIImageComponent, color) == offsetof(::UIImageComponent, color), "UIImageComponent field offset mismatch");
+static_assert(offsetof(Prism::UITextComponent, font_size) == offsetof(::UITextComponent, font_size), "UITextComponent field offset mismatch");
+static_assert(offsetof(Prism::UIButtonComponent, clicked_this_frame) == offsetof(::UIButtonComponent, clicked_this_frame), "UIButtonComponent field offset mismatch");
 
 
 namespace Prism
@@ -409,5 +423,66 @@ namespace Prism
     }
     void ReflectionProbeComponent::MarkDirty() {
         ::ReflectionProbe_MarkDirty(reinterpret_cast<::ReflectionProbeComponent*>(this));
+    }
+
+
+
+    // ==========================================
+    // UI Canvas Component Implementation
+    // ==========================================
+
+    void UICanvasComponent::SetActive(bool active) {
+        ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::UICanvas_SetActive(raw, active);
+    }
+    void UICanvasComponent::SetScaleMode(UICanvasScaleMode mode) {
+        ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::UICanvas_SetScaleMode(raw, static_cast<::UICanvasScaleMode>(mode));
+    }
+    void UICanvasComponent::SetReferenceResolution(const Prism::Vector2& resolution) {
+        ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::UICanvas_SetReferenceResolution(raw, ::Vector2{resolution.x, resolution.y});
+    }
+    void UICanvasComponent::SetMatchWidthOrHeight(float match) {
+        ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::UICanvas_SetMatchWidthOrHeight(raw, match);
+    }
+
+
+
+    // ==========================================
+    // Rect Transform Component Implementation
+    // ==========================================
+
+    void RectTransformComponent::SetAnchoredPosition(const Prism::Vector2& position) {
+        ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::RectTransform_SetAnchoredPosition(raw, ::Vector2{position.x, position.y});
+    }
+    void RectTransformComponent::SetSizeDelta(const Prism::Vector2& size) {
+        ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::RectTransform_SetSizeDelta(raw, ::Vector2{size.x, size.y});
+    }
+    void RectTransformComponent::SetAnchors(const Prism::Vector2& min, const Prism::Vector2& max) {
+        ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::RectTransform_SetAnchors(raw, ::Vector2{min.x, min.y}, ::Vector2{max.x, max.y});
+    }
+    void RectTransformComponent::SetPivot(const Prism::Vector2& pivot) {
+        ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::RectTransform_SetPivot(raw, ::Vector2{pivot.x, pivot.y});
+    }
+    void RectTransformComponent::MarkDirty() {
+        ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::RectTransform_MarkDirty(raw);
+    }
+
+
+
+    // ==========================================
+    // UI Text Component Implementation
+    // ==========================================
+
+    void UITextComponent::SetText(const std::string& value) {
+        ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::UIText_SetText(raw, value.c_str());
     }
 }

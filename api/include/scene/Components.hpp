@@ -12,51 +12,6 @@
 
 namespace Prism
 {
-    // Enum for built in and custom collision layers
-    enum CollisionLayer
-    {
-        COLLISION_LAYER_NONE      = 0,
-        COLLISION_LAYER_DEFAULT   = (1 << 0),  // Standard colliders
-        COLLISION_LAYER_TRIGGER   = (1 << 1),  // Invisible triggers
-
-
-
-        // User defined layers
-
-        COLLISION_LAYER_USER_1    = (1 << 2),
-        COLLISION_LAYER_USER_2    = (1 << 3),
-        COLLISION_LAYER_USER_3    = (1 << 4),
-        COLLISION_LAYER_USER_4    = (1 << 5),
-        COLLISION_LAYER_USER_5    = (1 << 6),
-        COLLISION_LAYER_USER_6    = (1 << 7),
-        COLLISION_LAYER_USER_7    = (1 << 8),
-        COLLISION_LAYER_USER_8    = (1 << 9),
-        COLLISION_LAYER_USER_9    = (1 << 10),
-        COLLISION_LAYER_USER_10   = (1 << 11),
-        COLLISION_LAYER_USER_11   = (1 << 12),
-        COLLISION_LAYER_USER_12   = (1 << 13),
-        COLLISION_LAYER_USER_13   = (1 << 14),
-
-
-
-        // Collision Masks
-
-        COLLISION_MASK_NONE       = 0,
-        COLLISION_MASK_ALL        = -1
-    };
-
-
-
-    // Enum for collider types
-    enum ColliderType
-    {
-        COLLIDER_BOX,
-        COLLIDER_SPHERE,
-        COLLIDER_MESH
-    };
-
-
-
     // Defines what the camera wipes before drawing
     enum CameraClearFlags
     {
@@ -301,6 +256,47 @@ namespace Prism
     // ==========================================
 
     #define MAX_COLLISION_OVERLAPS 16
+
+    // Enum for collider types
+    enum ColliderType
+    {
+        COLLIDER_BOX,
+        COLLIDER_SPHERE,
+        COLLIDER_MESH
+    };
+
+
+    // Enum for built in and custom collision layers
+    enum CollisionLayer
+    {
+        COLLISION_LAYER_NONE      = 0,
+        COLLISION_LAYER_DEFAULT   = (1 << 0),  // Standard colliders
+        COLLISION_LAYER_TRIGGER   = (1 << 1),  // Invisible triggers
+
+
+        // User defined layers
+
+        COLLISION_LAYER_USER_1    = (1 << 2),
+        COLLISION_LAYER_USER_2    = (1 << 3),
+        COLLISION_LAYER_USER_3    = (1 << 4),
+        COLLISION_LAYER_USER_4    = (1 << 5),
+        COLLISION_LAYER_USER_5    = (1 << 6),
+        COLLISION_LAYER_USER_6    = (1 << 7),
+        COLLISION_LAYER_USER_7    = (1 << 8),
+        COLLISION_LAYER_USER_8    = (1 << 9),
+        COLLISION_LAYER_USER_9    = (1 << 10),
+        COLLISION_LAYER_USER_10   = (1 << 11),
+        COLLISION_LAYER_USER_11   = (1 << 12),
+        COLLISION_LAYER_USER_12   = (1 << 13),
+        COLLISION_LAYER_USER_13   = (1 << 14),
+
+
+        // Collision Masks
+
+        COLLISION_MASK_NONE       = 0,
+        COLLISION_MASK_ALL        = -1
+    };
+
 
     struct PRISM_API ColliderComponent
     {
@@ -583,6 +579,158 @@ namespace Prism
         void SetPriority(int32_t new_priority);
         void SetCaptureResolution(uint32_t resolution);
         void MarkDirty();
+    };
+
+
+
+    // ==========================================
+    // UI Canvas Wrapper
+    // ==========================================
+
+    enum UICanvasScaleMode
+    {
+        UI_CANVAS_CONSTANT_PIXEL_SIZE = 0,
+        UI_CANVAS_SCALE_WITH_SCREEN_SIZE = 1
+    };
+
+    enum UITextAlignment
+    {
+        UI_TEXT_ALIGN_LEFT,
+        UI_TEXT_ALIGN_CENTER,
+        UI_TEXT_ALIGN_RIGHT
+    };
+
+    enum UIButtonState
+    {
+        UI_BUTTON_STATE_NORMAL,
+        UI_BUTTON_STATE_HOVERED,
+        UI_BUTTON_STATE_PRESSED,
+        UI_BUTTON_STATE_DISABLED
+    };
+
+
+
+    struct PRISM_API UICanvasComponent
+    {
+        Prism::Entity entity;
+        bool is_active;
+        int sort_order;
+        UICanvasScaleMode scale_mode;
+        Prism::Vector2 reference_resolution;
+        float match_width_or_height;
+        bool blocks_raycasts;
+        float scale_factor;
+
+        void SetActive(bool active);
+        bool IsActive() const { return this->is_active; }
+        void SetSortOrder(int order) { this->sort_order = order; }
+        void SetScaleMode(UICanvasScaleMode mode);
+        void SetReferenceResolution(const Prism::Vector2& resolution);
+        void SetMatchWidthOrHeight(float match);
+        void SetBlocksRaycasts(bool blocks) { this->blocks_raycasts = blocks; }
+    };
+
+
+
+    // ==========================================
+    // Rect Transform Wrapper
+    // ==========================================
+
+    struct PRISM_API RectTransformComponent
+    {
+        Prism::Entity entity;
+        Prism::Vector2 anchor_min;
+        Prism::Vector2 anchor_max;
+        Prism::Vector2 pivot;
+        Prism::Vector2 size_delta;
+        Prism::Vector2 anchored_position;
+        float screen_x;
+        float screen_y;
+        float screen_width;
+        float screen_height;
+        bool is_dirty;
+
+        void SetAnchoredPosition(const Prism::Vector2& position);
+        void SetSizeDelta(const Prism::Vector2& size);
+        void SetAnchors(const Prism::Vector2& min, const Prism::Vector2& max);
+        void SetPivot(const Prism::Vector2& pivot);
+        void MarkDirty();
+        Prism::Vector2 GetScreenPosition() const { return Prism::Vector2(screen_x, screen_y); }
+        Prism::Vector2 GetScreenSize() const { return Prism::Vector2(screen_width, screen_height); }
+    };
+
+
+
+    // ==========================================
+    // UI Image Wrapper
+    // ==========================================
+
+    struct PRISM_API UIImageComponent
+    {
+        Prism::Entity entity;
+        bool is_active;
+        void* raw_texture;
+        Prism::Color color;
+        bool raycast_target;
+
+        void SetActive(bool active) { this->is_active = active; }
+        bool IsActive() const { return this->is_active; }
+        void SetTexture(Prism::Texture texture) { this->raw_texture = texture.GetRaw(); }
+        void SetColor(const Prism::Color& color) { this->color = color; }
+        void SetRaycastTarget(bool target) { this->raycast_target = target; }
+    };
+
+
+
+    // ==========================================
+    // UI Text Wrapper
+    // ==========================================
+
+    struct PRISM_API UITextComponent
+    {
+        Prism::Entity entity;
+        bool is_active;
+        char text[256];
+        void* raw_font;
+        Prism::Color color;
+        UITextAlignment alignment;
+        float font_size;
+        bool wrap;
+        bool raycast_target;
+
+        void SetActive(bool active) { this->is_active = active; }
+        bool IsActive() const { return this->is_active; }
+        void SetText(const std::string& value);
+        void SetFont(Prism::Font font) { this->raw_font = font.GetRaw(); }
+        void SetColor(const Prism::Color& color) { this->color = color; }
+        void SetAlignment(UITextAlignment align) { this->alignment = align; }
+        void SetFontSize(float size) { this->font_size = size; }
+        void SetWrap(bool should_wrap) { this->wrap = should_wrap; }
+        std::string GetText() const { return std::string(text); }
+    };
+
+
+
+    // ==========================================
+    // UI Button Wrapper
+    // ==========================================
+    
+    struct PRISM_API UIButtonComponent
+    {
+        Prism::Entity entity;
+        bool is_active;
+        bool interactable;
+        UIButtonState current_state;
+        Prism::Color color_normal;
+        Prism::Color color_hovered;
+        Prism::Color color_pressed;
+        Prism::Color color_disabled;
+        bool clicked_this_frame;
+
+        void SetActive(bool active) { this->is_active = active; }
+        bool IsActive() const { return this->is_active; }
+        void SetInteractable(bool value) { this->interactable = value; }
+        bool WasClicked() const { return this->clicked_this_frame; }
     };
 
 }

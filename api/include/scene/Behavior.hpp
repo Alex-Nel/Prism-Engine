@@ -78,6 +78,16 @@ namespace Prism
 
 
 
+        // --- UI Pointer Callbacks ---
+
+        virtual void OnPointerEnter() {}
+        virtual void OnPointerExit() {}
+        virtual void OnPointerDown() {}
+        virtual void OnPointerUp() {}
+        virtual void OnPointerClick() {}
+
+
+
         // --- Automatic Serialization ---
 
         void OnSerialize(struct cJSON* json);

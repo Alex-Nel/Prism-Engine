@@ -61,6 +61,8 @@ namespace Prism
         static Model GetModelByName(const std::string& name);
         static Mesh GetMeshByName(const std::string& name);
         static SkinnedMesh GetSkinnedMeshByName(const std::string& name);
+        static Texture GetTextureByName(std::string name);
+        static Font GetFontByName(const std::string& name);
 
 
         // --- Texture Management ---
@@ -70,7 +72,7 @@ namespace Prism
         static EnvironmentMap LoadEnvironmentMap(const std::string& filepath);
         static EnvironmentMap LoadEnvironmentMapFromSkybox(const std::string& name, const std::string& right, const std::string& left, const std::string& top, const std::string& bottom, const std::string& front, const std::string& back);
         static Texture CreateSolidColorTexture(const std::string& name, Prism::Color color);
-        static Texture GetTextureByName(std::string name);
+        static Font LoadFont(const std::string& name, const std::string& filepath, float pixel_height = 32.0f);
 
 
         // --- Dynamic Meshes ---

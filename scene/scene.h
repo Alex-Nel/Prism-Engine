@@ -62,6 +62,26 @@ int Scene_RaycastAll(Scene* scene, Ray ray, float max_distance, RaycastHit* out_
 
 
 
+// --- Retained UI API ---
+
+void RetainedUI_Reset(Scene* scene);
+void RetainedUI_Shutdown(Scene* scene);
+void RetainedUI_PreUpdate(Scene* scene, uint32_t window_w, uint32_t window_h, float mouse_x, float mouse_y, bool mouse_captured);
+
+uint32_t RetainedUI_GatherCanvases(Scene* scene);
+void RetainedUI_UpdateLayout(Scene* scene, uint32_t window_w, uint32_t window_h);
+void RetainedUI_ProcessPointerInternal(Scene* scene, float mouse_x, float mouse_y, bool mouse_captured);
+void RetainedUI_BuildOverlay(Scene* scene, struct OverlayDrawList* out_list);
+
+
+
+
+
+
+
+
+
+
 // --- Entity Lifecycle API ---
 
 Entity Entity_Create(Scene* scene, const char* name);
@@ -109,6 +129,11 @@ void Entity_AddBoneAttachment(Entity entity, int bone_index, Matrix4 offset);
 void Entity_AddLineRenderer(Entity entity, Material* material);
 void Entity_AddSpriteRenderer(Entity entity, Material* material);
 void Entity_AddReflectionProbe(Entity entity, Vector3 box_extents, float blend_distance, uint32_t capture_resolution);
+void Entity_AddUICanvas(Entity entity);
+void Entity_AddRectTransform(Entity entity);
+void Entity_AddUIImage(Entity entity, Texture* texture);
+void Entity_AddUIText(Entity entity, const char* text, Font* font);
+void Entity_AddUIButton(Entity entity);
 void Entity_BindScript(Entity entity, ScriptInstance new_script);
 void Script_SetActive(Entity entity, void* instance_data, bool active);
 void Bridge_SpawnScript(Entity raw_e, const char* class_name, struct cJSON* json_data);
@@ -135,7 +160,19 @@ BoneAttachmentComponent* Entity_GetBoneAttachment(Entity entity);
 LineRendererComponent* Entity_GetLineRenderer(Entity entity);
 SpriteRendererComponent* Entity_GetSpriteRenderer(Entity entity);
 ReflectionProbeComponent* Entity_GetReflectionProbe(Entity entity);
+UICanvasComponent* Entity_GetUICanvas(Entity entity);
+RectTransformComponent* Entity_GetRectTransform(Entity entity);
+UIImageComponent* Entity_GetUIImage(Entity entity);
+UITextComponent* Entity_GetUIText(Entity entity);
+UIButtonComponent* Entity_GetUIButton(Entity entity);
 ScriptComponent* Entity_GetScripts(Entity entity);
+
+
+
+
+
+
+
 
 
 
@@ -210,11 +247,38 @@ void LineRenderer_SetPoints(LineRendererComponent* line, Vector3* points, uint32
 
 
 // --- Reflection Probe Functions ---
+
 void ReflectionProbe_SetBoxExtents(ReflectionProbeComponent* probe, Vector3 extents);
 void ReflectionProbe_SetBlendDistance(ReflectionProbeComponent* probe, float blend_distance);
 void ReflectionProbe_SetPriority(ReflectionProbeComponent* probe, int32_t priority);
 void ReflectionProbe_SetCaptureResolution(ReflectionProbeComponent* probe, uint32_t resolution);
 void ReflectionProbe_MarkDirty(ReflectionProbeComponent* probe);
+
+
+
+// --- UI Canvas Functions ---
+
+void UICanvas_SetActive(Entity entity, bool active);
+void UICanvas_SetScaleMode(Entity entity, UICanvasScaleMode mode);
+void UICanvas_SetReferenceResolution(Entity entity, Vector2 resolution);
+void UICanvas_SetMatchWidthOrHeight(Entity entity, float match);
+
+
+
+// --- UI Rect Transform Functions ---
+
+void RectTransform_MarkDirty(Entity entity);
+void RectTransform_SetAnchoredPosition(Entity entity, Vector2 position);
+void RectTransform_SetSizeDelta(Entity entity, Vector2 size);
+void RectTransform_SetAnchors(Entity entity, Vector2 min, Vector2 max);
+void RectTransform_SetPivot(Entity entity, Vector2 pivot);
+
+
+
+// --- UI Text Transform Functions ---
+
+void UIText_SetText(Entity entity, const char* text);
+
 
 
 
