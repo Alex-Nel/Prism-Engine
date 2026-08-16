@@ -4,9 +4,9 @@
 #include <stdint.h>
 #include "physics_bridge.h"
 #include "../audio/audio.h"
-#include "../core/math_core.h"
 #include "../core/font_core.h"
 #include "../core/mesh_core.h"
+#include "../core/overlay_core.h"
 
 
 
@@ -649,6 +649,7 @@ typedef struct UICanvasSortEntry
 // The state of the retained UI
 typedef struct RetainedUIState
 {
+    OverlayDrawList draw_list;
     UICanvasSortEntry canvas_entries[MAX_ENTITIES];
     uint32_t canvas_count;
 

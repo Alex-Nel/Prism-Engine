@@ -64,9 +64,9 @@ namespace Prism
     // --- Contains functions that deal with user input ---
     class PRISM_API Input
     {
-        friend class Engine;
-
     private:
+        friend class Engine;
+        
         // Maps custom string to a physics key
         static std::unordered_map<std::string, KeyCode> s_ActionMap;
 

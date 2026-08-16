@@ -243,9 +243,9 @@ static void DrawUITree(Scene* scene, uint32_t entity_id, OverlayDrawList* list, 
 
 
 // Builds the overlay for every UI element in a scene
-void RetainedUI_BuildOverlay(Scene* scene, OverlayDrawList* out_list)
+void RetainedUI_BuildOverlay(Scene* scene)
 {
-    OverlayDrawList_Reset(out_list);
+    OverlayDrawList_Reset(&g_ui_state.draw_list);
 
     uint32_t canvas_count = RetainedUI_GatherCanvases(scene);
     qsort(g_ui_state.canvas_entries, canvas_count, sizeof(UICanvasSortEntry), CompareCanvasDrawOrder);
@@ -254,6 +254,6 @@ void RetainedUI_BuildOverlay(Scene* scene, OverlayDrawList* out_list)
     {
         uint32_t id = g_ui_state.canvas_entries[i].entity_id;
         RectTransformComponent* rect = &scene->ui_rect_transforms[id];
-        DrawUITree(scene, id, out_list, rect->screen_x, rect->screen_y, rect->screen_width, rect->screen_height);
+        DrawUITree(scene, id, &g_ui_state.draw_list, rect->screen_x, rect->screen_y, rect->screen_width, rect->screen_height);
     }
 }

@@ -161,7 +161,7 @@ static bool IsLiveUIEntity(Scene* scene, uint32_t id)
 
 
 // Processes pointer events for all UI elements
-void RetainedUI_ProcessPointerInternal(Scene* scene, float mouse_x, float mouse_y, bool mouse_captured)
+void RetainedUI_ProcessPointer(Scene* scene, float mouse_x, float mouse_y, bool mouse_captured)
 {
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
     {

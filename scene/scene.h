@@ -70,8 +70,8 @@ void RetainedUI_PreUpdate(Scene* scene, uint32_t window_w, uint32_t window_h, fl
 
 uint32_t RetainedUI_GatherCanvases(Scene* scene);
 void RetainedUI_UpdateLayout(Scene* scene, uint32_t window_w, uint32_t window_h);
-void RetainedUI_ProcessPointerInternal(Scene* scene, float mouse_x, float mouse_y, bool mouse_captured);
-void RetainedUI_BuildOverlay(Scene* scene, struct OverlayDrawList* out_list);
+void RetainedUI_ProcessPointer(Scene* scene, float mouse_x, float mouse_y, bool mouse_captured);
+void RetainedUI_BuildOverlay(Scene* scene);
 
 
 

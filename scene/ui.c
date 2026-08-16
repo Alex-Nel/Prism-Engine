@@ -23,6 +23,11 @@ void RetainedUI_Reset(Scene* scene)
     memset(scene->ui_images, 0, MAX_ENTITIES * sizeof(UIImageComponent));
     memset(scene->ui_texts, 0, MAX_ENTITIES * sizeof(UITextComponent));
     memset(scene->ui_buttons, 0, MAX_ENTITIES * sizeof(UIButtonComponent));
+
+    if (!g_ui_state.draw_list.vertices)
+        OverlayDrawList_Init(&g_ui_state.draw_list);
+    else
+        OverlayDrawList_Reset(&g_ui_state.draw_list);
     
     g_ui_state.canvas_count = 0;
     g_ui_state.hovered_entity_id = ENTITY_NONE;
@@ -40,7 +45,25 @@ void RetainedUI_Reset(Scene* scene)
 // Shuts down the UI context in a scene
 void RetainedUI_Shutdown(Scene* scene)
 {
+    OverlayDrawList_Free(&g_ui_state.draw_list);
     g_ui_state.canvas_count = 0;
+}
+
+
+
+
+
+// Consumes any mouse buttons events before updating the UI
+void RetainedUI_PreUpdate(Scene* scene, uint32_t window_w, uint32_t window_h, float mouse_x, float mouse_y, bool mouse_captured)
+{
+    if (!scene)
+        return;
+
+    RetainedUI_UpdateLayout(scene, window_w, window_h);
+    RetainedUI_ProcessPointer(scene, mouse_x, mouse_y, mouse_captured);
+
+    if (g_ui_state.blocks_pointer)
+        Input_ConsumeMouseButton(MOUSE_BUTTON_LEFT);
 }
 
 
@@ -71,6 +94,16 @@ uint32_t RetainedUI_GatherCanvases(Scene* scene)
     g_ui_state.canvas_count = count;
     return count;
 }
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -171,18 +204,10 @@ void RectTransform_SetPivot(Entity entity, Vector2 pivot)
 
 
 
-// Consumes any mouse buttons events before updating the UI
-void RetainedUI_PreUpdate(Scene* scene, uint32_t window_w, uint32_t window_h, float mouse_x, float mouse_y, bool mouse_captured)
-{
-    if (!scene)
-        return;
 
-    RetainedUI_UpdateLayout(scene, window_w, window_h);
-    RetainedUI_ProcessPointerInternal(scene, mouse_x, mouse_y, mouse_captured);
 
-    if (g_ui_state.blocks_pointer)
-        Input_ConsumeMouseButton(MOUSE_BUTTON_LEFT);
-}
+
+
 
 
 
@@ -243,6 +268,16 @@ void UICanvas_SetMatchWidthOrHeight(Entity entity, float match)
     canvas->match_width_or_height = match;
     g_ui_state.layout_dirty = true;
 }
+
+
+
+
+
+
+
+
+
+
 
 
 
