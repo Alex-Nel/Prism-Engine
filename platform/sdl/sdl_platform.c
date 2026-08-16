@@ -17,6 +17,7 @@ struct Window
     uint32_t height;
     GraphicsAPI current_api;
     bool is_mouse_captured;
+    bool is_minimized;
     bool should_close;
 };
 
@@ -241,6 +242,7 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
     win->width = width;
     win->height = height;
     win->is_mouse_captured = false;
+    win->is_minimized = false;
     win->should_close = false;
     g_PlatformWindow = win;
 
@@ -340,6 +342,14 @@ bool Platform_PollEvents(Event* e)
 
             case SDL_EVENT_WINDOW_FOCUS_LOST:
                 e->type = EVENT_WINDOW_FOCUS_LOST;
+                break;
+
+            case SDL_EVENT_WINDOW_MINIMIZED:
+                e->type = EVENT_WINDOW_MINIMIZED;
+                break;
+
+            case SDL_EVENT_WINDOW_RESTORED:
+                e->type = EVENT_WINDOW_RESTORED;
                 break;
 
             case SDL_EVENT_KEY_DOWN:
@@ -447,7 +457,7 @@ void Platform_Shutdown(Window* window)
 
 
 // Gets the x and y position of the window (from the top left)
-void Platform_GetWindowPosition(Window* window, uint32_t* x, uint32_t* y)
+void Platform_GetWindowPosition(Window* window, int* x, int* y)
 {
     SDL_GetWindowPosition(window->sdl_window, x, y);
 }
@@ -490,6 +500,40 @@ void Platform_SetWindowSize(Window* window, uint32_t width, uint32_t height)
     
     window->width = width;
     window->height = height;
+}
+
+
+
+
+
+// Sets the window to minimized or shown
+void Platform_SetWindowMinimized(Window* window, bool minimized)
+{
+    if (!window)
+        return;
+
+    if (window->is_minimized == minimized)
+        return;
+
+    window->is_minimized = minimized;
+
+    if (minimized)
+        SDL_MinimizeWindow(window->sdl_window);
+    else
+        SDL_RestoreWindow(window->sdl_window);
+}
+
+
+
+
+
+// Returns whether the window is currently minimized
+bool Platform_IsWindowMinimized(Window* window)
+{
+    if (!window)
+        return false;
+    
+    return window->is_minimized;
 }
 
 

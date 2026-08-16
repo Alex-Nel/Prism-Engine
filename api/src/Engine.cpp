@@ -1,3 +1,4 @@
+#include "../include/Platform.hpp"
 #include "../include/Engine.hpp"
 
 
@@ -12,7 +13,9 @@ namespace Prism
     // Global Engine instance for the API
     static ::PrismEngine s_engine = {};
 
-    // --- LIFECYCLE ---
+
+
+    // --- Lifecycle ---
 
     bool Engine::Init(const std::string& title, uint32_t width, uint32_t height, uint32_t target_fps, GraphicsAPI api) 
     {
@@ -35,15 +38,7 @@ namespace Prism
 
 
 
-    // --- UTILITY ---
-
-    int Engine::GetWindowWidth() {
-        return ::Platform_GetWindowWidth(::Engine_GetMainWindow(&s_engine));
-    }
-
-    int Engine::GetWindowHeight() {
-        return ::Platform_GetWindowHeight(::Engine_GetMainWindow(&s_engine));
-    }
+    // --- Utility ---
 
     void Engine::SetClearColor(const Prism::Vector3& color, float alpha) {
         ::Engine_SetClearColor(&s_engine, color.x, color.y, color.z, alpha);
@@ -90,5 +85,11 @@ namespace Prism
         settings.shadow_map_resolution = c_settings.shadow_map_resolution;
         settings.gamma = c_settings.gamma;
         return settings;
+    }
+
+
+
+    void* Platform::GetActiveWindow() {
+        return ::Engine_GetMainWindow(&s_engine);
     }
 }

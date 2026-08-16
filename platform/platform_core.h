@@ -26,8 +26,11 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
 // Shuts down the window
 void Platform_Shutdown(Window* window);
 
+// Returns the active window struct
+Window* Platform_GetActiveWindow();
+
 // Gets the x and y position of the window (from the top left)
-void Platform_GetWindowPosition(Window* window, uint32_t* x, uint32_t* y);
+void Platform_GetWindowPosition(Window* window, int* x, int* y);
 
 // Returns the width of a window
 uint32_t Platform_GetWindowWidth(Window* window);
@@ -37,6 +40,12 @@ uint32_t Platform_GetWindowHeight(Window* window);
 
 // Sets the width and height of a window
 void Platform_SetWindowSize(Window* window, uint32_t width, uint32_t height);
+
+// Sets the window to minimized or shown
+void Platform_SetWindowMinimized(Window* window, bool minimized);
+
+// Returns whether the window is currently minimized
+bool Platform_IsWindowMinimized(Window* window);
 
 
 
@@ -54,7 +63,7 @@ bool Platform_PollEvents(Event* e);
 void Platform_SwapBuffers(Window* window);
 
 // Get the time since the platform has existed
-double Platform_GetTime(void);
+double Platform_GetTime();
 
 // Delays a platform window for a specified ms
 void Platform_Delay(uint32_t ms);
@@ -87,7 +96,7 @@ bool Platform_IsTextInputActive(Window* window);
 bool Platform_SetClipboardText(const char* text);
 
 // Returns allocated UTF-8 text from the system clipboard.
-char* Platform_GetClipboardText(void);
+char* Platform_GetClipboardText();
 
 // Releases text returned by Platform_GetClipboardText
 void Platform_FreeClipboardText(char* text);

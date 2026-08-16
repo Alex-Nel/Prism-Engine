@@ -144,6 +144,16 @@ static void Engine_UpdateTextInput(PrismEngine* engine)
 
 
 
+// Draws the immediate mode UI
+static void Engine_DrawImmediateUI(PrismEngine* engine)
+{
+    Render_UIRender(engine->renderer, UI_GetContext(), Platform_GetWindowWidth(engine->window), Platform_GetWindowHeight(engine->window));
+}
+
+
+
+
+
 // A struct to pass multiple pieces of data to the event watch callback
 typedef struct ModalContext {
     PrismEngine* engine;
@@ -188,10 +198,13 @@ static void Engine_OnModalEvent(void* userdata)
     Engine_UpdateTextInput(engine);
 
     // Render and Swap Buffers directly
-    Engine_RenderScene(engine, active_scene);
-    Engine_DrawRetainedUI(engine, active_scene);
-    Render_UIRender(engine->renderer, UI_GetContext(), w, h);
-    Platform_SwapBuffers(engine->window);
+    if (!Platform_IsWindowMinimized(engine->window))
+    {
+        Engine_RenderScene(engine, active_scene);
+        Engine_DrawRetainedUI(engine, active_scene);
+        Render_UIRender(engine->renderer, UI_GetContext(), w, h);
+        Platform_SwapBuffers(engine->window);
+    }
 }
 
 
@@ -243,6 +256,14 @@ void Engine_Run(PrismEngine* engine, Scene* active_scene)
                 Render_SetViewport(engine->renderer, 0, 0, e.window_resize.width, e.window_resize.height);
                 Platform_SetWindowSize(engine->window, e.window_resize.width, e.window_resize.height);
             }
+            else if (e.type == EVENT_WINDOW_MINIMIZED)
+            {
+                Platform_SetWindowMinimized(engine->window, true);
+            }
+            else if (e.type == EVENT_WINDOW_RESTORED)
+            {
+                Platform_SetWindowMinimized(engine->window, false);
+            }
         }
 
         UI_InputEnd();
@@ -261,17 +282,20 @@ void Engine_Run(PrismEngine* engine, Scene* active_scene)
 
         Engine_TickRetainedUI(engine, active_scene);
 
-        // Update scene and physics
+        // Update scene, physics, and UI
         Scene_Update(active_scene);
-
         Engine_UpdateTextInput(engine);
 
-        // Render scene
-        Engine_RenderScene(engine, active_scene);
+        // Render the scene is the window is not minimized
+        if (!Platform_IsWindowMinimized(engine->window))
+        {
+            // Render scene
+            Engine_RenderScene(engine, active_scene);
 
-        // Render UI
-        Engine_DrawRetainedUI(engine, active_scene);
-        Render_UIRender(engine->renderer, UI_GetContext(), Platform_GetWindowWidth(engine->window), Platform_GetWindowHeight(engine->window));
+            // Render UI
+            Engine_DrawRetainedUI(engine, active_scene);
+            Engine_DrawImmediateUI(engine);
+        }
 
         // Process destroy queue
         Scene_ProcessDestroyQueue(active_scene);
@@ -332,8 +356,11 @@ void Engine_EndFrame(PrismEngine* engine)
     if (!engine->is_running)
         return;
 
-    // Swap the OS window buffers to display the new frame
-    Platform_SwapBuffers(engine->window);
+    if (!Platform_IsWindowMinimized(engine->window))
+    {
+        // Swap the OS window buffers to display the new frame
+        Platform_SwapBuffers(engine->window);
+    }
 
     // Cycle the input arrays for the next frame
     Input_Update();

@@ -29,7 +29,6 @@ namespace Prism
     {
         bool enable_ssao = true;
         uint32_t shadow_map_resolution = 2048;
-        // bool vsync = false;
         float gamma = 2.2f;
     };
 
@@ -42,17 +41,15 @@ namespace Prism
         Engine() = delete;
 
 
-        // --- LIFECYCLE ---
+        // --- Lifecycle ---
 
         static bool Init(const std::string& title, uint32_t width, uint32_t height, uint32_t target_fps = 60, GraphicsAPI api = GRAPHICS_API_OPENGL);
         static void Run(Scene& active_scene);
         static void Shutdown();
 
 
-        // --- UTILITY ---
+        // --- Utility ---
 
-        static int GetWindowWidth();
-        static int GetWindowHeight();
         static void SetClearColor(const Prism::Vector3& color, float alpha = 1.0f);
         static void CaptureMouse();
         static void ReleaseMouse();
