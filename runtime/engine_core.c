@@ -211,6 +211,99 @@ static void Engine_OnModalEvent(void* userdata)
 
 
 
+// Updates the engines state
+void Engine_Update(PrismEngine* engine, Scene* active_scene)
+{
+    if (!active_scene)
+        return;
+
+    Time_Tick();
+    engine->accumulator += Time_DeltaTime();
+
+    UI_InputBegin();
+
+    Event e;
+    while (Platform_PollEvents(&e))
+    {
+        bool ui_handled = false;
+        if (!Engine_IsMouseCaptured(engine))
+            ui_handled = UI_ProcessEvent(&e);
+
+        if (!ui_handled)
+            Input_ProcessEvent(&e);
+        
+        if (e.type == EVENT_WINDOW_CLOSE)
+        {
+            engine->is_running = false;
+        }
+        else if (e.type == EVENT_WINDOW_RESIZE)
+        {
+            Render_SetViewport(engine->renderer, 0, 0, e.window_resize.width, e.window_resize.height);
+            Platform_SetWindowSize(engine->window, e.window_resize.width, e.window_resize.height);
+        }
+        else if (e.type == EVENT_WINDOW_MINIMIZED)
+        {
+            Platform_SetWindowMinimized(engine->window, true);
+        }
+        else if (e.type == EVENT_WINDOW_RESTORED)
+        {
+            Platform_SetWindowMinimized(engine->window, false);
+        }
+    }
+
+    UI_InputEnd();
+
+    // If the API registered a custom callback, call it
+    if (engine->pre_update_callback != NULL)
+        engine->pre_update_callback();
+
+    // Update accumulator and fixed updates
+    float fixed_dt = Time_FixedDeltaTime();
+    while (engine->accumulator >= fixed_dt)
+    {
+        Scene_FixedUpdate(active_scene);
+        engine->accumulator -= fixed_dt;
+    }
+
+    Engine_TickRetainedUI(engine, active_scene);
+
+    // Update scene, physics, and UI
+    Scene_Update(active_scene);
+    Engine_UpdateTextInput(engine);
+}
+
+
+
+
+
+// Renders everything in a scene including overlays and UI
+void Engine_Render(PrismEngine* engine, Scene* active_scene)
+{
+    if (!active_scene)
+        return;
+
+    // Render the scene if the window is not minimized
+    if (!Platform_IsWindowMinimized(engine->window))
+    {
+        // Render scene
+        Engine_RenderScene(engine, active_scene);
+
+        // Render UI
+        Engine_DrawRetainedUI(engine, active_scene);
+        Engine_DrawImmediateUI(engine);
+    }
+
+    // Process destroy queue
+    Scene_ProcessDestroyQueue(active_scene);
+    
+    // Swap Buffers & Reset Input arrays
+    Engine_EndFrame(engine);
+}
+
+
+
+
+
 // Runs the engine, updates and renders the scene
 void Engine_Run(PrismEngine* engine, Scene* active_scene)
 {
@@ -229,79 +322,8 @@ void Engine_Run(PrismEngine* engine, Scene* active_scene)
 
     while (engine->is_running)
     {
-        // Advance the engine clock
-        Time_Tick();
-
-        engine->accumulator += Time_DeltaTime();
-
-        UI_InputBegin();
-        
-        // Poll through events
-        Event e;
-        while (Platform_PollEvents(&e))
-        {
-            bool ui_handled = false;
-            if (!Engine_IsMouseCaptured(engine))
-                ui_handled = UI_ProcessEvent(&e);
-
-            if (!ui_handled)
-                Input_ProcessEvent(&e);
-            
-            if (e.type == EVENT_WINDOW_CLOSE)
-            {
-                engine->is_running = false;
-            }
-            else if (e.type == EVENT_WINDOW_RESIZE)
-            {
-                Render_SetViewport(engine->renderer, 0, 0, e.window_resize.width, e.window_resize.height);
-                Platform_SetWindowSize(engine->window, e.window_resize.width, e.window_resize.height);
-            }
-            else if (e.type == EVENT_WINDOW_MINIMIZED)
-            {
-                Platform_SetWindowMinimized(engine->window, true);
-            }
-            else if (e.type == EVENT_WINDOW_RESTORED)
-            {
-                Platform_SetWindowMinimized(engine->window, false);
-            }
-        }
-
-        UI_InputEnd();
-
-        // If the API registered a custom callback, call it
-        if (engine->pre_update_callback != NULL)
-            engine->pre_update_callback();
-
-        // Update accumulator and fixed updates
-        float fixed_dt = Time_FixedDeltaTime();
-        while (engine->accumulator >= fixed_dt)
-        {
-            Scene_FixedUpdate(active_scene);
-            engine->accumulator -= fixed_dt;
-        }
-
-        Engine_TickRetainedUI(engine, active_scene);
-
-        // Update scene, physics, and UI
-        Scene_Update(active_scene);
-        Engine_UpdateTextInput(engine);
-
-        // Render the scene is the window is not minimized
-        if (!Platform_IsWindowMinimized(engine->window))
-        {
-            // Render scene
-            Engine_RenderScene(engine, active_scene);
-
-            // Render UI
-            Engine_DrawRetainedUI(engine, active_scene);
-            Engine_DrawImmediateUI(engine);
-        }
-
-        // Process destroy queue
-        Scene_ProcessDestroyQueue(active_scene);
-        
-        // Swap Buffers & Reset Input arrays
-        Engine_EndFrame(engine);
+        Engine_Update(engine, active_scene);
+        Engine_Render(engine, active_scene);
     }
 }
 

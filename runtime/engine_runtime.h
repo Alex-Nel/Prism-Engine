@@ -43,6 +43,12 @@ void Engine_Shutdown(PrismEngine* engine);
 // Allows API to set custom runtime logic
 void Engine_SetPreUpdateCallback(PrismEngine* engine, EngineUpdateCallback callback);
 
+// Updates the engines state
+void Engine_Update(PrismEngine* engine, Scene* active_scene);
+
+// Renders everything in a scene including overlays and UI
+void Engine_Render(PrismEngine* engine, Scene* active_scene);
+
 // Starts the main engine loop
 void Engine_Run(PrismEngine* engine, Scene* active_scene);
 bool Engine_IsRunning(PrismEngine* engine); // Deprecated
