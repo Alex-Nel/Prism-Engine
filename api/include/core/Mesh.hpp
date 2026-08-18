@@ -8,11 +8,6 @@
 
 
 
-struct Model;
-struct Texture;
-struct Shader;
-struct Material;
-struct Model;
 
 
 namespace Prism
@@ -34,6 +29,8 @@ namespace Prism
         Vertex3D();
         Vertex3D(const Prism::Vector3& pos, const Prism::Vector3& norm, const Prism::Vector2& tex, const Prism::Vector3& tan = Prism::Vector3(0,0,0));
     };
+
+
 
 
 
@@ -60,6 +57,8 @@ namespace Prism
 
 
 
+
+
     // ==========================================
     // AABB (BOUNDING BOX) Wrapper
     // ==========================================
@@ -77,23 +76,6 @@ namespace Prism
     };
 
 
-
-    // ==========================================
-    // Directional Light Wrapper
-    // ==========================================
-
-    struct PRISM_API DirectionalLight
-    {    
-        Vector3 direction;
-        Color color;
-        float ambient_strength;
-
-
-        // --- Constructors ---  
-
-        DirectionalLight();
-        DirectionalLight(const Vector3& dir, const Color& col, float ambient);
-    };
 
 
 
@@ -122,6 +104,8 @@ namespace Prism
 
 
 
+
+
     // ==========================================
     // Skinned Mesh Wrapper
     // ==========================================
@@ -139,132 +123,6 @@ namespace Prism
     };
 
 
-
-    // ==========================================
-    // Texture Wrapper
-    // ==========================================
-
-    class PRISM_API Texture 
-    {
-    private:
-        void* m_Handle;
-
-    public:
-        Texture(void* raw_tex = nullptr) : m_Handle(raw_tex) {}
-
-        void* GetRaw() const {
-            return m_Handle;
-        }
-
-        bool IsValid() const {
-            return m_Handle != nullptr;
-        }
-    };
-
-
-
-    // ==========================================
-    // Font Wrapper
-    // ==========================================
-
-    class PRISM_API Font
-    {
-    private:
-        void* m_Handle;
-
-    public:
-        Font(void* raw_font = nullptr) : m_Handle(raw_font) {}
-
-        void* GetRaw() const {
-            return m_Handle;
-        }
-
-        bool IsValid() const {
-            return m_Handle != nullptr;
-        }
-    };
-
-
-
-    // ==========================================
-    // Shader Wrapper
-    // ==========================================
-
-    class PRISM_API Shader 
-    {
-    private:
-        void* m_Handle;
-
-    public:
-        Shader(void* raw_shader = nullptr) : m_Handle(raw_shader) {}
-
-        void* GetRaw() const {
-            return m_Handle;
-        }
-
-        bool IsValid() const {
-            return m_Handle != nullptr;
-        }
-    };
-
-
-
-    // ==========================================
-    // EnvironmentMap Wrapper
-    // ==========================================
-
-    class PRISM_API EnvironmentMap 
-    {
-    private:
-        void* m_Handle;
-
-    public:
-        EnvironmentMap(void* raw_env = nullptr) : m_Handle(raw_env) {}
-
-        void* GetRaw() const {
-            return m_Handle;
-        }
-
-        bool IsValid() const {
-            return m_Handle != nullptr;
-        }
-    };
-
-
-
-    // ==========================================
-    // Material Wrapper
-    // ==========================================
-
-    class PRISM_API Material 
-    {
-    private:
-        void* m_Handle;
-
-    public:
-        Material(void* raw_mat = nullptr) : m_Handle(raw_mat) {}
-
-        void* GetRaw() const {
-            return m_Handle;
-        }
-
-        bool IsValid() const {
-            return m_Handle != nullptr;
-        }
-
-        // --- Setters for Material Properties ---
-        void SetTintColor(const Prism::Color& color);
-        void SetShininess(float shininess);
-        void SetSpecularStrength(float strength);
-        void SetMetallic(float metallic);
-        void SetRoughness(float roughness);
-        void SetAlbedoTexture(Prism::Texture albedo);
-        void SetNormalMap(Prism::Texture normal);
-        void SetMetallicMap(Prism::Texture metallic);
-        void SetRoughnessMap(Prism::Texture roughness);
-        void SetAOMap(Prism::Texture ao);
-        void SetShader(Prism::Shader shader);
-    };
 
 
 

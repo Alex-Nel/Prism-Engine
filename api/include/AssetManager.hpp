@@ -3,6 +3,8 @@
 #include <string>
 #include <cstdint>
 #include "Audio.hpp"
+#include "core/Font.hpp"
+#include "core/Material.hpp"
 #include "core/Mesh.hpp"
 #include "PrismAPI.hpp"
 
