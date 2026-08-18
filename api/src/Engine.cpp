@@ -92,4 +92,31 @@ namespace Prism
     void* Platform::GetActiveWindow() {
         return ::Engine_GetMainWindow(&s_engine);
     }
+
+
+
+
+
+#ifdef PRISM_EDITOR
+    
+    void Engine::Update(Scene& active_scene) {
+        ::Scene* raw_scene = static_cast<::Scene*>(active_scene.GetRaw());
+        ::Engine_Update(&s_engine, raw_scene);
+    }
+
+    void Engine::Render(Scene& active_scene) {
+        ::Scene* raw_scene = static_cast<::Scene*>(active_scene.GetRaw());
+        ::Engine_Render(&s_engine, raw_scene);
+    }
+
+    bool Engine::IsRunning() {
+        return s_engine.is_running;
+    }
+
+    void Engine::SetSimulationMode(bool is_simulating) {
+        ::Engine_SetSimulationMode(&s_engine, is_simulating);
+    }
+
+#endif
+
 }

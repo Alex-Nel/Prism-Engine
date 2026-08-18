@@ -55,6 +55,7 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
     Time_Init(engine->target_fps, Platform_GetTime, Platform_Delay);
 
     engine->is_running = true;
+    engine->is_simulating = true;
     engine->accumulator = 0.0f;
 
     return true;
@@ -84,6 +85,16 @@ void Engine_Shutdown(PrismEngine* engine)
 void Engine_SetPreUpdateCallback(PrismEngine* engine, EngineUpdateCallback callback)
 {
     engine->pre_update_callback = callback;
+}
+
+
+
+
+
+// Toggles physics and script execution
+void Engine_SetSimulationMode(PrismEngine* engine, bool is_simulating)
+{
+    engine->is_simulating = is_simulating;
 }
 
 
@@ -183,17 +194,28 @@ static void Engine_OnModalEvent(void* userdata)
 
     engine->accumulator += Time_DeltaTime();
 
-    float fixed_dt = Time_FixedDeltaTime();
-    while (engine->accumulator >= fixed_dt)
+    if (engine->is_simulating)
     {
-        Scene_FixedUpdate(active_scene);
-        engine->accumulator -= fixed_dt;
+        float fixed_dt = Time_FixedDeltaTime();
+        while (engine->accumulator >= fixed_dt)
+        {
+            Scene_FixedUpdate(active_scene);
+            engine->accumulator -= fixed_dt;
+        }
+    }
+    else
+    {
+        // Don't accumulate time if not simulating
+        engine->accumulator = 0.0f;
     }
 
     Engine_TickRetainedUI(engine, active_scene);
 
-    // Update scripts/animations
-    Scene_Update(active_scene);
+    if (engine->is_simulating)
+    {
+        // Update scripts/animations
+        Scene_Update(active_scene);
+    }
 
     Engine_UpdateTextInput(engine);
 
@@ -257,18 +279,30 @@ void Engine_Update(PrismEngine* engine, Scene* active_scene)
     if (engine->pre_update_callback != NULL)
         engine->pre_update_callback();
 
-    // Update accumulator and fixed updates
-    float fixed_dt = Time_FixedDeltaTime();
-    while (engine->accumulator >= fixed_dt)
+    if (engine->is_simulating)
     {
-        Scene_FixedUpdate(active_scene);
-        engine->accumulator -= fixed_dt;
+        // Update accumulator and fixed updates
+        float fixed_dt = Time_FixedDeltaTime();
+        while (engine->accumulator >= fixed_dt)
+        {
+            Scene_FixedUpdate(active_scene);
+            engine->accumulator -= fixed_dt;
+        }
+    }
+    else
+    {
+        // Don't accumulate time if not simulating
+        engine->accumulator = 0.0f;
     }
 
     Engine_TickRetainedUI(engine, active_scene);
 
-    // Update scene, physics, and UI
-    Scene_Update(active_scene);
+    if (engine->is_simulating)
+    {
+        // Update scene, physics, and UI
+        Scene_Update(active_scene);
+    }
+
     Engine_UpdateTextInput(engine);
 }
 

@@ -14,6 +14,7 @@ typedef struct PrismEngine
     Window* window;
     Renderer* renderer;
     bool is_running;
+    bool is_simulating;
     float accumulator;
     uint32_t target_fps;
     EngineUpdateCallback pre_update_callback;
@@ -42,6 +43,9 @@ void Engine_Shutdown(PrismEngine* engine);
 
 // Allows API to set custom runtime logic
 void Engine_SetPreUpdateCallback(PrismEngine* engine, EngineUpdateCallback callback);
+
+// Toggles physics and script updates
+void Engine_SetSimulationMode(PrismEngine* engine, bool is_simulating);
 
 // Updates the engines state
 void Engine_Update(PrismEngine* engine, Scene* active_scene);

@@ -59,5 +59,20 @@ namespace Prism
         static void SetVSync(bool enabled);
         static void SetRendererSettings(const RendererSettings& settings);
         static RendererSettings GetRendererSettings();
+
+
+
+#ifdef PRISM_EDITOR
+
+        // --- Editor API ---
+
+        PRISM_EDITOR_API static void Update(Scene& active_scene);
+        PRISM_EDITOR_API static void Render(Scene& active_scene);
+        PRISM_EDITOR_API static bool IsRunning();
+        PRISM_EDITOR_API static void SetSimulationMode(bool is_simulating);
+
+#endif
+
     };
+
 }
