@@ -2,10 +2,16 @@
 
 
 
+// Forward declare OnModalEvent function
+static void Engine_OnModalEvent(void* userdata);
+
+
+
 // Initializes all engine systems
 bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_width, uint32_t window_height, uint32_t target_fps, GraphicsAPI api)
 {
     engine->target_fps = target_fps;
+    engine->active_scene = NULL;
 
     // Platform Init
     engine->window = Platform_Init(window_title, window_width, window_height, api);
@@ -14,6 +20,9 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
         Log_Error("Window failed to initialize.\n");
         return false;
     }
+
+    // Register global modal window event callback
+    Platform_SetEventWatchCallback(Engine_OnModalEvent, engine);
 
     // Get the Procedure address if OpenGL is used
     void* proc_addr;
@@ -165,22 +174,14 @@ static void Engine_DrawImmediateUI(PrismEngine* engine)
 
 
 
-// A struct to pass multiple pieces of data to the event watch callback
-typedef struct ModalContext {
-    PrismEngine* engine;
-    Scene* active_scene;
-} ModalContext;
-
-
-
 // A function to process window events without pausing main loop
 static void Engine_OnModalEvent(void* userdata)
 {
-    ModalContext* ctx = (ModalContext*)userdata;
-    PrismEngine* engine = ctx->engine;
-    Scene* active_scene = ctx->active_scene;
-    if (!active_scene || !engine)
+    PrismEngine* engine = (PrismEngine*)userdata;
+    if (!engine || !engine->active_scene)
         return;
+
+    Scene* active_scene = engine->active_scene;
 
     // Force the renderer to update its viewport immediately
     uint32_t w = Platform_GetWindowWidth(engine->window);
@@ -216,6 +217,14 @@ static void Engine_OnModalEvent(void* userdata)
         // Update scripts/animations
         Scene_Update(active_scene);
     }
+    else
+    {
+        // If not simulating, only update visual entities
+        Scene_UpdateTransforms(active_scene);
+        Scene_UpdateBoneAttachments(active_scene);
+        Scene_UpdateSkinnedMeshBounds(active_scene);
+        Scene_UpdateLineRenderers(active_scene);
+    }
 
     Engine_UpdateTextInput(engine);
 
@@ -224,9 +233,21 @@ static void Engine_OnModalEvent(void* userdata)
     {
         Engine_RenderScene(engine, active_scene);
         Engine_DrawRetainedUI(engine, active_scene);
+        if (engine->modal_callback)
+            engine->modal_callback(engine->modal_userdata);
         Render_UIRender(engine->renderer, UI_GetContext(), w, h);
         Platform_SwapBuffers(engine->window);
     }
+}
+
+
+
+
+
+void Engine_SetModalCallback(PrismEngine* engine, EngineModalCallback callback, void* userdata)
+{
+    engine->modal_callback = callback;
+    engine->modal_userdata = userdata;
 }
 
 
@@ -238,6 +259,8 @@ void Engine_Update(PrismEngine* engine, Scene* active_scene)
 {
     if (!active_scene)
         return;
+
+    engine->active_scene = active_scene;
 
     Time_Tick();
     engine->accumulator += Time_DeltaTime();
@@ -302,6 +325,14 @@ void Engine_Update(PrismEngine* engine, Scene* active_scene)
         // Update scene, physics, and UI
         Scene_Update(active_scene);
     }
+    else
+    {
+        // If not simulating, only update visual entities
+        Scene_UpdateTransforms(active_scene);
+        Scene_UpdateBoneAttachments(active_scene);
+        Scene_UpdateSkinnedMeshBounds(active_scene);
+        Scene_UpdateLineRenderers(active_scene);
+    }
 
     Engine_UpdateTextInput(engine);
 }
@@ -347,8 +378,7 @@ void Engine_Run(PrismEngine* engine, Scene* active_scene)
         return;
     }
 
-    ModalContext modal_ctx = { engine, active_scene };
-    Platform_SetEventWatchCallback(Engine_OnModalEvent, &modal_ctx);
+    engine->active_scene = active_scene;
 
     Log_Info("Running Scene");
 

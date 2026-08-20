@@ -66,10 +66,11 @@ namespace Prism
 
         // --- Editor API ---
 
-        PRISM_EDITOR_API static void Update(Scene& active_scene);
-        PRISM_EDITOR_API static void Render(Scene& active_scene);
-        PRISM_EDITOR_API static bool IsRunning();
-        PRISM_EDITOR_API static void SetSimulationMode(bool is_simulating);
+        static void Update(Scene& active_scene);
+        static void Render(Scene& active_scene);
+        static bool IsRunning();
+        static void SetSimulationMode(bool is_simulating);
+        static void SetModalCallback(void (*callback)(void*), void* userdata);
 
 #endif
 

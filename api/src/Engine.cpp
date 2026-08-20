@@ -98,7 +98,7 @@ namespace Prism
 
 
 #ifdef PRISM_EDITOR
-    
+
     void Engine::Update(Scene& active_scene) {
         ::Scene* raw_scene = static_cast<::Scene*>(active_scene.GetRaw());
         ::Engine_Update(&s_engine, raw_scene);
@@ -115,6 +115,10 @@ namespace Prism
 
     void Engine::SetSimulationMode(bool is_simulating) {
         ::Engine_SetSimulationMode(&s_engine, is_simulating);
+    }
+
+    void Engine::SetModalCallback(void (*callback)(void*), void* userdata) {
+        ::Engine_SetModalCallback(&s_engine, callback, userdata);
     }
 
 #endif

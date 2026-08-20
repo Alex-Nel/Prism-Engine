@@ -46,6 +46,7 @@ void Scene_SyncPhysicsPostSim(Scene* scene);
 Entity Scene_GetEntity(Scene* scene, const char* name);
 uint32_t Scene_GetTotalEntityCount(Scene* scene);
 uint32_t Scene_GetActiveEntityCount(Scene* scene);
+uint32_t Scene_GetAllEntities(Scene* scene, Entity* out_array, uint32_t max_results);
 uint32_t Scene_GetEntitiesWithTag(Scene* scene, const char* target_tag, Entity* out_array, uint32_t max_results);
 
 void Scene_SetMainCamera(Scene* scene, Entity camera_entity);

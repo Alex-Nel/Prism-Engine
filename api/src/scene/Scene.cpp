@@ -67,6 +67,17 @@ namespace Prism
         return ::Scene_GetActiveEntityCount(static_cast<::Scene*>(this->m_RawScene));
     }
 
+    std::vector<Prism::Entity> Scene::GetAllEntities() {
+        std::vector<Prism::Entity> results;
+        ::Entity c_results[MAX_ENTITIES];
+        uint32_t found_count = ::Scene_GetAllEntities(static_cast<::Scene*>(this->m_RawScene), c_results, MAX_ENTITIES);
+
+        for (uint32_t i = 0; i < found_count; i++)
+            results.push_back(Prism::Entity(c_results[i].id, c_results[i].scene));
+
+        return results;
+    }
+
     std::vector<Prism::Entity> Scene::GetEntitiesWithTag(const std::string& tag) {
         std::vector<Prism::Entity> results;
         ::Entity c_results[MAX_ENTITIES];
