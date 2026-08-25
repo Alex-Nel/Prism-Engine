@@ -25,6 +25,7 @@
 
 #define MAX_SHADOW_CASTING_SPOTLIGHTS 8
 #define MAX_SHADOW_CASTING_POINT_LIGHTS 8
+#define MAX_SNAPSHOT_SKINNED 1024
 
 #define SHADOW_WIDTH SHADOW_MAP_RESOLUTION
 #define SHADOW_HEIGHT SHADOW_MAP_RESOLUTION
@@ -280,6 +281,8 @@ typedef struct OpenGL_Backend
 
     RenderItem command_queue[MAX_COMMANDS];
     uint32_t command_count;
+    Matrix4 bone_snapshot[MAX_SNAPSHOT_SKINNED][MAX_BONES];
+    uint32_t bone_snapshot_count;
     GLReflectionProbe reflection_probes[MAX_REFLECTION_PROBES];
 
     uint32_t quad_vao;

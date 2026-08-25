@@ -158,7 +158,7 @@ typedef struct RenderItem
     MaterialProperties material;
     Matrix4 transform;
     AABB local_bounds;            // mesh-space AABB
-    Matrix4* bone_matrices;       // NULL if static
+    Matrix4* bone_matrices;       // NULL if static, gets copied to the backend
     float depth_distance;         // transparent sort
     uint32_t flags;
 } RenderItem;
@@ -219,24 +219,13 @@ typedef struct RenderPacket
 
 
 
-// Frozen description of one view's drawables and lighting. Pointers must stay valid until DrawWorld returns.
+// View snapshot. Caller pointers only need to stay valid for the DrawWorld call. The backend copies items, bones, lights, and probes into its own storage.
 typedef struct RenderWorld
 {
     RenderPacket packet;
     const RenderItem* items;
     uint32_t item_count;
 } RenderWorld;
-
-
-
-
-
-// Unused - Texture filtering
-typedef enum
-{
-    TEXTURE_FILTER_NEAREST, // Blocky (Pixel art style)
-    TEXTURE_FILTER_LINEAR   // Smooth (Standard 3D style)
-} TextureFilter;
 
 
 

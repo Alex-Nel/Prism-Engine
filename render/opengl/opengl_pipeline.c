@@ -1879,27 +1879,27 @@ void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
     glActiveTexture(GL_TEXTURE0);
 
     // Copy Directional Lights
-    internal->state.dir_light_count = packet->dir_light_count;
+    internal->state.dir_light_count = packet->dir_lights ? packet->dir_light_count : 0;
     if (internal->state.dir_light_count > MAX_DIR_LIGHTS)
         internal->state.dir_light_count = MAX_DIR_LIGHTS;
     for (uint32_t i = 0; i < internal->state.dir_light_count; i++)
         internal->state.dir_lights[i] = packet->dir_lights[i];
 
     // Copy Point Lights
-    internal->state.point_light_count = packet->point_light_count;
+    internal->state.point_light_count = packet->point_lights ? packet->point_light_count : 0;
     if (internal->state.point_light_count > MAX_POINT_LIGHTS)
         internal->state.point_light_count = MAX_POINT_LIGHTS;
     for (uint32_t i = 0; i < internal->state.point_light_count; i++)
         internal->state.point_lights[i] = packet->point_lights[i];
         
     // Copy Spot Lights
-    internal->state.spot_light_count = packet->spot_light_count;
+    internal->state.spot_light_count = packet->spot_lights ? packet->spot_light_count : 0;
     if (internal->state.spot_light_count > MAX_SPOT_LIGHTS)
         internal->state.spot_light_count = MAX_SPOT_LIGHTS;
     for (uint32_t i = 0; i < internal->state.spot_light_count; i++)
         internal->state.spot_lights[i] = packet->spot_lights[i];
 
-    internal->state.reflection_probe_count = packet->reflection_probe_count;
+    internal->state.reflection_probe_count = packet->reflection_probes ? packet->reflection_probe_count : 0;
     if (internal->state.reflection_probe_count > MAX_REFLECTION_PROBES)
         internal->state.reflection_probe_count = MAX_REFLECTION_PROBES;
 
@@ -1925,8 +1925,42 @@ void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
     else
         internal->state.settings.exposure = 1.0f;
     
-    // Reset the queue for the new frame
+    // Reset the queue and bone snapshot for the new frame
     internal->command_count = 0;
+    internal->bone_snapshot_count = 0;
+}
+
+
+
+
+
+
+
+
+
+
+// Copies an item into the queue and snapshots any borrowed bone matrices.
+static void OpenGL_QueueItem(OpenGL_Backend* internal, const RenderItem* item)
+{
+    // Return if the queue is full
+    if (!item || internal->command_count >= MAX_COMMANDS)
+        return;
+    
+    RenderItem* dst = &internal->command_queue[internal->command_count++];
+    *dst = *item;
+
+    if (!dst->bone_matrices)
+        return;
+    
+    if (internal->bone_snapshot_count >= MAX_SNAPSHOT_SKINNED)
+    {
+        dst->bone_matrices = NULL;
+        return;
+    }
+    
+    memcpy(internal->bone_snapshot[internal->bone_snapshot_count], dst->bone_matrices, sizeof(Matrix4) * MAX_BONES);
+    dst->bone_matrices = internal->bone_snapshot[internal->bone_snapshot_count];
+    internal->bone_snapshot_count++;
 }
 
 
@@ -1941,13 +1975,7 @@ void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
 // Adds an object to the draw queue
 void OpenGL_Submit(Renderer* r, const RenderItem* item)
 {
-    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
-
-    // Return if the queue is full
-    if (!item || internal->command_count >= MAX_COMMANDS)
-        return;
-    
-    internal->command_queue[internal->command_count++] = *item;
+    OpenGL_QueueItem((OpenGL_Backend*)r->backend_internal_data, item);
 }
 
 
@@ -1959,7 +1987,7 @@ void OpenGL_Submit(Renderer* r, const RenderItem* item)
 
 
 
-// Copies a frozen view snapshot into the queue and runs the same EndFrame path as streaming submit.
+// Copies a frozen view snapshot into backend-owned storage and runs EndFrame.
 void OpenGL_DrawWorld(Renderer* r, const RenderWorld* world)
 {
     if (!r || !world)
@@ -1974,10 +2002,8 @@ void OpenGL_DrawWorld(Renderer* r, const RenderWorld* world)
         count = 0;
     if (count > MAX_COMMANDS)
         count = MAX_COMMANDS;
-    if (count > 0)
-        memcpy(internal->command_queue, world->items, count * sizeof(RenderItem));
-    
-    internal->command_count = count;
+    for (uint32_t i = 0; i < count; i++)
+        OpenGL_QueueItem(internal, &world->items[i]);    
     
     OpenGL_EndFrame(r);
 }

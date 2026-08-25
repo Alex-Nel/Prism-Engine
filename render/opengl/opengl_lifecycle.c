@@ -443,6 +443,7 @@ void OpenGL_Shutdown(Renderer* r)
 
     // Clear out any pending draw commands
     internal->command_count = 0;
+    internal->bone_snapshot_count = 0;
 
     // Garbage Collector Loop. We start at 1 because index 0 is the "Invalid/Null" handle.
     for (uint32_t i = 1; i < MAX_RESOURCES; i++)
