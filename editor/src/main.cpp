@@ -1,3 +1,4 @@
+#define PRISM_EDITOR
 #include "Prism.hpp"
 
 
@@ -13,7 +14,6 @@ public:
     {
         this->script_class_name = "RotationScript";
         ExposeVariable("Speed", &speed);
-        // Prism::ScriptRegistry::Register<RotationScript>("RotationScript");
     }
 
     void OnUpdate()
@@ -65,10 +65,12 @@ void DrawEditorUI(void* userdata)
             Prism::Engine::SetSimulationMode(is_simulating);
         }
         if (Prism::UI::Button("Save Scene")) {
-            Debug_Log("Save Scene clicked (not implemented)");
+            editor_scene.Save("SampleScene");
+            Debug_Log("Save Scene clicked");
         }
         if (Prism::UI::Button("Load Scene")) {
-            Debug_Log("Load Scene clicked (not implemented)");
+            editor_scene.Load("SampleScene");
+            Debug_Log("Load Scene clicked");
         }
         Prism::UI::Label(fpsCounter);
     }
@@ -222,10 +224,8 @@ int main()
     while (Prism::Engine::IsRunning())
     {
         current_fps = 1.0f / Prism::Time::DeltaTime();
-    	// 1. Dispatch input callbacks (normally handled by Engine::Run)
         Prism::Input::DispatchCallbacks();
 
-        // 2. Update the engine (pumps events, calculates delta time)
         Prism::Engine::Update(editor_scene);
         window_width = Prism::Platform::GetWindowWidth();
         window_height = Prism::Platform::GetWindowHeight();
