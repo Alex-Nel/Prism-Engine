@@ -5,6 +5,32 @@
 
 
 
+// Extracts the view frustum from a render state
+static Frustum OpenGL_ExtractViewFrustum(const RenderState* state)
+{
+    Matrix4 view_proj = Matrix4Multiply(state->projection_matrix, state->view_matrix);
+    return Frustum_ExtractFromMatrix(view_proj);
+}
+
+
+
+
+
+// Returns whether an item is in a specific frustum
+static bool OpenGL_ItemInFrustum(const RenderItem* item, Frustum* frustum)
+{
+    return Frustum_ContainsAABB(frustum, item->local_bounds, item->transform);
+}
+
+
+
+
+
+
+
+
+
+
 // Binds the SSAO result (or a white fallback when SSAO is disabled).
 void OpenGL_BindSSAOTexture(OpenGL_Backend* internal, GLuint program)
 {
@@ -114,6 +140,7 @@ void OpenGL_UploadShadowUniforms(GLuint program, const RenderState* state)
 void OpenGL_DrawShadowQueue(OpenGL_Backend* internal, const Matrix4* light_space_matrix)
 {
     uint32_t current_shader = 0;
+    Frustum light_frustum = Frustum_ExtractFromMatrix(*light_space_matrix);
 
     for (uint32_t i = 0; i < internal->command_count; i++)
     {
@@ -123,6 +150,9 @@ void OpenGL_DrawShadowQueue(OpenGL_Backend* internal, const Matrix4* light_space
             continue;
 
         if ((cmd->flags & RENDER_ITEM_CAST_SHADOWS) == 0)
+            continue;
+
+        if (!OpenGL_ItemInFrustum(cmd, &light_frustum))
             continue;
 
         GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
@@ -618,11 +648,15 @@ void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
 
     uint32_t current_g_shader = 0;
     uint32_t current_texture = 999999;
+    Frustum camera_frustum = OpenGL_ExtractViewFrustum(&internal->state);
 
     for (uint32_t i = 0; i < opaque_count; i++)
     {
         RenderItem* cmd = &internal->command_queue[i];
         if (!internal->mesh_pool[cmd->mesh.id].active)
+            continue;
+
+        if (!OpenGL_ItemInFrustum(cmd, &camera_frustum))
             continue;
 
         ShaderHandle target_g_handle = (cmd->bone_matrices != NULL && internal->mesh_pool[cmd->mesh.id].is_skinned) ? internal->ssao.g_buffer_skinned_shader : internal->ssao.g_buffer_shader;
@@ -1112,6 +1146,7 @@ static void OpenGL_RenderCommandBatchMode(OpenGL_Backend* internal, uint32_t sta
 {
     uint32_t current_shader = 0;
     uint32_t current_texture = 0;
+    Frustum view_frustum = OpenGL_ExtractViewFrustum(&internal->state);
 
     for (uint32_t i = start_idx; i < end_idx; i++)
     {
@@ -1120,6 +1155,9 @@ static void OpenGL_RenderCommandBatchMode(OpenGL_Backend* internal, uint32_t sta
             continue;
 
         if (probe_capture && (cmd->flags & RENDER_ITEM_PROBE_CAPTURE) == 0)
+            continue;
+
+        if (!OpenGL_ItemInFrustum(cmd, &view_frustum))
             continue;
 
         ShaderHandle target_handle = probe_capture ? (ShaderHandle){0} : cmd->shader;

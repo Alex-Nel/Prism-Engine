@@ -85,11 +85,11 @@ void Engine_ApplyReflectionProbeResults(PrismEngine* engine, Scene* scene, const
 // Gathers all the cameras in a scene and sorts them
 uint32_t Engine_GatherAndSortCameras(PrismEngine* engine, Scene* scene, ActiveCamera* active_cameras);
 
-// Extracts visible geometry into a RenderItem array for DrawWorld.
-uint32_t Engine_GatherVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 cam_pos, uint32_t culling_masks, RenderItem* out, uint32_t max);
+// Extracts scene geometry into a RenderItem array for DrawWorld. Spatial culling is done by the renderer.
+uint32_t Engine_GatherVisibleGeometry(Scene* scene, Vector3 cam_pos, uint32_t culling_masks, RenderItem* out, uint32_t max);
 
-// Submits all geometry visible to a camera via Begin/Submit/End.
-void Engine_SubmitVisibleGeometry(PrismEngine* engine, Scene* scene, Frustum* cam_frustum, Vector3 cam_pos, uint32_t culling_masks);
+// Submits scene geometry via Begin/Submit/End. Spatial culling is done by the renderer.
+void Engine_SubmitVisibleGeometry(PrismEngine* engine, Scene* scene, Vector3 cam_pos, uint32_t culling_masks);
 
 // Main function to render a scene
 void Engine_RenderScene(PrismEngine* engine, Scene* scene);

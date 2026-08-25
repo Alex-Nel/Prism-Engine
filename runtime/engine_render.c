@@ -307,8 +307,8 @@ static void Extract_TryPush(RenderItem* out, uint32_t max, uint32_t* count, cons
 
 
 
-// Extracts visible geometry into a RenderItem array for DrawWorld
-uint32_t Engine_GatherVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 cam_pos, uint32_t culling_masks, RenderItem* out, uint32_t max)
+// Extracts scene geometry into a RenderItem array for DrawWorld
+uint32_t Engine_GatherVisibleGeometry(Scene* scene, Vector3 cam_pos, uint32_t culling_masks, RenderItem* out, uint32_t max)
 {
     uint32_t count = 0;
     if (!scene || !out || max == 0)
@@ -326,14 +326,13 @@ uint32_t Engine_GatherVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector
             continue;
 
         Transform* t = &scene->transforms[i];
-        if (cam_frustum && !Frustum_ContainsAABB(cam_frustum, rc->mesh->local_bounds, t->world_matrix))
-            continue;
 
         RenderItem item = {0};
 
         item.mesh = rc->mesh->gpu_handle;
         RenderItem_SetMaterial(&item, rc->material);
         item.transform = t->world_matrix;
+        item.local_bounds = rc->mesh->local_bounds;
         
         if (rc->casts_shadows)
             item.flags |= RENDER_ITEM_CAST_SHADOWS;
@@ -359,8 +358,6 @@ uint32_t Engine_GatherVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector
             continue;
 
         Transform* t = &scene->transforms[i];
-        if (cam_frustum && !Frustum_ContainsAABB(cam_frustum, rc->pose_bounds, t->world_matrix))
-            continue;
 
         Matrix4* bone_ptr = NULL;
         uint32_t anim_id = rc->root_animator_entity_id;
@@ -375,6 +372,7 @@ uint32_t Engine_GatherVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector
         item.mesh = rc->mesh->gpu_handle;
         RenderItem_SetMaterial(&item, rc->material);
         item.transform = t->world_matrix;
+        item.local_bounds = rc->pose_bounds;
         item.bone_matrices = bone_ptr;
         
         if (rc->casts_shadows)
@@ -404,6 +402,7 @@ uint32_t Engine_GatherVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector
         RenderItem_SetMaterial(&item, line->material);
         item.material.albedo_tint = line->color;
         item.transform = Matrix4Identity();
+        item.local_bounds = line->dynamic_mesh->local_bounds;
 
         Extract_TryPush(out, max, &count, &item);
     }
@@ -441,6 +440,7 @@ uint32_t Engine_GatherVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector
         RenderItem_SetMaterial(&item, sprite->material);
         item.material.albedo_tint = sprite->color;
         item.transform = final_sprite_matrix;
+        item.local_bounds = sprite->quad->local_bounds;
         item.depth_distance = dist_sq;
         item.flags = RENDER_ITEM_TRANSPARENT;
 
@@ -459,15 +459,22 @@ uint32_t Engine_GatherVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector
 
 
 
-// Submits all visible geometry via the streaming Begin/Submit/End path
-void Engine_SubmitVisibleGeometry(PrismEngine* engine, Scene* scene, Frustum* cam_frustum, Vector3 cam_pos, uint32_t culling_masks)
+// Submits all scene geometry via the streaming Begin/Submit/End path
+void Engine_SubmitVisibleGeometry(PrismEngine* engine, Scene* scene, Vector3 cam_pos, uint32_t culling_masks)
 {
     if (!engine || !engine->renderer)
         return;
-    uint32_t count = Engine_GatherVisibleGeometry(scene, cam_frustum, cam_pos, culling_masks, s_extracted_items, MAX_COMMANDS);
+
+    uint32_t count = Engine_GatherVisibleGeometry(scene, cam_pos, culling_masks, s_extracted_items, MAX_COMMANDS);
+    
     for (uint32_t i = 0; i < count; i++)
         Render_Submit(engine->renderer, &s_extracted_items[i]);
 }
+
+
+
+
+
 
 
 
@@ -523,19 +530,9 @@ void Engine_RenderScene(PrismEngine* engine, Scene* scene)
     ReflectionProbeData active_reflection_probes[MAX_REFLECTION_PROBES];
 
 
-    // Fille the packet with all the lights in the scene
+    // Fill the packet with all the lights in the scene
     Engine_GatherSceneLights(engine, scene, &packet, active_dir_lights, active_point_lights, active_spot_lights);
     Engine_GatherReflectionProbes(engine, scene, &packet, active_reflection_probes);
-    
-    bool probe_capture_requested = false;
-    for (uint32_t i = 0; i < packet.reflection_probe_count; i++)
-    {
-        if (packet.reflection_probes[i].needs_capture)
-        {
-            probe_capture_requested = true;
-            break;
-        }
-    }
 
     Transform* main_cam_t = &scene->transforms[scene->main_camera_id];
     CameraComponent* main_cam = &scene->cameras[scene->main_camera_id];
@@ -585,10 +582,7 @@ void Engine_RenderScene(PrismEngine* engine, Scene* scene)
         packet.clear_flags = (RenderClearFlags)cam_comp->clear_flags;
         packet.clear_color = scene->background_color;
 
-        Matrix4 view_proj = Matrix4Multiply(packet.projection_matrix, packet.view_matrix);
-        Frustum cam_frustum = Frustum_ExtractFromMatrix(view_proj);
-
-        uint32_t item_count = Engine_GatherVisibleGeometry(scene, probe_capture_requested ? NULL : &cam_frustum, global_pos, cam_comp->culling_masks, s_extracted_items, MAX_COMMANDS);
+        uint32_t item_count = Engine_GatherVisibleGeometry(scene, global_pos, cam_comp->culling_masks, s_extracted_items, MAX_COMMANDS);
         RenderWorld world = {
             .packet = packet,
             .items = s_extracted_items,
@@ -597,6 +591,5 @@ void Engine_RenderScene(PrismEngine* engine, Scene* scene)
         Render_DrawWorld(engine->renderer, &world);
 
         Engine_ApplyReflectionProbeResults(engine, scene, active_reflection_probes, packet.reflection_probe_count);
-        probe_capture_requested = false;
     }
 }

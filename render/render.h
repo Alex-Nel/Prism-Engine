@@ -9,6 +9,7 @@
 #include "../core/log_core.h"
 #include "../core/io_core.h"
 #include "../core/overlay_core.h"
+#include "../core/frustum_core.h"
 
 
 
@@ -156,6 +157,7 @@ typedef struct RenderItem
     TextureHandle ao;
     MaterialProperties material;
     Matrix4 transform;
+    AABB local_bounds;            // mesh-space AABB
     Matrix4* bone_matrices;       // NULL if static
     float depth_distance;         // transparent sort
     uint32_t flags;
@@ -517,7 +519,7 @@ static inline void Render_DrawWorld(Renderer* r, const RenderWorld* world)
         r->DrawWorld(r, world);
         return;
     }
-    
+
     Render_BeginFrame(r, &world->packet);
     if (world->items)
     {
