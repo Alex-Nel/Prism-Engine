@@ -117,9 +117,9 @@ namespace Prism
         static void RegisterAction(const std::string& actionName, KeyCode key);
         static bool IsActionPressed(const std::string& actionName);
         static void BindKeyPressed(KeyCode key, std::function<void()> callback);
+        static void DispatchCallbacks();
 
     private:
-        static void DispatchCallbacks();
         static void Clear();
     };
 }

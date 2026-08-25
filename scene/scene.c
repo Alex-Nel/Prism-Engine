@@ -1270,6 +1270,29 @@ uint32_t Scene_GetActiveEntityCount(Scene* scene)
 
 
 
+// Returns an array of all entities in a scene
+uint32_t Scene_GetAllEntities(Scene* scene, Entity* out_array, uint32_t max_results)
+{
+    uint32_t count = 0;
+
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (scene->component_masks[i] != COMPONENT_NONE)
+        {
+            out_array[count++] = (Entity){i, scene};
+
+            if (count >= max_results)
+                break;
+        }
+    }
+
+    return count;
+}
+
+
+
+
+
 // Searches the scene and fills the out_array with matching entities
 uint32_t Scene_GetEntitiesWithTag(Scene* scene, const char* target_tag, Entity* out_array, uint32_t max_results)
 {

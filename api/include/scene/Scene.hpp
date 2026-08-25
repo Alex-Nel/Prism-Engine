@@ -35,6 +35,7 @@ namespace Prism
         void* m_RawScene;
 
     public:
+        Scene() : m_RawScene(nullptr) {}
         Scene(void* scene) : m_RawScene(scene) {}
         void* GetRaw() const { return m_RawScene; }
 
@@ -61,6 +62,7 @@ namespace Prism
         Entity GetEntityByName(const std::string& name);
         uint32_t GetTotalEntityCount();
         uint32_t GetActiveEntityCount();
+        std::vector<Prism::Entity> GetAllEntities();
         std::vector<Prism::Entity> GetEntitiesWithTag(const std::string& tag);
         void SetMainCamera(Entity cameraEntity);
         void SetGravity(Prism::Vector3 gravity);

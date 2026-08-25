@@ -124,6 +124,8 @@ bool Scene_Save(Scene* scene, const char* filepath)
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
     {
         if (!scene->is_active_in_hierarchy[i]) continue;
+        if (scene->component_masks[i] == COMPONENT_NONE) continue;
+        if (strcmp(scene->tags[i].tag, "EditorOnly") == 0) continue;
 
         // Create an object for this entity
         cJSON* entity_obj = cJSON_CreateObject();

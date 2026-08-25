@@ -12,3 +12,17 @@
     // Mac/Linux export everything automatically
     #define PRISM_API
 #endif
+
+#ifdef PRISM_EDITOR
+    #if defined(_WIN32) || defined(_WIN64)
+        #ifdef PRISM_BUILD_DLL 
+            #define PRISM_EDITOR_API __declspec(dllexport)
+        #else
+            #define PRISM_EDITOR_API __declspec(dllimport)
+        #endif
+    #else
+        #define PRISM_EDITOR_API
+    #endif
+#else
+    #define PRISM_EDITOR_API
+#endif

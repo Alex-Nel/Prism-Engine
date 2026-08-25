@@ -176,3 +176,19 @@ if(PRISM_BUILD_TEST)
         message(STATUS "main.cpp not found. Skipping test executable build.")
     endif()
 endif()
+
+
+
+# --- Target 3: Editor Application ---
+# Create an Editor target that links to the engine but defines PRISM_EDITOR
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/editor/src/main.cpp")
+    file(GLOB_RECURSE EDITOR_SRCS "editor/src/*.cpp" "editor/src/*.c")
+    add_executable(PrismEditor ${EDITOR_SRCS})
+    
+    target_link_libraries(PrismEditor PRIVATE PrismEngineLib)
+    target_compile_definitions(PrismEditor PRIVATE PRISM_EDITOR)
+
+    # Compile engine with PRISM_EDITOR for these symbols to exist
+    # Implement a CMake Option later.
+    target_compile_definitions(PrismEngineLib PUBLIC PRISM_EDITOR)
+endif()

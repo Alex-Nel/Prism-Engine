@@ -10,5 +10,5 @@ lib*/
 *.exe
 *.dll
 
-main.c
-main.cpp
+/main.c
+/main.cpp

@@ -7,16 +7,21 @@
 
 
 typedef void (*EngineUpdateCallback)(void);
+typedef void (*EngineModalCallback)(void*);
 
 // Struct for an "engine"
 typedef struct PrismEngine
 {
     Window* window;
     Renderer* renderer;
+    Scene* active_scene;
     bool is_running;
+    bool is_simulating;
     float accumulator;
     uint32_t target_fps;
     EngineUpdateCallback pre_update_callback;
+    EngineModalCallback modal_callback;
+    void* modal_userdata;
 } PrismEngine;
 
 
@@ -42,6 +47,12 @@ void Engine_Shutdown(PrismEngine* engine);
 
 // Allows API to set custom runtime logic
 void Engine_SetPreUpdateCallback(PrismEngine* engine, EngineUpdateCallback callback);
+
+// Sets a custom function for the modal loop
+void Engine_SetModalCallback(PrismEngine* engine, EngineModalCallback callback, void* userdata);
+
+// Toggles physics and script updates
+void Engine_SetSimulationMode(PrismEngine* engine, bool is_simulating);
 
 // Updates the engines state
 void Engine_Update(PrismEngine* engine, Scene* active_scene);
