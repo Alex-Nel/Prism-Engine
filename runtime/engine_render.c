@@ -216,291 +216,6 @@ void Engine_ApplyReflectionProbeResults(PrismEngine* engine, Scene* scene, const
 
 
 
-// Executes the shadow pass of the rendering pipeline with a rendering packet
-void Engine_ExecuteShadowPass(PrismEngine* engine, Scene* scene, RenderPacket* packet)
-{
-    DirectionalLightData* shadow_light = &packet->dir_lights[0];
-    Vector3 light_dir = shadow_light->direction;
-
-    Transform* main_cam_t = &scene->transforms[scene->main_camera_id];
-    CameraComponent* main_cam = &scene->cameras[scene->main_camera_id];
-    Vector3 cam_pos = Transform_GetGlobalPosition(main_cam_t);
-    Vector3 cam_fwd = Transform_GetForwardVector(main_cam_t);
-    Vector3 cam_right = Transform_GetRightVector(main_cam_t);
-    Vector3 cam_up = Transform_GetUpVector(main_cam_t);
-
-    packet->camera_forward = cam_fwd;
-
-    Camera_RecalculateProjectionIfNeeded(main_cam);
-    
-    packet->shadow_camera_near = main_cam->nearZ;
-    packet->cascade_blend_fraction = shadow_light->cascade_blend_fraction;
-    
-    if (packet->cascade_blend_fraction <= 0.0f)
-        packet->cascade_blend_fraction = 0.12f;
-    
-    if (packet->cascade_blend_fraction > 0.5f)
-        packet->cascade_blend_fraction = 0.5f;
-
-    float light_distance = 80.0f;
-    Vector3 up;
-    if (fabsf(light_dir.y) > 0.99f)
-        up = (Vector3){0.0f, 0.0f, 1.0f};
-    else
-        up = (Vector3){0.0f, 1.0f, 0.0f};
-
-    uint32_t cascade_count = shadow_light->shadow_cascade_count;
-    if (cascade_count < 1)
-        cascade_count = 1;
-    if (cascade_count > MAX_SHADOW_CASCADES)
-        cascade_count = MAX_SHADOW_CASCADES;
-    
-    packet->shadow_cascade_count = cascade_count;
-
-
-    // If the cascade count is 1 or 0, use only one shadow map
-    if (cascade_count <= 1)
-    {
-        float shadow_box_size = shadow_light->shadow_box_size;
-        if (shadow_box_size <= 0.0f)
-            shadow_box_size = 20.0f;
-
-        Vector3 center = {
-            cam_pos.x + cam_fwd.x * shadow_box_size * 0.5f,
-            cam_pos.y + cam_fwd.y * shadow_box_size * 0.5f,
-            cam_pos.z + cam_fwd.z * shadow_box_size * 0.5f
-        };
-        RendererSettings cur_settings = Render_GetSettings(engine->renderer);
-        float cur_shadow_res = (float)SHADOW_MAP_RESOLUTION;
-        if (cur_settings.shadow_map_resolution > 0)
-            cur_shadow_res = (float)cur_settings.shadow_map_resolution;
-        float texel_world_size = (2.0f * shadow_box_size) / cur_shadow_res;
-
-        Matrix4 light_basis = Matrix4LookAt((Vector3){0.0f, 0.0f, 0.0f}, light_dir, up);
-        Vector4 center_ls = Matrix4MultiplyVector4(light_basis, (Vector4){center.x, center.y, center.z, 1.0f});
-        center_ls.x = floorf(center_ls.x / texel_world_size) * texel_world_size;
-        center_ls.y = floorf(center_ls.y / texel_world_size) * texel_world_size;
-
-        Vector4 snapped = Matrix4MultiplyVector4(Matrix4Transpose(light_basis), center_ls);
-        Vector3 center_snapped = { snapped.x, snapped.y, snapped.z };
-
-        Vector3 light_pos = {
-            center_snapped.x - light_dir.x * light_distance,
-            center_snapped.y - light_dir.y * light_distance,
-            center_snapped.z - light_dir.z * light_distance
-        };
-
-        Matrix4 light_view = Matrix4LookAt(light_pos, center_snapped, up);
-        Matrix4 light_proj = Matrix4Ortho(-shadow_box_size, shadow_box_size,
-                                          -shadow_box_size, shadow_box_size,
-                                          0.1f, 2.0f * light_distance);
-
-        packet->light_space_matrices[0] = Matrix4Multiply(light_proj, light_view);
-        packet->shadow_texel_world_sizes[0] = texel_world_size;
-    }
-    // Separate shadow map into specified number of shadow cascades
-    else
-    {
-        float aspect = (float)main_cam->viewport_width / (float)main_cam->viewport_height;
-        if (aspect <= 0.0f)
-            aspect = 1.0f;
-
-        float cam_near = main_cam->nearZ;
-        float shadow_far = shadow_light->shadow_max_distance;
-        if (shadow_far <= cam_near)
-            shadow_far = cam_near + 1.0f;
-        if (shadow_far > main_cam->farZ)
-            shadow_far = main_cam->farZ;
-
-        float split_lambda = shadow_light->cascade_split_lambda;
-        if (split_lambda < 0.0f)
-            split_lambda = 0.0f;
-        if (split_lambda > 1.0f)
-            split_lambda = 1.0f;
-
-        float splits[MAX_SHADOW_CASCADES - 1];
-        for (uint32_t i = 1; i < cascade_count; i++)
-        {
-            float p = (float)i / (float)cascade_count;
-            float log_split = cam_near * powf(shadow_far / cam_near, p);
-            float uni_split = cam_near + (shadow_far - cam_near) * p;
-            splits[i - 1] = uni_split * (1.0f - split_lambda) + log_split * split_lambda;
-            packet->cascade_splits[i - 1] = splits[i - 1];
-        }
-
-        // cam->fov is stored in radians
-        float tan_half = tanf(main_cam->fov * 0.5f);
-
-        for (uint32_t c = 0; c < cascade_count; c++)
-        {
-            float split_near;
-            if (c == 0)
-                split_near = cam_near;
-            else
-                split_near = splits[c - 1];
-
-            float split_far;
-            if (c == cascade_count - 1)
-                split_far = shadow_far;
-            else
-                split_far = splits[c];
-
-            if (c > 0)
-            {
-                float prev_near;
-                if (c == 1)
-                    prev_near = cam_near;
-                else
-                    prev_near = splits[c - 2];
-
-                float prev_slice = splits[c - 1] - prev_near;
-                split_near -= prev_slice * packet->cascade_blend_fraction;
-                if (split_near < cam_near)
-                    split_near = cam_near;
-            }
-
-            Vector3 corners[8];
-            BuildFrustumSliceCorners(cam_pos, cam_fwd, cam_right, cam_up, aspect, tan_half, split_near, split_far, corners);
-
-
-            // --- Texel Snapping for cascades ---
-            
-            // Find the center of the frustum slice
-            Vector3 center = {0,0,0};
-            for (int k = 0; k < 8; k++) {
-                center.x += corners[k].x;
-                center.y += corners[k].y;
-                center.z += corners[k].z;
-            }
-            center.x /= 8.0f; center.y /= 8.0f; center.z /= 8.0f;
-
-            // Find the bounding sphere radius to keep the box size stable during camera rotation
-            float radius = 0.0f;
-            for (int k = 0; k < 8; k++) {
-                float dx = corners[k].x - center.x;
-                float dy = corners[k].y - center.y;
-                float dz = corners[k].z - center.z;
-                float dist = sqrtf(dx*dx + dy*dy + dz*dz);
-                if (dist > radius) radius = dist;
-            }
-            
-            // Round radius up to nearest 16 units to prevent micro-fluctuations
-            radius = ceilf(radius / 16.0f) * 16.0f;
-            
-            float shadow_box_size = radius; 
-            RendererSettings cur_settings = Render_GetSettings(engine->renderer);
-            float cur_shadow_res = (float)SHADOW_MAP_RESOLUTION;
-            if (cur_settings.shadow_map_resolution > 0)
-                cur_shadow_res = (float)cur_settings.shadow_map_resolution;
-            float texel_world_size = (2.0f * shadow_box_size) / cur_shadow_res;
-
-            // Snap the center to the texel grid
-            Matrix4 light_basis = Matrix4LookAt((Vector3){0.0f, 0.0f, 0.0f}, light_dir, up);
-            Vector4 center_ls = Matrix4MultiplyVector4(light_basis, (Vector4){center.x, center.y, center.z, 1.0f});
-            center_ls.x = floorf(center_ls.x / texel_world_size) * texel_world_size;
-            center_ls.y = floorf(center_ls.y / texel_world_size) * texel_world_size;
-
-            Vector4 snapped = Matrix4MultiplyVector4(Matrix4Transpose(light_basis), center_ls);
-            Vector3 center_snapped = { snapped.x, snapped.y, snapped.z };
-
-            Vector3 light_pos = {
-                center_snapped.x - light_dir.x * light_distance,
-                center_snapped.y - light_dir.y * light_distance,
-                center_snapped.z - light_dir.z * light_distance
-            };
-
-            Matrix4 light_view = Matrix4LookAt(light_pos, center_snapped, up);
-            Matrix4 light_proj = Matrix4Ortho(-shadow_box_size, shadow_box_size, -shadow_box_size, shadow_box_size, 0.1f, 2.0f * light_distance);
-
-            packet->light_space_matrices[c] = Matrix4Multiply(light_proj, light_view);
-            packet->shadow_texel_world_sizes[c] = texel_world_size;
-
-
-
-            // --- UNUSED (above method seems to work better) ---
-            // ComputeCascadeLightMatrix(corners, light_dir, up, light_distance, &packet->light_space_matrices[c], &packet->shadow_texel_world_sizes[c]);
-        }
-    }
-
-    // Begin Shadow Pass
-    Render_BeginShadowPass(engine->renderer, packet);
-
-    float cull_dist = shadow_light->shadow_max_distance + 50.0f; 
-    float cull_dist_sq = cull_dist * cull_dist;
-
-
-    // Submit shadows for Static Meshes
-    uint32_t req_mesh_mask = COMPONENT_TRANSFORM | COMPONENT_MESH_RENDERER;
-    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
-    {
-        if (!scene->is_active_in_hierarchy[i] || (scene->component_masks[i] & req_mesh_mask) != req_mesh_mask)
-            continue;
-
-        MeshRendererComponent* rc = &scene->mesh_renderers[i];
-        if (!rc->is_active || !rc->mesh)
-            continue;
-
-        Transform* t = &scene->transforms[i];
-        Vector3 obj_pos = Transform_GetGlobalPosition(t);
-        float dx = obj_pos.x - cam_pos.x;
-        float dy = obj_pos.y - cam_pos.y;
-        float dz = obj_pos.z - cam_pos.z;
-        if ((dx*dx + dy*dy + dz*dz) > cull_dist_sq)
-            continue; // Too far to cast a visible shadow
-
-        Render_Submit(engine->renderer, rc->mesh->gpu_handle, DEFAULT_SHADER,
-                      DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE,
-                      (MaterialProperties){0}, t->world_matrix, NULL,
-                      false, 0.0f, rc->casts_shadows, rc->receives_shadows, false);
-    }
-
-
-    // Submit shadows for Skinned Meshes
-    uint32_t req_skin_mask = COMPONENT_TRANSFORM | COMPONENT_SKINNED_MESH_RENDERER;
-    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
-    {
-        if (!scene->is_active_in_hierarchy[i] || (scene->component_masks[i] & req_skin_mask) != req_skin_mask)
-            continue;
-
-        SkinnedMeshRendererComponent* rc = &scene->skinned_mesh_renderers[i];
-        if (!rc->is_active || !rc->mesh)
-            continue;
-
-        Transform* t = &scene->transforms[i];
-
-        Vector3 obj_pos = Transform_GetGlobalPosition(t);
-        float dx = obj_pos.x - cam_pos.x;
-        float dy = obj_pos.y - cam_pos.y;
-        float dz = obj_pos.z - cam_pos.z;
-        if ((dx*dx + dy*dy + dz*dz) > cull_dist_sq)
-            continue; // Too far to cast a visible shadow
-
-        Matrix4* bone_ptr = NULL;
-        uint32_t anim_id = rc->root_animator_entity_id;
-
-        if (anim_id != 0 && anim_id != ENTITY_NONE && (scene->component_masks[anim_id] & COMPONENT_ANIMATOR))
-            bone_ptr = scene->animators[anim_id].final_bone_matrices;
-        else if (scene->component_masks[i] & COMPONENT_ANIMATOR)
-            bone_ptr = scene->animators[i].final_bone_matrices;
-
-        Render_Submit(engine->renderer, rc->mesh->gpu_handle, DEFAULT_SHADER,
-                      DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE, DEFAULT_TEXTURE,
-                      (MaterialProperties){0}, t->world_matrix, bone_ptr,
-                      false, 0.0f, rc->casts_shadows, rc->receives_shadows, false);
-    }
-
-    Render_EndShadowPass(engine->renderer);
-}
-
-
-
-
-
-
-
-
-
-
 // Gathers and sorts all cameras in a scene
 uint32_t Engine_GatherAndSortCameras(PrismEngine* engine, Scene* scene, ActiveCamera* active_cameras)
 {
@@ -534,6 +249,45 @@ uint32_t Engine_GatherAndSortCameras(PrismEngine* engine, Scene* scene, ActiveCa
 
 
 
+// Sets material properties for a render item
+static void RenderItem_SetMaterial(RenderItem* item, Material* material)
+{
+    item->shader = DEFAULT_SHADER;
+    item->albedo = (TextureHandle){0};
+    item->normal = (TextureHandle){0};
+    item->metallic = (TextureHandle){0};
+    item->roughness = (TextureHandle){0};
+    item->ao = (TextureHandle){0};
+    item->material = (MaterialProperties){0};
+
+    if (!material)
+        return;
+    
+    if (material->shader != NULL)
+        item->shader = material->shader->gpu_handle;
+    if (material->albedo_texture)
+        item->albedo = material->albedo_texture->gpu_handle;
+    if (material->normal_map)
+        item->normal = material->normal_map->gpu_handle;
+    if (material->metallic_map)
+        item->metallic = material->metallic_map->gpu_handle;
+    if (material->roughness_map)
+        item->roughness = material->roughness_map->gpu_handle;
+    if (material->ao_map)
+        item->ao = material->ao_map->gpu_handle;
+    
+    item->material = material->properties;
+}
+
+
+
+
+
+
+
+
+
+
 // Submits all visible geometry to the renderer
 void Engine_SubmitVisibleGeometry(PrismEngine* engine, Scene* scene, Frustum* cam_frustum, Vector3 cam_pos, uint32_t culling_masks)
 {
@@ -552,22 +306,20 @@ void Engine_SubmitVisibleGeometry(PrismEngine* engine, Scene* scene, Frustum* ca
         if (cam_frustum && !Frustum_ContainsAABB(cam_frustum, rc->mesh->local_bounds, t->world_matrix))
             continue;
 
-        ShaderHandle shader = DEFAULT_SHADER;
-        if (rc->material->shader != NULL)
-            shader = rc->material->shader->gpu_handle;
+        RenderItem item = {0};
 
-        TextureHandle albedo = rc->material->albedo_texture ? rc->material->albedo_texture->gpu_handle : (TextureHandle){0};
-        TextureHandle normal = rc->material->normal_map ? rc->material->normal_map->gpu_handle : (TextureHandle){0};
-        TextureHandle metallic = rc->material->metallic_map ? rc->material->metallic_map->gpu_handle : (TextureHandle){0};
-        TextureHandle roughness = rc->material->roughness_map ? rc->material->roughness_map->gpu_handle : (TextureHandle){0};
-        TextureHandle ao = rc->material->ao_map ? rc->material->ao_map->gpu_handle : (TextureHandle){0};
+        item.mesh = rc->mesh->gpu_handle;
+        RenderItem_SetMaterial(&item, rc->material);
+        item.transform = t->world_matrix;
         
-        // Ensure only static geometry gets included in probe captures (i.e. no physics, animations or custom scripts)
-        bool include_in_probe_capture = (scene->component_masks[i] & (COMPONENT_RIGIDBODY | COMPONENT_SCRIPT | COMPONENT_ANIMATOR)) == 0;
+        if (rc->casts_shadows)
+            item.flags |= RENDER_ITEM_CAST_SHADOWS;
+        if (rc->receives_shadows)
+            item.flags |= RENDER_ITEM_RECEIVE_SHADOWS;
+        if ((scene->component_masks[i] & (COMPONENT_RIGIDBODY | COMPONENT_SCRIPT | COMPONENT_ANIMATOR)) == 0)
+            item.flags |= RENDER_ITEM_PROBE_CAPTURE;
 
-        Render_Submit(engine->renderer, rc->mesh->gpu_handle, shader,
-                      albedo, normal, metallic, roughness, ao, rc->material->properties,
-                      t->world_matrix, NULL, false, 0.0f, rc->casts_shadows, rc->receives_shadows, include_in_probe_capture);
+        Render_Submit(engine->renderer, &item);
     }
 
 
@@ -595,19 +347,19 @@ void Engine_SubmitVisibleGeometry(PrismEngine* engine, Scene* scene, Frustum* ca
         else if (scene->component_masks[i] & COMPONENT_ANIMATOR)
             bone_ptr = scene->animators[i].final_bone_matrices;
 
-        ShaderHandle shader = DEFAULT_SHADER;
-        if (rc->material->shader != NULL)
-            shader = rc->material->shader->gpu_handle;
+        RenderItem item = {0};
 
-        TextureHandle albedo = rc->material->albedo_texture ? rc->material->albedo_texture->gpu_handle : (TextureHandle){0};
-        TextureHandle normal = rc->material->normal_map ? rc->material->normal_map->gpu_handle : (TextureHandle){0};
-        TextureHandle metallic = rc->material->metallic_map ? rc->material->metallic_map->gpu_handle : (TextureHandle){0};
-        TextureHandle roughness = rc->material->roughness_map ? rc->material->roughness_map->gpu_handle : (TextureHandle){0};
-        TextureHandle ao = rc->material->ao_map ? rc->material->ao_map->gpu_handle : (TextureHandle){0};
+        item.mesh = rc->mesh->gpu_handle;
+        RenderItem_SetMaterial(&item, rc->material);
+        item.transform = t->world_matrix;
+        item.bone_matrices = bone_ptr;
         
-        Render_Submit(engine->renderer, rc->mesh->gpu_handle, shader,
-                      albedo, normal, metallic, roughness, ao, rc->material->properties,
-                      t->world_matrix, bone_ptr, false, 0.0f, rc->casts_shadows, rc->receives_shadows, false);
+        if (rc->casts_shadows)
+            item.flags |= RENDER_ITEM_CAST_SHADOWS;
+        if (rc->receives_shadows)
+            item.flags |= RENDER_ITEM_RECEIVE_SHADOWS;
+
+        Render_Submit(engine->renderer, &item);
     }
 
 
@@ -623,22 +375,14 @@ void Engine_SubmitVisibleGeometry(PrismEngine* engine, Scene* scene, Frustum* ca
         if (!line->is_active || line->point_count < 2 || !line->dynamic_mesh || !line->material)
             continue;
 
-        MaterialProperties local_props = line->material->properties;
-        local_props.albedo_tint = line->color;
+        RenderItem item = {0};
 
-        ShaderHandle shader = DEFAULT_SHADER;
-        if (line->material->shader != NULL)
-            shader = line->material->shader->gpu_handle;
+        item.mesh = line->dynamic_mesh->gpu_handle;
+        RenderItem_SetMaterial(&item, line->material);
+        item.material.albedo_tint = line->color;
+        item.transform = Matrix4Identity();
 
-        TextureHandle albedo = line->material->albedo_texture ? line->material->albedo_texture->gpu_handle : (TextureHandle){0};
-        TextureHandle normal = line->material->normal_map ? line->material->normal_map->gpu_handle : (TextureHandle){0};
-        TextureHandle metallic = line->material->metallic_map ? line->material->metallic_map->gpu_handle : (TextureHandle){0};
-        TextureHandle roughness = line->material->roughness_map ? line->material->roughness_map->gpu_handle : (TextureHandle){0};
-        TextureHandle ao = line->material->ao_map ? line->material->ao_map->gpu_handle : (TextureHandle){0};
-
-        Render_Submit(engine->renderer, line->dynamic_mesh->gpu_handle, shader,
-                      albedo, normal, metallic, roughness, ao,
-                      local_props, Matrix4Identity(), NULL, false, 0.0f, false, false, false);
+        Render_Submit(engine->renderer, &item);
     }
 
 
@@ -662,28 +406,22 @@ void Engine_SubmitVisibleGeometry(PrismEngine* engine, Scene* scene, Frustum* ca
         float dz = cam_pos.z - sprite_pos.z;
         float dist_sq = (dx * dx) + (dy * dy) + (dz * dz);
 
-        MaterialProperties local_props = sprite->material->properties;
-        local_props.albedo_tint = sprite->color;
-
         float aspect_x = (float)sprite->material->albedo_texture->width / (float)sprite->material->albedo_texture->height;
         Matrix4 aspect_matrix = Matrix4Identity();
         aspect_matrix.m00 = aspect_x;
         
         Matrix4 final_sprite_matrix = Matrix4Multiply(t->world_matrix, aspect_matrix);
 
-        ShaderHandle shader = DEFAULT_SHADER;
-        if (sprite->material->shader != NULL)
-            shader = sprite->material->shader->gpu_handle;
+        RenderItem item = {0};
 
-        TextureHandle albedo = sprite->material->albedo_texture ? sprite->material->albedo_texture->gpu_handle : (TextureHandle){0};
-        TextureHandle normal = sprite->material->normal_map ? sprite->material->normal_map->gpu_handle : (TextureHandle){0};
-        TextureHandle metallic = sprite->material->metallic_map ? sprite->material->metallic_map->gpu_handle : (TextureHandle){0};
-        TextureHandle roughness = sprite->material->roughness_map ? sprite->material->roughness_map->gpu_handle : (TextureHandle){0};
-        TextureHandle ao = sprite->material->ao_map ? sprite->material->ao_map->gpu_handle : (TextureHandle){0};
+        item.mesh = sprite->quad->gpu_handle;
+        RenderItem_SetMaterial(&item, sprite->material);
+        item.material.albedo_tint = sprite->color;
+        item.transform = final_sprite_matrix;
+        item.depth_distance = dist_sq;
+        item.flags = RENDER_ITEM_TRANSPARENT;
 
-        Render_Submit(engine->renderer, sprite->quad->gpu_handle, shader,
-                      albedo, normal, metallic, roughness, ao,
-                      local_props, final_sprite_matrix, NULL, true, dist_sq, false, false, false);
+        Render_Submit(engine->renderer, &item);
     }
 }
 
@@ -755,9 +493,19 @@ void Engine_RenderScene(PrismEngine* engine, Scene* scene)
         }
     }
 
-    // If there are directional lights, render all shadows
-    if (packet.dir_light_count > 0)
-        Engine_ExecuteShadowPass(engine, scene, &packet);
+    Transform* main_cam_t = &scene->transforms[scene->main_camera_id];
+    CameraComponent* main_cam = &scene->cameras[scene->main_camera_id];
+    Camera_RecalculateProjectionIfNeeded(main_cam);
+    packet.shadow_camera_pos = Transform_GetGlobalPosition(main_cam_t);
+    packet.camera_forward = Transform_GetForwardVector(main_cam_t);
+    packet.camera_right = Transform_GetRightVector(main_cam_t);
+    packet.camera_up = Transform_GetUpVector(main_cam_t);
+    packet.camera_near = main_cam->nearZ;
+    packet.camera_far = main_cam->farZ;
+    packet.camera_fov = main_cam->fov;
+    packet.camera_aspect = 1.0f;
+    if (main_cam->viewport_height > 0)
+        packet.camera_aspect = (float)main_cam->viewport_width / (float)main_cam->viewport_height;
     
 
     // Gather and sort cameras
@@ -781,19 +529,7 @@ void Engine_RenderScene(PrismEngine* engine, Scene* scene)
             cam_comp->viewport_height = win_h;
         }
 
-        // Clear Screen
-        if (cam_comp->clear_flags == CLEAR_COLOR_AND_DEPTH)
-        {
-            Color bg = scene->background_color;
-            Render_SetClearColor(engine->renderer, bg.r, bg.g, bg.b, bg.a);
-            Render_Clear(engine->renderer);
-        }
-        else if (cam_comp->clear_flags == CLEAR_DEPTH_ONLY)
-        {
-            Render_ClearDepth(engine->renderer);
-        }
-
-        // Setup Camera Matrices
+        // Setup Camera Matrices and clearing flags
         Vector3 global_pos = Transform_GetGlobalPosition(cam_transform);
         packet.view_matrix = Matrix4Inverse(cam_transform->world_matrix);
         Camera_RecalculateProjectionIfNeeded(cam_comp);
@@ -802,6 +538,8 @@ void Engine_RenderScene(PrismEngine* engine, Scene* scene)
         packet.has_env_map = (cam_comp->clear_flags == CLEAR_COLOR_AND_DEPTH) ? scene->has_env_map : false;
         packet.window_width = cam_comp->viewport_width;
         packet.window_height = cam_comp->viewport_height;
+        packet.clear_flags = (RenderClearFlags)cam_comp->clear_flags;
+        packet.clear_color = scene->background_color;
 
         Matrix4 view_proj = Matrix4Multiply(packet.projection_matrix, packet.view_matrix);
         Frustum cam_frustum = Frustum_ExtractFromMatrix(view_proj);

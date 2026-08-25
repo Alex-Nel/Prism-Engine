@@ -121,6 +121,50 @@ typedef struct ReflectionProbeData
 
 
 
+// What the backend should wipe before drawing this view
+typedef enum RenderClearFlags
+{
+    RENDER_CLEAR_COLOR_AND_DEPTH = 0,
+    RENDER_CLEAR_DEPTH_ONLY = 1,
+    RENDER_CLEAR_NONE = 2
+} RenderClearFlags;
+
+
+
+
+
+// Flags for a submitted render item
+enum
+{
+    RENDER_ITEM_TRANSPARENT     = 1u << 0,
+    RENDER_ITEM_CAST_SHADOWS    = 1u << 1,
+    RENDER_ITEM_RECEIVE_SHADOWS = 1u << 2,
+    RENDER_ITEM_PROBE_CAPTURE   = 1u << 3
+};
+
+
+
+// One drawable submitted to the renderer for the current view
+typedef struct RenderItem
+{
+    MeshHandle mesh;
+    ShaderHandle shader;          // 0 = default PBR path
+    TextureHandle albedo;
+    TextureHandle normal;
+    TextureHandle metallic;
+    TextureHandle roughness;
+    TextureHandle ao;
+    MaterialProperties material;
+    Matrix4 transform;
+    Matrix4* bone_matrices;       // NULL if static
+    float depth_distance;         // transparent sort
+    uint32_t flags;
+} RenderItem;
+
+
+
+
+
 // Struct for a render packet to send to renderer
 typedef struct RenderPacket
 {
@@ -130,6 +174,20 @@ typedef struct RenderPacket
     Matrix4 view_matrix;
     Matrix4 projection_matrix;
     Vector3 camera_pos;
+
+    RenderClearFlags clear_flags;
+    Color clear_color;
+
+    // Primary camera basis used by the backend for directional cascades.
+    // Not overwritten when extra cameras fill view_matrix / camera_pos.
+    Vector3 shadow_camera_pos;
+    Vector3 camera_forward;
+    Vector3 camera_right;
+    Vector3 camera_up;
+    float camera_near;
+    float camera_far;
+    float camera_fov;
+    float camera_aspect;
     
     DirectionalLightData* dir_lights;
     uint32_t dir_light_count;
@@ -142,14 +200,6 @@ typedef struct RenderPacket
 
     ReflectionProbeData* reflection_probes;
     uint32_t reflection_probe_count;
-
-    uint32_t shadow_cascade_count;
-    Matrix4 light_space_matrices[MAX_SHADOW_CASCADES];
-    float shadow_texel_world_sizes[MAX_SHADOW_CASCADES];
-    float cascade_splits[MAX_SHADOW_CASCADES - 1]; // distance along camera forward
-    Vector3 camera_forward;        // main camera forward (cascade selection in shader)
-    float shadow_camera_near;      // camera near plane (CSM blend region sizing)
-    float cascade_blend_fraction;  // 0..1 fraction of each slice used to cross-fade
 
     bool enable_ssao;
     Color global_ambient_color;
@@ -234,10 +284,8 @@ typedef struct Renderer
 
     // --- Command Submission ---
 
-    void (*BeginShadowPass)(Renderer* r, const RenderPacket* packet);
-    void (*EndShadowPass)(Renderer* r);
     void (*BeginFrame)(Renderer* r, const RenderPacket* packet);
-    void (*Submit)(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle albedo, TextureHandle normal, TextureHandle metallic, TextureHandle roughness, TextureHandle ao, MaterialProperties mat, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows, bool include_in_probe_capture);
+    void (*Submit)(Renderer* r, const RenderItem* item);
     void (*EndFrame)(Renderer* r);
 
 
@@ -425,20 +473,6 @@ static inline void Render_UpdateMesh(Renderer* r, MeshHandle handle, Vertex3D* v
 
 
 
-// Starts the shadow pass of the render pipeline
-static inline void Render_BeginShadowPass(Renderer* r, const RenderPacket* packet)
-{
-    if (r && r->BeginShadowPass)
-        r->BeginShadowPass(r, packet);
-}
-
-// Ends the shadow pass of the render pipeline
-static inline void Render_EndShadowPass(Renderer* r)
-{
-    if (r && r->EndShadowPass)
-        r->EndShadowPass(r);
-}
-
 // Sets the global camera matrices for the current frame
 static inline void Render_BeginFrame(Renderer* r, const RenderPacket* packet)
 {
@@ -447,10 +481,10 @@ static inline void Render_BeginFrame(Renderer* r, const RenderPacket* packet)
 }
 
 // Adds an object to the draw queue
-static inline void Render_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle albedo, TextureHandle normal, TextureHandle metallic, TextureHandle roughness, TextureHandle ao, MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows, bool include_in_probe_capture)
+static inline void Render_Submit(Renderer* r, const RenderItem* item)
 {
     if (r && r->Submit)
-        r->Submit(r, mesh, shader, albedo, normal, metallic, roughness, ao, mat_props, transform, bone_matrices, is_transparent, depth_distance, cast_shadows, receive_shadows, include_in_probe_capture);
+        r->Submit(r, item);
 }
 
 // Sorts the queue, binds the state, and executes the actual GPU draw calls

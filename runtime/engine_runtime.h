@@ -82,9 +82,6 @@ void Engine_GatherReflectionProbes(PrismEngine* engine, Scene* scene, RenderPack
 // Applies all changes to reflection probes back into the scene.
 void Engine_ApplyReflectionProbeResults(PrismEngine* engine, Scene* scene, const ReflectionProbeData* probes, uint32_t probe_count);
 
-// Executes the shadow pass in rendering.
-void Engine_ExecuteShadowPass(PrismEngine* engine, Scene* scene, RenderPacket* packet);
-
 // Gathers all the cameras in a scene and sorts them
 uint32_t Engine_GatherAndSortCameras(PrismEngine* engine, Scene* scene, ActiveCamera* active_cameras);
 

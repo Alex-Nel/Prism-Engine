@@ -59,9 +59,18 @@ typedef struct RenderState
     float shadow_texel_world_sizes[MAX_SHADOW_CASCADES];
     float cascade_splits[MAX_SHADOW_CASCADES - 1];
     Vector3 camera_forward;
+    Vector3 camera_right;
+    Vector3 camera_up;
+    Vector3 shadow_camera_pos;
     float shadow_camera_near;
+    float shadow_camera_far;
+    float shadow_camera_fov;
+    float shadow_camera_aspect;
     uint32_t shadow_cascade_count;
     float cascade_blend_fraction;
+
+    RenderClearFlags clear_flags;
+    Color clear_color;
 
     Color global_ambient_color;
     float global_ambient_illumination;
@@ -124,32 +133,6 @@ typedef struct GLReflectionProbe
     uint32_t captured_global_skybox_id;
     EnvironmentMap environment;
 } GLReflectionProbe;
-
-
-
-
-
-// Struct for a render command. Contains mesh, shader, texture, material, and transform data
-typedef struct RenderCommand
-{
-    MeshHandle mesh;
-    ShaderHandle shader;
-
-    TextureHandle albedo_map;
-    TextureHandle normal_map;
-    TextureHandle metallic_map;
-    TextureHandle roughness_map;
-    TextureHandle ao_map;
-    
-    MaterialProperties mat_props;
-    Matrix4 transform;
-    Matrix4* bone_matrices;
-    bool is_transparent;
-    float depth_distance;
-    bool cast_shadows;
-    bool receive_shadows;
-    bool include_in_probe_capture;
-} RenderCommand;
 
 
 
@@ -295,7 +278,7 @@ typedef struct OpenGL_Backend
     GLShader shader_pool[MAX_RESOURCES];
     GLTexture texture_pool[MAX_RESOURCES];
 
-    RenderCommand command_queue[MAX_COMMANDS];
+    RenderItem command_queue[MAX_COMMANDS];
     uint32_t command_count;
     GLReflectionProbe reflection_probes[MAX_REFLECTION_PROBES];
 
@@ -379,11 +362,9 @@ uint8_t* OpenGL_RotatePixels90CCW(const uint8_t* src, int w, int h, int c);
 // --- OpenGL Shadow Pipeline Functions ---
 
 void OpenGL_BindSSAOTexture(OpenGL_Backend* internal, GLuint program);
-void OpenGL_CopyShadowState(RenderState* state, const RenderPacket* packet);
 void OpenGL_UploadShadowUniforms(GLuint program, const RenderState* state);
 void OpenGL_DrawShadowQueue(OpenGL_Backend* internal, const Matrix4* light_space_matrix);
-void OpenGL_BeginShadowPass(Renderer* r, const RenderPacket* packet);
-void OpenGL_EndShadowPass(Renderer* r);
+void OpenGL_ExecuteShadowPass(OpenGL_Backend* internal);
 
 
 
@@ -402,7 +383,7 @@ void OpenGL_RenderCommandBatch(OpenGL_Backend* internal, uint32_t start_idx, uin
 void OpenGL_DrawSkybox(OpenGL_Backend* internal);
 
 void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet);
-void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle albedo, TextureHandle normal, TextureHandle metallic, TextureHandle roughness, TextureHandle ao, MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows, bool include_in_probe_capture);
+void OpenGL_Submit(Renderer* r, const RenderItem* item);
 void OpenGL_EndFrame(Renderer* r);
 
 

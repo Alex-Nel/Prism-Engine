@@ -408,9 +408,6 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     r->CreateSkinnedMesh = OpenGL_CreateSkinnedMesh;
     r->UpdateDynamicMesh = OpenGL_UpdateDynamicMesh;
     r->UpdateMesh = OpenGL_UpdateMesh;
-
-    r->BeginShadowPass = OpenGL_BeginShadowPass;
-    r->EndShadowPass = OpenGL_EndShadowPass;
     
     r->BeginFrame = OpenGL_BeginFrame;
     r->Submit = OpenGL_Submit;

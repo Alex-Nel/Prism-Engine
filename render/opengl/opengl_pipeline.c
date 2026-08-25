@@ -1,4 +1,5 @@
 #include "opengl_internal.h"
+#include "../shadow_cascades.h"
 
 
 
@@ -25,10 +26,10 @@ void OpenGL_BindSSAOTexture(OpenGL_Backend* internal, GLuint program)
 
 
 
-// Copies shadow-map state from a render packet into the backend.
-void OpenGL_CopyShadowState(RenderState* state, const RenderPacket* packet)
+// Applies cascade matrices computed by the shared helper into backend render state.
+static void OpenGL_ApplyCascadeResult(RenderState* state, const ShadowCascadeResult* result)
 {
-    state->shadow_cascade_count = packet->shadow_cascade_count;
+    state->shadow_cascade_count = result->cascade_count;
    
     if (state->shadow_cascade_count < 1)
         state->shadow_cascade_count = 1;
@@ -38,16 +39,14 @@ void OpenGL_CopyShadowState(RenderState* state, const RenderPacket* packet)
 
     for (uint32_t i = 0; i < state->shadow_cascade_count; i++)
     {
-        state->light_space_matrices[i] = packet->light_space_matrices[i];
-        state->shadow_texel_world_sizes[i] = packet->shadow_texel_world_sizes[i];
+        state->light_space_matrices[i] = result->light_space_matrices[i];
+        state->shadow_texel_world_sizes[i] = result->shadow_texel_world_sizes[i];
     }
 
     for (uint32_t i = 1; i < state->shadow_cascade_count; i++)
-        state->cascade_splits[i - 1] = packet->cascade_splits[i - 1];
+        state->cascade_splits[i - 1] = result->cascade_splits[i - 1];
 
-    state->camera_forward = packet->camera_forward;
-    state->shadow_camera_near = packet->shadow_camera_near;
-    state->cascade_blend_fraction = packet->cascade_blend_fraction;
+    state->cascade_blend_fraction = result->cascade_blend_fraction;
 }
 
 
@@ -118,12 +117,12 @@ void OpenGL_DrawShadowQueue(OpenGL_Backend* internal, const Matrix4* light_space
 
     for (uint32_t i = 0; i < internal->command_count; i++)
     {
-        RenderCommand* cmd = &internal->command_queue[i];
+        RenderItem* cmd = &internal->command_queue[i];
 
         if (cmd->mesh.id == 0 || cmd->mesh.id >= MAX_RESOURCES || !internal->mesh_pool[cmd->mesh.id].active)
             continue;
 
-        if (!cmd->cast_shadows)
+        if ((cmd->flags & RENDER_ITEM_CAST_SHADOWS) == 0)
             continue;
 
         GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
@@ -180,59 +179,70 @@ void OpenGL_DrawShadowQueue(OpenGL_Backend* internal, const Matrix4* light_space
 
 
 
-// Begins the shadow pass using a render packet
-void OpenGL_BeginShadowPass(Renderer* r, const RenderPacket* packet)
+// Fills directional, spot, and point shadow maps from the current item queue
+void OpenGL_ExecuteShadowPass(OpenGL_Backend* internal)
 {
-    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    bool any_dir_shadows = false;
+    if (internal->state.dir_light_count > 0 && internal->state.dir_lights[0].casts_shadows)
+        any_dir_shadows = true;
 
-    OpenGL_CopyShadowState(&internal->state, packet);
+    bool any_local_shadows = false;
+    for (uint32_t i = 0; i < internal->state.spot_light_count && !any_local_shadows; i++)
+    {
+        if (internal->state.spot_lights[i].casts_shadows)
+            any_local_shadows = true;
+    }
+    for (uint32_t i = 0; i < internal->state.point_light_count && !any_local_shadows; i++)
+    {
+        if (internal->state.point_lights[i].casts_shadows)
+            any_local_shadows = true;
+    }
 
-    // Reset the command queue for the shadow pass
-    internal->command_count = 0;
-}
+    if (!any_dir_shadows && !any_local_shadows)
+        return;
+    if (any_dir_shadows)
+    {
+        ShadowCascadeCamera cascade_camera = {0};
+        cascade_camera.position = internal->state.shadow_camera_pos;
+        cascade_camera.forward = internal->state.camera_forward;
+        cascade_camera.right = internal->state.camera_right;
+        cascade_camera.up = internal->state.camera_up;
+        cascade_camera.near_z = internal->state.shadow_camera_near;
+        cascade_camera.far_z = internal->state.shadow_camera_far;
+        cascade_camera.fov = internal->state.shadow_camera_fov;
+        cascade_camera.aspect = internal->state.shadow_camera_aspect;
+        ShadowCascadeResult cascade_result;
+        Render_ComputeDirectionalCascades(&internal->state.dir_lights[0], &cascade_camera, internal->state.settings.shadow_map_resolution, &cascade_result);
+        OpenGL_ApplyCascadeResult(&internal->state, &cascade_result);
+    }
 
-
-
-
-
-
-
-
-
-
-// Ends the shadow pass and resets the state
-void OpenGL_EndShadowPass(Renderer* r)
-{
-    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
-
-    // --- Directional Light Cascades ---
-
-    uint32_t cascade_count = internal->state.shadow_cascade_count;
-    if (cascade_count < 1)
-        cascade_count = 1;
-
-    glBindFramebuffer(GL_FRAMEBUFFER, internal->shadow.depthMapFBO);
-
-    // Render both faces into the depth map
     glDisable(GL_CULL_FACE);
     glEnable(GL_POLYGON_OFFSET_FILL);
     glPolygonOffset(1.0f, 1.0f);
 
-    uint32_t shadow_res = SHADOW_WIDTH;
-    if (internal->state.settings.shadow_map_resolution > 0)
-        shadow_res = internal->state.settings.shadow_map_resolution;
-    
-    for (uint32_t c = 0; c < cascade_count; c++)
+    // --- Directional Light Cascades ---
+    if (any_dir_shadows)
     {
-        glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, internal->shadow.depthMapTextureArray, 0, c);
-        glViewport(0, 0, shadow_res, shadow_res);
-        glClear(GL_DEPTH_BUFFER_BIT);
+        uint32_t cascade_count = internal->state.shadow_cascade_count;
+        if (cascade_count < 1)
+            cascade_count = 1;
 
-        OpenGL_DrawShadowQueue(internal, &internal->state.light_space_matrices[c]);
+        glBindFramebuffer(GL_FRAMEBUFFER, internal->shadow.depthMapFBO);
+        uint32_t shadow_res = SHADOW_WIDTH;
+        if (internal->state.settings.shadow_map_resolution > 0)
+            shadow_res = internal->state.settings.shadow_map_resolution;
+        
+        for (uint32_t c = 0; c < cascade_count; c++)
+        {
+            glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, internal->shadow.depthMapTextureArray, 0, c);
+            glViewport(0, 0, shadow_res, shadow_res);
+            glClear(GL_DEPTH_BUFFER_BIT);
+            OpenGL_DrawShadowQueue(internal, &internal->state.light_space_matrices[c]);
+        }
     }
 
 
-
+    
     // --- SpotLight Shadows ---
 
     glBindFramebuffer(GL_FRAMEBUFFER, internal->shadow.spotDepthMapFBO);
@@ -332,12 +342,12 @@ void OpenGL_EndShadowPass(Renderer* r)
         // Draw the queue using our specialized point_shader
         for (uint32_t c = 0; c < internal->command_count; c++)
         {
-            RenderCommand* cmd = &internal->command_queue[c];
+            RenderItem* cmd = &internal->command_queue[c];
             
             if (cmd->mesh.id == 0 || cmd->mesh.id >= MAX_RESOURCES || !internal->mesh_pool[cmd->mesh.id].active)
                 continue;
 
-            if (!cmd->cast_shadows)
+            if ((cmd->flags & RENDER_ITEM_CAST_SHADOWS) == 0)
                 continue;
 
 
@@ -421,7 +431,7 @@ void OpenGL_EndShadowPass(Renderer* r)
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
 
-    internal->command_count = 0;
+    glViewport(0, 0, internal->state.window_width, internal->state.window_height);
 }
 
 
@@ -611,7 +621,7 @@ void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
 
     for (uint32_t i = 0; i < opaque_count; i++)
     {
-        RenderCommand* cmd = &internal->command_queue[i];
+        RenderItem* cmd = &internal->command_queue[i];
         if (!internal->mesh_pool[cmd->mesh.id].active)
             continue;
 
@@ -631,55 +641,55 @@ void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
 
         // 0. Albedo Map
         glActiveTexture(GL_TEXTURE0);
-        bool valid_albedo = (cmd->albedo_map.id != 0 && cmd->albedo_map.id < MAX_RESOURCES);
-        glBindTexture(GL_TEXTURE_2D, valid_albedo ? internal->texture_pool[cmd->albedo_map.id].id : internal->texture_pool[1].id); // Fallback to default tex
+        bool valid_albedo = (cmd->albedo.id != 0 && cmd->albedo.id < MAX_RESOURCES);
+        glBindTexture(GL_TEXTURE_2D, valid_albedo ? internal->texture_pool[cmd->albedo.id].id : internal->texture_pool[1].id); // Fallback to default tex
         glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.albedoMap"), 0);
 
         // 1. Normal Map
-        bool valid_normal = (cmd->normal_map.id != 0 && cmd->normal_map.id < MAX_RESOURCES && internal->texture_pool[cmd->normal_map.id].active && internal->texture_pool[cmd->normal_map.id].id != 0);
+        bool valid_normal = (cmd->normal.id != 0 && cmd->normal.id < MAX_RESOURCES && internal->texture_pool[cmd->normal.id].active && internal->texture_pool[cmd->normal.id].id != 0);
         glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.hasNormalMap"), valid_normal ? 1 : 0);
         glActiveTexture(GL_TEXTURE1);
         if (valid_normal)
-            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->normal_map.id].id);
+            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->normal.id].id);
         else
             glBindTexture(GL_TEXTURE_2D, internal->texture_pool[2].id);
         glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.normalMap"), 1);
 
         // 2. Metallic Map
-        bool valid_metallic = (cmd->metallic_map.id != 0 && cmd->metallic_map.id < MAX_RESOURCES && internal->texture_pool[cmd->metallic_map.id].active && internal->texture_pool[cmd->metallic_map.id].id != 0);
+        bool valid_metallic = (cmd->metallic.id != 0 && cmd->metallic.id < MAX_RESOURCES && internal->texture_pool[cmd->metallic.id].active && internal->texture_pool[cmd->metallic.id].id != 0);
         glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.hasMetallicMap"), valid_metallic ? 1 : 0);
         glActiveTexture(GL_TEXTURE2);
         if (valid_metallic)
-            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->metallic_map.id].id);
+            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->metallic.id].id);
         else
             glBindTexture(GL_TEXTURE_2D, internal->texture_pool[3].id);
         glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.metallicMap"), 2);
 
         // 3. Roughness Map
-        bool valid_roughness = (cmd->roughness_map.id != 0 && cmd->roughness_map.id < MAX_RESOURCES && internal->texture_pool[cmd->roughness_map.id].active && internal->texture_pool[cmd->roughness_map.id].id != 0);
+        bool valid_roughness = (cmd->roughness.id != 0 && cmd->roughness.id < MAX_RESOURCES && internal->texture_pool[cmd->roughness.id].active && internal->texture_pool[cmd->roughness.id].id != 0);
         glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.hasRoughnessMap"), valid_roughness ? 1 : 0);
         glActiveTexture(GL_TEXTURE3);
         if (valid_roughness)
-            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->roughness_map.id].id);
+            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->roughness.id].id);
         else
             glBindTexture(GL_TEXTURE_2D, internal->texture_pool[1].id);
         glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.roughnessMap"), 3);
 
         // 4. Ambient Occlusion Map
-        bool valid_ao = (cmd->ao_map.id != 0 && cmd->ao_map.id < MAX_RESOURCES && internal->texture_pool[cmd->ao_map.id].active && internal->texture_pool[cmd->ao_map.id].id != 0);
+        bool valid_ao = (cmd->ao.id != 0 && cmd->ao.id < MAX_RESOURCES && internal->texture_pool[cmd->ao.id].active && internal->texture_pool[cmd->ao.id].id != 0);
         glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.hasAOMap"), valid_ao ? 1 : 0);
         glActiveTexture(GL_TEXTURE4);
         if (valid_ao)
-            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->ao_map.id].id);
+            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->ao.id].id);
         else
             glBindTexture(GL_TEXTURE_2D, internal->texture_pool[1].id);
         glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.aoMap"), 4);
         
 
-        glUniform3fv(glGetUniformLocation(g_prog->program, "u_Material.albedoTint"), 1, (float*)&cmd->mat_props.albedo_tint);
-        glUniform1f(glGetUniformLocation(g_prog->program, "u_Material.metallicFactor"), cmd->mat_props.metallic_factor);
-        glUniform1f(glGetUniformLocation(g_prog->program, "u_Material.roughnessFactor"), cmd->mat_props.roughness_factor);
-        glUniform1f(glGetUniformLocation(g_prog->program, "u_ReceiveShadows"), cmd->receive_shadows ? 1.0f : 0.0f);
+        glUniform3fv(glGetUniformLocation(g_prog->program, "u_Material.albedoTint"), 1, (float*)&cmd->material.albedo_tint);
+        glUniform1f(glGetUniformLocation(g_prog->program, "u_Material.metallicFactor"), cmd->material.metallic_factor);
+        glUniform1f(glGetUniformLocation(g_prog->program, "u_Material.roughnessFactor"), cmd->material.roughness_factor);
+        glUniform1f(glGetUniformLocation(g_prog->program, "u_ReceiveShadows"), (cmd->flags & RENDER_ITEM_RECEIVE_SHADOWS) ? 1.0f : 0.0f);
 
         glUniformMatrix4fv(glGetUniformLocation(g_prog->program, "u_Model"), 1, GL_FALSE, (float*)&cmd->transform);
 
@@ -1105,11 +1115,11 @@ static void OpenGL_RenderCommandBatchMode(OpenGL_Backend* internal, uint32_t sta
 
     for (uint32_t i = start_idx; i < end_idx; i++)
     {
-        RenderCommand* cmd = &internal->command_queue[i];
+        RenderItem* cmd = &internal->command_queue[i];
         if (!internal->mesh_pool[cmd->mesh.id].active)
             continue;
 
-        if (probe_capture && !cmd->include_in_probe_capture)
+        if (probe_capture && (cmd->flags & RENDER_ITEM_PROBE_CAPTURE) == 0)
             continue;
 
         ShaderHandle target_handle = probe_capture ? (ShaderHandle){0} : cmd->shader;
@@ -1157,45 +1167,45 @@ static void OpenGL_RenderCommandBatchMode(OpenGL_Backend* internal, uint32_t sta
 
         // 0. Albedo Map
         glActiveTexture(GL_TEXTURE0);
-        bool valid_albedo = (cmd->albedo_map.id != 0 && cmd->albedo_map.id < MAX_RESOURCES && internal->texture_pool[cmd->albedo_map.id].active && internal->texture_pool[cmd->albedo_map.id].id != 0);
-        glBindTexture(GL_TEXTURE_2D, valid_albedo ? internal->texture_pool[cmd->albedo_map.id].id : internal->texture_pool[1].id);
+        bool valid_albedo = (cmd->albedo.id != 0 && cmd->albedo.id < MAX_RESOURCES && internal->texture_pool[cmd->albedo.id].active && internal->texture_pool[cmd->albedo.id].id != 0);
+        glBindTexture(GL_TEXTURE_2D, valid_albedo ? internal->texture_pool[cmd->albedo.id].id : internal->texture_pool[1].id);
         glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.albedoMap"), 0);
         glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.diffuse"), 0);
 
         // 1. Normal Map
-        bool valid_normal = (cmd->normal_map.id != 0 && cmd->normal_map.id < MAX_RESOURCES && internal->texture_pool[cmd->normal_map.id].active && internal->texture_pool[cmd->normal_map.id].id != 0);
+        bool valid_normal = (cmd->normal.id != 0 && cmd->normal.id < MAX_RESOURCES && internal->texture_pool[cmd->normal.id].active && internal->texture_pool[cmd->normal.id].id != 0);
         glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.hasNormalMap"), valid_normal ? 1 : 0);
         glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, valid_normal ? internal->texture_pool[cmd->normal_map.id].id : internal->texture_pool[2].id);
+        glBindTexture(GL_TEXTURE_2D, valid_normal ? internal->texture_pool[cmd->normal.id].id : internal->texture_pool[2].id);
         glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.normalMap"), 1);
 
         // 2. Metallic Map
-        bool valid_metallic = (cmd->metallic_map.id != 0 && cmd->metallic_map.id < MAX_RESOURCES && internal->texture_pool[cmd->metallic_map.id].active && internal->texture_pool[cmd->metallic_map.id].id != 0);
+        bool valid_metallic = (cmd->metallic.id != 0 && cmd->metallic.id < MAX_RESOURCES && internal->texture_pool[cmd->metallic.id].active && internal->texture_pool[cmd->metallic.id].id != 0);
         glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.hasMetallicMap"), valid_metallic ? 1 : 0);
         glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, valid_metallic ? internal->texture_pool[cmd->metallic_map.id].id : internal->texture_pool[3].id);
+        glBindTexture(GL_TEXTURE_2D, valid_metallic ? internal->texture_pool[cmd->metallic.id].id : internal->texture_pool[3].id);
         glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.metallicMap"), 2);
 
         // 3. Roughness Map
-        bool valid_roughness = (cmd->roughness_map.id != 0 && cmd->roughness_map.id < MAX_RESOURCES && internal->texture_pool[cmd->roughness_map.id].active && internal->texture_pool[cmd->roughness_map.id].id != 0);
+        bool valid_roughness = (cmd->roughness.id != 0 && cmd->roughness.id < MAX_RESOURCES && internal->texture_pool[cmd->roughness.id].active && internal->texture_pool[cmd->roughness.id].id != 0);
         glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.hasRoughnessMap"), valid_roughness ? 1 : 0);
         glActiveTexture(GL_TEXTURE3);
-        glBindTexture(GL_TEXTURE_2D, valid_roughness ? internal->texture_pool[cmd->roughness_map.id].id : internal->texture_pool[1].id);
+        glBindTexture(GL_TEXTURE_2D, valid_roughness ? internal->texture_pool[cmd->roughness.id].id : internal->texture_pool[1].id);
         glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.roughnessMap"), 3);
 
         // 4. Ambient Occlusion Map
-        bool valid_ao = (cmd->ao_map.id != 0 && cmd->ao_map.id < MAX_RESOURCES && internal->texture_pool[cmd->ao_map.id].active && internal->texture_pool[cmd->ao_map.id].id != 0);
+        bool valid_ao = (cmd->ao.id != 0 && cmd->ao.id < MAX_RESOURCES && internal->texture_pool[cmd->ao.id].active && internal->texture_pool[cmd->ao.id].id != 0);
         glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.hasAOMap"), valid_ao ? 1 : 0);
         glActiveTexture(GL_TEXTURE4);
-        glBindTexture(GL_TEXTURE_2D, valid_ao ? internal->texture_pool[cmd->ao_map.id].id : internal->texture_pool[1].id);
+        glBindTexture(GL_TEXTURE_2D, valid_ao ? internal->texture_pool[cmd->ao.id].id : internal->texture_pool[1].id);
         glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.aoMap"), 4);
 
 
         glUniformMatrix4fv(glGetUniformLocation(gl_shader->program, "u_Model"), 1, GL_FALSE, (float*)&cmd->transform);
-        glUniform3fv(glGetUniformLocation(gl_shader->program, "u_Material.tint"), 1, (float*)&cmd->mat_props.albedo_tint);
-        glUniform1f(glGetUniformLocation(gl_shader->program, "u_Material.metallicFactor"), cmd->mat_props.metallic_factor);
-        glUniform1f(glGetUniformLocation(gl_shader->program, "u_Material.roughnessFactor"), cmd->mat_props.roughness_factor);
-        glUniform1f(glGetUniformLocation(gl_shader->program, "u_ReceiveShadows"), (!probe_capture && cmd->receive_shadows) ? 1.0f : 0.0f);
+        glUniform3fv(glGetUniformLocation(gl_shader->program, "u_Material.tint"), 1, (float*)&cmd->material.albedo_tint);
+        glUniform1f(glGetUniformLocation(gl_shader->program, "u_Material.metallicFactor"), cmd->material.metallic_factor);
+        glUniform1f(glGetUniformLocation(gl_shader->program, "u_Material.roughnessFactor"), cmd->material.roughness_factor);
+        glUniform1f(glGetUniformLocation(gl_shader->program, "u_ReceiveShadows"), (!probe_capture && (cmd->flags & RENDER_ITEM_RECEIVE_SHADOWS)) ? 1.0f : 0.0f);
 
         GLint bone_loc = glGetUniformLocation(gl_shader->program, "u_BoneMatrices");
         if (bone_loc != -1)
@@ -1803,7 +1813,27 @@ void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
     internal->state.view_matrix = packet->view_matrix;
     internal->state.projection_matrix = packet->projection_matrix;
     internal->state.camera_pos = packet->camera_pos;
-    OpenGL_CopyShadowState(&internal->state, packet);
+    internal->state.shadow_camera_pos = packet->shadow_camera_pos;
+    internal->state.camera_forward = packet->camera_forward;
+    internal->state.camera_right = packet->camera_right;
+    internal->state.camera_up = packet->camera_up;
+    internal->state.shadow_camera_near = packet->camera_near;
+    internal->state.shadow_camera_far = packet->camera_far;
+    internal->state.shadow_camera_fov = packet->camera_fov;
+    internal->state.shadow_camera_aspect = packet->camera_aspect;
+    internal->state.clear_flags = packet->clear_flags;
+    internal->state.clear_color = packet->clear_color;
+
+    OpenGL_BindDefaultFramebuffer();
+    if (packet->clear_flags == RENDER_CLEAR_COLOR_AND_DEPTH)
+    {
+        glClearColor(packet->clear_color.r, packet->clear_color.g, packet->clear_color.b, packet->clear_color.a);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    }
+    else if (packet->clear_flags == RENDER_CLEAR_DEPTH_ONLY)
+    {
+        glClear(GL_DEPTH_BUFFER_BIT);
+    }
 
     // Bind the shadow map texture array to texture unit 1
     glActiveTexture(GL_TEXTURE1);
@@ -1812,17 +1842,23 @@ void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
 
     // Copy Directional Lights
     internal->state.dir_light_count = packet->dir_light_count;
-    for (uint32_t i = 0; i < packet->dir_light_count; i++)
+    if (internal->state.dir_light_count > MAX_DIR_LIGHTS)
+        internal->state.dir_light_count = MAX_DIR_LIGHTS;
+    for (uint32_t i = 0; i < internal->state.dir_light_count; i++)
         internal->state.dir_lights[i] = packet->dir_lights[i];
 
     // Copy Point Lights
     internal->state.point_light_count = packet->point_light_count;
-    for (uint32_t i = 0; i < packet->point_light_count; i++)
+    if (internal->state.point_light_count > MAX_POINT_LIGHTS)
+        internal->state.point_light_count = MAX_POINT_LIGHTS;
+    for (uint32_t i = 0; i < internal->state.point_light_count; i++)
         internal->state.point_lights[i] = packet->point_lights[i];
         
     // Copy Spot Lights
     internal->state.spot_light_count = packet->spot_light_count;
-    for (uint32_t i = 0; i < packet->spot_light_count; i++)
+    if (internal->state.spot_light_count > MAX_SPOT_LIGHTS)
+        internal->state.spot_light_count = MAX_SPOT_LIGHTS;
+    for (uint32_t i = 0; i < internal->state.spot_light_count; i++)
         internal->state.spot_lights[i] = packet->spot_lights[i];
 
     internal->state.reflection_probe_count = packet->reflection_probe_count;
@@ -1865,33 +1901,15 @@ void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
 
 
 // Adds an object to the draw queue
-void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader,
-                          TextureHandle albedo, TextureHandle normal, TextureHandle metallic, TextureHandle roughness, TextureHandle ao,
-                          MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices,
-                          bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows, bool include_in_probe_capture)
+void OpenGL_Submit(Renderer* r, const RenderItem* item)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
     // Return if the queue is full
-    if (internal->command_count >= MAX_COMMANDS) return;
+    if (!item || internal->command_count >= MAX_COMMANDS)
+        return;
     
-    internal->command_queue[internal->command_count++] = (RenderCommand){
-        mesh,
-        shader,
-        albedo,
-        normal,
-        metallic,
-        roughness,
-        ao,
-        mat_props,
-        transform,
-        bone_matrices,
-        is_transparent,
-        depth_distance,
-        cast_shadows,
-        receive_shadows,
-        include_in_probe_capture
-    };
+    internal->command_queue[internal->command_count++] = *item;
 }
 
 
@@ -1906,15 +1924,17 @@ void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader,
 // Compare render commands (for sorting)
 static int CompareRenderCommands(const void* a, const void* b)
 {
-    RenderCommand* cmdA = (RenderCommand*)a;
-    RenderCommand* cmdB = (RenderCommand*)b;
+    RenderItem* cmdA = (RenderItem*)a;
+    RenderItem* cmdB = (RenderItem*)b;
+    bool a_transparent = (cmdA->flags & RENDER_ITEM_TRANSPARENT) != 0;
+    bool b_transparent = (cmdB->flags & RENDER_ITEM_TRANSPARENT) != 0;
 
     // Opaque commands are first
-    if (cmdA->is_transparent != cmdB->is_transparent)
-        return cmdA->is_transparent - cmdB->is_transparent;
+    if (a_transparent != b_transparent)
+        return (int)a_transparent - (int)b_transparent;
 
     // If transparent, sort back to front
-    if (cmdA->is_transparent)
+    if (a_transparent)
     {
         if (cmdA->depth_distance < cmdB->depth_distance) return  1;
         if (cmdA->depth_distance > cmdB->depth_distance) return -1;
@@ -1925,7 +1945,7 @@ static int CompareRenderCommands(const void* a, const void* b)
     if (cmdA->shader.id != cmdB->shader.id)
         return (int)cmdA->shader.id - (int)cmdB->shader.id;
     
-    return (int)cmdA->albedo_map.id - (int)cmdB->albedo_map.id;
+    return (int)cmdA->albedo.id - (int)cmdB->albedo.id;
 }
 
 
@@ -1945,18 +1965,21 @@ void OpenGL_EndFrame(Renderer* r)
     glViewport(0, 0, internal->state.window_width, internal->state.window_height);
 
     // Sort the command queue
-    qsort(internal->command_queue, internal->command_count, sizeof(RenderCommand), CompareRenderCommands);
+    qsort(internal->command_queue, internal->command_count, sizeof(RenderItem), CompareRenderCommands);
 
     // Find where the transparent commands begin
     uint32_t transparent_start_idx = internal->command_count;
     for (uint32_t i = 0; i < internal->command_count; i++)
     {
-        if (internal->command_queue[i].is_transparent)
+        if (internal->command_queue[i].flags & RENDER_ITEM_TRANSPARENT)
         {
             transparent_start_idx = i;
             break;
         }
     }
+
+    // Shadows first so probe capture and deferred lighting use this frame's maps
+    OpenGL_ExecuteShadowPass(internal);
 
     // Generate dirty local probes from the complete static opaque queue before the camera's normal deferred pass consumes that queue.
     OpenGL_UpdateReflectionProbes(internal, transparent_start_idx);
