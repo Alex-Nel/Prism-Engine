@@ -412,6 +412,7 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     r->BeginFrame = OpenGL_BeginFrame;
     r->Submit = OpenGL_Submit;
     r->EndFrame = OpenGL_EndFrame;
+    r->DrawWorld = OpenGL_DrawWorld;
 
     r->SetSettings = OpenGL_SetSettings;
     r->GetSettings = OpenGL_GetSettings;

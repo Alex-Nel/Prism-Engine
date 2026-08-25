@@ -1921,6 +1921,38 @@ void OpenGL_Submit(Renderer* r, const RenderItem* item)
 
 
 
+// Copies a frozen view snapshot into the queue and runs the same EndFrame path as streaming submit.
+void OpenGL_DrawWorld(Renderer* r, const RenderWorld* world)
+{
+    if (!r || !world)
+        return;
+    
+    OpenGL_BeginFrame(r, &world->packet);
+    
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    
+    uint32_t count = world->item_count;
+    if (!world->items)
+        count = 0;
+    if (count > MAX_COMMANDS)
+        count = MAX_COMMANDS;
+    if (count > 0)
+        memcpy(internal->command_queue, world->items, count * sizeof(RenderItem));
+    
+    internal->command_count = count;
+    
+    OpenGL_EndFrame(r);
+}
+
+
+
+
+
+
+
+
+
+
 // Compare render commands (for sorting)
 static int CompareRenderCommands(const void* a, const void* b)
 {

@@ -1,6 +1,9 @@
 #include "engine_runtime.h"
 
 
+static RenderItem s_extracted_items[MAX_COMMANDS];
+
+
 
 // Sorting function for cameras (lowest order renders first)
 static int CompareCameraOrder(const void* a, const void* b)
@@ -288,9 +291,29 @@ static void RenderItem_SetMaterial(RenderItem* item, Material* material)
 
 
 
-// Submits all visible geometry to the renderer
-void Engine_SubmitVisibleGeometry(PrismEngine* engine, Scene* scene, Frustum* cam_frustum, Vector3 cam_pos, uint32_t culling_masks)
+static void Extract_TryPush(RenderItem* out, uint32_t max, uint32_t* count, const RenderItem* item)
 {
+    if (*count >= max)
+        return;
+    out[(*count)++] = *item;
+}
+
+
+
+
+
+
+
+
+
+
+// Extracts visible geometry into a RenderItem array for DrawWorld
+uint32_t Engine_GatherVisibleGeometry(Scene* scene, Frustum* cam_frustum, Vector3 cam_pos, uint32_t culling_masks, RenderItem* out, uint32_t max)
+{
+    uint32_t count = 0;
+    if (!scene || !out || max == 0)
+        return 0;
+
     // --- Static Meshes ---
     uint32_t req_mesh_mask = COMPONENT_TRANSFORM | COMPONENT_MESH_RENDERER;
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
@@ -319,7 +342,7 @@ void Engine_SubmitVisibleGeometry(PrismEngine* engine, Scene* scene, Frustum* ca
         if ((scene->component_masks[i] & (COMPONENT_RIGIDBODY | COMPONENT_SCRIPT | COMPONENT_ANIMATOR)) == 0)
             item.flags |= RENDER_ITEM_PROBE_CAPTURE;
 
-        Render_Submit(engine->renderer, &item);
+        Extract_TryPush(out, max, &count, &item);
     }
 
 
@@ -359,7 +382,7 @@ void Engine_SubmitVisibleGeometry(PrismEngine* engine, Scene* scene, Frustum* ca
         if (rc->receives_shadows)
             item.flags |= RENDER_ITEM_RECEIVE_SHADOWS;
 
-        Render_Submit(engine->renderer, &item);
+        Extract_TryPush(out, max, &count, &item);
     }
 
 
@@ -382,7 +405,7 @@ void Engine_SubmitVisibleGeometry(PrismEngine* engine, Scene* scene, Frustum* ca
         item.material.albedo_tint = line->color;
         item.transform = Matrix4Identity();
 
-        Render_Submit(engine->renderer, &item);
+        Extract_TryPush(out, max, &count, &item);
     }
 
 
@@ -421,8 +444,29 @@ void Engine_SubmitVisibleGeometry(PrismEngine* engine, Scene* scene, Frustum* ca
         item.depth_distance = dist_sq;
         item.flags = RENDER_ITEM_TRANSPARENT;
 
-        Render_Submit(engine->renderer, &item);
+        Extract_TryPush(out, max, &count, &item);
     }
+
+    return count;
+}
+
+
+
+
+
+
+
+
+
+
+// Submits all visible geometry via the streaming Begin/Submit/End path
+void Engine_SubmitVisibleGeometry(PrismEngine* engine, Scene* scene, Frustum* cam_frustum, Vector3 cam_pos, uint32_t culling_masks)
+{
+    if (!engine || !engine->renderer)
+        return;
+    uint32_t count = Engine_GatherVisibleGeometry(scene, cam_frustum, cam_pos, culling_masks, s_extracted_items, MAX_COMMANDS);
+    for (uint32_t i = 0; i < count; i++)
+        Render_Submit(engine->renderer, &s_extracted_items[i]);
 }
 
 
@@ -544,14 +588,14 @@ void Engine_RenderScene(PrismEngine* engine, Scene* scene)
         Matrix4 view_proj = Matrix4Multiply(packet.projection_matrix, packet.view_matrix);
         Frustum cam_frustum = Frustum_ExtractFromMatrix(view_proj);
 
-        // Begin Forward Pass
-        Render_BeginFrame(engine->renderer, &packet);
+        uint32_t item_count = Engine_GatherVisibleGeometry(scene, probe_capture_requested ? NULL : &cam_frustum, global_pos, cam_comp->culling_masks, s_extracted_items, MAX_COMMANDS);
+        RenderWorld world = {
+            .packet = packet,
+            .items = s_extracted_items,
+            .item_count = item_count
+        };
+        Render_DrawWorld(engine->renderer, &world);
 
-        // Submit all visible geometry
-        Engine_SubmitVisibleGeometry(engine, scene, probe_capture_requested ? NULL : &cam_frustum, global_pos, cam_comp->culling_masks);
-
-        // End Forward Pass
-        Render_EndFrame(engine->renderer);
         Engine_ApplyReflectionProbeResults(engine, scene, active_reflection_probes, packet.reflection_probe_count);
         probe_capture_requested = false;
     }

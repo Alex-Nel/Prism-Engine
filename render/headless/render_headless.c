@@ -27,6 +27,7 @@ static void Headless_Clear(Renderer* r) {}
 static void Headless_BeginFrame(Renderer* r, const RenderPacket* packet) {}
 static void Headless_Submit(Renderer* r, const RenderItem* item) {}
 static void Headless_EndFrame(Renderer* r) {}
+static void Headless_DrawWorld(Renderer* r, const RenderWorld* world) {}
 
 static void Headless_UIinit(Renderer* r, void* nk_ctx) { (void)r; (void)nk_ctx; }
 static void Headless_UIShutdown(Renderer* r) { (void)r; }
@@ -91,6 +92,14 @@ Renderer* Headless_Init()
 {
     Renderer* r = malloc(sizeof(Renderer));
     Headless_Backend* internal = malloc(sizeof(Headless_Backend));
+    if (!r || !internal)
+    {
+        free(r);
+        free(internal);
+        return NULL;
+    }
+    memset(r, 0, sizeof(Renderer));
+    memset(internal, 0, sizeof(Headless_Backend));
     
     internal->resource_counter = 1; // Start at 1, since 0 is usually "Invalid"
     
@@ -117,6 +126,7 @@ Renderer* Headless_Init()
     r->BeginFrame = Headless_BeginFrame;
     r->Submit = Headless_Submit;
     r->EndFrame = Headless_EndFrame;
+    r->DrawWorld = Headless_DrawWorld;
 
     r->UIinit = Headless_UIinit;
     r->UIShutdown = Headless_UIShutdown;

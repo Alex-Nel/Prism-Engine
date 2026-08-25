@@ -217,6 +217,18 @@ typedef struct RenderPacket
 
 
 
+// Frozen description of one view's drawables and lighting. Pointers must stay valid until DrawWorld returns.
+typedef struct RenderWorld
+{
+    RenderPacket packet;
+    const RenderItem* items;
+    uint32_t item_count;
+} RenderWorld;
+
+
+
+
+
 // Unused - Texture filtering
 typedef enum
 {
@@ -287,6 +299,7 @@ typedef struct Renderer
     void (*BeginFrame)(Renderer* r, const RenderPacket* packet);
     void (*Submit)(Renderer* r, const RenderItem* item);
     void (*EndFrame)(Renderer* r);
+    void (*DrawWorld)(Renderer* r, const RenderWorld* world);
 
 
 
@@ -492,6 +505,27 @@ static inline void Render_EndFrame(Renderer* r)
 {
     if (r && r->EndFrame)
         r->EndFrame(r);
+}
+
+// Draws a complete view snapshot. Falls back to Begin/Submit/End if a backend has no DrawWorld.
+static inline void Render_DrawWorld(Renderer* r, const RenderWorld* world)
+{
+    if (!r || !world)
+        return;
+    if (r->DrawWorld)
+    {
+        r->DrawWorld(r, world);
+        return;
+    }
+    
+    Render_BeginFrame(r, &world->packet);
+    if (world->items)
+    {
+        uint32_t count = world->item_count;
+        for (uint32_t i = 0; i < count; i++)
+            Render_Submit(r, &world->items[i]);
+    }
+    Render_EndFrame(r);
 }
 
 

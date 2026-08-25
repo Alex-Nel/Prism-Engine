@@ -385,6 +385,7 @@ void OpenGL_DrawSkybox(OpenGL_Backend* internal);
 void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet);
 void OpenGL_Submit(Renderer* r, const RenderItem* item);
 void OpenGL_EndFrame(Renderer* r);
+void OpenGL_DrawWorld(Renderer* r, const RenderWorld* world);
 
 
 

@@ -1,60 +1,8 @@
 #include "shadow_cascades.h"
+#include "../core/frustum_core.h"
 
 #include <math.h>
 #include <string.h>
-
-
-
-static void BuildFrustumSliceCorners(Vector3 cam_pos, Vector3 cam_fwd, Vector3 cam_right, Vector3 cam_up, float aspect, float tan_half, float split_near, float split_far, Vector3 corners[8])
-{
-    float near_h = split_near * tan_half;
-    float near_w = near_h * aspect;
-    float far_h = split_far * tan_half;
-    float far_w = far_h * aspect;
-
-    Vector3 near_center = {
-        cam_pos.x + cam_fwd.x * split_near,
-        cam_pos.y + cam_fwd.y * split_near,
-        cam_pos.z + cam_fwd.z * split_near
-    };
-    Vector3 far_center = {
-        cam_pos.x + cam_fwd.x * split_far,
-        cam_pos.y + cam_fwd.y * split_far,
-        cam_pos.z + cam_fwd.z * split_far
-    };
-    
-    corners[0] = (Vector3){ near_center.x - cam_right.x * near_w - cam_up.x * near_h,
-                            near_center.y - cam_right.y * near_w - cam_up.y * near_h,
-                            near_center.z - cam_right.z * near_w - cam_up.z * near_h };
-    corners[1] = (Vector3){ near_center.x + cam_right.x * near_w - cam_up.x * near_h,
-                            near_center.y + cam_right.y * near_w - cam_up.y * near_h,
-                            near_center.z + cam_right.z * near_w - cam_up.z * near_h };
-    corners[2] = (Vector3){ near_center.x + cam_right.x * near_w + cam_up.x * near_h,
-                            near_center.y + cam_right.y * near_w + cam_up.y * near_h,
-                            near_center.z + cam_right.z * near_w + cam_up.z * near_h };
-    corners[3] = (Vector3){ near_center.x - cam_right.x * near_w + cam_up.x * near_h,
-                            near_center.y - cam_right.y * near_w + cam_up.y * near_h,
-                            near_center.z - cam_right.z * near_w + cam_up.z * near_h };
-    corners[4] = (Vector3){ far_center.x - cam_right.x * far_w - cam_up.x * far_h,
-                            far_center.y - cam_right.y * far_w - cam_up.y * far_h,
-                            far_center.z - cam_right.z * far_w - cam_up.z * far_h };
-    corners[5] = (Vector3){ far_center.x + cam_right.x * far_w - cam_up.x * far_h,
-                            far_center.y + cam_right.y * far_w - cam_up.y * far_h,
-                            far_center.z + cam_right.z * far_w - cam_up.z * far_h };
-    corners[6] = (Vector3){ far_center.x + cam_right.x * far_w + cam_up.x * far_h,
-                            far_center.y + cam_right.y * far_w + cam_up.y * far_h,
-                            far_center.z + cam_right.z * far_w + cam_up.z * far_h };
-    corners[7] = (Vector3){ far_center.x - cam_right.x * far_w + cam_up.x * far_h,
-                            far_center.y - cam_right.y * far_w + cam_up.y * far_h,
-                            far_center.z - cam_right.z * far_w + cam_up.z * far_h };
-}
-
-
-
-
-
-
-
 
 
 
@@ -211,7 +159,7 @@ void Render_ComputeDirectionalCascades(const DirectionalLightData* light, const 
         }
 
         Vector3 corners[8];
-        BuildFrustumSliceCorners(cam_pos, cam_fwd, cam_right, cam_up, aspect, tan_half, split_near, split_far, corners);
+        Frustum_BuildSliceCorners(cam_pos, cam_fwd, cam_right, cam_up, aspect, tan_half, split_near, split_far, corners);
         Vector3 center = {0, 0, 0};
         for (int k = 0; k < 8; k++)
         {
