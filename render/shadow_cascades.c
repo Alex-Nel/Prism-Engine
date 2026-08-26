@@ -66,8 +66,8 @@ void Render_ComputeDirectionalCascades(const DirectionalLightData* light, const 
     uint32_t cascade_count = light->shadow_cascade_count;
     if (cascade_count < 1)
         cascade_count = 1;
-    if (cascade_count > MAX_SHADOW_CASCADES)
-        cascade_count = MAX_SHADOW_CASCADES;
+    if (cascade_count > RENDER_MAX_SHADOW_CASCADES)
+        cascade_count = RENDER_MAX_SHADOW_CASCADES;
     
     out->cascade_count = cascade_count;
     float blend = light->cascade_blend_fraction;
@@ -78,7 +78,7 @@ void Render_ComputeDirectionalCascades(const DirectionalLightData* light, const 
     
     out->cascade_blend_fraction = blend;
     
-    float cur_shadow_res = (float)SHADOW_MAP_RESOLUTION;
+    float cur_shadow_res = (float)SHADOW_MAP_RESOLUTION_DEFAULT;
     if (shadow_map_resolution > 0)
         cur_shadow_res = (float)shadow_map_resolution;
     
@@ -119,7 +119,7 @@ void Render_ComputeDirectionalCascades(const DirectionalLightData* light, const 
     if (split_lambda > 1.0f)
         split_lambda = 1.0f;
     
-    float splits[MAX_SHADOW_CASCADES - 1];
+    float splits[RENDER_MAX_SHADOW_CASCADES - 1];
     for (uint32_t i = 1; i < cascade_count; i++)
     {
         float p = (float)i / (float)cascade_count;

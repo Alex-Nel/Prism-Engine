@@ -18,6 +18,13 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
 
     internal->state.window_width = init_width;
     internal->state.window_height = init_height;
+    internal->state.settings.enable_ssao = false;
+    internal->state.settings.shadow_map_resolution = SHADOW_MAP_RESOLUTION_DEFAULT;
+    internal->state.settings.gamma = 2.2f;
+    internal->state.settings.exposure = 1.0f;
+    internal->state.settings.max_draw_items = MAX_COMMANDS;
+    internal->state.settings.max_shadow_cascades = MAX_SHADOW_CASCADES;
+    internal->state.settings.max_reflection_probes = MAX_REFLECTION_PROBES;
 
 
     // Initialize data pools
@@ -696,26 +703,41 @@ void OpenGL_SetSettings(Renderer* r, const RendererSettings* settings)
     
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
+    uint32_t new_res = settings->shadow_map_resolution;
+    if (new_res == 0)
+        new_res = internal->state.settings.shadow_map_resolution;
+
     // Check if shadow map resolution changed and reallocate if necessary
-    if (settings->shadow_map_resolution != internal->state.settings.shadow_map_resolution && settings->shadow_map_resolution > 0)
+    if (new_res != internal->state.settings.shadow_map_resolution && new_res > 0)
     {
-        uint32_t new_res = settings->shadow_map_resolution;
         if (internal->shadow.depthMapTextureArray != 0)
         {
             glBindTexture(GL_TEXTURE_2D_ARRAY, internal->shadow.depthMapTextureArray);
             glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT24, new_res, new_res, MAX_SHADOW_CASCADES, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
             glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
         }
+
+        internal->state.settings.shadow_map_resolution = new_res;
     }
 
 
-    internal->state.settings = *settings;
     internal->state.settings.enable_ssao = settings->enable_ssao;
 
     if (settings->gamma > 0.01f)
         internal->state.settings.gamma = settings->gamma;
     else
         internal->state.settings.gamma = 2.2f;
+
+    if (settings->exposure > 0.001f)
+        internal->state.settings.exposure = settings->exposure;
+
+    uint32_t max_items = settings->max_draw_items;
+    if (max_items == 0 || max_items > MAX_COMMANDS)
+        max_items = MAX_COMMANDS;
+    
+    internal->state.settings.max_draw_items = max_items;
+    internal->state.settings.max_shadow_cascades = MAX_SHADOW_CASCADES;
+    internal->state.settings.max_reflection_probes = MAX_REFLECTION_PROBES;
 }
 
 

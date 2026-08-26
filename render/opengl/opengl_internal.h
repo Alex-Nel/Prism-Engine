@@ -2,6 +2,7 @@
 #include "../../core/ui_core.h"
 #include "../../external/glad/glad.h"
 #include "../render.h"
+#include "../shadow_cascades.h"
 
 #define NK_INCLUDE_FIXED_TYPES
 #define NK_INCLUDE_STANDARD_IO
@@ -23,12 +24,18 @@
 #define MAX_POINT_LIGHTS 512
 #define MAX_SPOT_LIGHTS 512
 
+#define MAX_RESOURCES 8192
+#define MAX_COMMANDS 32768
+#define MAX_REFLECTION_PROBES 16
+#define MAX_SHADOW_CASCADES RENDER_MAX_SHADOW_CASCADES
+#define SHADOW_MAP_RESOLUTION_DEFAULT 4096
+
 #define MAX_SHADOW_CASTING_SPOTLIGHTS 8
 #define MAX_SHADOW_CASTING_POINT_LIGHTS 8
 #define MAX_SNAPSHOT_SKINNED 1024
 
-#define SHADOW_WIDTH SHADOW_MAP_RESOLUTION
-#define SHADOW_HEIGHT SHADOW_MAP_RESOLUTION
+#define SHADOW_WIDTH SHADOW_MAP_RESOLUTION_DEFAULT
+#define SHADOW_HEIGHT SHADOW_MAP_RESOLUTION_DEFAULT
 
 
 
@@ -324,6 +331,19 @@ typedef struct OpenGL_Backend
 
 
 
+
+
+
+
+
+// Inline functions to get the max draw items for a opengl context
+static inline uint32_t OpenGL_MaxDrawItems(const OpenGL_Backend* internal)
+{
+    uint32_t cap = internal->state.settings.max_draw_items;
+    if (cap == 0 || cap > MAX_COMMANDS)
+        return MAX_COMMANDS;
+    return cap;
+}
 
 
 

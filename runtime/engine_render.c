@@ -1,7 +1,13 @@
 #include "engine_runtime.h"
 
 
-static RenderItem s_extracted_items[MAX_COMMANDS];
+
+#define ENGINE_MAX_GATHER_LIGHTS 8192
+#define ENGINE_MAX_GATHER_PROBES 16
+
+
+
+static RenderItem s_extracted_items[MAX_ENTITIES];
 
 
 
@@ -49,7 +55,7 @@ void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderLighting*
         if (!l->is_active)
             continue;
 
-        if (l->type == LIGHT_DIRECTIONAL && dir_count < MAX_RESOURCES)
+        if (l->type == LIGHT_DIRECTIONAL && dir_count < ENGINE_MAX_GATHER_LIGHTS)
         {
             dir_lights[dir_count].direction = Transform_GetForwardVector(t);
             dir_lights[dir_count].color = l->color;
@@ -63,7 +69,7 @@ void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderLighting*
             dir_lights[dir_count].casts_shadows = l->casts_shadows;
             dir_count++;
         }
-        else if (l->type == LIGHT_POINT && point_count < MAX_RESOURCES)
+        else if (l->type == LIGHT_POINT && point_count < ENGINE_MAX_GATHER_LIGHTS)
         {
             point_lights[point_count].position = Transform_GetGlobalPosition(t);
             point_lights[point_count].color = l->color;
@@ -74,7 +80,7 @@ void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderLighting*
             point_lights[point_count].casts_shadows = l->casts_shadows;
             point_count++;
         }
-        else if (l->type == LIGHT_SPOT && spot_count < MAX_RESOURCES)
+        else if (l->type == LIGHT_SPOT && spot_count < ENGINE_MAX_GATHER_LIGHTS)
         {
             spot_lights[spot_count].position = Transform_GetGlobalPosition(t);
             spot_lights[spot_count].direction = Transform_GetForwardVector(t);
@@ -108,10 +114,15 @@ void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderLighting*
 
 
 // Gathers active local IBL probes as value data. Capture results are copied back explicitly after rendering
-void Engine_GatherReflectionProbes(PrismEngine* engine, Scene* scene, RenderLighting* lighting, ReflectionProbeData* probes)
+void Engine_GatherReflectionProbes(PrismEngine* engine, Scene* scene, RenderLighting* lighting, ReflectionProbeData* probes, uint32_t max_probes)
 {
     uint32_t count = 0;
     const uint32_t required_mask = COMPONENT_TRANSFORM | COMPONENT_REFLECTION_PROBE;
+
+    if (max_probes == 0)
+        max_probes = ENGINE_MAX_GATHER_PROBES;
+    if (max_probes > ENGINE_MAX_GATHER_PROBES)
+        max_probes = ENGINE_MAX_GATHER_PROBES;
 
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
     {
@@ -155,7 +166,7 @@ void Engine_GatherReflectionProbes(PrismEngine* engine, Scene* scene, RenderLigh
         candidate.dirty = probe->dirty;
         candidate.captured = probe->captured;
 
-        if (count < MAX_REFLECTION_PROBES)
+        if (count < max_probes)
         {
             probes[count++] = candidate;
         }
@@ -487,15 +498,16 @@ void Engine_RenderScene(PrismEngine* engine, Scene* scene)
     }
 
     // --- Get all Point Lights from the ECS ---
-    DirectionalLightData active_dir_lights[MAX_RESOURCES];
-    PointLightData active_point_lights[MAX_RESOURCES];
-    SpotLightData active_spot_lights[MAX_RESOURCES];
-    ReflectionProbeData active_reflection_probes[MAX_REFLECTION_PROBES];
+    DirectionalLightData active_dir_lights[ENGINE_MAX_GATHER_LIGHTS];
+    PointLightData active_point_lights[ENGINE_MAX_GATHER_LIGHTS];
+    SpotLightData active_spot_lights[ENGINE_MAX_GATHER_LIGHTS];
+    ReflectionProbeData active_reflection_probes[ENGINE_MAX_GATHER_PROBES];
 
 
     // Fill the packet with all the lights in the scene
     Engine_GatherSceneLights(engine, scene, &lighting, active_dir_lights, active_point_lights, active_spot_lights);
-    Engine_GatherReflectionProbes(engine, scene, &lighting, active_reflection_probes);
+    uint32_t probe_cap = cur_settings.max_reflection_probes;
+    Engine_GatherReflectionProbes(engine, scene, &lighting, active_reflection_probes, probe_cap);
 
     Transform* main_cam_t = &scene->transforms[scene->main_camera_id];
     CameraComponent* main_cam = &scene->cameras[scene->main_camera_id];
@@ -547,7 +559,11 @@ void Engine_RenderScene(PrismEngine* engine, Scene* scene)
         view.clear_flags = (RenderClearFlags)cam_comp->clear_flags;
         view.clear_color = scene->background_color;
 
-        uint32_t item_count = Engine_GatherVisibleGeometry(scene, global_pos, cam_comp->culling_masks, s_extracted_items, MAX_COMMANDS);
+        uint32_t max_items = cur_settings.max_draw_items;
+        if (max_items == 0 || max_items > MAX_ENTITIES)
+            max_items = MAX_ENTITIES;
+        
+        uint32_t item_count = Engine_GatherVisibleGeometry(scene, global_pos, cam_comp->culling_masks, s_extracted_items, max_items);
         RenderWorld world = {
             .view = view,
             .lighting = lighting,

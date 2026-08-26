@@ -3,6 +3,7 @@
 
 
 #include "Prism.h"
+#include <stdint.h>
 
 
 
@@ -77,7 +78,7 @@ void Engine_EndFrame(PrismEngine* engine);
 void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderLighting* lighting, DirectionalLightData* dir_lights, PointLightData* point_lights, SpotLightData* spot_lights);
 
 // Gathers all the reflection probes in a scene and puts them into a lighting packet.
-void Engine_GatherReflectionProbes(PrismEngine* engine, Scene* scene, RenderLighting* lighting, ReflectionProbeData* probes);
+void Engine_GatherReflectionProbes(PrismEngine* engine, Scene* scene, RenderLighting* lighting, ReflectionProbeData* probes, uint32_t max_probes);
 
 // Applies all changes to reflection probes back into the scene.
 void Engine_ApplyReflectionProbeResults(PrismEngine* engine, Scene* scene, const ReflectionProbeData* probes, uint32_t probe_count);

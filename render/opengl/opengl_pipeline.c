@@ -1976,7 +1976,7 @@ void OpenGL_BeginFrame(Renderer* r, const RenderView* view, const RenderLighting
 static void OpenGL_QueueItem(OpenGL_Backend* internal, const RenderItem* item)
 {
     // Return if the queue is full
-    if (!item || internal->command_count >= MAX_COMMANDS)
+    if (!item || internal->command_count >= OpenGL_MaxDrawItems(internal))
         return;
     
     RenderItem* dst = &internal->command_queue[internal->command_count++];
@@ -2018,8 +2018,9 @@ void OpenGL_DrawWorld(Renderer* r, const RenderWorld* world)
     uint32_t count = world->item_count;
     if (!world->items)
         count = 0;
-    if (count > MAX_COMMANDS)
-        count = MAX_COMMANDS;
+    uint32_t max_items = OpenGL_MaxDrawItems(internal);
+    if (count > max_items)
+        count = max_items;
     for (uint32_t i = 0; i < count; i++)
         OpenGL_QueueItem(internal, &world->items[i]);    
     

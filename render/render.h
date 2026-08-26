@@ -20,18 +20,6 @@
 
 
 
-// --- Internal data pool limits ---
-
-#define MAX_RESOURCES 8192
-#define MAX_COMMANDS 32768
-#define MAX_REFLECTION_PROBES 16
-
-#define SHADOW_MAP_RESOLUTION 4096
-#define MAX_SHADOW_CASCADES 4
-#define SHADOW_CASCADE_COUNT_DEFAULT 1
-
-
-
 
 
 // Enum for different graphics API's
@@ -56,7 +44,7 @@ typedef struct DirectionalLightData
     float intensity;
     float ambient_strength;
     float shadow_box_size;
-    uint8_t shadow_cascade_count;   // 1 = single shadow map; 2-4 = cascaded shadow maps
+    uint8_t shadow_cascade_count;   // 1 = single shadow map; more = cascaded shadow maps; Clamped by settings
     float shadow_max_distance;      // max shadow range from camera (CSM only)
     float cascade_split_lambda;     // 0 = uniform splits, 1 = logarithmic, 0.5 = practical
     float cascade_blend_fraction;   // 0..1 slice fraction cross-faded at each split (CSM only)
@@ -264,13 +252,17 @@ typedef struct RenderWorld
 
 
 
-// Structure holding all renderer settings
+// Structure holding all renderer settings. Acts as the policy that the renderer uses
 typedef struct RendererSettings
 {
     bool enable_ssao;
     uint32_t shadow_map_resolution; // e.g., 1024, 2048, 4096
     float gamma;                    // e.g., 2.2f (default)
     float exposure;                 // e.g., 1.0f (default)
+
+    uint32_t max_draw_items;
+    uint32_t max_shadow_cascades;
+    uint32_t max_reflection_probes;
 } RendererSettings;
 
 

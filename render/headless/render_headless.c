@@ -9,6 +9,7 @@
 typedef struct Headless_Backend
 {
     uint32_t resource_counter;
+    RendererSettings settings;
 } Headless_Backend;
 
 
@@ -23,6 +24,33 @@ static void Headless_Shutdown(Renderer* r)
 static void Headless_SetViewport(Renderer* r, uint32_t x, uint32_t y, uint32_t w, uint32_t h) {}
 static void Headless_SetClearColor(Renderer* r, float red, float green, float blue, float alpha) {}
 static void Headless_Clear(Renderer* r) {}
+
+static void Headless_SetSettings(Renderer* r, const RendererSettings* settings)
+{
+    if (!r || !r->backend_internal_data || !settings)
+        return;
+
+    Headless_Backend* internal = (Headless_Backend*)r->backend_internal_data;
+    internal->settings.enable_ssao = settings->enable_ssao;
+    if (settings->shadow_map_resolution > 0)
+        internal->settings.shadow_map_resolution = settings->shadow_map_resolution;
+    if (settings->gamma > 0.01f)
+        internal->settings.gamma = settings->gamma;
+    if (settings->exposure > 0.001f)
+        internal->settings.exposure = settings->exposure;
+    if (settings->max_draw_items > 0)
+        internal->settings.max_draw_items = settings->max_draw_items;
+}
+
+static RendererSettings Headless_GetSettings(Renderer* r)
+{
+    if (!r || !r->backend_internal_data)
+    {
+        RendererSettings empty = {0};
+        return empty;
+    }
+    return ((Headless_Backend*)r->backend_internal_data)->settings;
+}
 
 static void Headless_DrawWorld(Renderer* r, const RenderWorld* world) {}
 
@@ -112,6 +140,11 @@ Renderer* Headless_Init()
     memset(internal, 0, sizeof(Headless_Backend));
     
     internal->resource_counter = 1; // Start at 1, since 0 is usually "Invalid"
+    internal->settings.gamma = 2.2f;
+    internal->settings.exposure = 1.0f;
+    internal->settings.max_draw_items = 32768;
+    internal->settings.max_shadow_cascades = 4;
+    internal->settings.max_reflection_probes = 16;
     
     r->backend_internal_data = internal;
     r->api = GRAPHICS_API_NONE;
@@ -137,6 +170,9 @@ Renderer* Headless_Init()
     r->UpdateDynamicMesh = Headless_UpdateDynamicMesh;
 
     r->DrawWorld = Headless_DrawWorld;
+
+    r->SetSettings = Headless_SetSettings;
+    r->GetSettings = Headless_GetSettings;
 
     r->UIinit = Headless_UIinit;
     r->UIShutdown = Headless_UIShutdown;

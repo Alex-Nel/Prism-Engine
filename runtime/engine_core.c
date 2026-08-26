@@ -41,12 +41,10 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
     }
     engine->renderer = renderer;
 
-    // Initialize default renderer settings
-    RendererSettings default_settings = {
-        .enable_ssao = false,
-        .shadow_map_resolution = SHADOW_MAP_RESOLUTION,
-        .gamma = 2.2f
-    };
+    // Initialize renderer settings from the backend defaults
+    RendererSettings default_settings = Render_GetSettings(engine->renderer);
+    default_settings.enable_ssao = false;
+    default_settings.gamma = 2.2f;
     Render_SetSettings(engine->renderer, &default_settings);
 
     // Set renderer clear color to pure white
