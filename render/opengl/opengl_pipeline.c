@@ -2005,21 +2005,6 @@ static void OpenGL_QueueItem(OpenGL_Backend* internal, const RenderItem* item)
 
 
 
-// Adds an object to the draw queue
-void OpenGL_Submit(Renderer* r, const RenderItem* item)
-{
-    OpenGL_QueueItem((OpenGL_Backend*)r->backend_internal_data, item);
-}
-
-
-
-
-
-
-
-
-
-
 // Copies a frozen view snapshot into backend-owned storage and runs EndFrame.
 void OpenGL_DrawWorld(Renderer* r, const RenderWorld* world)
 {

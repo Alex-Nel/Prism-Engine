@@ -444,27 +444,6 @@ uint32_t Engine_GatherVisibleGeometry(Scene* scene, Vector3 cam_pos, uint32_t cu
 
 
 
-// Submits all scene geometry via the streaming Begin/Submit/End path
-void Engine_SubmitVisibleGeometry(PrismEngine* engine, Scene* scene, Vector3 cam_pos, uint32_t culling_masks)
-{
-    if (!engine || !engine->renderer)
-        return;
-
-    uint32_t count = Engine_GatherVisibleGeometry(scene, cam_pos, culling_masks, s_extracted_items, MAX_COMMANDS);
-    
-    for (uint32_t i = 0; i < count; i++)
-        Render_Submit(engine->renderer, &s_extracted_items[i]);
-}
-
-
-
-
-
-
-
-
-
-
 
 
 

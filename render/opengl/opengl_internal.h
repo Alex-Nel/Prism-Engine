@@ -406,7 +406,6 @@ void OpenGL_RenderCommandBatch(OpenGL_Backend* internal, uint32_t start_idx, uin
 void OpenGL_DrawSkybox(OpenGL_Backend* internal);
 
 void OpenGL_BeginFrame(Renderer* r, const RenderView* view, const RenderLighting* lighting);
-void OpenGL_Submit(Renderer* r, const RenderItem* item);
 void OpenGL_EndFrame(Renderer* r);
 void OpenGL_DrawWorld(Renderer* r, const RenderWorld* world);
 

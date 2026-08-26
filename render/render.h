@@ -324,9 +324,6 @@ typedef struct Renderer
 
     // --- Command Submission ---
 
-    void (*BeginFrame)(Renderer* r, const RenderView* view, const RenderLighting* lighting);
-    void (*Submit)(Renderer* r, const RenderItem* item);
-    void (*EndFrame)(Renderer* r);
     void (*DrawWorld)(Renderer* r, const RenderWorld* world);
 
 
@@ -536,46 +533,11 @@ static inline void Render_UpdateMesh(Renderer* r, MeshHandle handle, Vertex3D* v
 
 
 
-// Sets the current view and copies frame lighting into backend storage
-static inline void Render_BeginFrame(Renderer* r, const RenderView* view, const RenderLighting* lighting)
-{
-    if (r && r->BeginFrame)
-        r->BeginFrame(r, view, lighting);
-}
-
-// Adds an object to the draw queue
-static inline void Render_Submit(Renderer* r, const RenderItem* item)
-{
-    if (r && r->Submit)
-        r->Submit(r, item);
-}
-
-// Sorts the queue, binds the state, and executes the actual GPU draw calls
-static inline void Render_EndFrame(Renderer* r)
-{
-    if (r && r->EndFrame)
-        r->EndFrame(r);
-}
-
-// Draws a complete view snapshot. Falls back to Begin/Submit/End if a backend has no DrawWorld.
+// Draws a complete view snapshot. Backends must implement DrawWorld.
 static inline void Render_DrawWorld(Renderer* r, const RenderWorld* world)
 {
-    if (!r || !world)
-        return;
-    if (r->DrawWorld)
-    {
+    if (r->DrawWorld && world)
         r->DrawWorld(r, world);
-        return;
-    }
-
-    Render_BeginFrame(r, &world->view, &world->lighting);
-    if (world->items)
-    {
-        uint32_t count = world->item_count;
-        for (uint32_t i = 0; i < count; i++)
-            Render_Submit(r, &world->items[i]);
-    }
-    Render_EndFrame(r);
 }
 
 
