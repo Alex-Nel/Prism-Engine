@@ -163,6 +163,13 @@ typedef struct RenderMaterialDesc
 
 
 
+
+
+
+
+
+// ----- Structs to send to a renderer -----
+
 // One drawable submitted to the renderer for the current view
 typedef struct RenderItem
 {
@@ -180,8 +187,8 @@ typedef struct RenderItem
 
 
 
-// Struct for a render packet to send to renderer
-typedef struct RenderPacket
+// Struct for a cameras viewport, matrices, and clear
+typedef struct RenderView
 {
     uint32_t window_width;
     uint32_t window_height;
@@ -189,12 +196,20 @@ typedef struct RenderPacket
     Matrix4 view_matrix;
     Matrix4 projection_matrix;
     Vector3 camera_pos;
-
+    
     RenderClearFlags clear_flags;
     Color clear_color;
 
-    // Primary camera basis used by the backend for directional cascades.
-    // Not overwritten when extra cameras fill view_matrix / camera_pos.
+    bool has_env_map;    // Whether this view draws the environment (skybox / IBL). Overlay cameras often turn this off.
+} RenderView;
+
+
+
+
+
+// Struct for a render packet to send to renderer
+typedef struct RenderLighting
+{
     Vector3 shadow_camera_pos;
     Vector3 camera_forward;
     Vector3 camera_right;
@@ -222,11 +237,10 @@ typedef struct RenderPacket
     float gamma;
     float exposure;
 
-    bool has_env_map;
     EnvironmentMap env_map;
     bool has_probe_source_env_map;
     EnvironmentMap probe_source_env_map;
-} RenderPacket;
+} RenderLighting;
 
 
 
@@ -235,10 +249,16 @@ typedef struct RenderPacket
 // View snapshot. Caller pointers only need to stay valid for the DrawWorld call. The backend copies items, bones, lights, and probes into its own storage.
 typedef struct RenderWorld
 {
-    RenderPacket packet;
+    RenderView view;
+    RenderLighting lighting;
     const RenderItem* items;
     uint32_t item_count;
 } RenderWorld;
+
+
+
+
+
 
 
 
@@ -304,7 +324,7 @@ typedef struct Renderer
 
     // --- Command Submission ---
 
-    void (*BeginFrame)(Renderer* r, const RenderPacket* packet);
+    void (*BeginFrame)(Renderer* r, const RenderView* view, const RenderLighting* lighting);
     void (*Submit)(Renderer* r, const RenderItem* item);
     void (*EndFrame)(Renderer* r);
     void (*DrawWorld)(Renderer* r, const RenderWorld* world);
@@ -516,11 +536,11 @@ static inline void Render_UpdateMesh(Renderer* r, MeshHandle handle, Vertex3D* v
 
 
 
-// Sets the global camera matrices for the current frame
-static inline void Render_BeginFrame(Renderer* r, const RenderPacket* packet)
+// Sets the current view and copies frame lighting into backend storage
+static inline void Render_BeginFrame(Renderer* r, const RenderView* view, const RenderLighting* lighting)
 {
     if (r && r->BeginFrame)
-        r->BeginFrame(r, packet);
+        r->BeginFrame(r, view, lighting);
 }
 
 // Adds an object to the draw queue
@@ -548,7 +568,7 @@ static inline void Render_DrawWorld(Renderer* r, const RenderWorld* world)
         return;
     }
 
-    Render_BeginFrame(r, &world->packet);
+    Render_BeginFrame(r, &world->view, &world->lighting);
     if (world->items)
     {
         uint32_t count = world->item_count;

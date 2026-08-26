@@ -24,7 +24,7 @@ static void Headless_SetViewport(Renderer* r, uint32_t x, uint32_t y, uint32_t w
 static void Headless_SetClearColor(Renderer* r, float red, float green, float blue, float alpha) {}
 static void Headless_Clear(Renderer* r) {}
 
-static void Headless_BeginFrame(Renderer* r, const RenderPacket* packet) {}
+static void Headless_BeginFrame(Renderer* r, const RenderView* view, const RenderLighting* lighting) {}
 static void Headless_Submit(Renderer* r, const RenderItem* item) {}
 static void Headless_EndFrame(Renderer* r) {}
 static void Headless_DrawWorld(Renderer* r, const RenderWorld* world) {}

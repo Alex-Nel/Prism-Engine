@@ -1858,33 +1858,28 @@ void OpenGL_DrawSkybox(OpenGL_Backend* internal)
 
 
 // Sets the global camera matrices for the current frame
-void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
+void OpenGL_BeginFrame(Renderer* r, const RenderView* view, const RenderLighting* lighting)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    if (!view)
+        return;
 
-    OpenGL_SetViewport(r, 0, 0, packet->window_width, packet->window_height);
+    OpenGL_SetViewport(r, 0, 0, view->window_width, view->window_height);
 
-    internal->state.view_matrix = packet->view_matrix;
-    internal->state.projection_matrix = packet->projection_matrix;
-    internal->state.camera_pos = packet->camera_pos;
-    internal->state.shadow_camera_pos = packet->shadow_camera_pos;
-    internal->state.camera_forward = packet->camera_forward;
-    internal->state.camera_right = packet->camera_right;
-    internal->state.camera_up = packet->camera_up;
-    internal->state.shadow_camera_near = packet->camera_near;
-    internal->state.shadow_camera_far = packet->camera_far;
-    internal->state.shadow_camera_fov = packet->camera_fov;
-    internal->state.shadow_camera_aspect = packet->camera_aspect;
-    internal->state.clear_flags = packet->clear_flags;
-    internal->state.clear_color = packet->clear_color;
+    internal->state.view_matrix = view->view_matrix;
+    internal->state.projection_matrix = view->projection_matrix;
+    internal->state.camera_pos = view->camera_pos;
+    internal->state.clear_flags = view->clear_flags;
+    internal->state.clear_color = view->clear_color;
+    internal->state.has_env_map = view->has_env_map;
 
     OpenGL_BindDefaultFramebuffer();
-    if (packet->clear_flags == RENDER_CLEAR_COLOR_AND_DEPTH)
+    if (view->clear_flags == RENDER_CLEAR_COLOR_AND_DEPTH)
     {
-        glClearColor(packet->clear_color.r, packet->clear_color.g, packet->clear_color.b, packet->clear_color.a);
+        glClearColor(view->clear_color.r, view->clear_color.g, view->clear_color.b, view->clear_color.a);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     }
-    else if (packet->clear_flags == RENDER_CLEAR_DEPTH_ONLY)
+    else if (view->clear_flags == RENDER_CLEAR_DEPTH_ONLY)
     {
         glClear(GL_DEPTH_BUFFER_BIT);
     }
@@ -1894,50 +1889,72 @@ void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet)
     glBindTexture(GL_TEXTURE_2D_ARRAY, internal->shadow.depthMapTextureArray);
     glActiveTexture(GL_TEXTURE0);
 
+    // If lighting packet does not exist, set everything to 0 and return
+    if (!lighting)
+    {
+        internal->state.dir_light_count = 0;
+        internal->state.point_light_count = 0;
+        internal->state.spot_light_count = 0;
+        internal->state.reflection_probe_count = 0;
+        internal->state.reflection_probe_results = NULL;
+        internal->command_count = 0;
+        internal->bone_snapshot_count = 0;
+        return;
+    }
+
+    internal->state.shadow_camera_pos = lighting->shadow_camera_pos;
+    internal->state.camera_forward = lighting->camera_forward;
+    internal->state.camera_right = lighting->camera_right;
+    internal->state.camera_up = lighting->camera_up;
+    internal->state.shadow_camera_near = lighting->camera_near;
+    internal->state.shadow_camera_far = lighting->camera_far;
+    internal->state.shadow_camera_fov = lighting->camera_fov;
+    internal->state.shadow_camera_aspect = lighting->camera_aspect;
+
+
     // Copy Directional Lights
-    internal->state.dir_light_count = packet->dir_lights ? packet->dir_light_count : 0;
+    internal->state.dir_light_count = lighting->dir_lights ? lighting->dir_light_count : 0;
     if (internal->state.dir_light_count > MAX_DIR_LIGHTS)
         internal->state.dir_light_count = MAX_DIR_LIGHTS;
     for (uint32_t i = 0; i < internal->state.dir_light_count; i++)
-        internal->state.dir_lights[i] = packet->dir_lights[i];
+        internal->state.dir_lights[i] = lighting->dir_lights[i];
 
     // Copy Point Lights
-    internal->state.point_light_count = packet->point_lights ? packet->point_light_count : 0;
+    internal->state.point_light_count = lighting->point_lights ? lighting->point_light_count : 0;
     if (internal->state.point_light_count > MAX_POINT_LIGHTS)
         internal->state.point_light_count = MAX_POINT_LIGHTS;
     for (uint32_t i = 0; i < internal->state.point_light_count; i++)
-        internal->state.point_lights[i] = packet->point_lights[i];
+        internal->state.point_lights[i] = lighting->point_lights[i];
         
     // Copy Spot Lights
-    internal->state.spot_light_count = packet->spot_lights ? packet->spot_light_count : 0;
+    internal->state.spot_light_count = lighting->spot_lights ? lighting->spot_light_count : 0;
     if (internal->state.spot_light_count > MAX_SPOT_LIGHTS)
         internal->state.spot_light_count = MAX_SPOT_LIGHTS;
     for (uint32_t i = 0; i < internal->state.spot_light_count; i++)
-        internal->state.spot_lights[i] = packet->spot_lights[i];
+        internal->state.spot_lights[i] = lighting->spot_lights[i];
 
-    internal->state.reflection_probe_count = packet->reflection_probes ? packet->reflection_probe_count : 0;
+    internal->state.reflection_probe_count = lighting->reflection_probes ? lighting->reflection_probe_count : 0;
     if (internal->state.reflection_probe_count > MAX_REFLECTION_PROBES)
         internal->state.reflection_probe_count = MAX_REFLECTION_PROBES;
 
-    internal->state.reflection_probe_results = packet->reflection_probes;
+    internal->state.reflection_probe_results = lighting->reflection_probes;
     for (uint32_t i = 0; i < internal->state.reflection_probe_count; i++)
-        internal->state.reflection_probes[i] = packet->reflection_probes[i];
+        internal->state.reflection_probes[i] = lighting->reflection_probes[i];
 
-    internal->state.has_env_map = packet->has_env_map;
-    internal->state.env_map = packet->env_map;
-    internal->state.has_probe_source_env_map = packet->has_probe_source_env_map;
-    internal->state.probe_source_env_map = packet->probe_source_env_map;
-    internal->state.settings.enable_ssao = packet->enable_ssao;
-    internal->state.global_ambient_color = packet->global_ambient_color;
-    internal->state.global_ambient_illumination = packet->global_ambient_illumination;
+    internal->state.env_map = lighting->env_map;
+    internal->state.has_probe_source_env_map = lighting->has_probe_source_env_map;
+    internal->state.probe_source_env_map = lighting->probe_source_env_map;
+    internal->state.settings.enable_ssao = lighting->enable_ssao;
+    internal->state.global_ambient_color = lighting->global_ambient_color;
+    internal->state.global_ambient_illumination = lighting->global_ambient_illumination;
 
-    if (packet->gamma > 0.01f)
-        internal->state.settings.gamma = packet->gamma;
+    if (lighting->gamma > 0.01f)
+        internal->state.settings.gamma = lighting->gamma;
     else
         internal->state.settings.gamma = internal->state.settings.gamma > 0.01f ? internal->state.settings.gamma : 2.2f;
 
-    if (packet->exposure > 0.001f)
-        internal->state.settings.exposure = packet->exposure;
+    if (lighting->exposure > 0.001f)
+        internal->state.settings.exposure = lighting->exposure;
     else
         internal->state.settings.exposure = 1.0f;
     
@@ -2009,7 +2026,7 @@ void OpenGL_DrawWorld(Renderer* r, const RenderWorld* world)
     if (!r || !world)
         return;
     
-    OpenGL_BeginFrame(r, &world->packet);
+    OpenGL_BeginFrame(r, &world->view, &world->lighting);
     
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
     

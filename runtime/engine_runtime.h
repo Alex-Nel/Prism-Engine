@@ -73,11 +73,11 @@ void Engine_EndFrame(PrismEngine* engine);
 
 // ----- Rendering functions -----
 
-// Gathers all the lights in a scene an puts them into a render packet.
-void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderPacket* packet, DirectionalLightData* dir_lights, PointLightData* point_lights, SpotLightData* spot_lights);
+// Gathers all the lights in a scene and puts them into a lighting packet.
+void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderLighting* lighting, DirectionalLightData* dir_lights, PointLightData* point_lights, SpotLightData* spot_lights);
 
-// Gathers all the reflection probes in a scene and puts them into a render packet.
-void Engine_GatherReflectionProbes(PrismEngine* engine, Scene* scene, RenderPacket* packet, ReflectionProbeData* probes);
+// Gathers all the reflection probes in a scene and puts them into a lighting packet.
+void Engine_GatherReflectionProbes(PrismEngine* engine, Scene* scene, RenderLighting* lighting, ReflectionProbeData* probes);
 
 // Applies all changes to reflection probes back into the scene.
 void Engine_ApplyReflectionProbeResults(PrismEngine* engine, Scene* scene, const ReflectionProbeData* probes, uint32_t probe_count);

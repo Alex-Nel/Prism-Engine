@@ -31,8 +31,8 @@ static int CompareProbePriority(const void* a, const void* b)
 
 
 
-// Gathers all the lights in a scene and puts them in a render packet
-void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderPacket* packet, DirectionalLightData* dir_lights, PointLightData* point_lights, SpotLightData* spot_lights)
+// Gathers all the lights in a scene and puts them into a lighting packet.
+void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderLighting* lighting, DirectionalLightData* dir_lights, PointLightData* point_lights, SpotLightData* spot_lights)
 {
     uint32_t dir_count = 0, point_count = 0, spot_count = 0;
     uint32_t light_mask = COMPONENT_TRANSFORM | COMPONENT_LIGHT;
@@ -90,12 +90,12 @@ void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderPacket* p
         }
     }
 
-    packet->dir_lights = dir_lights;
-    packet->dir_light_count = dir_count;
-    packet->point_lights = point_lights;
-    packet->point_light_count = point_count;
-    packet->spot_lights = spot_lights;
-    packet->spot_light_count = spot_count;
+    lighting->dir_lights = dir_lights;
+    lighting->dir_light_count = dir_count;
+    lighting->point_lights = point_lights;
+    lighting->point_light_count = point_count;
+    lighting->spot_lights = spot_lights;
+    lighting->spot_light_count = spot_count;
 }
 
 
@@ -108,7 +108,7 @@ void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderPacket* p
 
 
 // Gathers active local IBL probes as value data. Capture results are copied back explicitly after rendering
-void Engine_GatherReflectionProbes(PrismEngine* engine, Scene* scene, RenderPacket* packet, ReflectionProbeData* probes)
+void Engine_GatherReflectionProbes(PrismEngine* engine, Scene* scene, RenderLighting* lighting, ReflectionProbeData* probes)
 {
     uint32_t count = 0;
     const uint32_t required_mask = COMPONENT_TRANSFORM | COMPONENT_REFLECTION_PROBE;
@@ -173,8 +173,8 @@ void Engine_GatherReflectionProbes(PrismEngine* engine, Scene* scene, RenderPack
         }
     }
 
-    packet->reflection_probes = probes;
-    packet->reflection_probe_count = count;
+    lighting->reflection_probes = probes;
+    lighting->reflection_probe_count = count;
 
     qsort(probes, count, sizeof(ReflectionProbeData), CompareProbePriority);
 
@@ -489,23 +489,22 @@ void Engine_RenderScene(PrismEngine* engine, Scene* scene)
     }
 
     // Make an empty render packet to send to the renderer
-    RenderPacket packet = {0};
+    RenderLighting lighting = {0};
     RendererSettings cur_settings = Render_GetSettings(engine->renderer);
-    packet.enable_ssao = cur_settings.enable_ssao;
-    packet.global_ambient_color = scene->ambient_color;
-    packet.global_ambient_illumination = scene->ambient_illumination;
-    packet.exposure = scene->exposure;
-    packet.gamma = 2.2f;
+    lighting.enable_ssao = cur_settings.enable_ssao;
+    lighting.global_ambient_color = scene->ambient_color;
+    lighting.global_ambient_illumination = scene->ambient_illumination;
+    lighting.exposure = scene->exposure;
+    lighting.gamma = 2.2f;
     if (cur_settings.gamma > 0.01f)
-        packet.gamma = cur_settings.gamma;
+        lighting.gamma = cur_settings.gamma;
     
-    packet.has_env_map = scene->has_env_map;
-    packet.has_probe_source_env_map = scene->has_env_map;
+    lighting.has_probe_source_env_map = scene->has_env_map;
 
     if (scene->has_env_map && scene->env_map)
     {
-        packet.env_map = *scene->env_map;
-        packet.probe_source_env_map = *scene->env_map;
+        lighting.env_map = *scene->env_map;
+        lighting.probe_source_env_map = *scene->env_map;
     }
 
     // --- Get all Point Lights from the ECS ---
@@ -516,22 +515,22 @@ void Engine_RenderScene(PrismEngine* engine, Scene* scene)
 
 
     // Fill the packet with all the lights in the scene
-    Engine_GatherSceneLights(engine, scene, &packet, active_dir_lights, active_point_lights, active_spot_lights);
-    Engine_GatherReflectionProbes(engine, scene, &packet, active_reflection_probes);
+    Engine_GatherSceneLights(engine, scene, &lighting, active_dir_lights, active_point_lights, active_spot_lights);
+    Engine_GatherReflectionProbes(engine, scene, &lighting, active_reflection_probes);
 
     Transform* main_cam_t = &scene->transforms[scene->main_camera_id];
     CameraComponent* main_cam = &scene->cameras[scene->main_camera_id];
     Camera_RecalculateProjectionIfNeeded(main_cam);
-    packet.shadow_camera_pos = Transform_GetGlobalPosition(main_cam_t);
-    packet.camera_forward = Transform_GetForwardVector(main_cam_t);
-    packet.camera_right = Transform_GetRightVector(main_cam_t);
-    packet.camera_up = Transform_GetUpVector(main_cam_t);
-    packet.camera_near = main_cam->nearZ;
-    packet.camera_far = main_cam->farZ;
-    packet.camera_fov = main_cam->fov;
-    packet.camera_aspect = 1.0f;
+    lighting.shadow_camera_pos = Transform_GetGlobalPosition(main_cam_t);
+    lighting.camera_forward = Transform_GetForwardVector(main_cam_t);
+    lighting.camera_right = Transform_GetRightVector(main_cam_t);
+    lighting.camera_up = Transform_GetUpVector(main_cam_t);
+    lighting.camera_near = main_cam->nearZ;
+    lighting.camera_far = main_cam->farZ;
+    lighting.camera_fov = main_cam->fov;
+    lighting.camera_aspect = 1.0f;
     if (main_cam->viewport_height > 0)
-        packet.camera_aspect = (float)main_cam->viewport_width / (float)main_cam->viewport_height;
+        lighting.camera_aspect = (float)main_cam->viewport_width / (float)main_cam->viewport_height;
     
 
     // Gather and sort cameras
@@ -557,24 +556,27 @@ void Engine_RenderScene(PrismEngine* engine, Scene* scene)
 
         // Setup Camera Matrices and clearing flags
         Vector3 global_pos = Transform_GetGlobalPosition(cam_transform);
-        packet.view_matrix = Matrix4Inverse(cam_transform->world_matrix);
         Camera_RecalculateProjectionIfNeeded(cam_comp);
-        packet.projection_matrix = cam_comp->projection_matrix;
-        packet.camera_pos = global_pos;
-        packet.has_env_map = (cam_comp->clear_flags == CLEAR_COLOR_AND_DEPTH) ? scene->has_env_map : false;
-        packet.window_width = cam_comp->viewport_width;
-        packet.window_height = cam_comp->viewport_height;
-        packet.clear_flags = (RenderClearFlags)cam_comp->clear_flags;
-        packet.clear_color = scene->background_color;
+
+        RenderView view = {0};
+        view.view_matrix = Matrix4Inverse(cam_transform->world_matrix);
+        view.projection_matrix = cam_comp->projection_matrix;
+        view.camera_pos = global_pos;
+        view.has_env_map = (cam_comp->clear_flags == CLEAR_COLOR_AND_DEPTH) ? scene->has_env_map : false;
+        view.window_width = cam_comp->viewport_width;
+        view.window_height = cam_comp->viewport_height;
+        view.clear_flags = (RenderClearFlags)cam_comp->clear_flags;
+        view.clear_color = scene->background_color;
 
         uint32_t item_count = Engine_GatherVisibleGeometry(scene, global_pos, cam_comp->culling_masks, s_extracted_items, MAX_COMMANDS);
         RenderWorld world = {
-            .packet = packet,
+            .view = view,
+            .lighting = lighting,
             .items = s_extracted_items,
             .item_count = item_count
         };
         Render_DrawWorld(engine->renderer, &world);
 
-        Engine_ApplyReflectionProbeResults(engine, scene, active_reflection_probes, packet.reflection_probe_count);
+        Engine_ApplyReflectionProbeResults(engine, scene, active_reflection_probes, lighting.reflection_probe_count);
     }
 }
