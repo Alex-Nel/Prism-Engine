@@ -15,6 +15,7 @@
 typedef struct { uint32_t id; } MeshHandle;
 typedef struct { uint32_t id; } TextureHandle;
 typedef struct { uint32_t id; } ShaderHandle;
+typedef struct { uint32_t id; } MaterialHandle;
 
 
 
@@ -154,6 +155,8 @@ typedef struct Material
     Texture* ao_map;         // White = unoccluded (1.0), Black = occluded (0.0)
 
     MaterialProperties properties;
+    
+    MaterialHandle gpu_handle;
 } Material;
 
 

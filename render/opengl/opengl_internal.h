@@ -122,6 +122,21 @@ typedef struct GLTexture
 
 
 
+// Struct for holding materials for OpenGL
+typedef struct GLMaterial
+{
+    bool active;
+    ShaderHandle shader;
+    TextureHandle albedo;
+    TextureHandle normal;
+    TextureHandle metallic;
+    TextureHandle roughness;
+    TextureHandle ao;
+    MaterialProperties properties;
+} GLMaterial;
+
+
+
 // Struct for holding reflection probes for OpenGL
 typedef struct GLReflectionProbe
 {
@@ -278,6 +293,7 @@ typedef struct OpenGL_Backend
     GLMesh mesh_pool[MAX_RESOURCES];
     GLShader shader_pool[MAX_RESOURCES];
     GLTexture texture_pool[MAX_RESOURCES];
+    GLMaterial material_pool[MAX_RESOURCES];
 
     RenderItem command_queue[MAX_COMMANDS];
     uint32_t command_count;
@@ -341,12 +357,16 @@ TextureHandle OpenGL_CreateTexture(Renderer* r, const uint8_t* pixels, uint32_t 
 TextureHandle OpenGL_CreateTextureHDR(Renderer* r, const float* pixels, uint32_t width, uint32_t height, uint32_t channels);
 void OpenGL_DestroyTexture(Renderer* r, TextureHandle texture);
 
-EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels, uint32_t width, uint32_t height);
-
 ShaderHandle OpenGL_CreateShader(Renderer* r, const char* vertex_source, const char* fragment_source);
 ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const char* name, const char* vertex_src, const char* geom_src, const char* fragment_src);
 ShaderHandle OpenGL_CompileInternalShaderFromFile(OpenGL_Backend* internal, const char* name, const char* vert_path, const char* geom_path, const char* frag_path);
 void OpenGL_DestroyShader(Renderer* r, ShaderHandle shader);
+
+MaterialHandle OpenGL_CreateMaterial(Renderer* r, const RenderMaterialDesc* desc);
+void OpenGL_UpdateMaterial(Renderer* r, MaterialHandle handle, const RenderMaterialDesc* desc);
+void OpenGL_DestroyMaterial(Renderer* r, MaterialHandle handle);
+
+EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels, uint32_t width, uint32_t height);
 
 TextureHandle OpenGL_CreateCubemap(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels);
 MeshHandle OpenGL_CreateSkinnedMesh(Renderer* r, const Vertex3DSkinned* vertices, uint32_t vertex_count, const uint32_t* indices,  uint32_t index_count);

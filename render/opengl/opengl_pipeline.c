@@ -26,6 +26,108 @@ static bool OpenGL_ItemInFrustum(const RenderItem* item, Frustum* frustum)
 
 
 
+// Returns the GLMaterial based on a handle
+static const GLMaterial* OpenGL_GetMaterial(OpenGL_Backend* internal, MaterialHandle handle)
+{
+    if (handle.id == 0 || handle.id >= MAX_RESOURCES)
+        return NULL;
+
+    GLMaterial* mat = &internal->material_pool[handle.id];
+    return mat->active ? mat : NULL;
+}
+
+
+
+
+
+// Returns a shader handle for a specific material
+static ShaderHandle OpenGL_MaterialShader(OpenGL_Backend* internal, MaterialHandle handle)
+{
+    const GLMaterial* mat = OpenGL_GetMaterial(internal, handle);
+    if (mat)
+        return mat->shader;
+
+    return (ShaderHandle){0};
+}
+
+
+
+
+
+// Returns whether a texture handle is valid
+static bool OpenGL_TextureValid(OpenGL_Backend* internal, TextureHandle handle)
+{
+    return handle.id != 0 && handle.id < MAX_RESOURCES && internal->texture_pool[handle.id].active && internal->texture_pool[handle.id].id != 0;
+}
+
+
+
+
+
+// Applies a material
+static void OpenGL_ApplyMaterial(OpenGL_Backend* internal, GLuint program, MaterialHandle handle, Color instance_color, bool gbuffer_tint)
+{
+    const GLMaterial* mat = OpenGL_GetMaterial(internal, handle);
+    TextureHandle albedo = {0};
+    TextureHandle normal = {0};
+    TextureHandle metallic = {0};
+    TextureHandle roughness = {0};
+    TextureHandle ao = {0};
+    float metallic_factor = 0.0f;
+    float roughness_factor = 0.5f;
+
+    if (mat)
+    {
+        albedo = mat->albedo;
+        normal = mat->normal;
+        metallic = mat->metallic;
+        roughness = mat->roughness;
+        ao = mat->ao;
+        metallic_factor = mat->properties.metallic_factor;
+        roughness_factor = mat->properties.roughness_factor;
+    }
+
+    glActiveTexture(GL_TEXTURE0);
+    bool valid_albedo = OpenGL_TextureValid(internal, albedo);
+    glBindTexture(GL_TEXTURE_2D, valid_albedo ? internal->texture_pool[albedo.id].id : internal->texture_pool[1].id);
+    glUniform1i(glGetUniformLocation(program, "u_Material.albedoMap"), 0);
+    if (!gbuffer_tint)
+        glUniform1i(glGetUniformLocation(program, "u_Material.diffuse"), 0);
+    
+    bool valid_normal = OpenGL_TextureValid(internal, normal);
+    glUniform1i(glGetUniformLocation(program, "u_Material.hasNormalMap"), valid_normal ? 1 : 0);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, valid_normal ? internal->texture_pool[normal.id].id : internal->texture_pool[2].id);
+    glUniform1i(glGetUniformLocation(program, "u_Material.normalMap"), 1);
+    
+    bool valid_metallic = OpenGL_TextureValid(internal, metallic);
+    glUniform1i(glGetUniformLocation(program, "u_Material.hasMetallicMap"), valid_metallic ? 1 : 0);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, valid_metallic ? internal->texture_pool[metallic.id].id : internal->texture_pool[3].id);
+    glUniform1i(glGetUniformLocation(program, "u_Material.metallicMap"), 2);
+    
+    bool valid_roughness = OpenGL_TextureValid(internal, roughness);
+    glUniform1i(glGetUniformLocation(program, "u_Material.hasRoughnessMap"), valid_roughness ? 1 : 0);
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, valid_roughness ? internal->texture_pool[roughness.id].id : internal->texture_pool[1].id);
+    glUniform1i(glGetUniformLocation(program, "u_Material.roughnessMap"), 3);
+    
+    bool valid_ao = OpenGL_TextureValid(internal, ao);
+    glUniform1i(glGetUniformLocation(program, "u_Material.hasAOMap"), valid_ao ? 1 : 0);
+    glActiveTexture(GL_TEXTURE4);
+    glBindTexture(GL_TEXTURE_2D, valid_ao ? internal->texture_pool[ao.id].id : internal->texture_pool[1].id);
+    glUniform1i(glGetUniformLocation(program, "u_Material.aoMap"), 4);
+    
+    const char* tint_name = gbuffer_tint ? "u_Material.albedoTint" : "u_Material.tint";
+    glUniform3fv(glGetUniformLocation(program, tint_name), 1, (float*)&instance_color);
+    glUniform1f(glGetUniformLocation(program, "u_Material.metallicFactor"), metallic_factor);
+    glUniform1f(glGetUniformLocation(program, "u_Material.roughnessFactor"), roughness_factor);
+}
+
+
+
+
+
 
 
 
@@ -673,56 +775,8 @@ void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
         }
 
 
-        // 0. Albedo Map
-        glActiveTexture(GL_TEXTURE0);
-        bool valid_albedo = (cmd->albedo.id != 0 && cmd->albedo.id < MAX_RESOURCES);
-        glBindTexture(GL_TEXTURE_2D, valid_albedo ? internal->texture_pool[cmd->albedo.id].id : internal->texture_pool[1].id); // Fallback to default tex
-        glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.albedoMap"), 0);
+        OpenGL_ApplyMaterial(internal, g_prog->program, cmd->material, cmd->color, true);
 
-        // 1. Normal Map
-        bool valid_normal = (cmd->normal.id != 0 && cmd->normal.id < MAX_RESOURCES && internal->texture_pool[cmd->normal.id].active && internal->texture_pool[cmd->normal.id].id != 0);
-        glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.hasNormalMap"), valid_normal ? 1 : 0);
-        glActiveTexture(GL_TEXTURE1);
-        if (valid_normal)
-            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->normal.id].id);
-        else
-            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[2].id);
-        glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.normalMap"), 1);
-
-        // 2. Metallic Map
-        bool valid_metallic = (cmd->metallic.id != 0 && cmd->metallic.id < MAX_RESOURCES && internal->texture_pool[cmd->metallic.id].active && internal->texture_pool[cmd->metallic.id].id != 0);
-        glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.hasMetallicMap"), valid_metallic ? 1 : 0);
-        glActiveTexture(GL_TEXTURE2);
-        if (valid_metallic)
-            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->metallic.id].id);
-        else
-            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[3].id);
-        glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.metallicMap"), 2);
-
-        // 3. Roughness Map
-        bool valid_roughness = (cmd->roughness.id != 0 && cmd->roughness.id < MAX_RESOURCES && internal->texture_pool[cmd->roughness.id].active && internal->texture_pool[cmd->roughness.id].id != 0);
-        glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.hasRoughnessMap"), valid_roughness ? 1 : 0);
-        glActiveTexture(GL_TEXTURE3);
-        if (valid_roughness)
-            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->roughness.id].id);
-        else
-            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[1].id);
-        glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.roughnessMap"), 3);
-
-        // 4. Ambient Occlusion Map
-        bool valid_ao = (cmd->ao.id != 0 && cmd->ao.id < MAX_RESOURCES && internal->texture_pool[cmd->ao.id].active && internal->texture_pool[cmd->ao.id].id != 0);
-        glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.hasAOMap"), valid_ao ? 1 : 0);
-        glActiveTexture(GL_TEXTURE4);
-        if (valid_ao)
-            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[cmd->ao.id].id);
-        else
-            glBindTexture(GL_TEXTURE_2D, internal->texture_pool[1].id);
-        glUniform1i(glGetUniformLocation(g_prog->program, "u_Material.aoMap"), 4);
-        
-
-        glUniform3fv(glGetUniformLocation(g_prog->program, "u_Material.albedoTint"), 1, (float*)&cmd->material.albedo_tint);
-        glUniform1f(glGetUniformLocation(g_prog->program, "u_Material.metallicFactor"), cmd->material.metallic_factor);
-        glUniform1f(glGetUniformLocation(g_prog->program, "u_Material.roughnessFactor"), cmd->material.roughness_factor);
         glUniform1f(glGetUniformLocation(g_prog->program, "u_ReceiveShadows"), (cmd->flags & RENDER_ITEM_RECEIVE_SHADOWS) ? 1.0f : 0.0f);
 
         glUniformMatrix4fv(glGetUniformLocation(g_prog->program, "u_Model"), 1, GL_FALSE, (float*)&cmd->transform);
@@ -1160,7 +1214,7 @@ static void OpenGL_RenderCommandBatchMode(OpenGL_Backend* internal, uint32_t sta
         if (!OpenGL_ItemInFrustum(cmd, &view_frustum))
             continue;
 
-        ShaderHandle target_handle = probe_capture ? (ShaderHandle){0} : cmd->shader;
+        ShaderHandle target_handle = probe_capture ? (ShaderHandle){0} : OpenGL_MaterialShader(internal, cmd->material);
         if (target_handle.id == 0)
             target_handle = (cmd->bone_matrices != NULL && internal->mesh_pool[cmd->mesh.id].is_skinned) ? internal->forward.animated_shader : internal->forward.default_shader;
 
@@ -1202,47 +1256,9 @@ static void OpenGL_RenderCommandBatchMode(OpenGL_Backend* internal, uint32_t sta
             }
         }
 
-
-        // 0. Albedo Map
-        glActiveTexture(GL_TEXTURE0);
-        bool valid_albedo = (cmd->albedo.id != 0 && cmd->albedo.id < MAX_RESOURCES && internal->texture_pool[cmd->albedo.id].active && internal->texture_pool[cmd->albedo.id].id != 0);
-        glBindTexture(GL_TEXTURE_2D, valid_albedo ? internal->texture_pool[cmd->albedo.id].id : internal->texture_pool[1].id);
-        glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.albedoMap"), 0);
-        glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.diffuse"), 0);
-
-        // 1. Normal Map
-        bool valid_normal = (cmd->normal.id != 0 && cmd->normal.id < MAX_RESOURCES && internal->texture_pool[cmd->normal.id].active && internal->texture_pool[cmd->normal.id].id != 0);
-        glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.hasNormalMap"), valid_normal ? 1 : 0);
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, valid_normal ? internal->texture_pool[cmd->normal.id].id : internal->texture_pool[2].id);
-        glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.normalMap"), 1);
-
-        // 2. Metallic Map
-        bool valid_metallic = (cmd->metallic.id != 0 && cmd->metallic.id < MAX_RESOURCES && internal->texture_pool[cmd->metallic.id].active && internal->texture_pool[cmd->metallic.id].id != 0);
-        glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.hasMetallicMap"), valid_metallic ? 1 : 0);
-        glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, valid_metallic ? internal->texture_pool[cmd->metallic.id].id : internal->texture_pool[3].id);
-        glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.metallicMap"), 2);
-
-        // 3. Roughness Map
-        bool valid_roughness = (cmd->roughness.id != 0 && cmd->roughness.id < MAX_RESOURCES && internal->texture_pool[cmd->roughness.id].active && internal->texture_pool[cmd->roughness.id].id != 0);
-        glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.hasRoughnessMap"), valid_roughness ? 1 : 0);
-        glActiveTexture(GL_TEXTURE3);
-        glBindTexture(GL_TEXTURE_2D, valid_roughness ? internal->texture_pool[cmd->roughness.id].id : internal->texture_pool[1].id);
-        glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.roughnessMap"), 3);
-
-        // 4. Ambient Occlusion Map
-        bool valid_ao = (cmd->ao.id != 0 && cmd->ao.id < MAX_RESOURCES && internal->texture_pool[cmd->ao.id].active && internal->texture_pool[cmd->ao.id].id != 0);
-        glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.hasAOMap"), valid_ao ? 1 : 0);
-        glActiveTexture(GL_TEXTURE4);
-        glBindTexture(GL_TEXTURE_2D, valid_ao ? internal->texture_pool[cmd->ao.id].id : internal->texture_pool[1].id);
-        glUniform1i(glGetUniformLocation(gl_shader->program, "u_Material.aoMap"), 4);
-
+        OpenGL_ApplyMaterial(internal, gl_shader->program, cmd->material, cmd->color, false);
 
         glUniformMatrix4fv(glGetUniformLocation(gl_shader->program, "u_Model"), 1, GL_FALSE, (float*)&cmd->transform);
-        glUniform3fv(glGetUniformLocation(gl_shader->program, "u_Material.tint"), 1, (float*)&cmd->material.albedo_tint);
-        glUniform1f(glGetUniformLocation(gl_shader->program, "u_Material.metallicFactor"), cmd->material.metallic_factor);
-        glUniform1f(glGetUniformLocation(gl_shader->program, "u_Material.roughnessFactor"), cmd->material.roughness_factor);
         glUniform1f(glGetUniformLocation(gl_shader->program, "u_ReceiveShadows"), (!probe_capture && (cmd->flags & RENDER_ITEM_RECEIVE_SHADOWS)) ? 1.0f : 0.0f);
 
         GLint bone_loc = glGetUniformLocation(gl_shader->program, "u_BoneMatrices");
@@ -2037,11 +2053,8 @@ static int CompareRenderCommands(const void* a, const void* b)
         return 0;
     }
 
-    // Sort primarily by shader, then by texture
-    if (cmdA->shader.id != cmdB->shader.id)
-        return (int)cmdA->shader.id - (int)cmdB->shader.id;
-    
-    return (int)cmdA->albedo.id - (int)cmdB->albedo.id;
+    // Sort primarily by material
+    return (int)cmdA->material.id - (int)cmdB->material.id;
 }
 
 

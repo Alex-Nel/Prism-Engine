@@ -535,6 +535,7 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
             mat_ptr->metallic_map = metallic_tex;
             mat_ptr->roughness_map = roughness_tex;
             mat_ptr->ao_map = ao_tex;
+            Asset_SyncMaterialGPU(mat_ptr);
         }
 
         material_map[i] = mat_ptr;
@@ -1035,6 +1036,51 @@ Texture* Asset_CreateSolidColorTexture(const char* name, Color color)
 
 
 
+// Makes the descriptor of a material
+static RenderMaterialDesc Material_MakeDesc(Material* mat)
+{
+    RenderMaterialDesc desc = {0};
+    desc.shader = DEFAULT_SHADER;
+
+    if (mat->shader != NULL)
+        desc.shader = mat->shader->gpu_handle;
+    if (mat->albedo_texture)
+        desc.albedo = mat->albedo_texture->gpu_handle;
+    if (mat->normal_map)
+        desc.normal = mat->normal_map->gpu_handle;
+    if (mat->metallic_map)
+        desc.metallic = mat->metallic_map->gpu_handle;
+    if (mat->roughness_map)
+        desc.roughness = mat->roughness_map->gpu_handle;
+    if (mat->ao_map)
+        desc.ao = mat->ao_map->gpu_handle;
+    
+    desc.properties = mat->properties;
+    
+    return desc;
+}
+
+
+
+
+
+// Syncs the GPU material with the cached material
+void Asset_SyncMaterialGPU(Material* material)
+{
+    if (!material || !renderer)
+        return;
+    
+    RenderMaterialDesc desc = Material_MakeDesc(material);
+    if (material->gpu_handle.id == 0)
+        material->gpu_handle = Render_CreateMaterial(renderer, &desc);
+    else
+        Render_UpdateMaterial(renderer, material->gpu_handle, &desc);
+}
+
+
+
+
+
 // Creates a material from a given shader and texture (diffuse)
 Material* Asset_CreateMaterial(Shader* shader, Texture* albedo)
 {
@@ -1067,7 +1113,9 @@ Material* Asset_CreateMaterial(Shader* shader, Texture* albedo)
     mat->properties.albedo_tint = (Color){1.0f, 1.0f, 1.0f, 1.0f}; // Pure white
     mat->properties.metallic_factor = 0.0f;                        // Standard plastic
     mat->properties.roughness_factor = 0.5f;                       // Medium reflection
+    mat->gpu_handle = (MaterialHandle){0};
     
+    Asset_SyncMaterialGPU(mat);
     
     return mat;
 }

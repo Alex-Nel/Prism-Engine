@@ -255,31 +255,16 @@ uint32_t Engine_GatherAndSortCameras(PrismEngine* engine, Scene* scene, ActiveCa
 // Sets material properties for a render item
 static void RenderItem_SetMaterial(RenderItem* item, Material* material)
 {
-    item->shader = DEFAULT_SHADER;
-    item->albedo = (TextureHandle){0};
-    item->normal = (TextureHandle){0};
-    item->metallic = (TextureHandle){0};
-    item->roughness = (TextureHandle){0};
-    item->ao = (TextureHandle){0};
-    item->material = (MaterialProperties){0};
+    item->material = (MaterialHandle){0};
+    item->color = (Color){1.0f, 1.0f, 1.0f, 1.0f};
 
     if (!material)
         return;
     
-    if (material->shader != NULL)
-        item->shader = material->shader->gpu_handle;
-    if (material->albedo_texture)
-        item->albedo = material->albedo_texture->gpu_handle;
-    if (material->normal_map)
-        item->normal = material->normal_map->gpu_handle;
-    if (material->metallic_map)
-        item->metallic = material->metallic_map->gpu_handle;
-    if (material->roughness_map)
-        item->roughness = material->roughness_map->gpu_handle;
-    if (material->ao_map)
-        item->ao = material->ao_map->gpu_handle;
-    
-    item->material = material->properties;
+    Asset_SyncMaterialGPU(material);
+
+    item->material = material->gpu_handle;
+    item->color = material->properties.albedo_tint;
 }
 
 
@@ -400,7 +385,7 @@ uint32_t Engine_GatherVisibleGeometry(Scene* scene, Vector3 cam_pos, uint32_t cu
 
         item.mesh = line->dynamic_mesh->gpu_handle;
         RenderItem_SetMaterial(&item, line->material);
-        item.material.albedo_tint = line->color;
+        item.color = line->color;
         item.transform = Matrix4Identity();
         item.local_bounds = line->dynamic_mesh->local_bounds;
 
@@ -438,7 +423,7 @@ uint32_t Engine_GatherVisibleGeometry(Scene* scene, Vector3 cam_pos, uint32_t cu
 
         item.mesh = sprite->quad->gpu_handle;
         RenderItem_SetMaterial(&item, sprite->material);
-        item.material.albedo_tint = sprite->color;
+        item.color = sprite->color;
         item.transform = final_sprite_matrix;
         item.local_bounds = sprite->quad->local_bounds;
         item.depth_distance = dist_sq;

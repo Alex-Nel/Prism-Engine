@@ -26,6 +26,7 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
         internal->mesh_pool[i].active = false;
         internal->shader_pool[i].active = false;
         internal->texture_pool[i].active = false;
+        internal->material_pool[i].active = false;
     }
 
     // Load OpenGL functions using the provided loader
@@ -402,6 +403,10 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     r->CreateShader = OpenGL_CreateShader;
     r->DestroyShader = OpenGL_DestroyShader;
 
+    r->CreateMaterial = OpenGL_CreateMaterial;
+    r->UpdateMaterial = OpenGL_UpdateMaterial;
+    r->DestroyMaterial = OpenGL_DestroyMaterial;
+
     r->CreateCubemap = OpenGL_CreateCubemap;
     r->CreateEnvironmentMap = OpenGL_CreateEnvironmentMap;
     r->CreateDynamicMesh = OpenGL_CreateDynamicMesh;
@@ -456,6 +461,9 @@ void OpenGL_Shutdown(Renderer* r)
         
         if (internal->shader_pool[i].active)
             Render_DestroyShader(r, (ShaderHandle){i});
+
+        if (internal->material_pool[i].active)
+            Render_DestroyMaterial(r, (MaterialHandle){i});
     }
 
     free(internal);

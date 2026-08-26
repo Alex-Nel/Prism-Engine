@@ -145,20 +145,33 @@ enum
 
 
 
-// One drawable submitted to the renderer for the current view
-typedef struct RenderItem
+
+
+// CPU-side material description uploaded to the backend
+typedef struct RenderMaterialDesc
 {
-    MeshHandle mesh;
     ShaderHandle shader;          // 0 = default PBR path
     TextureHandle albedo;
     TextureHandle normal;
     TextureHandle metallic;
     TextureHandle roughness;
     TextureHandle ao;
-    MaterialProperties material;
+    MaterialProperties properties;
+} RenderMaterialDesc;
+
+
+
+
+
+// One drawable submitted to the renderer for the current view
+typedef struct RenderItem
+{
+    MeshHandle mesh;
+    MaterialHandle material;
     Matrix4 transform;
     AABB local_bounds;            // mesh-space AABB
     Matrix4* bone_matrices;       // NULL if static, gets copied to the backend
+    Color color;
     float depth_distance;         // transparent sort
     uint32_t flags;
 } RenderItem;
@@ -267,14 +280,18 @@ typedef struct Renderer
 
     // --- Resource Management ---
 
-    MeshHandle    (*CreateMesh)(Renderer* r, const Vertex3D* vertices, uint32_t v_count, const uint32_t* indices, uint32_t i_count);
-    void          (*DestroyMesh)(Renderer* r, MeshHandle mesh);
+    MeshHandle     (*CreateMesh)(Renderer* r, const Vertex3D* vertices, uint32_t v_count, const uint32_t* indices, uint32_t i_count);
+    void           (*DestroyMesh)(Renderer* r, MeshHandle mesh);
     
-    TextureHandle (*CreateTexture)(Renderer* r, const uint8_t* pixels, uint32_t w, uint32_t h, uint32_t channels);
-    void          (*DestroyTexture)(Renderer* r, TextureHandle texture);
+    TextureHandle  (*CreateTexture)(Renderer* r, const uint8_t* pixels, uint32_t w, uint32_t h, uint32_t channels);
+    void           (*DestroyTexture)(Renderer* r, TextureHandle texture);
 
-    ShaderHandle  (*CreateShader)(Renderer* r, const char* v_source, const char* f_source);
-    void          (*DestroyShader)(Renderer* r, ShaderHandle shader);
+    ShaderHandle   (*CreateShader)(Renderer* r, const char* v_source, const char* f_source);
+    void           (*DestroyShader)(Renderer* r, ShaderHandle shader);
+
+    MaterialHandle (*CreateMaterial)(Renderer* r, const RenderMaterialDesc* desc);
+    void           (*UpdateMaterial)(Renderer* r, MaterialHandle handle, const RenderMaterialDesc* desc);
+    void           (*DestroyMaterial)(Renderer* r, MaterialHandle handle);
 
     TextureHandle (*CreateCubemap)(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels);
     EnvironmentMap (*CreateEnvironmentMap)(Renderer* r, const float* hdr_pixels, uint32_t width, uint32_t height);
@@ -413,6 +430,28 @@ static inline void Render_DestroyShader(Renderer* r, ShaderHandle shader)
 {
     if (r && r->DestroyShader)
         r->DestroyShader(r, shader);
+}
+
+
+// Creates a GPU material from a CPU description
+static inline MaterialHandle Render_CreateMaterial(Renderer* r, const RenderMaterialDesc* desc)
+{
+    if (r && r->CreateMaterial && desc)
+        return r->CreateMaterial(r, desc);
+    else
+        return (MaterialHandle){0};
+}
+// Updates an existing GPU material
+static inline void Render_UpdateMaterial(Renderer* r, MaterialHandle handle, const RenderMaterialDesc* desc)
+{
+    if (r && r->UpdateMaterial && desc)
+        r->UpdateMaterial(r, handle, desc);
+}
+// Removes a GPU material
+static inline void Render_DestroyMaterial(Renderer* r, MaterialHandle handle)
+{
+    if (r && r->DestroyMaterial)
+        r->DestroyMaterial(r, handle);
 }
 
 

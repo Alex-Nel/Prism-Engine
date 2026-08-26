@@ -756,6 +756,91 @@ void OpenGL_DestroyShader(Renderer* r, ShaderHandle shader)
 
 
 
+// Fill a GLMaterial with a material descriptor
+static void OpenGL_FillMaterial(GLMaterial* mat, const RenderMaterialDesc* desc)
+{
+    mat->shader = desc->shader;
+    mat->albedo = desc->albedo;
+    mat->normal = desc->normal;
+    mat->metallic = desc->metallic;
+    mat->roughness = desc->roughness;
+    mat->ao = desc->ao;
+    mat->properties = desc->properties;
+}
+
+
+
+
+
+// Creates a material handle based on a descriptor
+MaterialHandle OpenGL_CreateMaterial(Renderer* r, const RenderMaterialDesc* desc)
+{
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    if (!desc)
+        return (MaterialHandle){0};
+    
+    uint32_t id = 0;
+    for (uint32_t i = 1; i < MAX_RESOURCES; i++)
+    {
+        if (!internal->material_pool[i].active)
+        {
+            id = i;
+            break;
+        }
+    }
+
+    if (id == 0)
+        return (MaterialHandle){0};
+    
+    GLMaterial* mat = &internal->material_pool[id];
+    memset(mat, 0, sizeof(GLMaterial));
+    mat->active = true;
+    OpenGL_FillMaterial(mat, desc);
+    
+    return (MaterialHandle){id};
+}
+
+
+
+
+
+// Updates an OpenGL material based on a descriptor
+void OpenGL_UpdateMaterial(Renderer* r, MaterialHandle handle, const RenderMaterialDesc* desc)
+{
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    if (!desc || handle.id == 0 || handle.id >= MAX_RESOURCES)
+        return;
+
+    GLMaterial* mat = &internal->material_pool[handle.id];
+    if (!mat->active)
+        return;
+    
+    OpenGL_FillMaterial(mat, desc);
+}
+
+
+
+
+
+// Destroys a material from OpenGL
+void OpenGL_DestroyMaterial(Renderer* r, MaterialHandle handle)
+{
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    if (handle.id == 0 || handle.id >= MAX_RESOURCES)
+        return;
+    
+    internal->material_pool[handle.id].active = false;
+}
+
+
+
+
+
+
+
+
+
+
 // Creates a CubeMap texture. Returns a texture handle
 TextureHandle OpenGL_CreateCubemap(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels)
 {

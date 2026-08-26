@@ -67,6 +67,19 @@ static void Headless_DestroyShader(Renderer* r, ShaderHandle shader) {}
 
 
 
+static MaterialHandle Headless_CreateMaterial(Renderer* r, const RenderMaterialDesc* desc)
+{
+    (void)desc;
+    Headless_Backend* internal = (Headless_Backend*)r->backend_internal_data;
+    return (MaterialHandle){ ++internal->resource_counter };
+}
+
+static void Headless_UpdateMaterial(Renderer* r, MaterialHandle handle, const RenderMaterialDesc* desc) {}
+static void Headless_DestroyMaterial(Renderer* r, MaterialHandle handle) {}
+
+
+
+
 static TextureHandle Headless_CreateCubemap(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels)
 {
     Headless_Backend* internal = (Headless_Backend*)r->backend_internal_data;
@@ -118,6 +131,9 @@ Renderer* Headless_Init()
     r->DestroyTexture = Headless_DestroyTexture;
     r->CreateShader = Headless_CreateShader;
     r->DestroyShader = Headless_DestroyShader;
+    r->CreateMaterial = Headless_CreateMaterial;
+    r->UpdateMaterial = Headless_UpdateMaterial;
+    r->DestroyMaterial = Headless_DestroyMaterial;
 
     r->CreateCubemap = Headless_CreateCubemap;
     r->CreateDynamicMesh = Headless_CreateDynamicMesh;
