@@ -62,17 +62,19 @@ static void Headless_DrawOverlay(Renderer* r, const OverlayDrawList* list, uint3
 
 // --- Fake Resource Creators ---
 
-static MeshHandle Headless_CreateMesh(Renderer* r, const Vertex3D* v, uint32_t vc, const uint32_t* i, uint32_t ic)
+static MeshHandle Headless_CreateMesh(Renderer* r, const RenderMeshDesc* desc)
 {
     Headless_Backend* internal = (Headless_Backend*)r->backend_internal_data;
     return (MeshHandle){ ++internal->resource_counter };
 }
 
+static void Headless_UpdateMesh(Renderer* r, MeshHandle handle, const RenderMeshUpdate* update) {}
+
 static void Headless_DestroyMesh(Renderer* r, MeshHandle mesh) {}
 
 
 
-static TextureHandle Headless_CreateTexture(Renderer* r, const uint8_t* p, uint32_t w, uint32_t h, uint32_t c)
+static TextureHandle Headless_CreateTexture(Renderer* r, const RenderTextureDesc* desc)
 {
     Headless_Backend* internal = (Headless_Backend*)r->backend_internal_data;
     return (TextureHandle){ ++internal->resource_counter };
@@ -82,7 +84,7 @@ static void Headless_DestroyTexture(Renderer* r, TextureHandle texture) {}
 
 
 
-static ShaderHandle Headless_CreateShader(Renderer* r, const char* vs, const char* fs)
+static ShaderHandle Headless_CreateShader(Renderer* r, const RenderShaderDesc* desc)
 {
     Headless_Backend* internal = (Headless_Backend*)r->backend_internal_data;
     return (ShaderHandle){ ++internal->resource_counter };
@@ -105,23 +107,17 @@ static void Headless_DestroyMaterial(Renderer* r, MaterialHandle handle) {}
 
 
 
-static TextureHandle Headless_CreateCubemap(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels)
+static EnvironmentMap Headless_CreateEnvironmentMap(Renderer* r, const RenderEnvironmentMapDesc* desc)
 {
     Headless_Backend* internal = (Headless_Backend*)r->backend_internal_data;
-    return (TextureHandle){ ++internal->resource_counter };
+    EnvironmentMap env = {0};
+    env.skybox = (TextureHandle){ ++internal->resource_counter };
+    env.irradiance = (TextureHandle){ ++internal->resource_counter };
+    env.prefilter = (TextureHandle){ ++internal->resource_counter };
+    env.brdf_lut = (TextureHandle){ ++internal->resource_counter };
+    env.has_ibl = true;
+    return env;
 }
-
-
-
-static MeshHandle Headless_CreateDynamicMesh(Renderer* r, uint32_t max_vertices, uint32_t max_indices)
-{
-    Headless_Backend* internal = (Headless_Backend*)r->backend_internal_data;
-    return (MeshHandle){ ++internal->resource_counter };
-}
-
-
-
-static void Headless_UpdateDynamicMesh(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count) {}
 
 
 
@@ -156,6 +152,7 @@ Renderer* Headless_Init()
     r->Clear = Headless_Clear;
     
     r->CreateMesh = Headless_CreateMesh;
+    r->UpdateMesh = Headless_UpdateMesh;
     r->DestroyMesh = Headless_DestroyMesh;
     r->CreateTexture = Headless_CreateTexture;
     r->DestroyTexture = Headless_DestroyTexture;
@@ -165,9 +162,7 @@ Renderer* Headless_Init()
     r->UpdateMaterial = Headless_UpdateMaterial;
     r->DestroyMaterial = Headless_DestroyMaterial;
 
-    r->CreateCubemap = Headless_CreateCubemap;
-    r->CreateDynamicMesh = Headless_CreateDynamicMesh;
-    r->UpdateDynamicMesh = Headless_UpdateDynamicMesh;
+    r->CreateEnvironmentMap = Headless_CreateEnvironmentMap;
 
     r->DrawWorld = Headless_DrawWorld;
 

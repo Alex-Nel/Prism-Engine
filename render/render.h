@@ -156,6 +156,168 @@ typedef struct RenderMaterialDesc
 
 
 
+// ----- Structs for resources -----
+
+// Enum for the format of a vertex shader
+typedef enum RenderVertexFormat
+{
+    RENDER_VERTEX_STATIC = 0,
+    RENDER_VERTEX_SKINNED = 1
+} RenderVertexFormat;
+
+
+
+
+
+// Enum for the usage of a mesh
+typedef enum RenderMeshUsage
+{
+    RENDER_MESH_STATIC = 0,
+    RENDER_MESH_DYNAMIC = 1
+} RenderMeshUsage;
+
+
+
+
+
+// Struct for the description of a mesh
+typedef struct RenderMeshDesc
+{
+    RenderVertexFormat vertex_format;
+    RenderMeshUsage usage;
+    const void* vertices;         // Vertex3D* or Vertex3DSkinned*; NULL for empty dynamic meshes
+    uint32_t vertex_count;
+    const uint32_t* indices;
+    uint32_t index_count;
+    uint32_t max_vertices;        // dynamic reserve; 0 = vertex_count
+    uint32_t max_indices;
+} RenderMeshDesc;
+
+
+
+
+
+// Structure used to update a mesh
+typedef struct RenderMeshUpdate
+{
+    const void* vertices;
+    uint32_t vertex_count;
+    const uint32_t* indices;
+    uint32_t index_count;
+} RenderMeshUpdate;
+
+
+
+
+
+
+
+
+
+
+// Enum for a type of texture
+typedef enum RenderTextureType
+{
+    RENDER_TEXTURE_2D = 0,
+    RENDER_TEXTURE_CUBE = 1
+} RenderTextureType;
+
+
+
+
+
+// Enum for pixel formats
+typedef enum RenderPixelFormat
+{
+    RENDER_FORMAT_R8 = 0,
+    RENDER_FORMAT_RG8,
+    RENDER_FORMAT_RGB8,
+    RENDER_FORMAT_RGBA8,
+    RENDER_FORMAT_RGB16F,
+    RENDER_FORMAT_RGBA16F
+} RenderPixelFormat;
+
+
+
+
+
+// Enu for the texture filtering
+typedef enum RenderTextureFilter
+{
+    RENDER_FILTER_DEFAULT = 0,    // backend chooses (OpenGL: 1x1 nearest, else linear mips)
+    RENDER_FILTER_NEAREST,
+    RENDER_FILTER_LINEAR
+} RenderTextureFilter;
+
+
+
+
+
+// Struct for the description of a texture
+typedef struct RenderTextureDesc
+{
+    RenderTextureType type;
+    RenderPixelFormat format;
+    uint32_t width;
+    uint32_t height;
+    RenderTextureFilter min_filter;
+    RenderTextureFilter mag_filter;
+    const void* pixels;           // 2D texel data (uint8 or float)
+    const void* cube_faces[6];    // right, left, top, bottom, front, back
+} RenderTextureDesc;
+
+
+
+
+
+
+
+
+
+
+// Enum for the format of a shader
+typedef enum RenderShaderFormat
+{
+    RENDER_SHADER_GLSL_SOURCE = 0,
+    RENDER_SHADER_SPIRV = 1
+} RenderShaderFormat;
+
+
+
+
+
+// Struct for the description of a shader
+typedef struct RenderShaderDesc
+{
+    RenderShaderFormat format;
+    const void* vertex_code;
+    uint32_t vertex_size;         // 0 = NUL-terminated string
+    const void* fragment_code;
+    uint32_t fragment_size;
+} RenderShaderDesc;
+
+
+
+
+
+// Struct for the description of an environment map
+typedef struct RenderEnvironmentMapDesc
+{
+    const float* hdr_pixels;
+    uint32_t width;
+    uint32_t height;
+} RenderEnvironmentMapDesc;
+
+
+
+
+
+
+
+
+
+
+
 // ----- Structs to send to a renderer -----
 
 // One drawable submitted to the renderer for the current view
@@ -292,25 +454,21 @@ typedef struct Renderer
 
     // --- Resource Management ---
 
-    MeshHandle     (*CreateMesh)(Renderer* r, const Vertex3D* vertices, uint32_t v_count, const uint32_t* indices, uint32_t i_count);
+    MeshHandle     (*CreateMesh)(Renderer* r, const RenderMeshDesc* desc);
+    void           (*UpdateMesh)(Renderer* r, MeshHandle handle, const RenderMeshUpdate* update);
     void           (*DestroyMesh)(Renderer* r, MeshHandle mesh);
     
-    TextureHandle  (*CreateTexture)(Renderer* r, const uint8_t* pixels, uint32_t w, uint32_t h, uint32_t channels);
+    TextureHandle  (*CreateTexture)(Renderer* r, const RenderTextureDesc* desc);
     void           (*DestroyTexture)(Renderer* r, TextureHandle texture);
 
-    ShaderHandle   (*CreateShader)(Renderer* r, const char* v_source, const char* f_source);
+    ShaderHandle   (*CreateShader)(Renderer* r, const RenderShaderDesc* desc);
     void           (*DestroyShader)(Renderer* r, ShaderHandle shader);
 
     MaterialHandle (*CreateMaterial)(Renderer* r, const RenderMaterialDesc* desc);
     void           (*UpdateMaterial)(Renderer* r, MaterialHandle handle, const RenderMaterialDesc* desc);
     void           (*DestroyMaterial)(Renderer* r, MaterialHandle handle);
 
-    TextureHandle (*CreateCubemap)(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels);
-    EnvironmentMap (*CreateEnvironmentMap)(Renderer* r, const float* hdr_pixels, uint32_t width, uint32_t height);
-    MeshHandle (*CreateDynamicMesh)(Renderer* r, uint32_t max_vertices, uint32_t max_indices);
-    MeshHandle (*CreateSkinnedMesh)(Renderer* r, const Vertex3DSkinned* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count);
-    void (*UpdateDynamicMesh)(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
-    void (*UpdateMesh)(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
+    EnvironmentMap (*CreateEnvironmentMap)(Renderer* r, const RenderEnvironmentMapDesc* desc);
 
 
 
@@ -394,13 +552,62 @@ static inline void Render_ClearDepth(Renderer* r)
 
 
 
-// Uploads vertex and index data to the GPU and returns a handle
-static inline MeshHandle Render_CreateMesh(Renderer* r, const Vertex3D* vertices, uint32_t vertex_count, const uint32_t* indices,  uint32_t index_count)
+// Returns the pixel format enum based on the number of channels
+static inline RenderPixelFormat Render_PixelFormatFromChannels(uint32_t channels)
 {
-    if (r && r->CreateMesh)
-        return r->CreateMesh(r, vertices, vertex_count, indices, index_count);\
-    else
-        return (MeshHandle){0};
+    if (channels == 1)
+        return RENDER_FORMAT_R8;
+    if (channels == 2)
+        return RENDER_FORMAT_RG8;
+    if (channels == 3)
+        return RENDER_FORMAT_RGB8;
+    return RENDER_FORMAT_RGBA8;
+}
+
+
+
+// Uploads vertex and index data to the GPU and returns a handle
+static inline MeshHandle Render_CreateMesh(Renderer* r, const RenderMeshDesc* desc)
+{
+    if (r && r->CreateMesh && desc)
+        return r->CreateMesh(r, desc);
+    return (MeshHandle){0};
+}
+static inline MeshHandle Render_CreateStaticMesh(Renderer* r, const Vertex3D* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count)
+{
+    RenderMeshDesc desc = {};
+    desc.vertex_format = RENDER_VERTEX_STATIC;
+    desc.usage = RENDER_MESH_STATIC;
+    desc.vertices = vertices;
+    desc.vertex_count = vertex_count;
+    desc.indices = indices;
+    desc.index_count = index_count;
+    return Render_CreateMesh(r, &desc);
+}
+static inline MeshHandle Render_CreateSkinnedMesh(Renderer* r, const Vertex3DSkinned* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count)
+{
+    RenderMeshDesc desc = {};
+    desc.vertex_format = RENDER_VERTEX_SKINNED;
+    desc.usage = RENDER_MESH_STATIC;
+    desc.vertices = vertices;
+    desc.vertex_count = vertex_count;
+    desc.indices = indices;
+    desc.index_count = index_count;
+    return Render_CreateMesh(r, &desc);
+}
+static inline MeshHandle Render_CreateDynamicMesh(Renderer* r, uint32_t max_vertices, uint32_t max_indices)
+{
+    RenderMeshDesc desc = {};
+    desc.vertex_format = RENDER_VERTEX_STATIC;
+    desc.usage = RENDER_MESH_DYNAMIC;
+    desc.max_vertices = max_vertices;
+    desc.max_indices = max_indices;
+    return Render_CreateMesh(r, &desc);
+}
+static inline void Render_UpdateMesh(Renderer* r, MeshHandle handle, const RenderMeshUpdate* update)
+{
+    if (r && r->UpdateMesh && update)
+        r->UpdateMesh(r, handle, update);
 }
 // Removes a mesh from the GPU
 static inline void Render_DestroyMesh(Renderer* r, MeshHandle mesh)
@@ -410,13 +617,38 @@ static inline void Render_DestroyMesh(Renderer* r, MeshHandle mesh)
 }
 
 
+
 // Uploads pixels to the renderer to make a texture. Returns a handle
-static inline TextureHandle Render_CreateTexture(Renderer* r, const uint8_t* pixels, uint32_t width, uint32_t height, uint32_t channels)
+static inline TextureHandle Render_CreateTexture(Renderer* r, const RenderTextureDesc* desc)
 {
-    if (r && r->CreateTexture)
-        return r->CreateTexture(r, pixels, width, height, channels);
-    else
-        return (TextureHandle){0};
+    if (r && r->CreateTexture && desc)
+        return r->CreateTexture(r, desc);
+    return (TextureHandle){0};
+}
+static inline TextureHandle Render_CreateTexture2D(Renderer* r, const void* pixels, uint32_t width, uint32_t height, uint32_t channels)
+{
+    RenderTextureDesc desc = {};
+    desc.type = RENDER_TEXTURE_2D;
+    desc.format = Render_PixelFormatFromChannels(channels);
+    desc.width = width;
+    desc.height = height;
+    desc.pixels = pixels;
+    return Render_CreateTexture(r, &desc);
+}
+static inline TextureHandle Render_CreateCubemap(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels)
+{
+    RenderTextureDesc desc = {};
+    desc.type = RENDER_TEXTURE_CUBE;
+    desc.format = Render_PixelFormatFromChannels(channels);
+    desc.width = width;
+    desc.height = height;
+    desc.cube_faces[0] = right;
+    desc.cube_faces[1] = left;
+    desc.cube_faces[2] = top;
+    desc.cube_faces[3] = bottom;
+    desc.cube_faces[4] = front;
+    desc.cube_faces[5] = back;
+    return Render_CreateTexture(r, &desc);
 }
 // Removes a texture from the GPU
 static inline void Render_DestroyTexture(Renderer* r, TextureHandle texture)
@@ -426,13 +658,21 @@ static inline void Render_DestroyTexture(Renderer* r, TextureHandle texture)
 }
 
 
-// Uploads vertex and fragment shaders to the GPU to make a complete shader. Returns a handle
-static inline ShaderHandle Render_CreateShader(Renderer* r, const char* vertex_source, const char* fragment_source)
+
+// Uploads a shader program. Returns a handle
+static inline ShaderHandle Render_CreateShader(Renderer* r, const RenderShaderDesc* desc)
 {
-    if (r && r->CreateShader)
-        return r->CreateShader(r, vertex_source, fragment_source);
-    else
-        return (ShaderHandle){0};
+    if (r && r->CreateShader && desc)
+        return r->CreateShader(r, desc);
+    return (ShaderHandle){0};
+}
+static inline ShaderHandle Render_CreateShaderGLSL(Renderer* r, const char* vertex_source, const char* fragment_source)
+{
+    RenderShaderDesc desc = {};
+    desc.format = RENDER_SHADER_GLSL_SOURCE;
+    desc.vertex_code = vertex_source;
+    desc.fragment_code = fragment_source;
+    return Render_CreateShader(r, &desc);
 }
 // Removes a shader from the GPU
 static inline void Render_DestroyShader(Renderer* r, ShaderHandle shader)
@@ -440,6 +680,7 @@ static inline void Render_DestroyShader(Renderer* r, ShaderHandle shader)
     if (r && r->DestroyShader)
         r->DestroyShader(r, shader);
 }
+
 
 
 // Creates a GPU material from a CPU description
@@ -464,62 +705,19 @@ static inline void Render_DestroyMaterial(Renderer* r, MaterialHandle handle)
 }
 
 
-// Creates a CubeMap for the skybox. Returns a texture handle
-static inline TextureHandle Render_CreateCubemap(Renderer* r, 
-    const uint8_t* right, const uint8_t* left, const uint8_t* top, 
-    const uint8_t* bottom, const uint8_t* front, const uint8_t* back, 
-    uint32_t width, uint32_t height, uint32_t channels)
-{
-    if (r && r->CreateCubemap)
-        return r->CreateCubemap(r, right, left, top, bottom, front, back, width, height, channels);
-    else
-        return (TextureHandle){0};
-}
-
 
 // Creates an EnvironmentMap (IBL textures) from an HDR image
-static inline EnvironmentMap Render_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels, uint32_t width, uint32_t height)
+static inline EnvironmentMap Render_CreateEnvironmentMap(Renderer* r, const RenderEnvironmentMapDesc* desc)
 {
-    if (r && r->CreateEnvironmentMap)
-        return r->CreateEnvironmentMap(r, hdr_pixels, width, height);
-    else
-        return (EnvironmentMap){0};
+    if (r && r->CreateEnvironmentMap && desc)
+        return r->CreateEnvironmentMap(r, desc);
+    return (EnvironmentMap){0};
 }
 
 
-// Creates a skinned mesh. Returns a mesh handle 
-static inline MeshHandle Render_CreateSkinnedMesh(Renderer* r, const Vertex3DSkinned* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count)
-{
-    if (r && r->CreateSkinnedMesh)
-        return r->CreateSkinnedMesh(r, vertices, vertex_count, indices, index_count);
-    return (MeshHandle){0};
-}
 
 
-// Creates a dynamic mesh. Returns a mesh handle
-static inline MeshHandle Render_CreateDynamicMesh(Renderer* r, uint32_t max_vertices, uint32_t max_indices)
-{
-    if (r && r->CreateDynamicMesh)
-        return r->CreateDynamicMesh(r, max_vertices, max_indices);
-    else
-        return (MeshHandle){0};
-}
 
-
-// Quickly overwrites the existing GPU memory with new vertex data
-static inline void Render_UpdateDynamicMesh(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count)
-{
-    if (r && r->UpdateDynamicMesh)
-        r->UpdateDynamicMesh(r, handle, vertices, vertex_count, indices, index_count);   
-}
-
-
-// Overwrites the GPU memory with new vertex data
-static inline void Render_UpdateMesh(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count)
-{
-    if (r && r->UpdateMesh)
-        r->UpdateMesh(r, handle, vertices, vertex_count, indices, index_count);   
-}
 
 
 
@@ -531,6 +729,11 @@ static inline void Render_DrawWorld(Renderer* r, const RenderWorld* world)
     if (r->DrawWorld && world)
         r->DrawWorld(r, world);
 }
+
+
+
+
+
 
 
 
@@ -563,6 +766,11 @@ static inline void Render_DrawOverlay(Renderer* r, const OverlayDrawList* list, 
     if (r && r->DrawOverlay)
         r->DrawOverlay(r, list, width, height);
 }
+
+
+
+
+
 
 
 

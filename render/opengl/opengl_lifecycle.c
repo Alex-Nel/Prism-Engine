@@ -402,6 +402,7 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     r->ClearDepth = OpenGL_ClearDepth;
 
     r->CreateMesh = OpenGL_CreateMesh;
+    r->UpdateMesh = OpenGL_UpdateMesh;
     r->DestroyMesh = OpenGL_DestroyMesh;
 
     r->CreateTexture = OpenGL_CreateTexture;
@@ -414,12 +415,7 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     r->UpdateMaterial = OpenGL_UpdateMaterial;
     r->DestroyMaterial = OpenGL_DestroyMaterial;
 
-    r->CreateCubemap = OpenGL_CreateCubemap;
     r->CreateEnvironmentMap = OpenGL_CreateEnvironmentMap;
-    r->CreateDynamicMesh = OpenGL_CreateDynamicMesh;
-    r->CreateSkinnedMesh = OpenGL_CreateSkinnedMesh;
-    r->UpdateDynamicMesh = OpenGL_UpdateDynamicMesh;
-    r->UpdateMesh = OpenGL_UpdateMesh;
 
     r->DrawWorld = OpenGL_DrawWorld;
 

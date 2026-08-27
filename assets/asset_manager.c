@@ -175,7 +175,7 @@ static Texture* Asset_CreateTextureFromMemory(const char* name, const unsigned c
     ImageData img = Image_LoadFromMemory(buffer, length, true);
     if (!img.pixels) return Asset_GetDefaultTexture();
 
-    TextureHandle handle = Render_CreateTexture(renderer, img.pixels, img.width, img.height, img.channels);
+    TextureHandle handle = Render_CreateTexture2D(renderer, img.pixels, img.width, img.height, img.channels);
     Image_Free(&img);
 
     // Cache it to not load the same texture twice
@@ -742,7 +742,7 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
             }
 
             // 3. Send to GPU and Cache
-            MeshHandle mesh_handle = Render_CreateMesh(renderer, vertices, vertex_count, indices, actual_index_count);
+            MeshHandle mesh_handle = Render_CreateStaticMesh(renderer, vertices, vertex_count, indices, actual_index_count);
             Mesh* sub_mesh = &mesh_cache[mesh_count];
             
             strncpy(sub_mesh->name, real_node_name, sizeof(sub_mesh->name) - 1);
@@ -956,7 +956,7 @@ Mesh* Asset_LoadMesh(const char* name, const char* filepath)
 
 
     // Create GPU mesh
-    MeshHandle handle = Render_CreateMesh(renderer, final_vertices, vertex_count, final_indices, index_count);
+    MeshHandle handle = Render_CreateStaticMesh(renderer, final_vertices, vertex_count, final_indices, index_count);
 
     // Check if we've reached the maximum cached meshes
     if (mesh_count >= MAX_CACHED_MESHES)
@@ -1012,7 +1012,7 @@ Texture* Asset_CreateSolidColorTexture(const char* name, Color color)
     };
 
     // Create the texture from the renderer
-    TextureHandle handle = Render_CreateTexture(renderer, pixel, 1, 1, 4);
+    TextureHandle handle = Render_CreateTexture2D(renderer, pixel, 1, 1, 4);
 
     // Cache it exactly like a normal texture
     if (texture_count < MAX_CACHED_TEXTURES)
@@ -1169,7 +1169,8 @@ void Asset_UpdateDynamicMesh(Mesh* mesh, Vertex3D* vertices, uint32_t vertex_cou
     mesh->vertex_count = vertex_count;
     mesh->index_count = index_count;
 
-    Render_UpdateDynamicMesh(renderer, mesh->gpu_handle, vertices, vertex_count, indices, index_count);
+    RenderMeshUpdate update = { vertices, vertex_count, indices, index_count };
+    Render_UpdateMesh(renderer, mesh->gpu_handle, &update);
 }
 
 
@@ -1208,7 +1209,8 @@ void Asset_UpdateMesh(Mesh* mesh, Vertex3D* vertices, uint32_t vertex_count, uin
     Mesh_CalculateVertexTangents(mesh->vertices, mesh->vertex_count, mesh->indices, mesh->index_count);
     Mesh_CalculateBounds(mesh);
 
-    Render_UpdateMesh(renderer, mesh->gpu_handle, mesh->vertices, mesh->vertex_count, mesh->indices, mesh->index_count);
+    RenderMeshUpdate update = { mesh->vertices, mesh->vertex_count, mesh->indices, mesh->index_count };
+    Render_UpdateMesh(renderer, mesh->gpu_handle, &update);
 }
 
 
@@ -1249,7 +1251,7 @@ Shader* Asset_LoadShader(const char* name, const char* vert_path, const char* fr
     }
 
     // Compile on GPU
-    ShaderHandle new_handle = Render_CreateShader(renderer, v_src, f_src);
+    ShaderHandle new_handle = Render_CreateShaderGLSL(renderer, v_src, f_src);
 
     // Free shaders from memory
     free(v_src);
@@ -1289,7 +1291,7 @@ Texture* Asset_LoadTexture(const char* name, const char* filepath)
     }
 
     // Create mesh on GPU
-    TextureHandle handle = Render_CreateTexture(renderer, img.pixels, img.width, img.height, img.channels);
+    TextureHandle handle = Render_CreateTexture2D(renderer, img.pixels, img.width, img.height, img.channels);
 
     // Free image from memory
     Image_Free(&img);
@@ -1405,7 +1407,8 @@ EnvironmentMap* Asset_LoadEnvironmentMap(const char* filepath)
         return NULL;
     }
 
-    EnvironmentMap env_map = Render_CreateEnvironmentMap(renderer, img.pixels, img.width, img.height);
+    RenderEnvironmentMapDesc env_desc = { img.pixels, img.width, img.height };
+    EnvironmentMap env_map = Render_CreateEnvironmentMap(renderer, &env_desc);
     Image_FreeFloat(&img);
 
     if (env_map_count < MAX_CACHED_TEXTURES)
@@ -1498,7 +1501,7 @@ Font* Asset_LoadFont(const char* name, const char* filepath, float pixel_height)
     if (!Font_BakeFromFile(&baked, filepath, pixel_height, &atlas))
         return NULL;
 
-    TextureHandle handle = Render_CreateTexture(renderer, atlas.pixels, atlas.width, atlas.height, atlas.channels);
+    TextureHandle handle = Render_CreateTexture2D(renderer, atlas.pixels, atlas.width, atlas.height, atlas.channels);
     Image_Free(&atlas);
 
     if (texture_count >= MAX_CACHED_TEXTURES)
@@ -1567,7 +1570,7 @@ Mesh* Asset_GetBuiltinQuad()
     uint32_t* heap_indices = malloc(sizeof(indices));
     memcpy(heap_indices, indices, sizeof(indices));
 
-    MeshHandle gpu_handle = Render_CreateMesh(renderer, heap_vertices, 4, heap_indices, 6);
+    MeshHandle gpu_handle = Render_CreateStaticMesh(renderer, heap_vertices, 4, heap_indices, 6);
 
     // Cache the mesh
     if (mesh_count < MAX_CACHED_MESHES)
@@ -1659,7 +1662,7 @@ Mesh* Asset_GetBuiltinCube()
     memcpy(heap_indices, indices, sizeof(indices));
 
 
-    MeshHandle gpu_handle = Render_CreateMesh(renderer, heap_vertices, 24, heap_indices, 36);
+    MeshHandle gpu_handle = Render_CreateStaticMesh(renderer, heap_vertices, 24, heap_indices, 36);
     
     // Cache the mesh
     if (mesh_count < MAX_CACHED_MESHES)
@@ -1760,7 +1763,7 @@ Mesh* Asset_GetBuiltinSphere()
 
 
     // Create mesh and cache it if possible
-    MeshHandle gpu_handle = Render_CreateMesh(renderer, vertices, vertex_count, indices, index_count);
+    MeshHandle gpu_handle = Render_CreateStaticMesh(renderer, vertices, vertex_count, indices, index_count);
 
     if (mesh_count < MAX_CACHED_MESHES)
     {

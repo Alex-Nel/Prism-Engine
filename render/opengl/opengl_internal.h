@@ -370,14 +370,16 @@ RendererSettings OpenGL_GetSettings(Renderer* r);
 
 // --- OpenGL Resource Management Functions ---
 
-MeshHandle OpenGL_CreateMesh(Renderer* r, const Vertex3D* vertices, uint32_t vertex_count, const uint32_t* indices,  uint32_t index_count);
+MeshHandle OpenGL_CreateMesh(Renderer* r, const RenderMeshDesc* desc);
+void OpenGL_UpdateMesh(Renderer* r, MeshHandle handle, const RenderMeshUpdate* update);
 void OpenGL_DestroyMesh(Renderer* r, MeshHandle mesh);
 
-TextureHandle OpenGL_CreateTexture(Renderer* r, const uint8_t* pixels, uint32_t width, uint32_t height, uint32_t channels);
-TextureHandle OpenGL_CreateTextureHDR(Renderer* r, const float* pixels, uint32_t width, uint32_t height, uint32_t channels);
+TextureHandle OpenGL_CreateTexture(Renderer* r, const RenderTextureDesc* desc);
 void OpenGL_DestroyTexture(Renderer* r, TextureHandle texture);
 
-ShaderHandle OpenGL_CreateShader(Renderer* r, const char* vertex_source, const char* fragment_source);
+EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const RenderEnvironmentMapDesc* desc);
+
+ShaderHandle OpenGL_CreateShader(Renderer* r, const RenderShaderDesc* desc);
 ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const char* name, const char* vertex_src, const char* geom_src, const char* fragment_src);
 ShaderHandle OpenGL_CompileInternalShaderFromFile(OpenGL_Backend* internal, const char* name, const char* vert_path, const char* geom_path, const char* frag_path);
 void OpenGL_DestroyShader(Renderer* r, ShaderHandle shader);
@@ -385,15 +387,6 @@ void OpenGL_DestroyShader(Renderer* r, ShaderHandle shader);
 MaterialHandle OpenGL_CreateMaterial(Renderer* r, const RenderMaterialDesc* desc);
 void OpenGL_UpdateMaterial(Renderer* r, MaterialHandle handle, const RenderMaterialDesc* desc);
 void OpenGL_DestroyMaterial(Renderer* r, MaterialHandle handle);
-
-EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels, uint32_t width, uint32_t height);
-
-TextureHandle OpenGL_CreateCubemap(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels);
-MeshHandle OpenGL_CreateSkinnedMesh(Renderer* r, const Vertex3DSkinned* vertices, uint32_t vertex_count, const uint32_t* indices,  uint32_t index_count);
-MeshHandle OpenGL_CreateDynamicMesh(Renderer* r, uint32_t max_vertices, uint32_t max_indices);
-
-void OpenGL_UpdateDynamicMesh(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
-void OpenGL_UpdateMesh(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
 
 uint8_t* OpenGL_RotatePixels90CW(const uint8_t* src, int w, int h, int c);
 uint8_t* OpenGL_RotatePixels90CCW(const uint8_t* src, int w, int h, int c);
