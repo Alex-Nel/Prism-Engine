@@ -396,13 +396,9 @@ void OpenGL_Shutdown(Renderer* r);
 void OpenGL_GenerateLightSphere(OpenGL_Backend* internal);
 void OpenGL_InitPipelines(OpenGL_Backend* internal);
 
-void OpenGL_SetViewport(Renderer* r, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
-void OpenGL_SetClearColor(Renderer* renderer, float r, float g, float b, float a);
-void OpenGL_Clear(Renderer* r);
-void OpenGL_ClearDepth(Renderer* r);
-
 void OpenGL_SetSettings(Renderer* r, const RendererSettings* settings);
 RendererSettings OpenGL_GetSettings(Renderer* r);
+void OpenGL_Resize(Renderer* r, uint32_t width, uint32_t height);
 
 
 

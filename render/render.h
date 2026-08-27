@@ -450,15 +450,7 @@ typedef struct Renderer
     // --- Lifecycle ---
     
     void (*Shutdown)(Renderer* r);
-
-
-
-    // --- State ---
-
-    void (*SetViewport)(Renderer* r, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
-    void (*SetClearColor)(Renderer* renderer, float r, float g, float b, float a);
-    void (*Clear)(Renderer* r);
-    void (*ClearDepth)(Renderer* r);
+    void (*Resize)(Renderer* r, uint32_t width, uint32_t height);
 
 
 
@@ -530,34 +522,11 @@ static inline void Render_Shutdown(Renderer* r)
         r->Shutdown(r);
 }
 
-
-
-// Sets the size and position of the viewport
-static inline void Render_SetViewport(Renderer* r, uint32_t x, uint32_t y, uint32_t width, uint32_t height)
+// Resizes backend targets (G-buffer, SSAO, lighting). Call on window resize.
+static inline void Render_Resize(Renderer* r, uint32_t width, uint32_t height)
 {
-    if (r && r->SetViewport)
-        r->SetViewport(r, x, y, width, height);
-}
-
-// Sets the color of the renderer to clear with
-static inline void Render_SetClearColor(Renderer* r, float red, float green, float blue, float alpha)
-{
-    if (r && r->SetClearColor)
-        r->SetClearColor(r, red, green, blue, alpha);
-}
-
-// Clears the renderer
-static inline void Render_Clear(Renderer* r)
-{
-    if (r && r->Clear)
-        r->Clear(r);
-}
-
-// Clears the depth buffer
-static inline void Render_ClearDepth(Renderer* r)
-{
-    if (r && r->ClearDepth)
-        r->ClearDepth(r);
+    if (r && r->Resize)
+        r->Resize(r, width, height);
 }
 
 

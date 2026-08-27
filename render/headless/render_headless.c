@@ -21,9 +21,7 @@ static void Headless_Shutdown(Renderer* r)
     free(r); 
 }
 
-static void Headless_SetViewport(Renderer* r, uint32_t x, uint32_t y, uint32_t w, uint32_t h) {}
-static void Headless_SetClearColor(Renderer* r, float red, float green, float blue, float alpha) {}
-static void Headless_Clear(Renderer* r) {}
+static void Headless_Resize(Renderer* r, uint32_t w, uint32_t h) {}
 
 static void Headless_SetSettings(Renderer* r, const RendererSettings* settings)
 {
@@ -145,9 +143,7 @@ Renderer* Headless_Init()
 
     // Map all the dummy functions
     r->Shutdown = Headless_Shutdown;
-    r->SetViewport = Headless_SetViewport;
-    r->SetClearColor = Headless_SetClearColor;
-    r->Clear = Headless_Clear;
+    r->Resize = Headless_Resize;
     
     r->CreateMesh = Headless_CreateMesh;
     r->UpdateMesh = Headless_UpdateMesh;

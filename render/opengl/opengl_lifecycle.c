@@ -397,10 +397,7 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
 
     r->api = GRAPHICS_API_OPENGL;
     r->Shutdown = OpenGL_Shutdown;
-    r->SetViewport = OpenGL_SetViewport;
-    r->SetClearColor = OpenGL_SetClearColor;
-    r->Clear = OpenGL_Clear;
-    r->ClearDepth = OpenGL_ClearDepth;
+    r->Resize = OpenGL_Resize;
 
     r->CreateMesh = OpenGL_CreateMesh;
     r->UpdateMesh = OpenGL_UpdateMesh;
@@ -603,9 +600,12 @@ void OpenGL_InitPipelines(OpenGL_Backend* internal)
 
 
 
-// Sets the size and position of the viewport
-void OpenGL_SetViewport(Renderer* r, uint32_t x, uint32_t y, uint32_t width, uint32_t height)
+// Resizes G-buffer / SSAO / lighting targets and the default framebuffer viewport
+void OpenGL_Resize(Renderer* r, uint32_t width, uint32_t height)
 {
+    if (!r || !r->backend_internal_data || width == 0 || height == 0)
+        return;
+
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
     // Prevent redundant reallocations if the size hasn't actually changed
@@ -645,51 +645,7 @@ void OpenGL_SetViewport(Renderer* r, uint32_t x, uint32_t y, uint32_t width, uin
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, ssao_w, ssao_h, 0, GL_RED, GL_FLOAT, NULL);
     }
 
-    glViewport(x, y, width, height);
-}
-
-
-
-
-
-
-
-
-
-// Sets the color of the renderer to clear with
-void OpenGL_SetClearColor(Renderer* renderer, float r, float g, float b, float a)
-{
-    glClearColor(r, g, b, a);
-}
-
-
-
-
-
-
-
-
-
-// Clears all buffers in the context
-void OpenGL_Clear(Renderer* r)
-{
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-}
-
-
-
-
-
-
-
-
-
-
-// Clears the depth buffer of an OpenGL renderer
-void OpenGL_ClearDepth(Renderer* r)
-{
-    // Wipe only the depth buffer so the color from previous cameras remains
-    glClear(GL_DEPTH_BUFFER_BIT); 
+    glViewport(0, 0, width, height);
 }
 
 

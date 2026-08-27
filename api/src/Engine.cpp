@@ -41,10 +41,6 @@ namespace Prism
 
     // --- Utility ---
 
-    void Engine::SetClearColor(const Prism::Vector3& color, float alpha) {
-        ::Engine_SetClearColor(&s_engine, color.x, color.y, color.z, alpha);
-    }
-
     void Engine::CaptureMouse() {
         ::Engine_CaptureMouse(&s_engine);
     }

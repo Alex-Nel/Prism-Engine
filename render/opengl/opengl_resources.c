@@ -641,7 +641,7 @@ EnvironmentMapHandle OpenGL_CreateEnvironmentMap(Renderer* r, const RenderEnviro
     internal->texture_pool[slot->brdf_lut.id].id = brdfLUTTexture;
     
     // Set viewport back
-    OpenGL_SetViewport(r, 0, 0, internal->state.window_width, internal->state.window_height);
+    OpenGL_Resize(r, internal->state.window_width, internal->state.window_height);
 
     return (EnvironmentMapHandle){env_id};
 }

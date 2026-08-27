@@ -119,9 +119,6 @@ void Engine_SetTargetFPS(PrismEngine* engine, uint32_t fps);
 // Returns the current target FPS
 uint32_t Engine_GetTargetFPS(PrismEngine* engine);
 
-// Sets the clear color of an engines renderer
-void Engine_SetClearColor(PrismEngine* engine, float r, float g, float b, float a);
-
 
 
 

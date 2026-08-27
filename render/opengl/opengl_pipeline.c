@@ -1916,7 +1916,7 @@ void OpenGL_BeginFrame(Renderer* r, const RenderView* view, const RenderLighting
     if (!view)
         return;
 
-    OpenGL_SetViewport(r, 0, 0, view->window_width, view->window_height);
+    OpenGL_Resize(r, view->window_width, view->window_height);
 
     internal->state.view_matrix = view->view_matrix;
     internal->state.projection_matrix = view->projection_matrix;

@@ -55,7 +55,6 @@ namespace Prism
 
         // --- Utility ---
 
-        static void SetClearColor(const Prism::Vector3& color, float alpha = 1.0f);
         static void CaptureMouse();
         static void ReleaseMouse();
         static bool IsMouseCaptured();
