@@ -99,6 +99,50 @@ void Rigidbody_MovePosition(Entity entity, Vector3 position)
 
 
 
+// Adds a force to a rigidbody at its center
+void Rigidbody_AddForce(Entity entity, Vector3 force, ForceMode mode)
+{
+    if (!Entity_IsValid(entity))
+        return;
+    
+    RigidbodyComponent* rb = Entity_GetRigidbody(entity);
+    ColliderComponent* col = Entity_GetCollider(entity);
+
+    if (!rb || !col || !col->physics_handle)
+        return;
+    
+    if (!rb->is_active || rb->is_kinematic)
+        return;
+    
+    Physics_AddForce(col->physics_handle, force, mode);
+}
+
+
+
+
+
+// Applies a force or impulse to a rigidbody at a world-space point
+void Rigidbody_AddForceAtPosition(Entity entity, Vector3 force, Vector3 world_point, ForceMode mode)
+{
+    if (!Entity_IsValid(entity))
+        return;
+
+    RigidbodyComponent* rb = Entity_GetRigidbody(entity);
+    ColliderComponent* col = Entity_GetCollider(entity);
+    
+    if (!rb || !col || !col->physics_handle)
+        return;
+    
+    if (!rb->is_active || rb->is_kinematic)
+        return;
+    
+    Physics_AddForceAtPosition(col->physics_handle, force, world_point, mode);
+}
+
+
+
+
+
 // Sets an entities collider with one collision layer and mask (several layers OR'd together)
 void Collider_SetLayerAndMask(Entity entity, CollisionLayer layer, int mask)
 {

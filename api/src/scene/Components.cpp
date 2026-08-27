@@ -279,6 +279,16 @@ namespace Prism
         ::Rigidbody_MovePosition(raw_e, ::Vector3{position.x, position.y, position.z});
     }
 
+    void RigidbodyComponent::AddForce(const Prism::Vector3& force, ForceMode mode) {
+        ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
+        ::Rigidbody_AddForce(raw_e, ::Vector3{force.x, force.y, force.z}, static_cast<::ForceMode>(mode));
+    }
+
+    void RigidbodyComponent::AddForceAtPosition(const Prism::Vector3& force, const Prism::Vector3& worldPoint, ForceMode mode) {
+        ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
+        ::Rigidbody_AddForceAtPosition(raw_e, ::Vector3{force.x, force.y, force.z}, ::Vector3{worldPoint.x, worldPoint.y, worldPoint.z}, static_cast<::ForceMode>(mode));
+    }
+
 
 
     // ==========================================

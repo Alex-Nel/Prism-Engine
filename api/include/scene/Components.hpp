@@ -224,6 +224,14 @@ namespace Prism
     // Rigidbody Wrapper
     // ==========================================
     
+    enum ForceMode
+    {
+        Force,
+        Acceleration,
+        Impulse,
+        VelocityChange
+    };
+
     struct PRISM_API RigidbodyComponent
     {
         Prism::Entity owner; // The Entity that this component is attached to
@@ -247,6 +255,8 @@ namespace Prism
         void SetKinematic(bool kinematic);
         void SetLinearVelocity(Prism::Vector3& velocity);
         void MovePosition(const Prism::Vector3& position);
+        void AddForce(const Prism::Vector3& force, ForceMode mode = ForceMode::Force);
+        void AddForceAtPosition(const Prism::Vector3& force, const Prism::Vector3& worldPoint, ForceMode mode = ForceMode::Force);
     };
 
 

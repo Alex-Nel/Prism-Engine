@@ -209,6 +209,8 @@ void Rigidbody_SetGravity(Entity entity, bool use_gravity);
 void Rigidbody_SetKinematic(Entity entity, bool is_kinematic);
 void Rigidbody_SetLinearVelocity(Entity entity, Vector3 velocity);
 void Rigidbody_MovePosition(Entity entity, Vector3 position);
+void Rigidbody_AddForce(Entity entity, Vector3 force, ForceMode mode);
+void Rigidbody_AddForceAtPosition(Entity entity, Vector3 force, Vector3 world_point, ForceMode mode);
 
 
 

@@ -1029,6 +1029,104 @@ void Physics_RecalculateMass(PhysicsBodyHandle body, float mass)
 
 
 
+// Applies a type of force to a physics body at its center
+void Physics_AddForce(PhysicsBodyHandle body, Vector3 force, ForceMode mode)
+{
+    if (!body)
+        return;
+
+    B3PhysicsBody* w = (B3PhysicsBody*)body;
+
+    if (!b3Body_IsValid(w->bodyId))
+        return;
+
+    if (w->is_kinematic || b3Body_GetType(w->bodyId) != b3_dynamicBody)
+        return;
+
+    b3Vec3 b3force = { force.x, force.y, force.z };
+
+    switch (mode)
+    {
+        case FORCE_MODE_FORCE:
+            b3Body_ApplyForceToCenter(w->bodyId, b3force, true);
+            break;
+
+        case FORCE_MODE_ACCELERATION:
+        {
+            float mass = b3Body_GetMass(w->bodyId);
+            b3Body_ApplyForceToCenter(w->bodyId, (b3Vec3){ b3force.x * mass, b3force.y * mass, b3force.z * mass }, true);
+            break;
+        }
+
+        case FORCE_MODE_IMPULSE:
+            b3Body_ApplyLinearImpulseToCenter(w->bodyId, b3force, true);
+            break;
+        
+        case FORCE_MODE_VELOCITY_CHANGE:
+        {
+            float mass = b3Body_GetMass(w->bodyId);
+            b3Body_ApplyLinearImpulseToCenter(w->bodyId, (b3Vec3){ b3force.x * mass, b3force.y * mass, b3force.z * mass }, true);
+            break;
+        }
+    }
+}
+
+
+
+
+
+//
+void Physics_AddForceAtPosition(PhysicsBodyHandle body, Vector3 force, Vector3 world_point, ForceMode mode)
+{
+    if (!body)
+        return;
+
+    B3PhysicsBody* w = (B3PhysicsBody*)body;
+    
+    if (!b3Body_IsValid(w->bodyId))
+        return;
+    
+    if (w->is_kinematic || b3Body_GetType(w->bodyId) != b3_dynamicBody)
+        return;
+    
+    b3Vec3 b3force = { force.x, force.y, force.z };
+    b3Pos b3point = { world_point.x, world_point.y, world_point.z };
+
+    switch (mode)
+    {
+        case FORCE_MODE_FORCE:
+            b3Body_ApplyForce(w->bodyId, b3force, b3point, true);
+            break;
+
+        case FORCE_MODE_ACCELERATION:
+        {
+            float mass = b3Body_GetMass(w->bodyId);
+            b3Body_ApplyForce(w->bodyId, (b3Vec3){ b3force.x * mass, b3force.y * mass, b3force.z * mass }, b3point, true);
+            break;
+        }
+        
+        case FORCE_MODE_IMPULSE:
+            b3Body_ApplyLinearImpulse(w->bodyId, b3force, b3point, true);
+            break;
+        
+        case FORCE_MODE_VELOCITY_CHANGE:
+        {
+            float mass = b3Body_GetMass(w->bodyId);
+            b3Body_ApplyLinearImpulse(w->bodyId, (b3Vec3){ b3force.x * mass, b3force.y * mass, b3force.z * mass }, b3point, true);
+            break;
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
 
 
 

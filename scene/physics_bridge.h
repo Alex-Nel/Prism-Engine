@@ -46,6 +46,18 @@ typedef struct RaycastHit
 
 
 
+// Enum for a type of force
+typedef enum ForceMode
+{
+    FORCE_MODE_FORCE,
+    FORCE_MODE_ACCELERATION,
+    FORCE_MODE_IMPULSE,
+    FORCE_MODE_VELOCITY_CHANGE
+} ForceMode;
+
+
+
+// Enum for an event type
 typedef enum
 {
     PHYS_EVENT_ENTER,
@@ -54,6 +66,7 @@ typedef enum
 
 
 
+// Structure for collision event information
 typedef struct CollisionEvent
 {
     PhysEventType type;
@@ -107,6 +120,9 @@ void Physics_SetKinematicState(PhysicsWorldHandle world, PhysicsBodyHandle body,
 void Physics_SetBoxExtents(PhysicsBodyHandle body, Vector3 extents);
 void Physics_SetSphereRadius(PhysicsBodyHandle body, float radius);
 void Physics_RecalculateMass(PhysicsBodyHandle body, float mass);
+
+void Physics_AddForce(PhysicsBodyHandle body, Vector3 force, ForceMode mode);
+void Physics_AddForceAtPosition(PhysicsBodyHandle body, Vector3 force, Vector3 world_point, ForceMode mode);
 
 
 
