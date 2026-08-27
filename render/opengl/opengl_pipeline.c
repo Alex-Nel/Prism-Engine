@@ -1740,18 +1740,45 @@ static GLReflectionProbe* OpenGL_FindOrCreateReflectionProbe(OpenGL_Backend* int
 
 
 
+// Records probe results into a result struct
+static void OpenGL_RecordProbeResult(OpenGL_Backend* internal, uint32_t entity_id, EnvironmentMapHandle environment, bool captured)
+{
+    if (internal->probe_result_count >= MAX_REFLECTION_PROBES)
+        return;
+    
+    RenderProbeResult* out = &internal->probe_results[internal->probe_result_count++];
+    out->entity_id = entity_id;
+    out->environment = environment;
+    out->captured = captured;
+    out->dirty = !captured;
+}
+
+
+
+
+
+
+
+
+
+
 static void OpenGL_UpdateReflectionProbes(OpenGL_Backend* internal, uint32_t opaque_count)
 {
+    internal->probe_result_count = 0;
+
     for (uint32_t i = 0; i < MAX_REFLECTION_PROBES; i++)
         internal->reflection_probes[i].seen_this_frame = false;
 
     for (uint32_t i = 0; i < internal->state.reflection_probe_count; i++)
     {
-        ReflectionProbeData* data = &internal->state.reflection_probes[i];
+        const ReflectionProbeData* data = &internal->state.reflection_probes[i];
         GLReflectionProbe* slot = OpenGL_FindOrCreateReflectionProbe(internal, data->entity_id);
         
         if (!slot)
+        {
+            OpenGL_RecordProbeResult(internal, data->entity_id, (EnvironmentMapHandle){0}, false);
             continue;
+        }
 
         slot->seen_this_frame = true;
         GLEnvironmentMap* slot_env = OpenGL_GetEnvMap(internal, slot->environment);
@@ -1765,11 +1792,7 @@ static void OpenGL_UpdateReflectionProbes(OpenGL_Backend* internal, uint32_t opa
 
         if (!needs_capture)
         {
-            data->environment = slot->environment;
-            data->dirty = false;
-            data->captured = true;
-            data->needs_capture = false;
-
+            OpenGL_RecordProbeResult(internal, data->entity_id, slot->environment, true);
             continue;
         }
 
@@ -1793,11 +1816,8 @@ static void OpenGL_UpdateReflectionProbes(OpenGL_Backend* internal, uint32_t opa
             slot->captured_position = data->position;
             slot->capture_resolution = data->capture_resolution;
             slot->captured_global_skybox_id = source_skybox_id;
-            
-            data->environment = slot->environment;
-            data->dirty = false;
-            data->captured = true;
-            data->needs_capture = false;
+
+            OpenGL_RecordProbeResult(internal, data->entity_id, slot->environment, true);
             
             // Uncomment to log info about probe
             // Log_Info(
@@ -1810,10 +1830,7 @@ static void OpenGL_UpdateReflectionProbes(OpenGL_Backend* internal, uint32_t opa
         }
         else
         {
-            memset(&data->environment, 0, sizeof(data->environment));
-            data->dirty = true;
-            data->captured = false;
-            data->needs_capture = true;
+            OpenGL_RecordProbeResult(internal, data->entity_id, (EnvironmentMapHandle){0}, false);
             
             Log_Error("ERROR: Failed to capture local IBL probe %u", data->entity_id);
         }
@@ -1931,7 +1948,7 @@ void OpenGL_BeginFrame(Renderer* r, const RenderView* view, const RenderLighting
         internal->state.point_light_count = 0;
         internal->state.spot_light_count = 0;
         internal->state.reflection_probe_count = 0;
-        internal->state.reflection_probe_results = NULL;
+        internal->probe_result_count = 0;
         internal->command_count = 0;
         internal->bone_snapshot_count = 0;
         return;
@@ -1972,7 +1989,6 @@ void OpenGL_BeginFrame(Renderer* r, const RenderView* view, const RenderLighting
     if (internal->state.reflection_probe_count > MAX_REFLECTION_PROBES)
         internal->state.reflection_probe_count = MAX_REFLECTION_PROBES;
 
-    internal->state.reflection_probe_results = lighting->reflection_probes;
     for (uint32_t i = 0; i < internal->state.reflection_probe_count; i++)
         internal->state.reflection_probes[i] = lighting->reflection_probes[i];
 
@@ -2071,6 +2087,35 @@ void OpenGL_DrawWorld(Renderer* r, const RenderWorld* world)
 
 
 
+// Returns the probe results and count
+uint32_t OpenGL_GetProbeResults(Renderer* r, RenderProbeResult* out, uint32_t max_count)
+{
+    if (!r || !r->backend_internal_data)
+        return 0;
+
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    if (!out)
+        return internal->probe_result_count;
+    
+    uint32_t count = internal->probe_result_count;
+    if (count > max_count)
+        count = max_count;
+    
+    for (uint32_t i = 0; i < count; i++)
+        out[i] = internal->probe_results[i];
+    
+    return count;
+}
+
+
+
+
+
+
+
+
+
+
 // Compare render commands (for sorting)
 static int CompareRenderCommands(const void* a, const void* b)
 {
@@ -2130,19 +2175,6 @@ void OpenGL_EndFrame(Renderer* r)
 
     // Generate dirty local probes from the complete static opaque queue before the camera's normal deferred pass consumes that queue.
     OpenGL_UpdateReflectionProbes(internal, transparent_start_idx);
-
-    if (internal->state.reflection_probe_results)
-    {
-        for (uint32_t i = 0; i < internal->state.reflection_probe_count; i++)
-        {
-            internal->state.reflection_probe_results[i].environment = internal->state.reflection_probes[i].environment;
-            internal->state.reflection_probe_results[i].dirty = internal->state.reflection_probes[i].dirty;
-            internal->state.reflection_probe_results[i].captured = internal->state.reflection_probes[i].captured;
-            internal->state.reflection_probe_results[i].needs_capture = internal->state.reflection_probes[i].needs_capture;
-        }
-        
-        internal->state.reflection_probe_results = NULL;
-    }
 
 
 

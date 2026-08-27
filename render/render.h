@@ -90,7 +90,7 @@ typedef struct SpotLightData
 
 
 
-// Struct for reflection probe data
+// Struct for snapshot of local IBL volume. Input only.
 typedef struct ReflectionProbeData
 {
     uint32_t entity_id;
@@ -100,11 +100,20 @@ typedef struct ReflectionProbeData
     int32_t priority;
     uint32_t capture_resolution;
     uint32_t revision;
-    bool needs_capture;
-    EnvironmentMapHandle environment;
-    bool dirty;
-    bool captured;
 } ReflectionProbeData;
+
+
+
+
+
+// Capture status after DrawWorld. Valid until next DrawWorld call
+typedef struct RenderProbeResult
+{
+    uint32_t entity_id;
+    EnvironmentMapHandle environment;
+    bool captured;
+    bool dirty;
+} RenderProbeResult;
 
 
 
@@ -379,7 +388,7 @@ typedef struct RenderLighting
     SpotLightData* spot_lights; 
     uint32_t spot_light_count;
 
-    ReflectionProbeData* reflection_probes;
+    const ReflectionProbeData* reflection_probes;
     uint32_t reflection_probe_count;
 
     bool enable_ssao;
@@ -477,6 +486,7 @@ typedef struct Renderer
     // --- Command Submission ---
 
     void (*DrawWorld)(Renderer* r, const RenderWorld* world);
+    uint32_t (*GetProbeResults)(Renderer* r, RenderProbeResult* out, uint32_t max_count);
 
 
 
@@ -735,6 +745,14 @@ static inline void Render_DrawWorld(Renderer* r, const RenderWorld* world)
 {
     if (r->DrawWorld && world)
         r->DrawWorld(r, world);
+}
+
+// Copies probe capture results from the last DrawWorld. If out is NULL, returns the available count.
+static inline uint32_t Render_GetProbeResults(Renderer* r, RenderProbeResult* out, uint32_t max_count)
+{
+    if (r && r->GetProbeResults)
+        return r->GetProbeResults(r, out, max_count);
+    return 0;
 }
 
 

@@ -59,7 +59,6 @@ typedef struct RenderState
 
     ReflectionProbeData reflection_probes[MAX_REFLECTION_PROBES];
     uint32_t reflection_probe_count;
-    ReflectionProbeData* reflection_probe_results;
 
     Matrix4 light_space_matrices[MAX_SHADOW_CASCADES];
     Matrix4 spot_light_matrices[MAX_SHADOW_CASTING_SPOTLIGHTS];
@@ -325,6 +324,8 @@ typedef struct OpenGL_Backend
     Matrix4 bone_snapshot[MAX_SNAPSHOT_SKINNED][MAX_BONES];
     uint32_t bone_snapshot_count;
     GLReflectionProbe reflection_probes[MAX_REFLECTION_PROBES];
+    RenderProbeResult probe_results[MAX_REFLECTION_PROBES];
+    uint32_t probe_result_count;
 
     uint32_t quad_vao;
     uint32_t quad_vbo;
@@ -462,6 +463,7 @@ void OpenGL_DrawSkybox(OpenGL_Backend* internal);
 void OpenGL_BeginFrame(Renderer* r, const RenderView* view, const RenderLighting* lighting);
 void OpenGL_EndFrame(Renderer* r);
 void OpenGL_DrawWorld(Renderer* r, const RenderWorld* world);
+uint32_t OpenGL_GetProbeResults(Renderer* r, RenderProbeResult* out, uint32_t max_count);
 
 
 

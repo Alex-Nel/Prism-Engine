@@ -54,6 +54,8 @@ static RendererSettings Headless_GetSettings(Renderer* r)
 
 static void Headless_DrawWorld(Renderer* r, const RenderWorld* world) {}
 
+static uint32_t Headless_GetProbeResults(Renderer* r, RenderProbeResult* out, uint32_t max_count) { return 0; }
+
 static void Headless_UIinit(Renderer* r, void* nk_ctx) { (void)r; (void)nk_ctx; }
 static void Headless_UIShutdown(Renderer* r) { (void)r; }
 static void Headless_UIRender(Renderer* r, void* nk_ctx, uint32_t width, uint32_t height) { (void)r; (void)nk_ctx; (void)width; (void)height; }
@@ -162,6 +164,7 @@ Renderer* Headless_Init()
     r->DestroyEnvironmentMap = Headless_DestroyEnvironmentMap;
 
     r->DrawWorld = Headless_DrawWorld;
+    r->GetProbeResults = Headless_GetProbeResults;
 
     r->SetSettings = Headless_SetSettings;
     r->GetSettings = Headless_GetSettings;

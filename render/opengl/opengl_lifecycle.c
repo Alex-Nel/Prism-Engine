@@ -420,6 +420,7 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     r->DestroyEnvironmentMap = OpenGL_DestroyEnvironmentMap;
 
     r->DrawWorld = OpenGL_DrawWorld;
+    r->GetProbeResults = OpenGL_GetProbeResults;
 
     r->SetSettings = OpenGL_SetSettings;
     r->GetSettings = OpenGL_GetSettings;

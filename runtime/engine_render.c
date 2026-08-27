@@ -113,7 +113,7 @@ void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderLighting*
 
 
 
-// Gathers active local IBL probes as value data. Capture results are copied back explicitly after rendering
+// Gathers active local IBL probes as value data. Capture results are queried after rendering.
 void Engine_GatherReflectionProbes(PrismEngine* engine, Scene* scene, RenderLighting* lighting, ReflectionProbeData* probes, uint32_t max_probes)
 {
     uint32_t count = 0;
@@ -161,10 +161,6 @@ void Engine_GatherReflectionProbes(PrismEngine* engine, Scene* scene, RenderLigh
         candidate.priority = probe->priority;
         candidate.capture_resolution = probe->capture_resolution;
         candidate.revision = probe->revision;
-        candidate.needs_capture = probe->dirty || !probe->captured;
-        candidate.environment = probe->environment;
-        candidate.dirty = probe->dirty;
-        candidate.captured = probe->captured;
 
         if (count < max_probes)
         {
@@ -205,19 +201,24 @@ void Engine_GatherReflectionProbes(PrismEngine* engine, Scene* scene, RenderLigh
 
 
 
-// Applies reflection probe changes from the renderer back to the components
-void Engine_ApplyReflectionProbeResults(PrismEngine* engine, Scene* scene, const ReflectionProbeData* probes, uint32_t probe_count)
+// Applies reflection probe capture results from the last DrawWorld back to the components
+void Engine_ApplyReflectionProbeResults(PrismEngine* engine, Scene* scene)
 {
+    if (!engine || !engine->renderer || !scene)
+        return;
+
+    RenderProbeResult results[ENGINE_MAX_GATHER_PROBES];
+    uint32_t probe_count = Render_GetProbeResults(engine->renderer, results, ENGINE_MAX_GATHER_PROBES);
     for (uint32_t i = 0; i < probe_count; i++)
     {
-        uint32_t entity_id = probes[i].entity_id;
+        uint32_t entity_id = results[i].entity_id;
         if (entity_id >= MAX_ENTITIES || !(scene->component_masks[entity_id] & COMPONENT_REFLECTION_PROBE))
             continue;
 
         ReflectionProbeComponent* component = &scene->reflection_probes[entity_id];
-        component->environment = probes[i].environment;
-        component->dirty = probes[i].dirty;
-        component->captured = probes[i].captured;
+        component->environment = results[i].environment;
+        component->dirty = results[i].dirty;
+        component->captured = results[i].captured;
     }
 }
 
@@ -572,6 +573,6 @@ void Engine_RenderScene(PrismEngine* engine, Scene* scene)
         };
         Render_DrawWorld(engine->renderer, &world);
 
-        Engine_ApplyReflectionProbeResults(engine, scene, active_reflection_probes, lighting.reflection_probe_count);
+        Engine_ApplyReflectionProbeResults(engine, scene);
     }
 }
