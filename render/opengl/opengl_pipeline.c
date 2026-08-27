@@ -64,6 +64,18 @@ static bool OpenGL_TextureValid(OpenGL_Backend* internal, TextureHandle handle)
 
 
 
+// Returns the ID of an OpenGL environment map
+static uint32_t OpenGL_EnvSkyboxTextureId(OpenGL_Backend* internal, EnvironmentMapHandle handle)
+{
+    GLEnvironmentMap* env = OpenGL_GetEnvMap(internal, handle);
+    return env ? env->skybox.id : 0;
+}
+
+
+
+
+
+
 // Applies a material
 static void OpenGL_ApplyMaterial(OpenGL_Backend* internal, GLuint program, MaterialHandle handle, Color instance_color, bool gbuffer_tint)
 {
@@ -839,15 +851,18 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, internal->state.settings.enable_ssao ? internal->ssao.ssaoColorBufferBlur : internal->ssao.fallbackWhiteTexture); glUniform1i(glGetUniformLocation(def_prog, "ssaoMap"), 3);
     glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_2D_ARRAY, internal->shadow.depthMapTextureArray); glUniform1i(glGetUniformLocation(def_prog, "shadowMap"), 4);
 
+    GLEnvironmentMap* global_env = OpenGL_GetEnvMap(internal, internal->state.env_map);
+    bool has_global_ibl = internal->state.has_env_map && global_env && global_env->has_ibl;
+
     // Bind IBL Maps
-    glUniform1i(glGetUniformLocation(def_prog, "u_HasIBL"), (internal->state.has_env_map && internal->state.env_map.has_ibl) ? 1 : 0);
+    glUniform1i(glGetUniformLocation(def_prog, "u_HasIBL"), has_global_ibl ? 1 : 0);
     const int ibl_debug_mode = 0; // Set to 1 for compressed RGB irradiance or 2 for logarithmic luminance.
     glUniform1i(glGetUniformLocation(def_prog, "u_IBLDebugMode"), ibl_debug_mode);
-    if (internal->state.has_env_map)
+    if (has_global_ibl)
     {
-        glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_CUBE_MAP, internal->texture_pool[internal->state.env_map.irradiance.id].id); glUniform1i(glGetUniformLocation(def_prog, "irradianceMap"), 5);
-        glActiveTexture(GL_TEXTURE6); glBindTexture(GL_TEXTURE_CUBE_MAP, internal->texture_pool[internal->state.env_map.prefilter.id].id); glUniform1i(glGetUniformLocation(def_prog, "prefilterMap"), 6);
-        glActiveTexture(GL_TEXTURE7); glBindTexture(GL_TEXTURE_2D, internal->texture_pool[internal->state.env_map.brdf_lut.id].id); glUniform1i(glGetUniformLocation(def_prog, "brdfLUT"), 7);
+        glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_CUBE_MAP, OpenGL_TextureGL(internal, global_env->irradiance)); glUniform1i(glGetUniformLocation(def_prog, "irradianceMap"), 5);
+        glActiveTexture(GL_TEXTURE6); glBindTexture(GL_TEXTURE_CUBE_MAP, OpenGL_TextureGL(internal, global_env->prefilter)); glUniform1i(glGetUniformLocation(def_prog, "prefilterMap"), 6);
+        glActiveTexture(GL_TEXTURE7); glBindTexture(GL_TEXTURE_2D, OpenGL_TextureGL(internal, global_env->brdf_lut)); glUniform1i(glGetUniformLocation(def_prog, "brdfLUT"), 7);
     }
     
     // Upload Uniforms
@@ -887,15 +902,15 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
         glUniform1i(glGetUniformLocation(probe_program, "u_EnableSSAO"), internal->state.settings.enable_ssao ? 1 : 0);
         OpenGL_UploadCommonUniforms(probe_program, &internal->state);
 
-        bool has_global_ibl = internal->state.has_env_map && internal->state.env_map.has_ibl;
+        bool has_global_ibl = internal->state.has_env_map && global_env && global_env->has_ibl;
         glUniform1i(glGetUniformLocation(probe_program, "u_HasGlobalIBL"), has_global_ibl ? 1 : 0);
 
         glActiveTexture(GL_TEXTURE6);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, has_global_ibl ? internal->texture_pool[internal->state.env_map.irradiance.id].id : 0);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, has_global_ibl ? OpenGL_TextureGL(internal, global_env->irradiance) : 0);
         glActiveTexture(GL_TEXTURE7);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, has_global_ibl ? internal->texture_pool[internal->state.env_map.prefilter.id].id : 0);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, has_global_ibl ? OpenGL_TextureGL(internal, global_env->prefilter) : 0);
         glActiveTexture(GL_TEXTURE8);
-        glBindTexture(GL_TEXTURE_2D, has_global_ibl ? internal->texture_pool[internal->state.env_map.brdf_lut.id].id : 0);
+        glBindTexture(GL_TEXTURE_2D, has_global_ibl ? OpenGL_TextureGL(internal, global_env->brdf_lut) : 0);
 
         glEnable(GL_BLEND);
         glBlendFunc(GL_ONE, GL_ONE);
@@ -916,18 +931,19 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
                 }
             }
 
-            if (!captured || captured->environment.irradiance.id == 0)
+            GLEnvironmentMap* captured_env = captured ? OpenGL_GetEnvMap(internal, captured->environment) : NULL;
+            if (!captured_env || captured_env->irradiance.id == 0)
                 continue;
 
             glActiveTexture(GL_TEXTURE4);
-            glBindTexture(GL_TEXTURE_CUBE_MAP, internal->texture_pool[captured->environment.irradiance.id].id);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, OpenGL_TextureGL(internal, captured_env->irradiance));
             glActiveTexture(GL_TEXTURE5);
-            glBindTexture(GL_TEXTURE_CUBE_MAP, internal->texture_pool[captured->environment.prefilter.id].id);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, OpenGL_TextureGL(internal, captured_env->prefilter));
 
-            if (!has_global_ibl && captured->environment.brdf_lut.id != 0)
+            if (!has_global_ibl && captured_env->brdf_lut.id != 0)
             {
                 glActiveTexture(GL_TEXTURE8);
-                glBindTexture(GL_TEXTURE_2D, internal->texture_pool[captured->environment.brdf_lut.id].id);
+                 glBindTexture(GL_TEXTURE_2D, OpenGL_TextureGL(internal, captured_env->brdf_lut));
             }
 
             Vector3 box_min = Vector3Subtract(probe->position, probe->box_extents);
@@ -1314,41 +1330,31 @@ void OpenGL_RenderCommandBatch(OpenGL_Backend* internal, uint32_t start_idx, uin
 
 
 
-static void OpenGL_ReleaseProbeEnvironment(OpenGL_Backend* internal, EnvironmentMap* environment)
+static void OpenGL_ReleaseProbeEnvironment(OpenGL_Backend* internal, EnvironmentMapHandle handle)
 {
-    TextureHandle handles[3] = {
-        environment->skybox,
-        environment->irradiance,
-        environment->prefilter
-    };
-
-    for (uint32_t i = 0; i < 3; i++)
-    {
-        uint32_t id = handles[i].id;
-        if (id == 0 || id >= MAX_RESOURCES || !internal->texture_pool[id].active)
-            continue;
-
-        if (internal->texture_pool[id].id != 0)
-            glDeleteTextures(1, &internal->texture_pool[id].id);
-
-        internal->texture_pool[id].id = 0;
-        internal->texture_pool[id].active = false;
-    }
-
-    memset(environment, 0, sizeof(*environment));
+    OpenGL_DestroyEnvMapInternal(internal, handle);
 }
 
 
 
 
 
-
-
-
-
-
-static bool OpenGL_ReserveProbeEnvironment(OpenGL_Backend* internal, EnvironmentMap* environment)
+static EnvironmentMapHandle OpenGL_ReserveProbeEnvironment(OpenGL_Backend* internal)
 {
+    EnvironmentMapHandle invalid = {0};
+    uint32_t env_id = 0;
+    for (uint32_t i = 1; i < MAX_RESOURCES; i++)
+    {
+        if (!internal->env_map_pool[i].active)
+        {
+            env_id = i;
+            break;
+        }
+    }
+
+    if (env_id == 0)
+        return invalid;
+
     uint32_t ids[3] = {0, 0, 0};
     uint32_t found = 0;
 
@@ -1367,17 +1373,25 @@ static bool OpenGL_ReserveProbeEnvironment(OpenGL_Backend* internal, Environment
         for (uint32_t i = 0; i < found; i++)
             internal->texture_pool[ids[i]].active = false;
 
-        return false;
+        return invalid;
     }
 
-    memset(environment, 0, sizeof(*environment));
-    environment->skybox = (TextureHandle){ids[0]};
-    environment->irradiance = (TextureHandle){ids[1]};
-    environment->prefilter = (TextureHandle){ids[2]};
-    environment->brdf_lut = internal->state.has_probe_source_env_map ? internal->state.probe_source_env_map.brdf_lut : (TextureHandle){0};
-    environment->has_ibl = true;
+    GLEnvironmentMap* env = &internal->env_map_pool[env_id];
+    memset(env, 0, sizeof(*env));
+    env->active = true;
+    env->skybox = (TextureHandle){ids[0]};
+    env->irradiance = (TextureHandle){ids[1]};
+    env->prefilter = (TextureHandle){ids[2]};
+    GLEnvironmentMap* probe_src = OpenGL_GetEnvMap(internal, internal->state.probe_source_env_map);
+    env->brdf_lut = probe_src ? probe_src->brdf_lut : (TextureHandle){0};
+    env->has_ibl = true;
+    env->owns_skybox = true;
+    env->owns_irradiance = true;
+    env->owns_prefilter = true;
+    env->owns_brdf_lut = false;
 
-    return true;
+
+    return (EnvironmentMapHandle){env_id};;
 }
 
 
@@ -1409,7 +1423,7 @@ static void OpenGL_GetCubemapCaptureMatrices(Matrix4* projection, Matrix4 views[
 
 
 
-static bool OpenGL_ConvolveProbeCubemap(OpenGL_Backend* internal, EnvironmentMap* environment, GLuint radiance_cubemap)
+static bool OpenGL_ConvolveProbeCubemap(OpenGL_Backend* internal, GLEnvironmentMap* environment, GLuint radiance_cubemap)
 {
     Matrix4 capture_projection;
     Matrix4 capture_views[6];
@@ -1506,13 +1520,23 @@ static bool OpenGL_ConvolveProbeCubemap(OpenGL_Backend* internal, EnvironmentMap
 
 
 
-static bool OpenGL_CaptureReflectionProbe(OpenGL_Backend* internal, const ReflectionProbeData* probe, uint32_t opaque_count, EnvironmentMap* environment)
+static bool OpenGL_CaptureReflectionProbe(OpenGL_Backend* internal, const ReflectionProbeData* probe, uint32_t opaque_count, EnvironmentMapHandle* environment)
 {
     if (internal->forward.default_shader.id == 0 || internal->ibl.irradiance_convolution.id == 0 || internal->ibl.prefilter.id == 0)
         return false;
 
-    if (!OpenGL_ReserveProbeEnvironment(internal, environment))
+    EnvironmentMapHandle handle = OpenGL_ReserveProbeEnvironment(internal);
+    if (handle.id == 0)
         return false;
+
+    GLEnvironmentMap* env = OpenGL_GetEnvMap(internal, handle);
+    if (!env)
+    {
+        OpenGL_ReleaseProbeEnvironment(internal, handle);
+        return false;
+    }
+
+    *environment = handle;
 
     uint32_t resolution = probe->capture_resolution;
     if (resolution < 32)  resolution = 32;
@@ -1530,7 +1554,7 @@ static bool OpenGL_CaptureReflectionProbe(OpenGL_Backend* internal, const Reflec
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    internal->texture_pool[environment->skybox.id].id = radiance_cubemap;
+    internal->texture_pool[env->skybox.id].id = radiance_cubemap;
 
     Matrix4 saved_view = internal->state.view_matrix;
     Matrix4 saved_projection = internal->state.projection_matrix;
@@ -1573,7 +1597,8 @@ static bool OpenGL_CaptureReflectionProbe(OpenGL_Backend* internal, const Reflec
         
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
         {
-            OpenGL_ReleaseProbeEnvironment(internal, environment);
+            OpenGL_ReleaseProbeEnvironment(internal, handle);
+            *environment = (EnvironmentMapHandle){0};
             internal->state.view_matrix = saved_view;
             internal->state.projection_matrix = saved_projection;
             internal->state.camera_pos = saved_camera_position;
@@ -1597,10 +1622,11 @@ static bool OpenGL_CaptureReflectionProbe(OpenGL_Backend* internal, const Reflec
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         OpenGL_RenderCommandBatchMode(internal, 0, opaque_count, true);
 
+        GLEnvironmentMap* probe_src = OpenGL_GetEnvMap(internal, internal->state.probe_source_env_map);
+        GLuint probe_src_skybox = probe_src ? OpenGL_TextureGL(internal, probe_src->skybox) : 0;
+
         if (internal->state.has_probe_source_env_map &&
-            internal->state.probe_source_env_map.skybox.id > 0 &&
-            internal->state.probe_source_env_map.skybox.id < MAX_RESOURCES &&
-            internal->texture_pool[internal->state.probe_source_env_map.skybox.id].active &&
+            probe_src_skybox != 0 &&
             internal->ibl.probe_skybox.id > 0 &&
             internal->shader_pool[internal->ibl.probe_skybox.id].active)
         {
@@ -1611,9 +1637,9 @@ static bool OpenGL_CaptureReflectionProbe(OpenGL_Backend* internal, const Reflec
             glUseProgram(sky_program);
             glUniformMatrix4fv(glGetUniformLocation(sky_program, "u_View"), 1, GL_FALSE, (float*)&capture_views[face]);
             glUniformMatrix4fv(glGetUniformLocation(sky_program, "u_Projection"), 1, GL_FALSE, (float*)&capture_projection);
-            glUniform1i(glGetUniformLocation(sky_program, "u_IsHDR"), internal->state.probe_source_env_map.has_ibl ? 1 : 0);
+            glUniform1i(glGetUniformLocation(sky_program, "u_IsHDR"), probe_src->has_ibl ? 1 : 0);
             glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_CUBE_MAP, internal->texture_pool[internal->state.probe_source_env_map.skybox.id].id);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, probe_src_skybox);
             glUniform1i(glGetUniformLocation(sky_program, "u_Skybox"), 0);
             glBindVertexArray(internal->skybox.vao);
             glDrawArrays(GL_TRIANGLES, 0, 36);
@@ -1625,7 +1651,12 @@ static bool OpenGL_CaptureReflectionProbe(OpenGL_Backend* internal, const Reflec
 
     glBindTexture(GL_TEXTURE_CUBE_MAP, radiance_cubemap);
     glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
-    bool success = OpenGL_ConvolveProbeCubemap(internal, environment, radiance_cubemap);
+    bool success = OpenGL_ConvolveProbeCubemap(internal, env, radiance_cubemap);
+    if (!success)
+    {
+        OpenGL_ReleaseProbeEnvironment(internal, handle);
+        *environment = (EnvironmentMapHandle){0};
+    }
 
     internal->state.view_matrix = saved_view;
     internal->state.projection_matrix = saved_projection;
@@ -1723,12 +1754,14 @@ static void OpenGL_UpdateReflectionProbes(OpenGL_Backend* internal, uint32_t opa
             continue;
 
         slot->seen_this_frame = true;
+        GLEnvironmentMap* slot_env = OpenGL_GetEnvMap(internal, slot->environment);
+        uint32_t source_skybox_id = internal->state.has_probe_source_env_map ? OpenGL_EnvSkyboxTextureId(internal, internal->state.probe_source_env_map) : 0;
         bool needs_capture =
             slot->captured_revision != data->revision ||
             slot->capture_resolution != data->capture_resolution ||
-            slot->captured_global_skybox_id != (internal->state.has_probe_source_env_map ? internal->state.probe_source_env_map.skybox.id : 0) ||
+            slot->captured_global_skybox_id != source_skybox_id ||
             !OpenGL_Vector3NearlyEqual(slot->captured_position, data->position) ||
-            slot->environment.irradiance.id == 0;
+            slot_env == NULL || slot_env->irradiance.id == 0;
 
         if (!needs_capture)
         {
@@ -1740,8 +1773,9 @@ static void OpenGL_UpdateReflectionProbes(OpenGL_Backend* internal, uint32_t opa
             continue;
         }
 
-        if (slot->environment.skybox.id != 0)
-            OpenGL_ReleaseProbeEnvironment(internal, &slot->environment);
+        if (slot->environment.id != 0)
+            OpenGL_ReleaseProbeEnvironment(internal, slot->environment);
+        slot->environment = (EnvironmentMapHandle){0};
 
         GLuint timer_query = 0;
         glGenQueries(1, &timer_query);
@@ -1758,7 +1792,7 @@ static void OpenGL_UpdateReflectionProbes(OpenGL_Backend* internal, uint32_t opa
             slot->captured_revision = data->revision;
             slot->captured_position = data->position;
             slot->capture_resolution = data->capture_resolution;
-            slot->captured_global_skybox_id = internal->state.has_probe_source_env_map ? internal->state.probe_source_env_map.skybox.id : 0;
+            slot->captured_global_skybox_id = source_skybox_id;
             
             data->environment = slot->environment;
             data->dirty = false;
@@ -1790,7 +1824,7 @@ static void OpenGL_UpdateReflectionProbes(OpenGL_Backend* internal, uint32_t opa
         GLReflectionProbe* slot = &internal->reflection_probes[i];
         if (slot->active && !slot->seen_this_frame)
         {
-            OpenGL_ReleaseProbeEnvironment(internal, &slot->environment);
+            OpenGL_ReleaseProbeEnvironment(internal, slot->environment);
             memset(slot, 0, sizeof(*slot));
         }
     }
@@ -1809,7 +1843,8 @@ static void OpenGL_UpdateReflectionProbes(OpenGL_Backend* internal, uint32_t opa
 void OpenGL_DrawSkybox(OpenGL_Backend* internal)
 {
     uint32_t shader_id = internal->skybox.default_shader.id;
-    uint32_t tex_id = internal->state.env_map.skybox.id;
+    GLEnvironmentMap* env = OpenGL_GetEnvMap(internal, internal->state.env_map);
+    uint32_t tex_id = env ? env->skybox.id : 0;
 
     // Validate both handles so a stale ID can't bind a program.
     if (shader_id >= MAX_RESOURCES || !internal->shader_pool[shader_id].active)
@@ -1833,7 +1868,7 @@ void OpenGL_DrawSkybox(OpenGL_Backend* internal)
 
         glUniform1f(glGetUniformLocation(prog, "u_Gamma"), internal->state.settings.gamma);
         glUniform1f(glGetUniformLocation(prog, "u_Exposure"), internal->state.settings.exposure > 0.001f ? internal->state.settings.exposure : 1.0f);
-        glUniform1i(glGetUniformLocation(prog, "u_IsHDR"), internal->state.env_map.has_ibl ? 1 : 0);
+        glUniform1i(glGetUniformLocation(prog, "u_IsHDR"), env->has_ibl ? 1 : 0);
 
         GLint skybox_loc = glGetUniformLocation(prog, "u_Skybox");
         if (skybox_loc != -1)

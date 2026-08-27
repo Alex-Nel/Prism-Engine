@@ -16,6 +16,7 @@ typedef struct { uint32_t id; } MeshHandle;
 typedef struct { uint32_t id; } TextureHandle;
 typedef struct { uint32_t id; } ShaderHandle;
 typedef struct { uint32_t id; } MaterialHandle;
+typedef struct { uint32_t id; } EnvironmentMapHandle;
 
 
 
@@ -121,11 +122,7 @@ typedef struct EnvironmentMap
 {
     char name[MAX_NAME_LENGTH];
     uint32_t id;
-    TextureHandle skybox;
-    TextureHandle irradiance;
-    TextureHandle prefilter;
-    TextureHandle brdf_lut;
-    bool has_ibl;   // If false, shader won't apply Image Based Lighting
+    EnvironmentMapHandle gpu_handle;
 } EnvironmentMap;
 
 

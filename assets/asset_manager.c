@@ -1408,22 +1408,25 @@ EnvironmentMap* Asset_LoadEnvironmentMap(const char* filepath)
     }
 
     RenderEnvironmentMapDesc env_desc = { img.pixels, img.width, img.height };
-    EnvironmentMap env_map = Render_CreateEnvironmentMap(renderer, &env_desc);
+    EnvironmentMapHandle handle = Render_CreateEnvironmentMap(renderer, &env_desc);
     Image_FreeFloat(&img);
+    if (handle.id == 0)
+        return NULL;
 
     if (env_map_count < MAX_CACHED_TEXTURES)
     {
         EnvironmentMap* m = &env_map_cache[env_map_count];
-        *m = env_map;
+        memset(m, 0, sizeof(*m));
         strncpy(m->name, filepath, MAX_NAME_LENGTH - 1);
         m->name[MAX_NAME_LENGTH - 1] = '\0';
         m->id = env_map_count;
-        m->has_ibl = true;
+        m->gpu_handle = handle;
 
         env_map_count++;
         return m;
     }
 
+    Render_DestroyEnvironmentMap(renderer, handle);
     return NULL;
 }
 
@@ -1450,22 +1453,26 @@ EnvironmentMap* Asset_LoadEnvironmentMapFromSkybox(const char* name, const char*
     if (!skybox_tex)
         return NULL;
 
+    RenderEnvironmentMapDesc desc = {0};
+    desc.skybox = skybox_tex->gpu_handle;
+    EnvironmentMapHandle handle = Render_CreateEnvironmentMap(renderer, &desc);
+    if (handle.id == 0)
+        return NULL;
+
     if (env_map_count < MAX_CACHED_TEXTURES)
     {
         EnvironmentMap* m = &env_map_cache[env_map_count];
+        memset(m, 0, sizeof(*m));
         strncpy(m->name, name, MAX_NAME_LENGTH - 1);
         m->name[MAX_NAME_LENGTH - 1] = '\0';
         m->id = env_map_count;
-        m->skybox = skybox_tex->gpu_handle;
-        m->irradiance = (TextureHandle){0};
-        m->prefilter = (TextureHandle){0};
-        m->brdf_lut = (TextureHandle){0};
-        m->has_ibl = false;
+        m->gpu_handle = handle;
 
         env_map_count++;
         return m;
     }
 
+    Render_DestroyEnvironmentMap(renderer, handle);
     return NULL;
 }
 

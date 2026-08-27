@@ -101,7 +101,7 @@ typedef struct ReflectionProbeData
     uint32_t capture_resolution;
     uint32_t revision;
     bool needs_capture;
-    EnvironmentMap environment;
+    EnvironmentMapHandle environment;
     bool dirty;
     bool captured;
 } ReflectionProbeData;
@@ -303,9 +303,10 @@ typedef struct RenderShaderDesc
 // Struct for the description of an environment map
 typedef struct RenderEnvironmentMapDesc
 {
-    const float* hdr_pixels;
+    const float* hdr_pixels;   // If set, bake skybox + IBL
     uint32_t width;
     uint32_t height;
+    TextureHandle skybox;      // If hdr_pixels is NULL, wrap this cubemap as skybox only
 } RenderEnvironmentMapDesc;
 
 
@@ -387,9 +388,9 @@ typedef struct RenderLighting
     float gamma;
     float exposure;
 
-    EnvironmentMap env_map;
+    EnvironmentMapHandle env_map;
     bool has_probe_source_env_map;
-    EnvironmentMap probe_source_env_map;
+    EnvironmentMapHandle probe_source_env_map;
 } RenderLighting;
 
 
@@ -468,7 +469,8 @@ typedef struct Renderer
     void           (*UpdateMaterial)(Renderer* r, MaterialHandle handle, const RenderMaterialDesc* desc);
     void           (*DestroyMaterial)(Renderer* r, MaterialHandle handle);
 
-    EnvironmentMap (*CreateEnvironmentMap)(Renderer* r, const RenderEnvironmentMapDesc* desc);
+    EnvironmentMapHandle (*CreateEnvironmentMap)(Renderer* r, const RenderEnvironmentMapDesc* desc);
+    void                 (*DestroyEnvironmentMap)(Renderer* r, EnvironmentMapHandle handle);
 
 
 
@@ -706,12 +708,17 @@ static inline void Render_DestroyMaterial(Renderer* r, MaterialHandle handle)
 
 
 
-// Creates an EnvironmentMap (IBL textures) from an HDR image
-static inline EnvironmentMap Render_CreateEnvironmentMap(Renderer* r, const RenderEnvironmentMapDesc* desc)
+// Creates GPU IBL resources (or wraps a cubemap as a skybox-only environment). Returns a handle
+static inline EnvironmentMapHandle Render_CreateEnvironmentMap(Renderer* r, const RenderEnvironmentMapDesc* desc)
 {
     if (r && r->CreateEnvironmentMap && desc)
         return r->CreateEnvironmentMap(r, desc);
-    return (EnvironmentMap){0};
+    return (EnvironmentMapHandle){0};
+}
+static inline void Render_DestroyEnvironmentMap(Renderer* r, EnvironmentMapHandle handle)
+{
+    if (r && r->DestroyEnvironmentMap)
+        r->DestroyEnvironmentMap(r, handle);
 }
 
 

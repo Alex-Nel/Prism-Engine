@@ -85,9 +85,9 @@ typedef struct RenderState
     RendererSettings settings;
 
     bool has_env_map;
-    EnvironmentMap env_map;
+    EnvironmentMapHandle env_map;
     bool has_probe_source_env_map;
-    EnvironmentMap probe_source_env_map;
+    EnvironmentMapHandle probe_source_env_map;
 } RenderState;
 
 
@@ -144,6 +144,23 @@ typedef struct GLMaterial
 
 
 
+// Struct for holding environment maps for OpenGL
+typedef struct GLEnvironmentMap
+{
+    bool active;
+    bool has_ibl;
+    bool owns_skybox;
+    bool owns_irradiance;
+    bool owns_prefilter;
+    bool owns_brdf_lut;
+    TextureHandle skybox;
+    TextureHandle irradiance;
+    TextureHandle prefilter;
+    TextureHandle brdf_lut;
+} GLEnvironmentMap;
+
+
+
 // Struct for holding reflection probes for OpenGL
 typedef struct GLReflectionProbe
 {
@@ -154,7 +171,7 @@ typedef struct GLReflectionProbe
     Vector3 captured_position;
     uint32_t capture_resolution;
     uint32_t captured_global_skybox_id;
-    EnvironmentMap environment;
+    EnvironmentMapHandle environment;
 } GLReflectionProbe;
 
 
@@ -301,6 +318,7 @@ typedef struct OpenGL_Backend
     GLShader shader_pool[MAX_RESOURCES];
     GLTexture texture_pool[MAX_RESOURCES];
     GLMaterial material_pool[MAX_RESOURCES];
+    GLEnvironmentMap env_map_pool[MAX_RESOURCES];
 
     RenderItem command_queue[MAX_COMMANDS];
     uint32_t command_count;
@@ -347,6 +365,27 @@ static inline uint32_t OpenGL_MaxDrawItems(const OpenGL_Backend* internal)
 
 
 
+static inline GLEnvironmentMap* OpenGL_GetEnvMap(OpenGL_Backend* internal, EnvironmentMapHandle handle)
+{
+    if (!internal || handle.id == 0 || handle.id >= MAX_RESOURCES)
+        return NULL;
+    GLEnvironmentMap* env = &internal->env_map_pool[handle.id];
+    return env->active ? env : NULL;
+}
+
+
+
+static inline GLuint OpenGL_TextureGL(OpenGL_Backend* internal, TextureHandle handle)
+{
+    if (!internal || handle.id == 0 || handle.id >= MAX_RESOURCES)
+        return 0;
+    if (!internal->texture_pool[handle.id].active)
+        return 0;
+    return internal->texture_pool[handle.id].id;
+}
+
+
+
 
 
 // --- OpenGL Lifecycle Functions ---
@@ -377,7 +416,9 @@ void OpenGL_DestroyMesh(Renderer* r, MeshHandle mesh);
 TextureHandle OpenGL_CreateTexture(Renderer* r, const RenderTextureDesc* desc);
 void OpenGL_DestroyTexture(Renderer* r, TextureHandle texture);
 
-EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const RenderEnvironmentMapDesc* desc);
+EnvironmentMapHandle OpenGL_CreateEnvironmentMap(Renderer* r, const RenderEnvironmentMapDesc* desc);
+void OpenGL_DestroyEnvironmentMap(Renderer* r, EnvironmentMapHandle handle);
+void OpenGL_DestroyEnvMapInternal(OpenGL_Backend* internal, EnvironmentMapHandle handle);
 
 ShaderHandle OpenGL_CreateShader(Renderer* r, const RenderShaderDesc* desc);
 ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const char* name, const char* vertex_src, const char* geom_src, const char* fragment_src);

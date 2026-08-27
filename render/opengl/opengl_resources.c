@@ -287,25 +287,147 @@ void OpenGL_DestroyTexture(Renderer* r, TextureHandle texture)
 
 
 
-// Converts an equirectangular HDR to Cubemap and generates Irradiance, Prefilter, and BRDF LUT maps
-EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const RenderEnvironmentMapDesc* desc)
+// Allocates a new slot for a environment map
+static uint32_t OpenGL_AllocEnvMapSlot(OpenGL_Backend* internal)
 {
-    EnvironmentMap env = {0};
+    for (uint32_t i = 1; i < MAX_RESOURCES; i++)
+    {
+        if (!internal->env_map_pool[i].active)
+            return i;
+    }
+    
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+// Frees a texture from the internal pool
+static void OpenGL_FreeOwnedTexture(OpenGL_Backend* internal, TextureHandle handle)
+{
+    if (handle.id == 0 || handle.id >= MAX_RESOURCES)
+        return;
+
+    GLTexture* tex = &internal->texture_pool[handle.id];
+    if (!tex->active)
+        return;
+    
+    if (tex->id != 0)
+        glDeleteTextures(1, &tex->id);
+    
+    tex->id = 0;
+    tex->active = false;
+}
+
+
+
+
+
+
+
+
+
+
+// Destroys an environment map from internal pool
+void OpenGL_DestroyEnvMapInternal(OpenGL_Backend* internal, EnvironmentMapHandle handle)
+{
+    GLEnvironmentMap* env = OpenGL_GetEnvMap(internal, handle);
+    if (!env)
+        return;
+
+    if (env->owns_skybox)
+        OpenGL_FreeOwnedTexture(internal, env->skybox);
+    
+    if (env->owns_irradiance)
+        OpenGL_FreeOwnedTexture(internal, env->irradiance);
+    
+    if (env->owns_prefilter)
+        OpenGL_FreeOwnedTexture(internal, env->prefilter);
+    
+    if (env->owns_brdf_lut)
+        OpenGL_FreeOwnedTexture(internal, env->brdf_lut);
+    
+    memset(env, 0, sizeof(*env));
+}
+
+
+
+
+
+
+
+
+
+
+// Destorys an environment map from its handle
+void OpenGL_DestroyEnvironmentMap(Renderer* r, EnvironmentMapHandle handle)
+{
+    if (!r || !r->backend_internal_data)
+        return;
+    OpenGL_DestroyEnvMapInternal((OpenGL_Backend*)r->backend_internal_data, handle);
+}
+
+
+
+
+
+
+
+
+
+
+// Creates a GPU environment map: full IBL from HDR, or a skybox-only wrap of an existing cubemap.
+EnvironmentMapHandle OpenGL_CreateEnvironmentMap(Renderer* r, const RenderEnvironmentMapDesc* desc)
+{
+    EnvironmentMapHandle invalid = {0};
+    if (!r || !desc)
+        return invalid;
+
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
-    if (!desc)
-        return env;
+    uint32_t env_id = OpenGL_AllocEnvMapSlot(internal);
+    if (env_id == 0)
+        return invalid;
+
+    GLEnvironmentMap* slot = &internal->env_map_pool[env_id];
+    memset(slot, 0, sizeof(*slot));
+    slot->active = true;
+
+    if (!desc->hdr_pixels)
+    {
+        if (desc->skybox.id == 0)
+        {
+            slot->active = false;
+            return invalid;
+        }
+        slot->skybox = desc->skybox;
+        slot->has_ibl = false;
+        slot->owns_skybox = false;
+        return (EnvironmentMapHandle){env_id};
+    }
 
     const float* hdr_pixels = desc->hdr_pixels;
     uint32_t width = desc->width;
     uint32_t height = desc->height;
     
-    if (!hdr_pixels || width == 0 || height == 0)
-        return env;
+    if (width == 0 || height == 0)
+    {
+        slot->active = false;
+        return invalid;
+    }
 
     TextureHandle hdr_tex = OpenGL_CreateTextureHDR(r, hdr_pixels, width, height, 3);
     if (hdr_tex.id == 0)
-        return env;
+    {
+        slot->active = false;
+        return invalid;
+    }
     
     // We need 4 handles from the pool for skybox, irradiance, prefilter, brdf
     uint32_t ids[4] = {0,0,0,0};
@@ -326,13 +448,19 @@ EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const RenderEnvironmentM
         for (int i = 0; i < found; i++)
             internal->texture_pool[ids[i]].active = false;
         
-        return env;
+        slot->active = false;
+        return invalid;
     }
     
-    env.skybox = (TextureHandle){ids[0]};
-    env.irradiance = (TextureHandle){ids[1]};
-    env.prefilter = (TextureHandle){ids[2]};
-    env.brdf_lut = (TextureHandle){ids[3]};
+    slot->skybox = (TextureHandle){ids[0]};
+    slot->irradiance = (TextureHandle){ids[1]};
+    slot->prefilter = (TextureHandle){ids[2]};
+    slot->brdf_lut = (TextureHandle){ids[3]};
+    slot->has_ibl = true;
+    slot->owns_skybox = true;
+    slot->owns_irradiance = true;
+    slot->owns_prefilter = true;
+    slot->owns_brdf_lut = true;
 
     // Matrices for the 6 cube faces
     Matrix4 captureProjection = Matrix4Perspective(90.0f * (3.14159265359f / 180.0f), 1.0f, 0.1f, 10.0f);
@@ -507,15 +635,15 @@ EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const RenderEnvironmentM
     // Cleanup temporary HDR texture as it's no longer needed, everything is in the cubemaps
     OpenGL_DestroyTexture(r, hdr_tex);
     
-    internal->texture_pool[env.skybox.id].id = envCubemap;
-    internal->texture_pool[env.irradiance.id].id = irradianceMap;
-    internal->texture_pool[env.prefilter.id].id = prefilterMap;
-    internal->texture_pool[env.brdf_lut.id].id = brdfLUTTexture;
+    internal->texture_pool[slot->skybox.id].id = envCubemap;
+    internal->texture_pool[slot->irradiance.id].id = irradianceMap;
+    internal->texture_pool[slot->prefilter.id].id = prefilterMap;
+    internal->texture_pool[slot->brdf_lut.id].id = brdfLUTTexture;
     
     // Set viewport back
     OpenGL_SetViewport(r, 0, 0, internal->state.window_width, internal->state.window_height);
 
-    return env;
+    return (EnvironmentMapHandle){env_id};
 }
 
 

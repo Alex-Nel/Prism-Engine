@@ -34,6 +34,7 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
         internal->shader_pool[i].active = false;
         internal->texture_pool[i].active = false;
         internal->material_pool[i].active = false;
+        internal->env_map_pool[i].active = false;
     }
 
     // Load OpenGL functions using the provided loader
@@ -416,6 +417,7 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     r->DestroyMaterial = OpenGL_DestroyMaterial;
 
     r->CreateEnvironmentMap = OpenGL_CreateEnvironmentMap;
+    r->DestroyEnvironmentMap = OpenGL_DestroyEnvironmentMap;
 
     r->DrawWorld = OpenGL_DrawWorld;
 
@@ -449,6 +451,13 @@ void OpenGL_Shutdown(Renderer* r)
     // Clear out any pending draw commands
     internal->command_count = 0;
     internal->bone_snapshot_count = 0;
+
+    // Environment maps contain IBL textures. Free them before the texture pool
+    for (uint32_t i = 1; i < MAX_RESOURCES; i++)
+    {
+        if (internal->env_map_pool[i].active)
+            Render_DestroyEnvironmentMap(r, (EnvironmentMapHandle){i});
+    }
 
     // Garbage Collector Loop. We start at 1 because index 0 is the "Invalid/Null" handle.
     for (uint32_t i = 1; i < MAX_RESOURCES; i++)

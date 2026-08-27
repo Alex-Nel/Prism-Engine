@@ -493,8 +493,8 @@ void Engine_RenderScene(PrismEngine* engine, Scene* scene)
 
     if (scene->has_env_map && scene->env_map)
     {
-        lighting.env_map = *scene->env_map;
-        lighting.probe_source_env_map = *scene->env_map;
+        lighting.env_map = scene->env_map->gpu_handle;
+        lighting.probe_source_env_map = scene->env_map->gpu_handle;
     }
 
     // --- Get all Point Lights from the ECS ---

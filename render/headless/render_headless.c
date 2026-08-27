@@ -107,17 +107,13 @@ static void Headless_DestroyMaterial(Renderer* r, MaterialHandle handle) {}
 
 
 
-static EnvironmentMap Headless_CreateEnvironmentMap(Renderer* r, const RenderEnvironmentMapDesc* desc)
+static EnvironmentMapHandle Headless_CreateEnvironmentMap(Renderer* r, const RenderEnvironmentMapDesc* desc)
 {
     Headless_Backend* internal = (Headless_Backend*)r->backend_internal_data;
-    EnvironmentMap env = {0};
-    env.skybox = (TextureHandle){ ++internal->resource_counter };
-    env.irradiance = (TextureHandle){ ++internal->resource_counter };
-    env.prefilter = (TextureHandle){ ++internal->resource_counter };
-    env.brdf_lut = (TextureHandle){ ++internal->resource_counter };
-    env.has_ibl = true;
-    return env;
+    return (EnvironmentMapHandle){ ++internal->resource_counter };
 }
+
+static void Headless_DestroyEnvironmentMap(Renderer* r, EnvironmentMapHandle handle) {}
 
 
 
@@ -163,6 +159,7 @@ Renderer* Headless_Init()
     r->DestroyMaterial = Headless_DestroyMaterial;
 
     r->CreateEnvironmentMap = Headless_CreateEnvironmentMap;
+    r->DestroyEnvironmentMap = Headless_DestroyEnvironmentMap;
 
     r->DrawWorld = Headless_DrawWorld;
 
