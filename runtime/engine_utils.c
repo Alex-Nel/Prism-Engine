@@ -66,13 +66,3 @@ uint32_t Engine_GetTargetFPS(PrismEngine* engine)
 {
     return Time_GetTargetFPS();
 }
-
-
-
-
-
-// Sets the clear color of the renderer
-void Engine_SetClearColor(PrismEngine* engine, float red, float green, float blue, float alpha)
-{
-    Render_SetClearColor(engine->renderer, red, green, blue, alpha);
-}

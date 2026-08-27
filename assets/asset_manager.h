@@ -82,6 +82,9 @@ Texture* Asset_CreateSolidColorTexture(const char* name, Color color);
 // Material creation function
 Material* Asset_CreateMaterial(Shader* shader, Texture* diffuse);
 
+// Uploads or refreshes the GPU copy of a CPU material
+void Asset_SyncMaterialGPU(Material* material);
+
 // Creates a dynamic mesh from the renderer
 Mesh* Asset_CreateDynamicMesh(uint32_t max_vertices, uint32_t max_indices);
 

@@ -5,6 +5,7 @@
 extern "C"
 {
     #include "../../runtime/engine_runtime.h"
+    #include "cstring"
 }
 
 
@@ -40,10 +41,6 @@ namespace Prism
 
     // --- Utility ---
 
-    void Engine::SetClearColor(const Prism::Vector3& color, float alpha) {
-        ::Engine_SetClearColor(&s_engine, color.x, color.y, color.z, alpha);
-    }
-
     void Engine::CaptureMouse() {
         ::Engine_CaptureMouse(&s_engine);
     }
@@ -71,9 +68,14 @@ namespace Prism
     void Engine::SetRendererSettings(const Prism::RendererSettings& settings) {
         ::Renderer* r = ::Engine_GetRenderer(&s_engine);
         ::RendererSettings c_settings;
+        std::memset(&c_settings, 0, sizeof(c_settings));
         c_settings.enable_ssao = settings.enable_ssao;
         c_settings.shadow_map_resolution = settings.shadow_map_resolution;
         c_settings.gamma = settings.gamma;
+        c_settings.exposure = settings.exposure;
+        c_settings.max_draw_items = settings.max_draw_items;
+        c_settings.max_shadow_cascades = settings.max_shadow_cascades;
+        c_settings.max_reflection_probes = settings.max_reflection_probes;
         ::Render_SetSettings(r, &c_settings);
     }
 
@@ -84,6 +86,10 @@ namespace Prism
         settings.enable_ssao = c_settings.enable_ssao;
         settings.shadow_map_resolution = c_settings.shadow_map_resolution;
         settings.gamma = c_settings.gamma;
+        settings.exposure = c_settings.exposure;
+        settings.max_draw_items = c_settings.max_draw_items;
+        settings.max_shadow_cascades = c_settings.max_shadow_cascades;
+        settings.max_reflection_probes = c_settings.max_reflection_probes;
         return settings;
     }
 

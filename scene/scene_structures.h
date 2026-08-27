@@ -442,7 +442,7 @@ typedef struct ReflectionProbeComponent
     bool captured;
     
     Vector3 last_capture_position;
-    EnvironmentMap environment;
+    EnvironmentMapHandle environment;
 } ReflectionProbeComponent;
 
 

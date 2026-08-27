@@ -18,6 +18,13 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
 
     internal->state.window_width = init_width;
     internal->state.window_height = init_height;
+    internal->state.settings.enable_ssao = false;
+    internal->state.settings.shadow_map_resolution = SHADOW_MAP_RESOLUTION_DEFAULT;
+    internal->state.settings.gamma = 2.2f;
+    internal->state.settings.exposure = 1.0f;
+    internal->state.settings.max_draw_items = MAX_COMMANDS;
+    internal->state.settings.max_shadow_cascades = MAX_SHADOW_CASCADES;
+    internal->state.settings.max_reflection_probes = MAX_REFLECTION_PROBES;
 
 
     // Initialize data pools
@@ -26,6 +33,8 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
         internal->mesh_pool[i].active = false;
         internal->shader_pool[i].active = false;
         internal->texture_pool[i].active = false;
+        internal->material_pool[i].active = false;
+        internal->env_map_pool[i].active = false;
     }
 
     // Load OpenGL functions using the provided loader
@@ -388,12 +397,10 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
 
     r->api = GRAPHICS_API_OPENGL;
     r->Shutdown = OpenGL_Shutdown;
-    r->SetViewport = OpenGL_SetViewport;
-    r->SetClearColor = OpenGL_SetClearColor;
-    r->Clear = OpenGL_Clear;
-    r->ClearDepth = OpenGL_ClearDepth;
+    r->Resize = OpenGL_Resize;
 
     r->CreateMesh = OpenGL_CreateMesh;
+    r->UpdateMesh = OpenGL_UpdateMesh;
     r->DestroyMesh = OpenGL_DestroyMesh;
 
     r->CreateTexture = OpenGL_CreateTexture;
@@ -402,19 +409,15 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     r->CreateShader = OpenGL_CreateShader;
     r->DestroyShader = OpenGL_DestroyShader;
 
-    r->CreateCubemap = OpenGL_CreateCubemap;
-    r->CreateEnvironmentMap = OpenGL_CreateEnvironmentMap;
-    r->CreateDynamicMesh = OpenGL_CreateDynamicMesh;
-    r->CreateSkinnedMesh = OpenGL_CreateSkinnedMesh;
-    r->UpdateDynamicMesh = OpenGL_UpdateDynamicMesh;
-    r->UpdateMesh = OpenGL_UpdateMesh;
+    r->CreateMaterial = OpenGL_CreateMaterial;
+    r->UpdateMaterial = OpenGL_UpdateMaterial;
+    r->DestroyMaterial = OpenGL_DestroyMaterial;
 
-    r->BeginShadowPass = OpenGL_BeginShadowPass;
-    r->EndShadowPass = OpenGL_EndShadowPass;
-    
-    r->BeginFrame = OpenGL_BeginFrame;
-    r->Submit = OpenGL_Submit;
-    r->EndFrame = OpenGL_EndFrame;
+    r->CreateEnvironmentMap = OpenGL_CreateEnvironmentMap;
+    r->DestroyEnvironmentMap = OpenGL_DestroyEnvironmentMap;
+
+    r->DrawWorld = OpenGL_DrawWorld;
+    r->GetProbeResults = OpenGL_GetProbeResults;
 
     r->SetSettings = OpenGL_SetSettings;
     r->GetSettings = OpenGL_GetSettings;
@@ -445,6 +448,14 @@ void OpenGL_Shutdown(Renderer* r)
 
     // Clear out any pending draw commands
     internal->command_count = 0;
+    internal->bone_snapshot_count = 0;
+
+    // Environment maps contain IBL textures. Free them before the texture pool
+    for (uint32_t i = 1; i < MAX_RESOURCES; i++)
+    {
+        if (internal->env_map_pool[i].active)
+            Render_DestroyEnvironmentMap(r, (EnvironmentMapHandle){i});
+    }
 
     // Garbage Collector Loop. We start at 1 because index 0 is the "Invalid/Null" handle.
     for (uint32_t i = 1; i < MAX_RESOURCES; i++)
@@ -457,6 +468,9 @@ void OpenGL_Shutdown(Renderer* r)
         
         if (internal->shader_pool[i].active)
             Render_DestroyShader(r, (ShaderHandle){i});
+
+        if (internal->material_pool[i].active)
+            Render_DestroyMaterial(r, (MaterialHandle){i});
     }
 
     free(internal);
@@ -586,9 +600,12 @@ void OpenGL_InitPipelines(OpenGL_Backend* internal)
 
 
 
-// Sets the size and position of the viewport
-void OpenGL_SetViewport(Renderer* r, uint32_t x, uint32_t y, uint32_t width, uint32_t height)
+// Resizes G-buffer / SSAO / lighting targets and the default framebuffer viewport
+void OpenGL_Resize(Renderer* r, uint32_t width, uint32_t height)
 {
+    if (!r || !r->backend_internal_data || width == 0 || height == 0)
+        return;
+
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
     // Prevent redundant reallocations if the size hasn't actually changed
@@ -628,51 +645,7 @@ void OpenGL_SetViewport(Renderer* r, uint32_t x, uint32_t y, uint32_t width, uin
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, ssao_w, ssao_h, 0, GL_RED, GL_FLOAT, NULL);
     }
 
-    glViewport(x, y, width, height);
-}
-
-
-
-
-
-
-
-
-
-// Sets the color of the renderer to clear with
-void OpenGL_SetClearColor(Renderer* renderer, float r, float g, float b, float a)
-{
-    glClearColor(r, g, b, a);
-}
-
-
-
-
-
-
-
-
-
-// Clears all buffers in the context
-void OpenGL_Clear(Renderer* r)
-{
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-}
-
-
-
-
-
-
-
-
-
-
-// Clears the depth buffer of an OpenGL renderer
-void OpenGL_ClearDepth(Renderer* r)
-{
-    // Wipe only the depth buffer so the color from previous cameras remains
-    glClear(GL_DEPTH_BUFFER_BIT); 
+    glViewport(0, 0, width, height);
 }
 
 
@@ -692,26 +665,41 @@ void OpenGL_SetSettings(Renderer* r, const RendererSettings* settings)
     
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
+    uint32_t new_res = settings->shadow_map_resolution;
+    if (new_res == 0)
+        new_res = internal->state.settings.shadow_map_resolution;
+
     // Check if shadow map resolution changed and reallocate if necessary
-    if (settings->shadow_map_resolution != internal->state.settings.shadow_map_resolution && settings->shadow_map_resolution > 0)
+    if (new_res != internal->state.settings.shadow_map_resolution && new_res > 0)
     {
-        uint32_t new_res = settings->shadow_map_resolution;
         if (internal->shadow.depthMapTextureArray != 0)
         {
             glBindTexture(GL_TEXTURE_2D_ARRAY, internal->shadow.depthMapTextureArray);
             glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT24, new_res, new_res, MAX_SHADOW_CASCADES, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
             glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
         }
+
+        internal->state.settings.shadow_map_resolution = new_res;
     }
 
 
-    internal->state.settings = *settings;
     internal->state.settings.enable_ssao = settings->enable_ssao;
 
     if (settings->gamma > 0.01f)
         internal->state.settings.gamma = settings->gamma;
     else
         internal->state.settings.gamma = 2.2f;
+
+    if (settings->exposure > 0.001f)
+        internal->state.settings.exposure = settings->exposure;
+
+    uint32_t max_items = settings->max_draw_items;
+    if (max_items == 0 || max_items > MAX_COMMANDS)
+        max_items = MAX_COMMANDS;
+    
+    internal->state.settings.max_draw_items = max_items;
+    internal->state.settings.max_shadow_cascades = MAX_SHADOW_CASCADES;
+    internal->state.settings.max_reflection_probes = MAX_REFLECTION_PROBES;
 }
 
 

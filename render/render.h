@@ -9,6 +9,7 @@
 #include "../core/log_core.h"
 #include "../core/io_core.h"
 #include "../core/overlay_core.h"
+#include "../core/frustum_core.h"
 
 
 
@@ -16,18 +17,6 @@
 
 // Used for invalid handles
 #define RENDER_INVALID_HANDLE 0
-
-
-
-// --- Internal data pool limits ---
-
-#define MAX_RESOURCES 8192
-#define MAX_COMMANDS 32768
-#define MAX_REFLECTION_PROBES 16
-
-#define SHADOW_MAP_RESOLUTION 4096
-#define MAX_SHADOW_CASCADES 4
-#define SHADOW_CASCADE_COUNT_DEFAULT 1
 
 
 
@@ -55,7 +44,7 @@ typedef struct DirectionalLightData
     float intensity;
     float ambient_strength;
     float shadow_box_size;
-    uint8_t shadow_cascade_count;   // 1 = single shadow map; 2-4 = cascaded shadow maps
+    uint8_t shadow_cascade_count;   // 1 = single shadow map; more = cascaded shadow maps; Clamped by settings
     float shadow_max_distance;      // max shadow range from camera (CSM only)
     float cascade_split_lambda;     // 0 = uniform splits, 1 = logarithmic, 0.5 = practical
     float cascade_blend_fraction;   // 0..1 slice fraction cross-faded at each split (CSM only)
@@ -101,7 +90,7 @@ typedef struct SpotLightData
 
 
 
-// Struct for reflection probe data
+// Struct for snapshot of local IBL volume. Input only.
 typedef struct ReflectionProbeData
 {
     uint32_t entity_id;
@@ -111,18 +100,255 @@ typedef struct ReflectionProbeData
     int32_t priority;
     uint32_t capture_resolution;
     uint32_t revision;
-    bool needs_capture;
-    EnvironmentMap environment;
-    bool dirty;
-    bool captured;
 } ReflectionProbeData;
 
 
 
 
 
-// Struct for a render packet to send to renderer
-typedef struct RenderPacket
+// Capture status after DrawWorld. Valid until next DrawWorld call
+typedef struct RenderProbeResult
+{
+    uint32_t entity_id;
+    EnvironmentMapHandle environment;
+    bool captured;
+    bool dirty;
+} RenderProbeResult;
+
+
+
+
+
+// What the backend should wipe before drawing this view
+typedef enum RenderClearFlags
+{
+    RENDER_CLEAR_COLOR_AND_DEPTH = 0,
+    RENDER_CLEAR_DEPTH_ONLY = 1,
+    RENDER_CLEAR_NONE = 2
+} RenderClearFlags;
+
+
+
+
+
+// Flags for a submitted render item
+enum
+{
+    RENDER_ITEM_TRANSPARENT     = 1u << 0,
+    RENDER_ITEM_CAST_SHADOWS    = 1u << 1,
+    RENDER_ITEM_RECEIVE_SHADOWS = 1u << 2,
+    RENDER_ITEM_PROBE_CAPTURE   = 1u << 3
+};
+
+
+
+
+
+// CPU-side material description uploaded to the backend
+typedef struct RenderMaterialDesc
+{
+    ShaderHandle shader;          // 0 = default PBR path
+    TextureHandle albedo;
+    TextureHandle normal;
+    TextureHandle metallic;
+    TextureHandle roughness;
+    TextureHandle ao;
+    MaterialProperties properties;
+} RenderMaterialDesc;
+
+
+
+
+
+
+
+
+
+
+// ----- Structs for resources -----
+
+// Enum for the format of a vertex shader
+typedef enum RenderVertexFormat
+{
+    RENDER_VERTEX_STATIC = 0,
+    RENDER_VERTEX_SKINNED = 1
+} RenderVertexFormat;
+
+
+
+
+
+// Enum for the usage of a mesh
+typedef enum RenderMeshUsage
+{
+    RENDER_MESH_STATIC = 0,
+    RENDER_MESH_DYNAMIC = 1
+} RenderMeshUsage;
+
+
+
+
+
+// Struct for the description of a mesh
+typedef struct RenderMeshDesc
+{
+    RenderVertexFormat vertex_format;
+    RenderMeshUsage usage;
+    const void* vertices;         // Vertex3D* or Vertex3DSkinned*; NULL for empty dynamic meshes
+    uint32_t vertex_count;
+    const uint32_t* indices;
+    uint32_t index_count;
+    uint32_t max_vertices;        // dynamic reserve; 0 = vertex_count
+    uint32_t max_indices;
+} RenderMeshDesc;
+
+
+
+
+
+// Structure used to update a mesh
+typedef struct RenderMeshUpdate
+{
+    const void* vertices;
+    uint32_t vertex_count;
+    const uint32_t* indices;
+    uint32_t index_count;
+} RenderMeshUpdate;
+
+
+
+
+
+
+
+
+
+
+// Enum for a type of texture
+typedef enum RenderTextureType
+{
+    RENDER_TEXTURE_2D = 0,
+    RENDER_TEXTURE_CUBE = 1
+} RenderTextureType;
+
+
+
+
+
+// Enum for pixel formats
+typedef enum RenderPixelFormat
+{
+    RENDER_FORMAT_R8 = 0,
+    RENDER_FORMAT_RG8,
+    RENDER_FORMAT_RGB8,
+    RENDER_FORMAT_RGBA8,
+    RENDER_FORMAT_RGB16F,
+    RENDER_FORMAT_RGBA16F
+} RenderPixelFormat;
+
+
+
+
+
+// Enu for the texture filtering
+typedef enum RenderTextureFilter
+{
+    RENDER_FILTER_DEFAULT = 0,    // backend chooses (OpenGL: 1x1 nearest, else linear mips)
+    RENDER_FILTER_NEAREST,
+    RENDER_FILTER_LINEAR
+} RenderTextureFilter;
+
+
+
+
+
+// Struct for the description of a texture
+typedef struct RenderTextureDesc
+{
+    RenderTextureType type;
+    RenderPixelFormat format;
+    uint32_t width;
+    uint32_t height;
+    RenderTextureFilter min_filter;
+    RenderTextureFilter mag_filter;
+    const void* pixels;           // 2D texel data (uint8 or float)
+    const void* cube_faces[6];    // right, left, top, bottom, front, back
+} RenderTextureDesc;
+
+
+
+
+
+
+
+
+
+
+// Enum for the format of a shader
+typedef enum RenderShaderFormat
+{
+    RENDER_SHADER_GLSL_SOURCE = 0,
+    RENDER_SHADER_SPIRV = 1
+} RenderShaderFormat;
+
+
+
+
+
+// Struct for the description of a shader
+typedef struct RenderShaderDesc
+{
+    RenderShaderFormat format;
+    const void* vertex_code;
+    uint32_t vertex_size;         // 0 = NUL-terminated string
+    const void* fragment_code;
+    uint32_t fragment_size;
+} RenderShaderDesc;
+
+
+
+
+
+// Struct for the description of an environment map
+typedef struct RenderEnvironmentMapDesc
+{
+    const float* hdr_pixels;   // If set, bake skybox + IBL
+    uint32_t width;
+    uint32_t height;
+    TextureHandle skybox;      // If hdr_pixels is NULL, wrap this cubemap as skybox only
+} RenderEnvironmentMapDesc;
+
+
+
+
+
+
+
+
+
+
+
+// ----- Structs to send to a renderer -----
+
+// One drawable submitted to the renderer for the current view
+typedef struct RenderItem
+{
+    MeshHandle mesh;
+    MaterialHandle material;
+    Matrix4 transform;
+    AABB local_bounds;            // mesh-space AABB
+    Matrix4* bone_matrices;       // NULL if static, gets copied to the backend
+    Color color;
+    float depth_distance;         // transparent sort
+    uint32_t flags;
+} RenderItem;
+
+
+
+
+
+// Struct for a cameras viewport, matrices, and clear
+typedef struct RenderView
 {
     uint32_t window_width;
     uint32_t window_height;
@@ -130,6 +356,28 @@ typedef struct RenderPacket
     Matrix4 view_matrix;
     Matrix4 projection_matrix;
     Vector3 camera_pos;
+    
+    RenderClearFlags clear_flags;
+    Color clear_color;
+
+    bool has_env_map;    // Whether this view draws the environment (skybox / IBL). Overlay cameras often turn this off.
+} RenderView;
+
+
+
+
+
+// Struct for a render packet to send to renderer
+typedef struct RenderLighting
+{
+    Vector3 shadow_camera_pos;
+    Vector3 camera_forward;
+    Vector3 camera_right;
+    Vector3 camera_up;
+    float camera_near;
+    float camera_far;
+    float camera_fov;
+    float camera_aspect;
     
     DirectionalLightData* dir_lights;
     uint32_t dir_light_count;
@@ -140,16 +388,8 @@ typedef struct RenderPacket
     SpotLightData* spot_lights; 
     uint32_t spot_light_count;
 
-    ReflectionProbeData* reflection_probes;
+    const ReflectionProbeData* reflection_probes;
     uint32_t reflection_probe_count;
-
-    uint32_t shadow_cascade_count;
-    Matrix4 light_space_matrices[MAX_SHADOW_CASCADES];
-    float shadow_texel_world_sizes[MAX_SHADOW_CASCADES];
-    float cascade_splits[MAX_SHADOW_CASCADES - 1]; // distance along camera forward
-    Vector3 camera_forward;        // main camera forward (cascade selection in shader)
-    float shadow_camera_near;      // camera near plane (CSM blend region sizing)
-    float cascade_blend_fraction;  // 0..1 fraction of each slice used to cross-fade
 
     bool enable_ssao;
     Color global_ambient_color;
@@ -157,34 +397,44 @@ typedef struct RenderPacket
     float gamma;
     float exposure;
 
-    bool has_env_map;
-    EnvironmentMap env_map;
+    EnvironmentMapHandle env_map;
     bool has_probe_source_env_map;
-    EnvironmentMap probe_source_env_map;
-} RenderPacket;
+    EnvironmentMapHandle probe_source_env_map;
+} RenderLighting;
 
 
 
 
 
-// Unused - Texture filtering
-typedef enum
+// View snapshot. Caller pointers only need to stay valid for the DrawWorld call. The backend copies items, bones, lights, and probes into its own storage.
+typedef struct RenderWorld
 {
-    TEXTURE_FILTER_NEAREST, // Blocky (Pixel art style)
-    TEXTURE_FILTER_LINEAR   // Smooth (Standard 3D style)
-} TextureFilter;
+    RenderView view;
+    RenderLighting lighting;
+    const RenderItem* items;
+    uint32_t item_count;
+} RenderWorld;
 
 
 
 
 
-// Structure holding all renderer settings
+
+
+
+
+
+// Structure holding all renderer settings. Acts as the policy that the renderer uses
 typedef struct RendererSettings
 {
     bool enable_ssao;
     uint32_t shadow_map_resolution; // e.g., 1024, 2048, 4096
     float gamma;                    // e.g., 2.2f (default)
     float exposure;                 // e.g., 1.0f (default)
+
+    uint32_t max_draw_items;
+    uint32_t max_shadow_cascades;
+    uint32_t max_reflection_probes;
 } RendererSettings;
 
 
@@ -200,45 +450,35 @@ typedef struct Renderer
     // --- Lifecycle ---
     
     void (*Shutdown)(Renderer* r);
-
-
-
-    // --- State ---
-
-    void (*SetViewport)(Renderer* r, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
-    void (*SetClearColor)(Renderer* renderer, float r, float g, float b, float a);
-    void (*Clear)(Renderer* r);
-    void (*ClearDepth)(Renderer* r);
+    void (*Resize)(Renderer* r, uint32_t width, uint32_t height);
 
 
 
     // --- Resource Management ---
 
-    MeshHandle    (*CreateMesh)(Renderer* r, const Vertex3D* vertices, uint32_t v_count, const uint32_t* indices, uint32_t i_count);
-    void          (*DestroyMesh)(Renderer* r, MeshHandle mesh);
+    MeshHandle     (*CreateMesh)(Renderer* r, const RenderMeshDesc* desc);
+    void           (*UpdateMesh)(Renderer* r, MeshHandle handle, const RenderMeshUpdate* update);
+    void           (*DestroyMesh)(Renderer* r, MeshHandle mesh);
     
-    TextureHandle (*CreateTexture)(Renderer* r, const uint8_t* pixels, uint32_t w, uint32_t h, uint32_t channels);
-    void          (*DestroyTexture)(Renderer* r, TextureHandle texture);
+    TextureHandle  (*CreateTexture)(Renderer* r, const RenderTextureDesc* desc);
+    void           (*DestroyTexture)(Renderer* r, TextureHandle texture);
 
-    ShaderHandle  (*CreateShader)(Renderer* r, const char* v_source, const char* f_source);
-    void          (*DestroyShader)(Renderer* r, ShaderHandle shader);
+    ShaderHandle   (*CreateShader)(Renderer* r, const RenderShaderDesc* desc);
+    void           (*DestroyShader)(Renderer* r, ShaderHandle shader);
 
-    TextureHandle (*CreateCubemap)(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels);
-    EnvironmentMap (*CreateEnvironmentMap)(Renderer* r, const float* hdr_pixels, uint32_t width, uint32_t height);
-    MeshHandle (*CreateDynamicMesh)(Renderer* r, uint32_t max_vertices, uint32_t max_indices);
-    MeshHandle (*CreateSkinnedMesh)(Renderer* r, const Vertex3DSkinned* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count);
-    void (*UpdateDynamicMesh)(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
-    void (*UpdateMesh)(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
+    MaterialHandle (*CreateMaterial)(Renderer* r, const RenderMaterialDesc* desc);
+    void           (*UpdateMaterial)(Renderer* r, MaterialHandle handle, const RenderMaterialDesc* desc);
+    void           (*DestroyMaterial)(Renderer* r, MaterialHandle handle);
+
+    EnvironmentMapHandle (*CreateEnvironmentMap)(Renderer* r, const RenderEnvironmentMapDesc* desc);
+    void                 (*DestroyEnvironmentMap)(Renderer* r, EnvironmentMapHandle handle);
 
 
 
     // --- Command Submission ---
 
-    void (*BeginShadowPass)(Renderer* r, const RenderPacket* packet);
-    void (*EndShadowPass)(Renderer* r);
-    void (*BeginFrame)(Renderer* r, const RenderPacket* packet);
-    void (*Submit)(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle albedo, TextureHandle normal, TextureHandle metallic, TextureHandle roughness, TextureHandle ao, MaterialProperties mat, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows, bool include_in_probe_capture);
-    void (*EndFrame)(Renderer* r);
+    void (*DrawWorld)(Renderer* r, const RenderWorld* world);
+    uint32_t (*GetProbeResults)(Renderer* r, RenderProbeResult* out, uint32_t max_count);
 
 
 
@@ -282,47 +522,73 @@ static inline void Render_Shutdown(Renderer* r)
         r->Shutdown(r);
 }
 
-
-
-// Sets the size and position of the viewport
-static inline void Render_SetViewport(Renderer* r, uint32_t x, uint32_t y, uint32_t width, uint32_t height)
+// Resizes backend targets (G-buffer, SSAO, lighting). Call on window resize.
+static inline void Render_Resize(Renderer* r, uint32_t width, uint32_t height)
 {
-    if (r && r->SetViewport)
-        r->SetViewport(r, x, y, width, height);
-}
-
-// Sets the color of the renderer to clear with
-static inline void Render_SetClearColor(Renderer* r, float red, float green, float blue, float alpha)
-{
-    if (r && r->SetClearColor)
-        r->SetClearColor(r, red, green, blue, alpha);
-}
-
-// Clears the renderer
-static inline void Render_Clear(Renderer* r)
-{
-    if (r && r->Clear)
-        r->Clear(r);
-}
-
-// Clears the depth buffer
-static inline void Render_ClearDepth(Renderer* r)
-{
-    if (r && r->ClearDepth)
-        r->ClearDepth(r);
+    if (r && r->Resize)
+        r->Resize(r, width, height);
 }
 
 
+
+
+
+// Returns the pixel format enum based on the number of channels
+static inline RenderPixelFormat Render_PixelFormatFromChannels(uint32_t channels)
+{
+    if (channels == 1)
+        return RENDER_FORMAT_R8;
+    if (channels == 2)
+        return RENDER_FORMAT_RG8;
+    if (channels == 3)
+        return RENDER_FORMAT_RGB8;
+    return RENDER_FORMAT_RGBA8;
+}
 
 
 
 // Uploads vertex and index data to the GPU and returns a handle
-static inline MeshHandle Render_CreateMesh(Renderer* r, const Vertex3D* vertices, uint32_t vertex_count, const uint32_t* indices,  uint32_t index_count)
+static inline MeshHandle Render_CreateMesh(Renderer* r, const RenderMeshDesc* desc)
 {
-    if (r && r->CreateMesh)
-        return r->CreateMesh(r, vertices, vertex_count, indices, index_count);\
-    else
-        return (MeshHandle){0};
+    if (r && r->CreateMesh && desc)
+        return r->CreateMesh(r, desc);
+    return (MeshHandle){0};
+}
+static inline MeshHandle Render_CreateStaticMesh(Renderer* r, const Vertex3D* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count)
+{
+    RenderMeshDesc desc = {};
+    desc.vertex_format = RENDER_VERTEX_STATIC;
+    desc.usage = RENDER_MESH_STATIC;
+    desc.vertices = vertices;
+    desc.vertex_count = vertex_count;
+    desc.indices = indices;
+    desc.index_count = index_count;
+    return Render_CreateMesh(r, &desc);
+}
+static inline MeshHandle Render_CreateSkinnedMesh(Renderer* r, const Vertex3DSkinned* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count)
+{
+    RenderMeshDesc desc = {};
+    desc.vertex_format = RENDER_VERTEX_SKINNED;
+    desc.usage = RENDER_MESH_STATIC;
+    desc.vertices = vertices;
+    desc.vertex_count = vertex_count;
+    desc.indices = indices;
+    desc.index_count = index_count;
+    return Render_CreateMesh(r, &desc);
+}
+static inline MeshHandle Render_CreateDynamicMesh(Renderer* r, uint32_t max_vertices, uint32_t max_indices)
+{
+    RenderMeshDesc desc = {};
+    desc.vertex_format = RENDER_VERTEX_STATIC;
+    desc.usage = RENDER_MESH_DYNAMIC;
+    desc.max_vertices = max_vertices;
+    desc.max_indices = max_indices;
+    return Render_CreateMesh(r, &desc);
+}
+static inline void Render_UpdateMesh(Renderer* r, MeshHandle handle, const RenderMeshUpdate* update)
+{
+    if (r && r->UpdateMesh && update)
+        r->UpdateMesh(r, handle, update);
 }
 // Removes a mesh from the GPU
 static inline void Render_DestroyMesh(Renderer* r, MeshHandle mesh)
@@ -332,13 +598,38 @@ static inline void Render_DestroyMesh(Renderer* r, MeshHandle mesh)
 }
 
 
+
 // Uploads pixels to the renderer to make a texture. Returns a handle
-static inline TextureHandle Render_CreateTexture(Renderer* r, const uint8_t* pixels, uint32_t width, uint32_t height, uint32_t channels)
+static inline TextureHandle Render_CreateTexture(Renderer* r, const RenderTextureDesc* desc)
 {
-    if (r && r->CreateTexture)
-        return r->CreateTexture(r, pixels, width, height, channels);
-    else
-        return (TextureHandle){0};
+    if (r && r->CreateTexture && desc)
+        return r->CreateTexture(r, desc);
+    return (TextureHandle){0};
+}
+static inline TextureHandle Render_CreateTexture2D(Renderer* r, const void* pixels, uint32_t width, uint32_t height, uint32_t channels)
+{
+    RenderTextureDesc desc = {};
+    desc.type = RENDER_TEXTURE_2D;
+    desc.format = Render_PixelFormatFromChannels(channels);
+    desc.width = width;
+    desc.height = height;
+    desc.pixels = pixels;
+    return Render_CreateTexture(r, &desc);
+}
+static inline TextureHandle Render_CreateCubemap(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels)
+{
+    RenderTextureDesc desc = {};
+    desc.type = RENDER_TEXTURE_CUBE;
+    desc.format = Render_PixelFormatFromChannels(channels);
+    desc.width = width;
+    desc.height = height;
+    desc.cube_faces[0] = right;
+    desc.cube_faces[1] = left;
+    desc.cube_faces[2] = top;
+    desc.cube_faces[3] = bottom;
+    desc.cube_faces[4] = front;
+    desc.cube_faces[5] = back;
+    return Render_CreateTexture(r, &desc);
 }
 // Removes a texture from the GPU
 static inline void Render_DestroyTexture(Renderer* r, TextureHandle texture)
@@ -348,13 +639,21 @@ static inline void Render_DestroyTexture(Renderer* r, TextureHandle texture)
 }
 
 
-// Uploads vertex and fragment shaders to the GPU to make a complete shader. Returns a handle
-static inline ShaderHandle Render_CreateShader(Renderer* r, const char* vertex_source, const char* fragment_source)
+
+// Uploads a shader program. Returns a handle
+static inline ShaderHandle Render_CreateShader(Renderer* r, const RenderShaderDesc* desc)
 {
-    if (r && r->CreateShader)
-        return r->CreateShader(r, vertex_source, fragment_source);
-    else
-        return (ShaderHandle){0};
+    if (r && r->CreateShader && desc)
+        return r->CreateShader(r, desc);
+    return (ShaderHandle){0};
+}
+static inline ShaderHandle Render_CreateShaderGLSL(Renderer* r, const char* vertex_source, const char* fragment_source)
+{
+    RenderShaderDesc desc = {};
+    desc.format = RENDER_SHADER_GLSL_SOURCE;
+    desc.vertex_code = vertex_source;
+    desc.fragment_code = fragment_source;
+    return Render_CreateShader(r, &desc);
 }
 // Removes a shader from the GPU
 static inline void Render_DestroyShader(Renderer* r, ShaderHandle shader)
@@ -364,101 +663,71 @@ static inline void Render_DestroyShader(Renderer* r, ShaderHandle shader)
 }
 
 
-// Creates a CubeMap for the skybox. Returns a texture handle
-static inline TextureHandle Render_CreateCubemap(Renderer* r, 
-    const uint8_t* right, const uint8_t* left, const uint8_t* top, 
-    const uint8_t* bottom, const uint8_t* front, const uint8_t* back, 
-    uint32_t width, uint32_t height, uint32_t channels)
+
+// Creates a GPU material from a CPU description
+static inline MaterialHandle Render_CreateMaterial(Renderer* r, const RenderMaterialDesc* desc)
 {
-    if (r && r->CreateCubemap)
-        return r->CreateCubemap(r, right, left, top, bottom, front, back, width, height, channels);
+    if (r && r->CreateMaterial && desc)
+        return r->CreateMaterial(r, desc);
     else
-        return (TextureHandle){0};
+        return (MaterialHandle){0};
 }
-
-
-// Creates an EnvironmentMap (IBL textures) from an HDR image
-static inline EnvironmentMap Render_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels, uint32_t width, uint32_t height)
+// Updates an existing GPU material
+static inline void Render_UpdateMaterial(Renderer* r, MaterialHandle handle, const RenderMaterialDesc* desc)
 {
-    if (r && r->CreateEnvironmentMap)
-        return r->CreateEnvironmentMap(r, hdr_pixels, width, height);
-    else
-        return (EnvironmentMap){0};
+    if (r && r->UpdateMaterial && desc)
+        r->UpdateMaterial(r, handle, desc);
 }
-
-
-// Creates a skinned mesh. Returns a mesh handle 
-static inline MeshHandle Render_CreateSkinnedMesh(Renderer* r, const Vertex3DSkinned* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count)
+// Removes a GPU material
+static inline void Render_DestroyMaterial(Renderer* r, MaterialHandle handle)
 {
-    if (r && r->CreateSkinnedMesh)
-        return r->CreateSkinnedMesh(r, vertices, vertex_count, indices, index_count);
-    return (MeshHandle){0};
+    if (r && r->DestroyMaterial)
+        r->DestroyMaterial(r, handle);
 }
 
 
-// Creates a dynamic mesh. Returns a mesh handle
-static inline MeshHandle Render_CreateDynamicMesh(Renderer* r, uint32_t max_vertices, uint32_t max_indices)
+
+// Creates GPU IBL resources (or wraps a cubemap as a skybox-only environment). Returns a handle
+static inline EnvironmentMapHandle Render_CreateEnvironmentMap(Renderer* r, const RenderEnvironmentMapDesc* desc)
 {
-    if (r && r->CreateDynamicMesh)
-        return r->CreateDynamicMesh(r, max_vertices, max_indices);
-    else
-        return (MeshHandle){0};
+    if (r && r->CreateEnvironmentMap && desc)
+        return r->CreateEnvironmentMap(r, desc);
+    return (EnvironmentMapHandle){0};
 }
-
-
-// Quickly overwrites the existing GPU memory with new vertex data
-static inline void Render_UpdateDynamicMesh(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count)
+static inline void Render_DestroyEnvironmentMap(Renderer* r, EnvironmentMapHandle handle)
 {
-    if (r && r->UpdateDynamicMesh)
-        r->UpdateDynamicMesh(r, handle, vertices, vertex_count, indices, index_count);   
+    if (r && r->DestroyEnvironmentMap)
+        r->DestroyEnvironmentMap(r, handle);
 }
 
 
-// Overwrites the GPU memory with new vertex data
-static inline void Render_UpdateMesh(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count)
+
+
+
+
+
+
+
+
+// Draws a complete view snapshot. Backends must implement DrawWorld.
+static inline void Render_DrawWorld(Renderer* r, const RenderWorld* world)
 {
-    if (r && r->UpdateMesh)
-        r->UpdateMesh(r, handle, vertices, vertex_count, indices, index_count);   
+    if (r->DrawWorld && world)
+        r->DrawWorld(r, world);
 }
 
-
-
-
-
-// Starts the shadow pass of the render pipeline
-static inline void Render_BeginShadowPass(Renderer* r, const RenderPacket* packet)
+// Copies probe capture results from the last DrawWorld. If out is NULL, returns the available count.
+static inline uint32_t Render_GetProbeResults(Renderer* r, RenderProbeResult* out, uint32_t max_count)
 {
-    if (r && r->BeginShadowPass)
-        r->BeginShadowPass(r, packet);
+    if (r && r->GetProbeResults)
+        return r->GetProbeResults(r, out, max_count);
+    return 0;
 }
 
-// Ends the shadow pass of the render pipeline
-static inline void Render_EndShadowPass(Renderer* r)
-{
-    if (r && r->EndShadowPass)
-        r->EndShadowPass(r);
-}
 
-// Sets the global camera matrices for the current frame
-static inline void Render_BeginFrame(Renderer* r, const RenderPacket* packet)
-{
-    if (r && r->BeginFrame)
-        r->BeginFrame(r, packet);
-}
 
-// Adds an object to the draw queue
-static inline void Render_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle albedo, TextureHandle normal, TextureHandle metallic, TextureHandle roughness, TextureHandle ao, MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows, bool include_in_probe_capture)
-{
-    if (r && r->Submit)
-        r->Submit(r, mesh, shader, albedo, normal, metallic, roughness, ao, mat_props, transform, bone_matrices, is_transparent, depth_distance, cast_shadows, receive_shadows, include_in_probe_capture);
-}
 
-// Sorts the queue, binds the state, and executes the actual GPU draw calls
-static inline void Render_EndFrame(Renderer* r)
-{
-    if (r && r->EndFrame)
-        r->EndFrame(r);
-}
+
 
 
 
@@ -491,6 +760,11 @@ static inline void Render_DrawOverlay(Renderer* r, const OverlayDrawList* list, 
     if (r && r->DrawOverlay)
         r->DrawOverlay(r, list, width, height);
 }
+
+
+
+
+
 
 
 

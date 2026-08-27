@@ -41,16 +41,11 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
     }
     engine->renderer = renderer;
 
-    // Initialize default renderer settings
-    RendererSettings default_settings = {
-        .enable_ssao = false,
-        .shadow_map_resolution = SHADOW_MAP_RESOLUTION,
-        .gamma = 2.2f
-    };
+    // Initialize renderer settings from the backend defaults
+    RendererSettings default_settings = Render_GetSettings(engine->renderer);
+    default_settings.enable_ssao = false;
+    default_settings.gamma = 2.2f;
     Render_SetSettings(engine->renderer, &default_settings);
-
-    // Set renderer clear color to pure white
-    Render_SetClearColor(renderer, 0.8f, 0.8f, 0.8f, 1.0f);
 
     // Initialize UI
     UI_Init();
@@ -188,7 +183,7 @@ static void Engine_OnModalEvent(void* userdata)
     uint32_t h = Platform_GetWindowHeight(engine->window);
     
     if (w > 0 && h > 0)
-        Render_SetViewport(engine->renderer, 0, 0, w, h);
+        Render_Resize(engine->renderer, w, h);
 
     // Tick the time to prevent physics/animation explosions when we let go
     Time_Tick();
@@ -283,7 +278,7 @@ void Engine_Update(PrismEngine* engine, Scene* active_scene)
         }
         else if (e.type == EVENT_WINDOW_RESIZE)
         {
-            Render_SetViewport(engine->renderer, 0, 0, e.window_resize.width, e.window_resize.height);
+            Render_Resize(engine->renderer, e.window_resize.width, e.window_resize.height);
             Platform_SetWindowSize(engine->window, e.window_resize.width, e.window_resize.height);
         }
         else if (e.type == EVENT_WINDOW_MINIMIZED)
@@ -419,7 +414,7 @@ bool Engine_IsRunning(PrismEngine* engine)
                 break;
                 
             case EVENT_WINDOW_RESIZE:
-                Render_SetViewport(engine->renderer, 0, 0, e.window_resize.width, e.window_resize.height);
+                Render_Resize(engine->renderer, e.window_resize.width, e.window_resize.height);
                 Platform_SetWindowSize(engine->window, e.window_resize.width, e.window_resize.height);
                 Log_Info("Window resized to: %d, %d\n", e.window_resize.width, e.window_resize.height);
                 break;

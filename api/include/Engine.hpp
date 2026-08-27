@@ -30,6 +30,11 @@ namespace Prism
         bool enable_ssao = true;
         uint32_t shadow_map_resolution = 2048;
         float gamma = 2.2f;
+
+        float exposure = 1.0f;
+        uint32_t max_draw_items = 0;
+        uint32_t max_shadow_cascades = 0;
+        uint32_t max_reflection_probes = 0;
     };
 
 
@@ -50,7 +55,6 @@ namespace Prism
 
         // --- Utility ---
 
-        static void SetClearColor(const Prism::Vector3& color, float alpha = 1.0f);
         static void CaptureMouse();
         static void ReleaseMouse();
         static bool IsMouseCaptured();

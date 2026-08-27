@@ -2,6 +2,7 @@
 #include "../../core/ui_core.h"
 #include "../../external/glad/glad.h"
 #include "../render.h"
+#include "../shadow_cascades.h"
 
 #define NK_INCLUDE_FIXED_TYPES
 #define NK_INCLUDE_STANDARD_IO
@@ -23,11 +24,18 @@
 #define MAX_POINT_LIGHTS 512
 #define MAX_SPOT_LIGHTS 512
 
+#define MAX_RESOURCES 8192
+#define MAX_COMMANDS 32768
+#define MAX_REFLECTION_PROBES 16
+#define MAX_SHADOW_CASCADES RENDER_MAX_SHADOW_CASCADES
+#define SHADOW_MAP_RESOLUTION_DEFAULT 4096
+
 #define MAX_SHADOW_CASTING_SPOTLIGHTS 8
 #define MAX_SHADOW_CASTING_POINT_LIGHTS 8
+#define MAX_SNAPSHOT_SKINNED 1024
 
-#define SHADOW_WIDTH SHADOW_MAP_RESOLUTION
-#define SHADOW_HEIGHT SHADOW_MAP_RESOLUTION
+#define SHADOW_WIDTH SHADOW_MAP_RESOLUTION_DEFAULT
+#define SHADOW_HEIGHT SHADOW_MAP_RESOLUTION_DEFAULT
 
 
 
@@ -51,7 +59,6 @@ typedef struct RenderState
 
     ReflectionProbeData reflection_probes[MAX_REFLECTION_PROBES];
     uint32_t reflection_probe_count;
-    ReflectionProbeData* reflection_probe_results;
 
     Matrix4 light_space_matrices[MAX_SHADOW_CASCADES];
     Matrix4 spot_light_matrices[MAX_SHADOW_CASTING_SPOTLIGHTS];
@@ -59,18 +66,27 @@ typedef struct RenderState
     float shadow_texel_world_sizes[MAX_SHADOW_CASCADES];
     float cascade_splits[MAX_SHADOW_CASCADES - 1];
     Vector3 camera_forward;
+    Vector3 camera_right;
+    Vector3 camera_up;
+    Vector3 shadow_camera_pos;
     float shadow_camera_near;
+    float shadow_camera_far;
+    float shadow_camera_fov;
+    float shadow_camera_aspect;
     uint32_t shadow_cascade_count;
     float cascade_blend_fraction;
+
+    RenderClearFlags clear_flags;
+    Color clear_color;
 
     Color global_ambient_color;
     float global_ambient_illumination;
     RendererSettings settings;
 
     bool has_env_map;
-    EnvironmentMap env_map;
+    EnvironmentMapHandle env_map;
     bool has_probe_source_env_map;
-    EnvironmentMap probe_source_env_map;
+    EnvironmentMapHandle probe_source_env_map;
 } RenderState;
 
 
@@ -112,6 +128,38 @@ typedef struct GLTexture
 
 
 
+// Struct for holding materials for OpenGL
+typedef struct GLMaterial
+{
+    bool active;
+    ShaderHandle shader;
+    TextureHandle albedo;
+    TextureHandle normal;
+    TextureHandle metallic;
+    TextureHandle roughness;
+    TextureHandle ao;
+    MaterialProperties properties;
+} GLMaterial;
+
+
+
+// Struct for holding environment maps for OpenGL
+typedef struct GLEnvironmentMap
+{
+    bool active;
+    bool has_ibl;
+    bool owns_skybox;
+    bool owns_irradiance;
+    bool owns_prefilter;
+    bool owns_brdf_lut;
+    TextureHandle skybox;
+    TextureHandle irradiance;
+    TextureHandle prefilter;
+    TextureHandle brdf_lut;
+} GLEnvironmentMap;
+
+
+
 // Struct for holding reflection probes for OpenGL
 typedef struct GLReflectionProbe
 {
@@ -122,34 +170,8 @@ typedef struct GLReflectionProbe
     Vector3 captured_position;
     uint32_t capture_resolution;
     uint32_t captured_global_skybox_id;
-    EnvironmentMap environment;
+    EnvironmentMapHandle environment;
 } GLReflectionProbe;
-
-
-
-
-
-// Struct for a render command. Contains mesh, shader, texture, material, and transform data
-typedef struct RenderCommand
-{
-    MeshHandle mesh;
-    ShaderHandle shader;
-
-    TextureHandle albedo_map;
-    TextureHandle normal_map;
-    TextureHandle metallic_map;
-    TextureHandle roughness_map;
-    TextureHandle ao_map;
-    
-    MaterialProperties mat_props;
-    Matrix4 transform;
-    Matrix4* bone_matrices;
-    bool is_transparent;
-    float depth_distance;
-    bool cast_shadows;
-    bool receive_shadows;
-    bool include_in_probe_capture;
-} RenderCommand;
 
 
 
@@ -294,10 +316,16 @@ typedef struct OpenGL_Backend
     GLMesh mesh_pool[MAX_RESOURCES];
     GLShader shader_pool[MAX_RESOURCES];
     GLTexture texture_pool[MAX_RESOURCES];
+    GLMaterial material_pool[MAX_RESOURCES];
+    GLEnvironmentMap env_map_pool[MAX_RESOURCES];
 
-    RenderCommand command_queue[MAX_COMMANDS];
+    RenderItem command_queue[MAX_COMMANDS];
     uint32_t command_count;
+    Matrix4 bone_snapshot[MAX_SNAPSHOT_SKINNED][MAX_BONES];
+    uint32_t bone_snapshot_count;
     GLReflectionProbe reflection_probes[MAX_REFLECTION_PROBES];
+    RenderProbeResult probe_results[MAX_REFLECTION_PROBES];
+    uint32_t probe_result_count;
 
     uint32_t quad_vao;
     uint32_t quad_vbo;
@@ -327,6 +355,40 @@ typedef struct OpenGL_Backend
 
 
 
+// Inline functions to get the max draw items for a opengl context
+static inline uint32_t OpenGL_MaxDrawItems(const OpenGL_Backend* internal)
+{
+    uint32_t cap = internal->state.settings.max_draw_items;
+    if (cap == 0 || cap > MAX_COMMANDS)
+        return MAX_COMMANDS;
+    return cap;
+}
+
+
+
+static inline GLEnvironmentMap* OpenGL_GetEnvMap(OpenGL_Backend* internal, EnvironmentMapHandle handle)
+{
+    if (!internal || handle.id == 0 || handle.id >= MAX_RESOURCES)
+        return NULL;
+    GLEnvironmentMap* env = &internal->env_map_pool[handle.id];
+    return env->active ? env : NULL;
+}
+
+
+
+static inline GLuint OpenGL_TextureGL(OpenGL_Backend* internal, TextureHandle handle)
+{
+    if (!internal || handle.id == 0 || handle.id >= MAX_RESOURCES)
+        return 0;
+    if (!internal->texture_pool[handle.id].active)
+        return 0;
+    return internal->texture_pool[handle.id].id;
+}
+
+
+
+
+
 // --- OpenGL Lifecycle Functions ---
 
 Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t init_height);
@@ -334,13 +396,9 @@ void OpenGL_Shutdown(Renderer* r);
 void OpenGL_GenerateLightSphere(OpenGL_Backend* internal);
 void OpenGL_InitPipelines(OpenGL_Backend* internal);
 
-void OpenGL_SetViewport(Renderer* r, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
-void OpenGL_SetClearColor(Renderer* renderer, float r, float g, float b, float a);
-void OpenGL_Clear(Renderer* r);
-void OpenGL_ClearDepth(Renderer* r);
-
 void OpenGL_SetSettings(Renderer* r, const RendererSettings* settings);
 RendererSettings OpenGL_GetSettings(Renderer* r);
+void OpenGL_Resize(Renderer* r, uint32_t width, uint32_t height);
 
 
 
@@ -348,26 +406,25 @@ RendererSettings OpenGL_GetSettings(Renderer* r);
 
 // --- OpenGL Resource Management Functions ---
 
-MeshHandle OpenGL_CreateMesh(Renderer* r, const Vertex3D* vertices, uint32_t vertex_count, const uint32_t* indices,  uint32_t index_count);
+MeshHandle OpenGL_CreateMesh(Renderer* r, const RenderMeshDesc* desc);
+void OpenGL_UpdateMesh(Renderer* r, MeshHandle handle, const RenderMeshUpdate* update);
 void OpenGL_DestroyMesh(Renderer* r, MeshHandle mesh);
 
-TextureHandle OpenGL_CreateTexture(Renderer* r, const uint8_t* pixels, uint32_t width, uint32_t height, uint32_t channels);
-TextureHandle OpenGL_CreateTextureHDR(Renderer* r, const float* pixels, uint32_t width, uint32_t height, uint32_t channels);
+TextureHandle OpenGL_CreateTexture(Renderer* r, const RenderTextureDesc* desc);
 void OpenGL_DestroyTexture(Renderer* r, TextureHandle texture);
 
-EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels, uint32_t width, uint32_t height);
+EnvironmentMapHandle OpenGL_CreateEnvironmentMap(Renderer* r, const RenderEnvironmentMapDesc* desc);
+void OpenGL_DestroyEnvironmentMap(Renderer* r, EnvironmentMapHandle handle);
+void OpenGL_DestroyEnvMapInternal(OpenGL_Backend* internal, EnvironmentMapHandle handle);
 
-ShaderHandle OpenGL_CreateShader(Renderer* r, const char* vertex_source, const char* fragment_source);
+ShaderHandle OpenGL_CreateShader(Renderer* r, const RenderShaderDesc* desc);
 ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const char* name, const char* vertex_src, const char* geom_src, const char* fragment_src);
 ShaderHandle OpenGL_CompileInternalShaderFromFile(OpenGL_Backend* internal, const char* name, const char* vert_path, const char* geom_path, const char* frag_path);
 void OpenGL_DestroyShader(Renderer* r, ShaderHandle shader);
 
-TextureHandle OpenGL_CreateCubemap(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels);
-MeshHandle OpenGL_CreateSkinnedMesh(Renderer* r, const Vertex3DSkinned* vertices, uint32_t vertex_count, const uint32_t* indices,  uint32_t index_count);
-MeshHandle OpenGL_CreateDynamicMesh(Renderer* r, uint32_t max_vertices, uint32_t max_indices);
-
-void OpenGL_UpdateDynamicMesh(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
-void OpenGL_UpdateMesh(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
+MaterialHandle OpenGL_CreateMaterial(Renderer* r, const RenderMaterialDesc* desc);
+void OpenGL_UpdateMaterial(Renderer* r, MaterialHandle handle, const RenderMaterialDesc* desc);
+void OpenGL_DestroyMaterial(Renderer* r, MaterialHandle handle);
 
 uint8_t* OpenGL_RotatePixels90CW(const uint8_t* src, int w, int h, int c);
 uint8_t* OpenGL_RotatePixels90CCW(const uint8_t* src, int w, int h, int c);
@@ -379,11 +436,9 @@ uint8_t* OpenGL_RotatePixels90CCW(const uint8_t* src, int w, int h, int c);
 // --- OpenGL Shadow Pipeline Functions ---
 
 void OpenGL_BindSSAOTexture(OpenGL_Backend* internal, GLuint program);
-void OpenGL_CopyShadowState(RenderState* state, const RenderPacket* packet);
 void OpenGL_UploadShadowUniforms(GLuint program, const RenderState* state);
 void OpenGL_DrawShadowQueue(OpenGL_Backend* internal, const Matrix4* light_space_matrix);
-void OpenGL_BeginShadowPass(Renderer* r, const RenderPacket* packet);
-void OpenGL_EndShadowPass(Renderer* r);
+void OpenGL_ExecuteShadowPass(OpenGL_Backend* internal);
 
 
 
@@ -401,9 +456,10 @@ void ExecuteSSAOPass(OpenGL_Backend* internal);
 void OpenGL_RenderCommandBatch(OpenGL_Backend* internal, uint32_t start_idx, uint32_t end_idx);
 void OpenGL_DrawSkybox(OpenGL_Backend* internal);
 
-void OpenGL_BeginFrame(Renderer* r, const RenderPacket* packet);
-void OpenGL_Submit(Renderer* r, MeshHandle mesh, ShaderHandle shader, TextureHandle albedo, TextureHandle normal, TextureHandle metallic, TextureHandle roughness, TextureHandle ao, MaterialProperties mat_props, Matrix4 transform, Matrix4* bone_matrices, bool is_transparent, float depth_distance, bool cast_shadows, bool receive_shadows, bool include_in_probe_capture);
+void OpenGL_BeginFrame(Renderer* r, const RenderView* view, const RenderLighting* lighting);
 void OpenGL_EndFrame(Renderer* r);
+void OpenGL_DrawWorld(Renderer* r, const RenderWorld* world);
+uint32_t OpenGL_GetProbeResults(Renderer* r, RenderProbeResult* out, uint32_t max_count);
 
 
 

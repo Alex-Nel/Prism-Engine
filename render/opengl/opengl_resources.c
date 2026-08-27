@@ -5,7 +5,7 @@
 
 
 // Uploads vertex and index data to the GPU and returns a handle
-MeshHandle OpenGL_CreateMesh(Renderer* r, const Vertex3D* vertices, uint32_t vertex_count, const uint32_t* indices,  uint32_t index_count)
+static MeshHandle OpenGL_CreateStaticMesh(Renderer* r, const Vertex3D* vertices, uint32_t vertex_count, const uint32_t* indices,  uint32_t index_count)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
@@ -121,8 +121,8 @@ void OpenGL_DestroyMesh(Renderer* r, MeshHandle mesh)
 
 
 
-// Uploads pixels to the renderer to make a texture. Returns a handle
-TextureHandle OpenGL_CreateTexture(Renderer* r, const uint8_t* pixels, uint32_t width, uint32_t height, uint32_t channels)
+// Uploads pixels in uint8_t format to the renderer to make a texture. Returns a handle
+static TextureHandle OpenGL_CreateTexture2DU8(Renderer* r, const uint8_t* pixels, uint32_t width, uint32_t height, uint32_t channels)
 {
     if (!pixels || width == 0 || height == 0 || channels == 0)
         return (TextureHandle){0};
@@ -209,7 +209,7 @@ TextureHandle OpenGL_CreateTexture(Renderer* r, const uint8_t* pixels, uint32_t 
 
 
 // Uploads float HDR pixels to a texture
-TextureHandle OpenGL_CreateTextureHDR(Renderer* r, const float* pixels, uint32_t width, uint32_t height, uint32_t channels)
+static TextureHandle OpenGL_CreateTextureHDR(Renderer* r, const float* pixels, uint32_t width, uint32_t height, uint32_t channels)
 {
     if (!pixels || width == 0 || height == 0 || channels == 0)
         return (TextureHandle){0};
@@ -287,18 +287,147 @@ void OpenGL_DestroyTexture(Renderer* r, TextureHandle texture)
 
 
 
-// Converts an equirectangular HDR to Cubemap and generates Irradiance, Prefilter, and BRDF LUT maps
-EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels, uint32_t width, uint32_t height)
+// Allocates a new slot for a environment map
+static uint32_t OpenGL_AllocEnvMapSlot(OpenGL_Backend* internal)
 {
-    EnvironmentMap env = {0};
-    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    for (uint32_t i = 1; i < MAX_RESOURCES; i++)
+    {
+        if (!internal->env_map_pool[i].active)
+            return i;
+    }
     
-    if (!hdr_pixels || width == 0 || height == 0)
-        return env;
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+// Frees a texture from the internal pool
+static void OpenGL_FreeOwnedTexture(OpenGL_Backend* internal, TextureHandle handle)
+{
+    if (handle.id == 0 || handle.id >= MAX_RESOURCES)
+        return;
+
+    GLTexture* tex = &internal->texture_pool[handle.id];
+    if (!tex->active)
+        return;
+    
+    if (tex->id != 0)
+        glDeleteTextures(1, &tex->id);
+    
+    tex->id = 0;
+    tex->active = false;
+}
+
+
+
+
+
+
+
+
+
+
+// Destroys an environment map from internal pool
+void OpenGL_DestroyEnvMapInternal(OpenGL_Backend* internal, EnvironmentMapHandle handle)
+{
+    GLEnvironmentMap* env = OpenGL_GetEnvMap(internal, handle);
+    if (!env)
+        return;
+
+    if (env->owns_skybox)
+        OpenGL_FreeOwnedTexture(internal, env->skybox);
+    
+    if (env->owns_irradiance)
+        OpenGL_FreeOwnedTexture(internal, env->irradiance);
+    
+    if (env->owns_prefilter)
+        OpenGL_FreeOwnedTexture(internal, env->prefilter);
+    
+    if (env->owns_brdf_lut)
+        OpenGL_FreeOwnedTexture(internal, env->brdf_lut);
+    
+    memset(env, 0, sizeof(*env));
+}
+
+
+
+
+
+
+
+
+
+
+// Destorys an environment map from its handle
+void OpenGL_DestroyEnvironmentMap(Renderer* r, EnvironmentMapHandle handle)
+{
+    if (!r || !r->backend_internal_data)
+        return;
+    OpenGL_DestroyEnvMapInternal((OpenGL_Backend*)r->backend_internal_data, handle);
+}
+
+
+
+
+
+
+
+
+
+
+// Creates a GPU environment map: full IBL from HDR, or a skybox-only wrap of an existing cubemap.
+EnvironmentMapHandle OpenGL_CreateEnvironmentMap(Renderer* r, const RenderEnvironmentMapDesc* desc)
+{
+    EnvironmentMapHandle invalid = {0};
+    if (!r || !desc)
+        return invalid;
+
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+
+    uint32_t env_id = OpenGL_AllocEnvMapSlot(internal);
+    if (env_id == 0)
+        return invalid;
+
+    GLEnvironmentMap* slot = &internal->env_map_pool[env_id];
+    memset(slot, 0, sizeof(*slot));
+    slot->active = true;
+
+    if (!desc->hdr_pixels)
+    {
+        if (desc->skybox.id == 0)
+        {
+            slot->active = false;
+            return invalid;
+        }
+        slot->skybox = desc->skybox;
+        slot->has_ibl = false;
+        slot->owns_skybox = false;
+        return (EnvironmentMapHandle){env_id};
+    }
+
+    const float* hdr_pixels = desc->hdr_pixels;
+    uint32_t width = desc->width;
+    uint32_t height = desc->height;
+    
+    if (width == 0 || height == 0)
+    {
+        slot->active = false;
+        return invalid;
+    }
 
     TextureHandle hdr_tex = OpenGL_CreateTextureHDR(r, hdr_pixels, width, height, 3);
     if (hdr_tex.id == 0)
-        return env;
+    {
+        slot->active = false;
+        return invalid;
+    }
     
     // We need 4 handles from the pool for skybox, irradiance, prefilter, brdf
     uint32_t ids[4] = {0,0,0,0};
@@ -319,13 +448,19 @@ EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels,
         for (int i = 0; i < found; i++)
             internal->texture_pool[ids[i]].active = false;
         
-        return env;
+        slot->active = false;
+        return invalid;
     }
     
-    env.skybox = (TextureHandle){ids[0]};
-    env.irradiance = (TextureHandle){ids[1]};
-    env.prefilter = (TextureHandle){ids[2]};
-    env.brdf_lut = (TextureHandle){ids[3]};
+    slot->skybox = (TextureHandle){ids[0]};
+    slot->irradiance = (TextureHandle){ids[1]};
+    slot->prefilter = (TextureHandle){ids[2]};
+    slot->brdf_lut = (TextureHandle){ids[3]};
+    slot->has_ibl = true;
+    slot->owns_skybox = true;
+    slot->owns_irradiance = true;
+    slot->owns_prefilter = true;
+    slot->owns_brdf_lut = true;
 
     // Matrices for the 6 cube faces
     Matrix4 captureProjection = Matrix4Perspective(90.0f * (3.14159265359f / 180.0f), 1.0f, 0.1f, 10.0f);
@@ -500,15 +635,15 @@ EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels,
     // Cleanup temporary HDR texture as it's no longer needed, everything is in the cubemaps
     OpenGL_DestroyTexture(r, hdr_tex);
     
-    internal->texture_pool[env.skybox.id].id = envCubemap;
-    internal->texture_pool[env.irradiance.id].id = irradianceMap;
-    internal->texture_pool[env.prefilter.id].id = prefilterMap;
-    internal->texture_pool[env.brdf_lut.id].id = brdfLUTTexture;
+    internal->texture_pool[slot->skybox.id].id = envCubemap;
+    internal->texture_pool[slot->irradiance.id].id = irradianceMap;
+    internal->texture_pool[slot->prefilter.id].id = prefilterMap;
+    internal->texture_pool[slot->brdf_lut.id].id = brdfLUTTexture;
     
     // Set viewport back
-    OpenGL_SetViewport(r, 0, 0, internal->state.window_width, internal->state.window_height);
+    OpenGL_Resize(r, internal->state.window_width, internal->state.window_height);
 
-    return env;
+    return (EnvironmentMapHandle){env_id};
 }
 
 
@@ -522,8 +657,24 @@ EnvironmentMap OpenGL_CreateEnvironmentMap(Renderer* r, const float* hdr_pixels,
 
 
 // Uploads vertex and fragment shaders to the GPU to make a complete shader. Returns a handle
-ShaderHandle OpenGL_CreateShader(Renderer* r, const char* vertex_source, const char* fragment_source)
+ShaderHandle OpenGL_CreateShader(Renderer* r, const RenderShaderDesc* desc)
 {
+    if (!desc || !desc->vertex_code || !desc->fragment_code)
+        return (ShaderHandle){0};
+    
+    if (desc->format != RENDER_SHADER_GLSL_SOURCE)
+    {
+        Log_Error("OpenGL backend only accepts GLSL source shaders.");
+        return (ShaderHandle){0};
+    }
+
+    const char* vertex_source = (const char*)desc->vertex_code;
+    const char* fragment_source = (const char*)desc->fragment_code;
+    const GLint vertex_length = desc->vertex_size ? (GLint)desc->vertex_size : 0;
+    const GLint fragment_length = desc->fragment_size ? (GLint)desc->fragment_size : 0;
+    const GLint* vertex_length_ptr = desc->vertex_size ? &vertex_length : NULL;
+    const GLint* fragment_length_ptr = desc->fragment_size ? &fragment_length : NULL;
+
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
     // Check if another spot in the pool is available
@@ -543,7 +694,7 @@ ShaderHandle OpenGL_CreateShader(Renderer* r, const char* vertex_source, const c
     // TODO: check compile status further
     // Create vertex shader
     GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vs, 1, &vertex_source, NULL);
+    glShaderSource(vs, 1, &vertex_source, vertex_length_ptr);
     glCompileShader(vs);
 
     int success;
@@ -558,7 +709,7 @@ ShaderHandle OpenGL_CreateShader(Renderer* r, const char* vertex_source, const c
 
     // Create fragment shader
     GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fs, 1, &fragment_source, NULL);
+    glShaderSource(fs, 1, &fragment_source, fragment_length_ptr);
     glCompileShader(fs);
 
     glGetShaderiv(fs, GL_COMPILE_STATUS, &success);
@@ -756,8 +907,93 @@ void OpenGL_DestroyShader(Renderer* r, ShaderHandle shader)
 
 
 
+// Fill a GLMaterial with a material descriptor
+static void OpenGL_FillMaterial(GLMaterial* mat, const RenderMaterialDesc* desc)
+{
+    mat->shader = desc->shader;
+    mat->albedo = desc->albedo;
+    mat->normal = desc->normal;
+    mat->metallic = desc->metallic;
+    mat->roughness = desc->roughness;
+    mat->ao = desc->ao;
+    mat->properties = desc->properties;
+}
+
+
+
+
+
+// Creates a material handle based on a descriptor
+MaterialHandle OpenGL_CreateMaterial(Renderer* r, const RenderMaterialDesc* desc)
+{
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    if (!desc)
+        return (MaterialHandle){0};
+    
+    uint32_t id = 0;
+    for (uint32_t i = 1; i < MAX_RESOURCES; i++)
+    {
+        if (!internal->material_pool[i].active)
+        {
+            id = i;
+            break;
+        }
+    }
+
+    if (id == 0)
+        return (MaterialHandle){0};
+    
+    GLMaterial* mat = &internal->material_pool[id];
+    memset(mat, 0, sizeof(GLMaterial));
+    mat->active = true;
+    OpenGL_FillMaterial(mat, desc);
+    
+    return (MaterialHandle){id};
+}
+
+
+
+
+
+// Updates an OpenGL material based on a descriptor
+void OpenGL_UpdateMaterial(Renderer* r, MaterialHandle handle, const RenderMaterialDesc* desc)
+{
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    if (!desc || handle.id == 0 || handle.id >= MAX_RESOURCES)
+        return;
+
+    GLMaterial* mat = &internal->material_pool[handle.id];
+    if (!mat->active)
+        return;
+    
+    OpenGL_FillMaterial(mat, desc);
+}
+
+
+
+
+
+// Destroys a material from OpenGL
+void OpenGL_DestroyMaterial(Renderer* r, MaterialHandle handle)
+{
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    if (handle.id == 0 || handle.id >= MAX_RESOURCES)
+        return;
+    
+    internal->material_pool[handle.id].active = false;
+}
+
+
+
+
+
+
+
+
+
+
 // Creates a CubeMap texture. Returns a texture handle
-TextureHandle OpenGL_CreateCubemap(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels)
+static TextureHandle OpenGL_CreateCubemap(Renderer* r, const uint8_t* right, const uint8_t* left, const uint8_t* top, const uint8_t* bottom, const uint8_t* front, const uint8_t* back, uint32_t width, uint32_t height, uint32_t channels)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
     
@@ -830,7 +1066,7 @@ TextureHandle OpenGL_CreateCubemap(Renderer* r, const uint8_t* right, const uint
 
 
 // Uploads vertex and index data to the GPU and returns a handle
-MeshHandle OpenGL_CreateSkinnedMesh(Renderer* r, const Vertex3DSkinned* vertices, uint32_t vertex_count, const uint32_t* indices,  uint32_t index_count)
+static MeshHandle OpenGL_CreateSkinnedMesh(Renderer* r, const Vertex3DSkinned* vertices, uint32_t vertex_count, const uint32_t* indices,  uint32_t index_count)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
@@ -921,7 +1157,7 @@ MeshHandle OpenGL_CreateSkinnedMesh(Renderer* r, const Vertex3DSkinned* vertices
 
 
 // Creates a dynamic mesh. Returns a mesh handle
-MeshHandle OpenGL_CreateDynamicMesh(Renderer* r, uint32_t max_vertices, uint32_t max_indices)
+static MeshHandle OpenGL_CreateDynamicMesh(Renderer* r, uint32_t max_vertices, uint32_t max_indices)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
@@ -994,7 +1230,7 @@ MeshHandle OpenGL_CreateDynamicMesh(Renderer* r, uint32_t max_vertices, uint32_t
 
 
 // Quickly overwrites the existing GPU memory with new vertex data
-void OpenGL_UpdateDynamicMesh(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count)
+static void OpenGL_UpdateDynamicMesh(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count)
 {
     if (handle.id == 0 || handle.id >= MAX_RESOURCES)
         return;
@@ -1051,7 +1287,7 @@ void OpenGL_UpdateDynamicMesh(Renderer* r, MeshHandle handle, Vertex3D* vertices
 
 
 // Overwrites the GPU memory with new vertex data
-void OpenGL_UpdateMesh(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count)
+static void OpenGL_UpdateStaticMesh(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count)
 {
     if (handle.id == 0 || handle.id >= MAX_RESOURCES)
         return;
@@ -1081,6 +1317,135 @@ void OpenGL_UpdateMesh(Renderer* r, MeshHandle handle, Vertex3D* vertices, uint3
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_count * sizeof(uint32_t), indices, GL_STATIC_DRAW);
 
     glBindVertexArray(0);
+}
+
+
+
+
+
+
+
+
+
+
+// Return the number of channels based on the format enum
+static uint32_t OpenGL_ChannelsFromFormat(RenderPixelFormat format)
+{
+    switch (format)
+    {
+        case RENDER_FORMAT_R8: return 1;
+        case RENDER_FORMAT_RG8: return 2;
+        case RENDER_FORMAT_RGB8: return 3;
+        case RENDER_FORMAT_RGBA8: return 4;
+        case RENDER_FORMAT_RGB16F: return 3;
+        case RENDER_FORMAT_RGBA16F: return 4;
+    }
+    return 4;
+}
+
+
+
+
+
+// Return whether a pixel format is a float
+static bool OpenGL_FormatIsFloat(RenderPixelFormat format)
+{
+    return format == RENDER_FORMAT_RGB16F || format == RENDER_FORMAT_RGBA16F;
+}
+
+
+
+
+
+
+
+
+
+
+// Creates an OpenGL mesh based on a mesh description
+MeshHandle OpenGL_CreateMesh(Renderer* r, const RenderMeshDesc* desc)
+{
+    if (!r || !desc)
+        return (MeshHandle){0};
+
+    if (desc->vertex_format == RENDER_VERTEX_SKINNED)
+        return OpenGL_CreateSkinnedMesh(r, (const Vertex3DSkinned*)desc->vertices, desc->vertex_count, desc->indices, desc->index_count);
+    
+    if (desc->usage == RENDER_MESH_DYNAMIC)
+    {
+        uint32_t max_vertices = desc->max_vertices ? desc->max_vertices : desc->vertex_count;
+        uint32_t max_indices = desc->max_indices ? desc->max_indices : desc->index_count;
+        return OpenGL_CreateDynamicMesh(r, max_vertices, max_indices);
+    }
+    
+    return OpenGL_CreateStaticMesh(r, (const Vertex3D*)desc->vertices, desc->vertex_count, desc->indices, desc->index_count);
+}
+
+
+
+
+
+
+
+
+
+
+// Updates an OpenGL mesh with MeshUpdate information
+void OpenGL_UpdateMesh(Renderer* r, MeshHandle handle, const RenderMeshUpdate* update)
+{
+    if (!r || !update)
+        return;
+    
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    if (handle.id == 0 || handle.id >= MAX_RESOURCES)
+        return;
+    
+    GLMesh* mesh = &internal->mesh_pool[handle.id];
+    if (!mesh->active)
+        return;
+    
+    Vertex3D* vertices = (Vertex3D*)update->vertices;
+    uint32_t* indices = (uint32_t*)update->indices;
+    
+    if (mesh->is_dynamic)
+        OpenGL_UpdateDynamicMesh(r, handle, vertices, update->vertex_count, indices, update->index_count);
+    else
+        OpenGL_UpdateStaticMesh(r, handle, vertices, update->vertex_count, indices, update->index_count);
+}
+
+
+
+
+
+
+
+
+
+
+// Creates an OpenGL texture based on a texture description
+TextureHandle OpenGL_CreateTexture(Renderer* r, const RenderTextureDesc* desc)
+{
+    if (!r || !desc || desc->width == 0 || desc->height == 0)
+        return (TextureHandle){0};
+    
+    uint32_t channels = OpenGL_ChannelsFromFormat(desc->format);
+    
+    if (desc->type == RENDER_TEXTURE_CUBE)
+    {
+        return OpenGL_CreateCubemap(r,
+            (const uint8_t*)desc->cube_faces[0],
+            (const uint8_t*)desc->cube_faces[1],
+            (const uint8_t*)desc->cube_faces[2],
+            (const uint8_t*)desc->cube_faces[3],
+            (const uint8_t*)desc->cube_faces[4],
+            (const uint8_t*)desc->cube_faces[5],
+            desc->width, desc->height, channels);
+    }
+    
+    if (OpenGL_FormatIsFloat(desc->format))
+        return OpenGL_CreateTextureHDR(r, (const float*)desc->pixels, desc->width, desc->height, channels);
+    
+    return OpenGL_CreateTexture2DU8(r, (const uint8_t*)desc->pixels, desc->width, desc->height, channels);
 }
 
 

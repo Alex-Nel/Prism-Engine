@@ -5,12 +5,21 @@
 extern "C"
 {
     #include "../../../core/mesh_core.h"
+    #include "../../../assets/asset_manager.h"
 }
 
 
 
 namespace Prism
 {
+
+    static void SyncMaterialGPU(::Material* raw_mat)
+    {
+        if (raw_mat)
+            ::Asset_SyncMaterialGPU(raw_mat);
+    }
+
+
 
 	// ==========================================
     // Material Implementation
@@ -22,6 +31,7 @@ namespace Prism
             raw_mat->properties.albedo_tint.r = color.r;
             raw_mat->properties.albedo_tint.b = color.b;
             raw_mat->properties.albedo_tint.g = color.g;
+            SyncMaterialGPU(raw_mat);
         }
         else {
             Debug_Warning("Attempted to set tint color on an invalid Material");
@@ -36,6 +46,7 @@ namespace Prism
             if (roughness < 0.04f) roughness = 0.04f;
             if (roughness > 1.0f) roughness = 1.0f;
             raw_mat->properties.roughness_factor = roughness;
+            SyncMaterialGPU(raw_mat);
         }
         else {
             Debug_Warning("Attempted to set shininess on an invalid Material");
@@ -50,6 +61,7 @@ namespace Prism
             if (metallic < 0.0f) metallic = 0.0f;
             if (metallic > 1.0f) metallic = 1.0f;
             raw_mat->properties.metallic_factor = metallic;
+            SyncMaterialGPU(raw_mat);
         }
         else {
             Debug_Warning("Attempted to set specular strength on an invalid Material");
@@ -63,6 +75,7 @@ namespace Prism
             if (metallic < 0.0f) metallic = 0.0f;
             if (metallic > 1.0f) metallic = 1.0f;
             raw_mat->properties.metallic_factor = metallic;
+            SyncMaterialGPU(raw_mat);
         }
         else {
             Debug_Warning("Attempted to set metallic on an invalid Material");
@@ -76,6 +89,7 @@ namespace Prism
             if (roughness < 0.0f) roughness = 0.0f;
             if (roughness > 1.0f) roughness = 1.0f;
             raw_mat->properties.roughness_factor = roughness;
+            SyncMaterialGPU(raw_mat);
         }
         else {
             Debug_Warning("Attempted to set roughness on an invalid Material");
@@ -90,6 +104,7 @@ namespace Prism
                 raw_mat->albedo_texture = static_cast<::Texture*>(albedo.GetRaw());
             else
                 raw_mat->albedo_texture = nullptr;
+            SyncMaterialGPU(raw_mat);
         }
         else {
             Debug_Warning("Attempted to set Albedo on an invalid Material");
@@ -104,6 +119,7 @@ namespace Prism
                 raw_mat->normal_map = static_cast<::Texture*>(normal.GetRaw());
             else
                 raw_mat->normal_map = nullptr;
+            SyncMaterialGPU(raw_mat);
         }
         else {
             Debug_Warning("Attempted to set Normal Map on an invalid Material");
@@ -118,6 +134,7 @@ namespace Prism
                 raw_mat->metallic_map = static_cast<::Texture*>(metallic.GetRaw());
             else
                 raw_mat->metallic_map = nullptr;
+            SyncMaterialGPU(raw_mat);
         }
         else {
             Debug_Warning("Attempted to set Metallic Map on an invalid Material");
@@ -132,6 +149,7 @@ namespace Prism
                 raw_mat->roughness_map = static_cast<::Texture*>(roughness.GetRaw());
             else
                 raw_mat->roughness_map = nullptr;
+            SyncMaterialGPU(raw_mat);
         }
         else {
             Debug_Warning("Attempted to set Roughness Map on an invalid Material");
@@ -146,6 +164,7 @@ namespace Prism
                 raw_mat->ao_map = static_cast<::Texture*>(ao.GetRaw());
             else
                 raw_mat->ao_map = nullptr;
+            SyncMaterialGPU(raw_mat);
         }
         else {
             Debug_Warning("Attempted to set AO Map on an invalid Material");
@@ -158,6 +177,7 @@ namespace Prism
             ::Shader* raw_shader = static_cast<::Shader*>(shader.GetRaw());
             ::Material* raw_mat = static_cast<::Material*>(m_Handle);
             raw_mat->shader = raw_shader;
+            SyncMaterialGPU(raw_mat);
         }
         else {
             Debug_Warning("Attempted to set specular strength on an invalid Material");

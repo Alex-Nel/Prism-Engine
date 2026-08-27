@@ -515,6 +515,7 @@ bool Scene_Load(Scene* scene, const char* filepath)
             
             cJSON* tint = cJSON_GetObjectItemCaseSensitive(comp_obj, "tint");
             if (tint) r->material->properties.albedo_tint = LoadColor(tint);
+            Asset_SyncMaterialGPU(r->material);
         }
 
 
@@ -535,6 +536,7 @@ bool Scene_Load(Scene* scene, const char* filepath)
             
             cJSON* tint = cJSON_GetObjectItemCaseSensitive(comp_obj, "tint");
             if (tint) r->material->properties.albedo_tint = LoadColor(tint);
+            Asset_SyncMaterialGPU(r->material);
         }
 
 

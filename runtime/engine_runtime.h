@@ -3,6 +3,7 @@
 
 
 #include "Prism.h"
+#include <stdint.h>
 
 
 
@@ -73,23 +74,20 @@ void Engine_EndFrame(PrismEngine* engine);
 
 // ----- Rendering functions -----
 
-// Gathers all the lights in a scene an puts them into a render packet.
-void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderPacket* packet, DirectionalLightData* dir_lights, PointLightData* point_lights, SpotLightData* spot_lights);
+// Gathers all the lights in a scene and puts them into a lighting packet.
+void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderLighting* lighting, DirectionalLightData* dir_lights, PointLightData* point_lights, SpotLightData* spot_lights);
 
-// Gathers all the reflection probes in a scene and puts them into a render packet.
-void Engine_GatherReflectionProbes(PrismEngine* engine, Scene* scene, RenderPacket* packet, ReflectionProbeData* probes);
+// Gathers all the reflection probes in a scene and puts them into a lighting packet.
+void Engine_GatherReflectionProbes(PrismEngine* engine, Scene* scene, RenderLighting* lighting, ReflectionProbeData* probes, uint32_t max_probes);
 
-// Applies all changes to reflection probes back into the scene.
-void Engine_ApplyReflectionProbeResults(PrismEngine* engine, Scene* scene, const ReflectionProbeData* probes, uint32_t probe_count);
-
-// Executes the shadow pass in rendering.
-void Engine_ExecuteShadowPass(PrismEngine* engine, Scene* scene, RenderPacket* packet);
+// Applies capture results from the last DrawWorld back into the scene.
+void Engine_ApplyReflectionProbeResults(PrismEngine* engine, Scene* scene);
 
 // Gathers all the cameras in a scene and sorts them
 uint32_t Engine_GatherAndSortCameras(PrismEngine* engine, Scene* scene, ActiveCamera* active_cameras);
 
-// Submits all geometry visible to a camera to the renderer.
-void Engine_SubmitVisibleGeometry(PrismEngine* engine, Scene* scene, Frustum* cam_frustum, Vector3 cam_pos, uint32_t culling_masks);
+// Extracts scene geometry into a RenderItem array for DrawWorld. Spatial culling is done by the renderer.
+uint32_t Engine_GatherVisibleGeometry(Scene* scene, Vector3 cam_pos, uint32_t culling_masks, RenderItem* out, uint32_t max);
 
 // Main function to render a scene
 void Engine_RenderScene(PrismEngine* engine, Scene* scene);
@@ -120,9 +118,6 @@ void Engine_SetTargetFPS(PrismEngine* engine, uint32_t fps);
 
 // Returns the current target FPS
 uint32_t Engine_GetTargetFPS(PrismEngine* engine);
-
-// Sets the clear color of an engines renderer
-void Engine_SetClearColor(PrismEngine* engine, float r, float g, float b, float a);
 
 
 
