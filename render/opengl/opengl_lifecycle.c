@@ -5,8 +5,14 @@
 
 
 // Initializes an OpenGL renderer.
-Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t init_height)
+Renderer* OpenGL_Init(void* native_window, uint32_t init_width, uint32_t init_height)
 {
+    if (!native_window)
+    {
+        Log_Error("ERROR: OpenGL renderer requires a native window handle.");
+        return NULL;
+    }
+
     Renderer* r = malloc(sizeof(Renderer));
     if (!r)
         return NULL;
@@ -15,6 +21,14 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
 
     OpenGL_Backend* internal = malloc(sizeof(OpenGL_Backend));
     memset(internal, 0, sizeof(OpenGL_Backend));
+
+    if (!OpenGL_Surface_Init(&internal->surface, native_window))
+    {
+        Log_Error("ERROR: Failed to create OpenGL context.");
+        free(internal);
+        free(r);
+        return NULL;
+    }
 
     internal->state.window_width = init_width;
     internal->state.window_height = init_height;
@@ -37,10 +51,11 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
         internal->env_map_pool[i].active = false;
     }
 
-    // Load OpenGL functions using the provided loader
-    if (!gladLoadGLLoader((GLADloadproc)load_proc))
+    // Load OpenGL functions using the renderer-owned surface loader
+    if (!gladLoadGLLoader((GLADloadproc)OpenGL_Surface_GetProcAddress))
     {
         Log_Error("ERROR: Failed to initialize OpenGL loader.");
+        OpenGL_Surface_Shutdown(&internal->surface);
         free(internal);
         free(r);
         return NULL;
@@ -398,6 +413,10 @@ Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t
     r->api = GRAPHICS_API_OPENGL;
     r->Shutdown = OpenGL_Shutdown;
     r->Resize = OpenGL_Resize;
+    r->Present = OpenGL_Present;
+    r->SetVSync = OpenGL_SetVSync;
+    r->MakeCurrent = OpenGL_MakeCurrent;
+    r->ReleaseCurrent = OpenGL_ReleaseCurrent;
 
     r->CreateMesh = OpenGL_CreateMesh;
     r->UpdateMesh = OpenGL_UpdateMesh;
@@ -473,8 +492,73 @@ void OpenGL_Shutdown(Renderer* r)
             Render_DestroyMaterial(r, (MaterialHandle){i});
     }
 
+    OpenGL_Surface_Shutdown(&internal->surface);
     free(internal);
     free(r);
+}
+
+
+
+
+
+
+
+
+
+
+// Presents the OpenGL context to the surface
+void OpenGL_Present(Renderer* r)
+{
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    OpenGL_Surface_Present(&internal->surface);
+}
+
+
+
+
+
+
+
+
+
+
+// Enabled/Disabled VSynx for the rendering surface
+void OpenGL_SetVSync(Renderer* r, bool enabled)
+{
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    OpenGL_Surface_SetVSync(&internal->surface, enabled);
+}
+
+
+
+
+
+
+
+
+
+
+// Makes the OpenGL surface current on the window
+bool OpenGL_MakeCurrent(Renderer* r)
+{
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    return OpenGL_Surface_MakeCurrent(&internal->surface);
+}
+
+
+
+
+
+
+
+
+
+
+// Releases the current OpenGL context from the window
+void OpenGL_ReleaseCurrent(Renderer* r)
+{
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    OpenGL_Surface_ReleaseCurrent(&internal->surface);
 }
 
 

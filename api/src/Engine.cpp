@@ -62,7 +62,7 @@ namespace Prism
     }
 
     void Engine::SetVSync(bool enabled) {
-        ::Platform_SetVSync(enabled);
+        ::Render_SetVSync(::Engine_GetRenderer(&s_engine), enabled);
     }
 
     void Engine::SetRendererSettings(const Prism::RendererSettings& settings) {

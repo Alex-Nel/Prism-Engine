@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "../core/graphics_core.h"
 #include "../core/math_core.h"
 #include "../core/mesh_core.h"
 #include "../core/log_core.h"
@@ -17,20 +18,6 @@
 
 // Used for invalid handles
 #define RENDER_INVALID_HANDLE 0
-
-
-
-
-
-// Enum for different graphics API's
-typedef enum GraphicsAPI
-{
-    GRAPHICS_API_OPENGL,
-    GRAPHICS_API_VULKAN,
-    GRAPHICS_API_DIRECTX,
-    GRAPHICS_API_SOFTWARE,
-    GRAPHICS_API_NONE
-} GraphicsAPI;
 
 
 
@@ -451,6 +438,10 @@ typedef struct Renderer
     
     void (*Shutdown)(Renderer* r);
     void (*Resize)(Renderer* r, uint32_t width, uint32_t height);
+    void (*Present)(Renderer* r);
+    void (*SetVSync)(Renderer* r, bool enabled);
+    bool (*MakeCurrent)(Renderer* r);
+    void (*ReleaseCurrent)(Renderer* r);
 
 
 
@@ -512,8 +503,8 @@ typedef struct Renderer
 typedef void* (*Render_LoadProcFn)(const char* name);
 
 
-// Initializes a renderer with a specified graphics API
-Renderer* Render_Init(GraphicsAPI api, Render_LoadProcFn load_proc, uint32_t init_width, uint32_t init_height);
+// Initializes a renderer bound to a native window handle (SDL_Window* on SDL backends).
+Renderer* Render_Init(GraphicsAPI api, void* native_window, uint32_t init_width, uint32_t init_height);
 
 // Shuts down the renderer
 static inline void Render_Shutdown(Renderer* r)
@@ -527,6 +518,31 @@ static inline void Render_Resize(Renderer* r, uint32_t width, uint32_t height)
 {
     if (r && r->Resize)
         r->Resize(r, width, height);
+}
+
+static inline void Render_Present(Renderer* r)
+{
+    if (r && r->Present)
+        r->Present(r);
+}
+
+static inline void Render_SetVSync(Renderer* r, bool enabled)
+{
+    if (r && r->SetVSync)
+        r->SetVSync(r, enabled);
+}
+
+static inline bool Render_MakeCurrent(Renderer* r)
+{
+    if (r && r->MakeCurrent)
+        return r->MakeCurrent(r);
+    return false;
+}
+
+static inline void Render_ReleaseCurrent(Renderer* r)
+{
+    if (r && r->ReleaseCurrent)
+        r->ReleaseCurrent(r);
 }
 
 
@@ -552,7 +568,8 @@ static inline MeshHandle Render_CreateMesh(Renderer* r, const RenderMeshDesc* de
 {
     if (r && r->CreateMesh && desc)
         return r->CreateMesh(r, desc);
-    return (MeshHandle){0};
+    MeshHandle invalid = {0};
+    return invalid;
 }
 static inline MeshHandle Render_CreateStaticMesh(Renderer* r, const Vertex3D* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count)
 {
@@ -604,7 +621,8 @@ static inline TextureHandle Render_CreateTexture(Renderer* r, const RenderTextur
 {
     if (r && r->CreateTexture && desc)
         return r->CreateTexture(r, desc);
-    return (TextureHandle){0};
+    TextureHandle invalid = {0};
+    return invalid;
 }
 static inline TextureHandle Render_CreateTexture2D(Renderer* r, const void* pixels, uint32_t width, uint32_t height, uint32_t channels)
 {
@@ -645,7 +663,8 @@ static inline ShaderHandle Render_CreateShader(Renderer* r, const RenderShaderDe
 {
     if (r && r->CreateShader && desc)
         return r->CreateShader(r, desc);
-    return (ShaderHandle){0};
+    ShaderHandle invalid = {0};
+    return invalid;
 }
 static inline ShaderHandle Render_CreateShaderGLSL(Renderer* r, const char* vertex_source, const char* fragment_source)
 {
@@ -669,8 +688,8 @@ static inline MaterialHandle Render_CreateMaterial(Renderer* r, const RenderMate
 {
     if (r && r->CreateMaterial && desc)
         return r->CreateMaterial(r, desc);
-    else
-        return (MaterialHandle){0};
+    MaterialHandle invalid = {0};
+    return invalid;
 }
 // Updates an existing GPU material
 static inline void Render_UpdateMaterial(Renderer* r, MaterialHandle handle, const RenderMaterialDesc* desc)
@@ -692,7 +711,8 @@ static inline EnvironmentMapHandle Render_CreateEnvironmentMap(Renderer* r, cons
 {
     if (r && r->CreateEnvironmentMap && desc)
         return r->CreateEnvironmentMap(r, desc);
-    return (EnvironmentMapHandle){0};
+    EnvironmentMapHandle invalid = {0};
+    return invalid;
 }
 static inline void Render_DestroyEnvironmentMap(Renderer* r, EnvironmentMapHandle handle)
 {

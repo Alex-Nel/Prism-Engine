@@ -1,0 +1,42 @@
+#ifndef GRAPHICS_CORE_H
+#define GRAPHICS_CORE_H
+
+
+#include <stdint.h>
+
+
+#define GRAPHICS_GL_PROFILE_CORE           1
+#define GRAPHICS_GL_PROFILE_COMPATABILITY  2
+#define GRAPHICS_GL_PROFILE_ES             3
+
+
+
+typedef enum GraphicsAPI
+{
+    GRAPHICS_API_OPENGL,
+    GRAPHICS_API_VULKAN,
+    GRAPHICS_API_DIRECTX,
+    GRAPHICS_API_SOFTWARE,
+    GRAPHICS_API_NONE
+} GraphicsAPI;
+
+
+
+
+
+// API-neutral OpenGL framebuffer/context hints applied before window creation.
+typedef enum GraphicsGLAttribute
+{
+    GRAPHICS_GL_ATTR_CONTEXT_MAJOR_VERSION,
+    GRAPHICS_GL_ATTR_CONTEXT_MINOR_VERSION,
+    GRAPHICS_GL_ATTR_CONTEXT_PROFILE_MASK,
+    GRAPHICS_GL_ATTR_DOUBLEBUFFER,
+    GRAPHICS_GL_ATTR_DEPTH_SIZE,
+    GRAPHICS_GL_ATTR_STENCIL_SIZE
+} GraphicsGLAttribute;
+
+
+
+
+
+#endif // GRAPHICS_CORE_H

@@ -12,10 +12,8 @@
 struct Window
 {
     SDL_Window* sdl_window;
-    SDL_GLContext gl_context;
     uint32_t width;
     uint32_t height;
-    GraphicsAPI current_api;
     bool is_mouse_captured;
     bool is_minimized;
     bool should_close;
@@ -170,7 +168,57 @@ static MouseButton TranslateMouseButton(Uint8 sdl_button)
 
 
 
-// Initializes a window with a title, width, height, and specified graphics API
+
+
+
+// Sets a OpenGL attribute
+void Platform_SetGLAttribute(GraphicsGLAttribute attr, int value)
+{
+    SDL_GLAttr sdl_attr;
+
+    switch (attr)
+    {
+        case GRAPHICS_GL_ATTR_CONTEXT_MAJOR_VERSION:
+            sdl_attr = SDL_GL_CONTEXT_MAJOR_VERSION;
+            break;
+        case GRAPHICS_GL_ATTR_CONTEXT_MINOR_VERSION:
+            sdl_attr = SDL_GL_CONTEXT_MINOR_VERSION;
+            break;
+        case GRAPHICS_GL_ATTR_CONTEXT_PROFILE_MASK:
+            sdl_attr = SDL_GL_CONTEXT_PROFILE_MASK;
+            if (value == GRAPHICS_GL_PROFILE_CORE)
+                value = SDL_GL_CONTEXT_PROFILE_CORE;
+            else if (value == GRAPHICS_GL_PROFILE_COMPATABILITY)
+                value = SDL_GL_CONTEXT_PROFILE_COMPATIBILITY;
+            else if (value == GRAPHICS_GL_PROFILE_ES)
+                value = SDL_GL_CONTEXT_PROFILE_ES;
+            break;
+        case GRAPHICS_GL_ATTR_DOUBLEBUFFER:
+            sdl_attr = SDL_GL_DOUBLEBUFFER;
+            break;
+        case GRAPHICS_GL_ATTR_DEPTH_SIZE:
+            sdl_attr = SDL_GL_DEPTH_SIZE;
+            break;
+        case GRAPHICS_GL_ATTR_STENCIL_SIZE:
+            sdl_attr = SDL_GL_STENCIL_SIZE;
+            break;
+        default:
+            return;
+    }
+
+    SDL_GL_SetAttribute(sdl_attr, value);
+}
+
+
+
+
+
+
+
+
+
+
+// Initializes a window with a title, width, height, and graphics API
 Window* Platform_Init(const char* title, uint32_t width, uint32_t height, GraphicsAPI api)
 {
     if (api == GRAPHICS_API_NONE)
@@ -196,26 +244,22 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
     Window* win = (Window*)malloc(sizeof(Window));
     if (!win) return NULL;
 
-    win->current_api = api;
-    win->gl_context = NULL;
-
     // Specify SDL window flags
     SDL_WindowFlags window_flags = SDL_WINDOW_RESIZABLE;
 
-    // Add API specific flags
-    if (api == GRAPHICS_API_OPENGL)
+    switch (api)
     {
-        // Set openGL attributes if using openGL
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-        
-        window_flags |= SDL_WINDOW_OPENGL;
-    }
-    else if (api == GRAPHICS_API_VULKAN)
-    {
-        // TODO: implement vulkan stuff, and other API stuff
-        window_flags |= SDL_WINDOW_VULKAN;
+        case GRAPHICS_API_OPENGL:
+            window_flags |= SDL_WINDOW_OPENGL;
+            break;
+        case GRAPHICS_API_VULKAN:
+            // TODO: implement vulkan stuff, and other API stuff
+            window_flags |= SDL_WINDOW_VULKAN;
+            break;
+        case GRAPHICS_API_DIRECTX:
+        case GRAPHICS_API_SOFTWARE:
+        default:
+            break;
     }
 
 
@@ -223,20 +267,9 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
     if (!win->sdl_window)
     {
         Log_Error("ERROR: SDL_CreateWindow Error: %s\n", SDL_GetError());
-        return false;
+        free(win);
+        return NULL;
     }
-
-    // Create openGL context if openGL was selected
-    if (api == GRAPHICS_API_OPENGL)
-    {
-        win->gl_context = SDL_GL_CreateContext(win->sdl_window);
-        if (!win->gl_context)
-        {
-            Log_Error("ERROR: SDL_GL_CreateContext Error: %s\n", SDL_GetError());
-            return false;
-        }
-    }
-    
 
     // Set window parameters
     win->width = width;
@@ -297,16 +330,6 @@ void Platform_SetEventWatchCallback(PlatformEventWatchCallback callback, void* u
         SDL_AddEventWatch(WindowEventWatcher, NULL);
         watcher_added = true;
     }
-}
-
-
-
-
-
-// Get the ProcAddress for OpenGL
-void* Platform_GetProcAddress(const char* name)
-{
-    return (void*)SDL_GL_GetProcAddress(name); 
 }
 
 
@@ -421,35 +444,38 @@ bool Platform_PollEvents(Event* e)
 
 
 
-// Swaps buffers for the specific platform
-void Platform_SwapBuffers(Window* window)
+// Shutdowns platform window
+void Platform_Shutdown(Window* window)
 {
-    if (!window || !window->sdl_window) return;
+    if (window)
+    {
+        if (window->sdl_window) SDL_DestroyWindow(window->sdl_window);
+        free(window);
+    }
 
-    // Call specific GL swap buffers functions if OpenGL is being used
-    if (window->current_api == GRAPHICS_API_OPENGL)
-        SDL_GL_SwapWindow(window->sdl_window);
-
-    // update input
-    Input_Update();
+    SDL_Quit();
 }
 
 
 
 
 
-// Shutdowns platform window
-// Gets rid of OpenGL context
-void Platform_Shutdown(Window* window)
+// Returns the native window handle
+void* Platform_GetNativeWindow(Window* window)
 {
-    if (window)
-    {
-        if (window->gl_context) SDL_GL_DestroyContext(window->gl_context);
-        if (window->sdl_window) SDL_DestroyWindow(window->sdl_window);
-        free(window);
-    }
+    if (!window)
+        return NULL;
+    return window->sdl_window;
+}
 
-    SDL_Quit();
+
+
+
+
+// Returns the active window
+Window* Platform_GetActiveWindow()
+{
+    return g_PlatformWindow;
 }
 
 
@@ -557,18 +583,6 @@ double Platform_GetTime()
 void Platform_Delay(uint32_t ms)
 {
     SDL_Delay(ms);
-}
-
-
-
-
-
-// Enables or disables vsync
-void Platform_SetVSync(bool enabled)
-{
-    int interval = enabled ? 1 : 0;
-
-    SDL_GL_SetSwapInterval(interval);
 }
 
 

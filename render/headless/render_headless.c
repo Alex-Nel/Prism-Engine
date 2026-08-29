@@ -60,6 +60,12 @@ static void Headless_UIRender(Renderer* r, void* nk_ctx, uint32_t width, uint32_
 static void Headless_DrawOverlay(Renderer* r, const OverlayDrawList* list, uint32_t width, uint32_t height) { (void)r; (void)list; (void)width; (void)height; }
 
 
+static void Headless_Present(Renderer* r) {}
+static void Headless_SetVSync(Renderer* r, bool enabled) {}
+static bool Headless_MakeCurrent(Renderer* r) { return true; }
+static void Headless_ReleaseCurrent(Renderer* r) {}
+
+
 // --- Fake Resource Creators ---
 
 static MeshHandle Headless_CreateMesh(Renderer* r, const RenderMeshDesc* desc)
@@ -144,6 +150,10 @@ Renderer* Headless_Init()
     // Map all the dummy functions
     r->Shutdown = Headless_Shutdown;
     r->Resize = Headless_Resize;
+    r->Present = Headless_Present;
+    r->SetVSync = Headless_SetVSync;
+    r->MakeCurrent = Headless_MakeCurrent;
+    r->ReleaseCurrent = Headless_ReleaseCurrent;
     
     r->CreateMesh = Headless_CreateMesh;
     r->UpdateMesh = Headless_UpdateMesh;

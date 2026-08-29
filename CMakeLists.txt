@@ -10,8 +10,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 
-add_compile_options(-Wno-unknown-pragmas)
-add_compile_options(-Wno-error=array-bounds)
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(-Wno-unknown-pragmas)
+    add_compile_options(-Wno-error=array-bounds)
+endif()
 
 
 # Default to Release mode if the user didn't specify.

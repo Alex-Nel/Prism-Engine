@@ -158,8 +158,8 @@ namespace Prism
     bool Scene::Raycast(const Ray ray, float maxDistance, RaycastHit& outHit, bool hit_triggers, int collisionMask) {
         ::RaycastHit raw_hit;
         ::Ray c_ray = {
-            .origin = {ray.origin.x, ray.origin.y, ray.origin.z},
-            .direction = {ray.direction.x, ray.direction.y, ray.direction.z}
+            {ray.origin.x, ray.origin.y, ray.origin.z},
+            {ray.direction.x, ray.direction.y, ray.direction.z}
         };
 
         bool hit = ::Scene_Raycast(static_cast<::Scene*>(m_RawScene), c_ray, maxDistance, &raw_hit, collisionMask, hit_triggers);
@@ -179,8 +179,8 @@ namespace Prism
         // Create a temporary array for the backend
         ::RaycastHit* raw_hits = new ::RaycastHit[maxHits];
         ::Ray c_ray = {
-            .origin = {ray.origin.x, ray.origin.y, ray.origin.z},
-            .direction = {ray.direction.x, ray.direction.y, ray.direction.z}
+            {ray.origin.x, ray.origin.y, ray.origin.z},
+            {ray.direction.x, ray.direction.y, ray.direction.z}
         };
         
         int hit_count = ::Scene_RaycastAll(static_cast<::Scene*>(m_RawScene), c_ray, maxDistance, raw_hits, maxHits, collisionMask, hit_triggers);

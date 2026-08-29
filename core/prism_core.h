@@ -13,6 +13,7 @@ extern "C" {
 #include "event_core.h"
 #include "font_core.h"
 #include "frustum_core.h"
+#include "graphics_core.h"
 #include "overlay_core.h"
 #include "image_core.h"
 #include "input_core.h"

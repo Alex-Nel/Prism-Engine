@@ -13,6 +13,9 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
     engine->target_fps = target_fps;
     engine->active_scene = NULL;
 
+    if (api != GRAPHICS_API_NONE)
+        Render_ConfigurePlatformSurface(api);
+
     // Platform Init
     engine->window = Platform_Init(window_title, window_width, window_height, api);
     if (!engine->window && api != GRAPHICS_API_NONE)
@@ -24,15 +27,12 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
     // Register global modal window event callback
     Platform_SetEventWatchCallback(Engine_OnModalEvent, engine);
 
-    // Get the Procedure address if OpenGL is used
-    void* proc_addr;
-    if (api == GRAPHICS_API_OPENGL)
-        proc_addr = Platform_GetProcAddress;
-    else
-        proc_addr = NULL;
+    void* native_window = NULL;
+    if (engine->window)
+        native_window = Platform_GetNativeWindow(engine->window);
     
     // Render Init
-    Renderer* renderer = Render_Init(api, proc_addr, window_width, window_height);
+    Renderer* renderer = Render_Init(api, native_window, window_width, window_height);
     if (!renderer)
     {
         Platform_Shutdown(engine->window);
@@ -231,7 +231,7 @@ static void Engine_OnModalEvent(void* userdata)
         if (engine->modal_callback)
             engine->modal_callback(engine->modal_userdata);
         Render_UIRender(engine->renderer, UI_GetContext(), w, h);
-        Platform_SwapBuffers(engine->window);
+        Render_Present(engine->renderer);
     }
 }
 
@@ -440,7 +440,7 @@ void Engine_EndFrame(PrismEngine* engine)
     if (!Platform_IsWindowMinimized(engine->window))
     {
         // Swap the OS window buffers to display the new frame
-        Platform_SwapBuffers(engine->window);
+        Render_Present(engine->renderer);
     }
 
     // Cycle the input arrays for the next frame

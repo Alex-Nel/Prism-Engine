@@ -9,6 +9,7 @@
 #include "core/prism_core.h"
 #include "audio/audio.h"
 #include "render/render.h"
+#include "render/render_surface.h"
 #include "scene/scene.h"
 #include "platform/platform_core.h"
 #include "assets/asset_manager.h"

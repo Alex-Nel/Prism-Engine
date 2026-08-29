@@ -7,7 +7,7 @@
 #include "../core/input_core.h"
 #include "../core/log_core.h"
 #include "../core/time_core.h"
-#include "../render/render.h"
+#include "../core/graphics_core.h"
 
 
 // Definition of a "window", implemented by each platform
@@ -20,7 +20,10 @@ typedef void (*PlatformEventWatchCallback)(void* user_data);
 
 // Functions for initializing and shuting down platform
 
-// Initializes a window with a title, width, height, and specified graphics API
+// Sets a graphics surface hint before Platform_Init (OpenGL only).
+void Platform_SetGLAttribute(GraphicsGLAttribute attr, int value);
+
+// Initializes a window with a title, width, height, and graphics API.
 Window* Platform_Init(const char* title, uint32_t width, uint32_t height, GraphicsAPI api);
 
 // Shuts down the window
@@ -28,6 +31,9 @@ void Platform_Shutdown(Window* window);
 
 // Returns the active window struct
 Window* Platform_GetActiveWindow();
+
+// Returns the native window handle
+void* Platform_GetNativeWindow(Window* window);
 
 // Gets the x and y position of the window (from the top left)
 void Platform_GetWindowPosition(Window* window, int* x, int* y);
@@ -53,23 +59,14 @@ bool Platform_IsWindowMinimized(Window* window);
 // Registers the callback function
 void Platform_SetEventWatchCallback(PlatformEventWatchCallback callback, void* user_data);
 
-// Gets the OS-specific graphics function pointer (for openGL)
-void* Platform_GetProcAddress(const char* name);
-
 // Platform specific function to poll events
 bool Platform_PollEvents(Event* e);
-
-// Swap buffers (for double-buffered rendering)
-void Platform_SwapBuffers(Window* window);
 
 // Get the time since the platform has existed
 double Platform_GetTime();
 
 // Delays a platform window for a specified ms
 void Platform_Delay(uint32_t ms);
-
-// Enables or disables vsync
-void Platform_SetVSync(bool enabled);
 
 // Raises the window to the foreground
 bool Platform_RaiseWindow(Window* window);

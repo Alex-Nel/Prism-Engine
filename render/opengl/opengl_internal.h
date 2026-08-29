@@ -3,6 +3,7 @@
 #include "../../external/glad/glad.h"
 #include "../render.h"
 #include "../shadow_cascades.h"
+#include "opengl_context.h"
 
 #define NK_INCLUDE_FIXED_TYPES
 #define NK_INCLUDE_STANDARD_IO
@@ -344,6 +345,8 @@ typedef struct OpenGL_Backend
     GLuint default_white_texture;
     GLuint default_normal_texture;
     GLuint default_black_texture;
+
+    OpenGL_Surface surface;
 } OpenGL_Backend;
 
 
@@ -391,7 +394,7 @@ static inline GLuint OpenGL_TextureGL(OpenGL_Backend* internal, TextureHandle ha
 
 // --- OpenGL Lifecycle Functions ---
 
-Renderer* OpenGL_Init(Render_LoadProcFn load_proc, uint32_t init_width, uint32_t init_height);
+Renderer* OpenGL_Init(void* native_window, uint32_t init_width, uint32_t init_height);
 void OpenGL_Shutdown(Renderer* r);
 void OpenGL_GenerateLightSphere(OpenGL_Backend* internal);
 void OpenGL_InitPipelines(OpenGL_Backend* internal);
@@ -399,6 +402,10 @@ void OpenGL_InitPipelines(OpenGL_Backend* internal);
 void OpenGL_SetSettings(Renderer* r, const RendererSettings* settings);
 RendererSettings OpenGL_GetSettings(Renderer* r);
 void OpenGL_Resize(Renderer* r, uint32_t width, uint32_t height);
+void OpenGL_Present(Renderer* r);
+void OpenGL_SetVSync(Renderer* r, bool enabled);
+bool OpenGL_MakeCurrent(Renderer* r);
+void OpenGL_ReleaseCurrent(Renderer* r);
 
 
 
