@@ -1,4 +1,5 @@
 #include "render_frame.h"
+#include <SDL3/SDL.h>
 
 #include <string.h>
 
@@ -55,4 +56,92 @@ void RenderFrame_FillLighting(const RenderFrame* frame, RenderLighting* out)
     out->env_map = frame->env_map;
     out->has_probe_source_env_map = frame->has_probe_source_env_map;
     out->probe_source_env_map = frame->probe_source_env_map;
+}
+
+
+
+
+
+
+
+
+
+
+// Initializes a render frame queue
+void RenderFrameQueue_Init(RenderFrameQueue* queue)
+{
+    if (!queue)
+        return;
+    
+    memset(queue, 0, sizeof(RenderFrameQueue));
+    queue->write_index = 0;
+    queue->read_index = 1;
+
+    queue->mutex = SDL_CreateMutex();
+    queue->frame_ready = SDL_CreateCondition();
+}
+
+
+
+
+
+// Shuts down a render frame queue
+void RenderFrameQueue_Shutdown(RenderFrameQueue* queue)
+{
+    if (!queue)
+        return;
+
+    if (queue->frame_ready)
+    {
+        SDL_DestroyCondition((SDL_Condition*)queue->frame_ready);
+        queue->frame_ready = NULL;
+    }
+    
+    if (queue->mutex)
+    {
+        SDL_DestroyMutex((SDL_Mutex*)queue->mutex);
+        queue->mutex = NULL;
+    }
+}
+
+
+
+
+
+// Begins writing to a specific frame in a render frame queue
+RenderFrame* RenderFrameQueue_BeginWrite(RenderFrameQueue* queue)
+{
+    if (!queue)
+        return NULL;
+    
+    return &queue->buffers[queue->write_index];
+}
+
+
+
+
+
+// Commits a write to a render queue frame
+RenderFrame* RenderFrameQueue_CommitWrite(RenderFrameQueue* queue)
+{
+    if (!queue)
+        return NULL;
+    
+    uint32_t next_write = queue->read_index;
+    queue->read_index = queue->write_index;
+    queue->write_index = next_write;
+    return &queue->buffers[queue->read_index];
+}
+
+
+
+
+
+// Returns the read information from a frame in the render frame queue
+const RenderFrame* RenderFrameQueue_GetReadFrame(const RenderFrameQueue* queue)
+{
+    if (!queue)
+        return NULL;
+    
+    return &queue->buffers[queue->read_index];
 }

@@ -650,10 +650,13 @@ void Engine_RenderScene(PrismEngine* engine, Scene* scene)
     if (!engine || !scene || !engine->renderer)
         return;
 
-    RenderFrame* frame = &engine->render_frame;
-    Engine_BuildRenderFrame(engine, scene, frame);
+    RenderFrame* write_frame = RenderFrameQueue_BeginWrite(&engine->frame_queue);
+    Engine_BuildRenderFrame(engine, scene, write_frame);
+
+    RenderFrame* read_frame = RenderFrameQueue_CommitWrite(&engine->frame_queue);
+    Engine_ApplyPendingFramebufferResize(engine);
+    Render_DrawFrame(engine->renderer, read_frame);
     
-    Render_DrawFrame(engine->renderer, frame);
-    frame->probe_result_count = Render_GetProbeResults(engine->renderer, frame->probe_results, RENDER_FRAME_MAX_PROBES);
-    Engine_ApplyFrameResults(engine, scene, frame);
+    read_frame->probe_result_count = Render_GetProbeResults(engine->renderer, read_frame->probe_results, RENDER_FRAME_MAX_PROBES);
+    Engine_ApplyFrameResults(engine, scene, read_frame);
 }

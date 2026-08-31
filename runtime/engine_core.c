@@ -61,6 +61,11 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
     engine->is_running = true;
     engine->is_simulating = true;
     engine->accumulator = 0.0f;
+    engine->render_frame_counter = 0;
+    engine->pending_frame_width = 0;
+    engine->pending_frame_height = 0;
+    engine->pending_framebuffer_resize = false;
+    RenderFrameQueue_Init(&engine->frame_queue);
 
     return true;
 }
@@ -76,6 +81,7 @@ void Engine_Shutdown(PrismEngine* engine)
     Audio_Shutdown();
     Render_UIShutdown(engine->renderer);
     Render_Shutdown(engine->renderer);
+    RenderFrameQueue_Shutdown(&engine->frame_queue);
 
     if (engine->window)
         Platform_Shutdown(engine->window);
@@ -169,23 +175,51 @@ static void Engine_DrawImmediateUI(PrismEngine* engine)
 
 
 
+// Records a pending framebuffer resize from the main thread. GPU resources are not touched here.
+void Engine_NotifyFramebufferResize(PrismEngine* engine, uint32_t width, uint32_t height)
+{
+    if (!engine || width == 0 || height == 0)
+        return;
+    
+    engine->pending_frame_width = width;
+    engine->pending_frame_height = height;
+    engine->pending_framebuffer_resize = true;
+}
+
+
+
+
+
+// Applies a pending resize on the render path before GPU work begins.
+void Engine_ApplyPendingFramebufferResize(PrismEngine* engine)
+{
+    if (!engine || !engine->renderer || !engine->pending_framebuffer_resize)
+        return;
+
+    Render_Resize(engine->renderer, engine->pending_frame_width, engine->pending_frame_height);
+    engine->pending_framebuffer_resize = false;
+}
+
+
+
+
+
 // A function to process window events without pausing main loop
 static void Engine_OnModalEvent(void* userdata)
 {
     PrismEngine* engine = (PrismEngine*)userdata;
-    if (!engine || !engine->active_scene)
+    if (!engine || !engine->window || !engine->active_scene)
         return;
 
     Scene* active_scene = engine->active_scene;
 
-    // Force the renderer to update its viewport immediately
     uint32_t w = Platform_GetWindowWidth(engine->window);
     uint32_t h = Platform_GetWindowHeight(engine->window);
     
     if (w > 0 && h > 0)
-        Render_Resize(engine->renderer, w, h);
+        Engine_NotifyFramebufferResize(engine, w, h);
 
-    // Tick the time to prevent physics/animation explosions when we let go
+    // Prevent physics/animation errors after a blocking resize.
     Time_Tick();
 
     engine->accumulator += Time_DeltaTime();
@@ -201,20 +235,17 @@ static void Engine_OnModalEvent(void* userdata)
     }
     else
     {
-        // Don't accumulate time if not simulating
         engine->accumulator = 0.0f;
     }
 
     Engine_TickRetainedUI(engine, active_scene);
-
+    
     if (engine->is_simulating)
     {
-        // Update scripts/animations
         Scene_Update(active_scene);
     }
     else
     {
-        // If not simulating, only update visual entities
         Scene_UpdateTransforms(active_scene);
         Scene_UpdateBoneAttachments(active_scene);
         Scene_UpdateSkinnedMeshBounds(active_scene);
@@ -222,8 +253,7 @@ static void Engine_OnModalEvent(void* userdata)
     }
 
     Engine_UpdateTextInput(engine);
-
-    // Render and Swap Buffers directly
+    
     if (!Platform_IsWindowMinimized(engine->window))
     {
         Engine_RenderScene(engine, active_scene);
@@ -278,8 +308,8 @@ void Engine_Update(PrismEngine* engine, Scene* active_scene)
         }
         else if (e.type == EVENT_WINDOW_RESIZE)
         {
-            Render_Resize(engine->renderer, e.window_resize.width, e.window_resize.height);
             Platform_SetWindowSize(engine->window, e.window_resize.width, e.window_resize.height);
+            Engine_NotifyFramebufferResize(engine, e.window_resize.width, e.window_resize.height);
         }
         else if (e.type == EVENT_WINDOW_MINIMIZED)
         {
@@ -414,8 +444,8 @@ bool Engine_IsRunning(PrismEngine* engine)
                 break;
                 
             case EVENT_WINDOW_RESIZE:
-                Render_Resize(engine->renderer, e.window_resize.width, e.window_resize.height);
                 Platform_SetWindowSize(engine->window, e.window_resize.width, e.window_resize.height);
+                Engine_NotifyFramebufferResize(engine, e.window_resize.width, e.window_resize.height);
                 Log_Info("Window resized to: %d, %d\n", e.window_resize.width, e.window_resize.height);
                 break;
                 

@@ -14,18 +14,30 @@ typedef void (*EngineModalCallback)(void*);
 // Struct for an "engine"
 typedef struct PrismEngine
 {
+    // Key pointers
     Window* window;
     Renderer* renderer;
     Scene* active_scene;
+
+    // Engine state variables
     bool is_running;
     bool is_simulating;
     float accumulator;
     uint32_t target_fps;
+    
+    // Modal and update callbacks
     EngineUpdateCallback pre_update_callback;
     EngineModalCallback modal_callback;
     void* modal_userdata;
-    RenderFrame render_frame;
+    
+    // Render Queue
+    RenderFrameQueue frame_queue;
     uint64_t render_frame_counter;
+
+    // Written by the main thread on resize events; consumed before GPU draw.
+    uint32_t pending_frame_width;
+    uint32_t pending_frame_height;
+    bool pending_framebuffer_resize;
 } PrismEngine;
 
 
@@ -100,6 +112,12 @@ void Engine_BuildRenderFrame(PrismEngine* engine, Scene* scene, RenderFrame* fra
 
 // Main function to render a scene
 void Engine_RenderScene(PrismEngine* engine, Scene* scene);
+
+// Records a pending framebuffer resize (main thread only)
+void Engine_NotifyFramebufferResize(PrismEngine* engine, uint32_t width, uint32_t height);
+
+// Applies any pending framebuffer resize on the render path (before DrawFrame)
+void Engine_ApplyPendingFramebufferResize(PrismEngine* engine);
 
 
 

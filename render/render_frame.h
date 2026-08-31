@@ -84,11 +84,44 @@ typedef struct RenderFrame
 
 
 
+// Struct for the render frame queue
+typedef struct RenderFrameQueue
+{
+    RenderFrame buffers[2];
+    uint32_t write_index;
+    uint32_t read_index;
+
+    // Render-thread handoff variables
+    void* mutex;
+    void* frame_ready;
+} RenderFrameQueue;
+
+
+
+
+
 // Resets a render frame completely
 void RenderFrame_Reset(RenderFrame* frame);
 
 // Fills a render frame with lighting information
 void RenderFrame_FillLighting(const RenderFrame* frame, RenderLighting* out);
+
+
+
+// Initializes a render frame queue
+void RenderFrameQueue_Init(RenderFrameQueue* queue);
+
+// Shuts down a render frame queue
+void RenderFrameQueue_Shutdown(RenderFrameQueue* queue);
+
+// Begins writing to a specific frame in a render frame queue
+RenderFrame* RenderFrameQueue_BeginWrite(RenderFrameQueue* queue);
+
+// Commits a write to a reneder queue
+RenderFrame* RenderFrameQueue_CommitWrite(RenderFrameQueue* queue);
+
+// Returns the read information from a frame in the render frame queue
+const RenderFrame* RenderFrameQueue_GetReadFrame(const RenderFrameQueue* queue);
 
 
 

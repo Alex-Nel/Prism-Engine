@@ -1916,8 +1916,6 @@ void OpenGL_BeginFrame(Renderer* r, const RenderView* view, const RenderLighting
     if (!view)
         return;
 
-    OpenGL_Resize(r, view->window_width, view->window_height);
-
     internal->state.view_matrix = view->view_matrix;
     internal->state.projection_matrix = view->projection_matrix;
     internal->state.camera_pos = view->camera_pos;
@@ -2061,6 +2059,9 @@ void OpenGL_DrawFrame(Renderer* r, const RenderFrame* frame)
 {
     if (!r || !frame || frame->view_count == 0)
         return;
+
+    if (frame->width > 0 && frame->height > 0)
+        OpenGL_Resize(r, frame->width, frame->height);
 
     RenderLighting lighting;
     RenderFrame_FillLighting(frame, &lighting);
