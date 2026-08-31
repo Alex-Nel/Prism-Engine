@@ -1,4 +1,5 @@
 #include "../render.h"
+#include "../render_frame.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -51,6 +52,7 @@ static RendererSettings Headless_GetSettings(Renderer* r)
 }
 
 static void Headless_DrawWorld(Renderer* r, const RenderWorld* world) {}
+static void Headless_DrawFrame(Renderer* r, const RenderFrame* frame) {}
 
 static uint32_t Headless_GetProbeResults(Renderer* r, RenderProbeResult* out, uint32_t max_count) { return 0; }
 
@@ -170,6 +172,7 @@ Renderer* Headless_Init()
     r->DestroyEnvironmentMap = Headless_DestroyEnvironmentMap;
 
     r->DrawWorld = Headless_DrawWorld;
+    r->DrawFrame = Headless_DrawFrame;
     r->GetProbeResults = Headless_GetProbeResults;
 
     r->SetSettings = Headless_SetSettings;

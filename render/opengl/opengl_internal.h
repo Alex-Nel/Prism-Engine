@@ -2,6 +2,7 @@
 #include "../../core/ui_core.h"
 #include "../../external/glad/glad.h"
 #include "../render.h"
+#include "../render_frame.h"
 #include "../shadow_cascades.h"
 #include "opengl_context.h"
 
@@ -466,6 +467,7 @@ void OpenGL_DrawSkybox(OpenGL_Backend* internal);
 void OpenGL_BeginFrame(Renderer* r, const RenderView* view, const RenderLighting* lighting);
 void OpenGL_EndFrame(Renderer* r);
 void OpenGL_DrawWorld(Renderer* r, const RenderWorld* world);
+void OpenGL_DrawFrame(Renderer* r, const RenderFrame* frame);
 uint32_t OpenGL_GetProbeResults(Renderer* r, RenderProbeResult* out, uint32_t max_count);
 
 

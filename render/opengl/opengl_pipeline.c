@@ -2056,6 +2056,37 @@ static void OpenGL_QueueItem(OpenGL_Backend* internal, const RenderItem* item)
 
 
 
+// Draws a render frame to an openGL context
+void OpenGL_DrawFrame(Renderer* r, const RenderFrame* frame)
+{
+    if (!r || !frame || frame->view_count == 0)
+        return;
+
+    RenderLighting lighting;
+    RenderFrame_FillLighting(frame, &lighting);
+    
+    for (uint32_t v = 0; v < frame->view_count; v++)
+    {
+        const RenderFrameView* view_slot = &frame->views[v];
+        RenderWorld world = {
+            .view = view_slot->view,
+            .lighting = lighting,
+            .items = view_slot->item_count > 0 ? &frame->items[view_slot->item_start] : NULL,
+            .item_count = view_slot->item_count
+        };
+        OpenGL_DrawWorld(r, &world);
+    }
+}
+
+
+
+
+
+
+
+
+
+
 // Copies a frozen view snapshot into backend-owned storage and runs EndFrame.
 void OpenGL_DrawWorld(Renderer* r, const RenderWorld* world)
 {

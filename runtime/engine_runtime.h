@@ -3,6 +3,7 @@
 
 
 #include "Prism.h"
+#include "render/render_frame.h"
 #include <stdint.h>
 
 
@@ -23,6 +24,8 @@ typedef struct PrismEngine
     EngineUpdateCallback pre_update_callback;
     EngineModalCallback modal_callback;
     void* modal_userdata;
+    RenderFrame render_frame;
+    uint64_t render_frame_counter;
 } PrismEngine;
 
 
@@ -75,10 +78,13 @@ void Engine_EndFrame(PrismEngine* engine);
 // ----- Rendering functions -----
 
 // Gathers all the lights in a scene and puts them into a lighting packet.
-void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderLighting* lighting, DirectionalLightData* dir_lights, PointLightData* point_lights, SpotLightData* spot_lights);
+void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderLighting* lighting, DirectionalLightData* dir_lights, uint32_t max_dir, PointLightData* point_lights, uint32_t max_point, SpotLightData* spot_lights, uint32_t max_spot);
 
 // Gathers all the reflection probes in a scene and puts them into a lighting packet.
 void Engine_GatherReflectionProbes(PrismEngine* engine, Scene* scene, RenderLighting* lighting, ReflectionProbeData* probes, uint32_t max_probes);
+
+// Applies capture results from a completed render frame back into the scene.
+void Engine_ApplyFrameResults(PrismEngine* engine, Scene* scene, const RenderFrame* frame);
 
 // Applies capture results from the last DrawWorld back into the scene.
 void Engine_ApplyReflectionProbeResults(PrismEngine* engine, Scene* scene);
@@ -87,7 +93,10 @@ void Engine_ApplyReflectionProbeResults(PrismEngine* engine, Scene* scene);
 uint32_t Engine_GatherAndSortCameras(PrismEngine* engine, Scene* scene, ActiveCamera* active_cameras);
 
 // Extracts scene geometry into a RenderItem array for DrawWorld. Spatial culling is done by the renderer.
-uint32_t Engine_GatherVisibleGeometry(Scene* scene, Vector3 cam_pos, uint32_t culling_masks, RenderItem* out, uint32_t max);
+uint32_t Engine_GatherVisibleGeometry(Scene* scene, Vector3 cam_pos, uint32_t culling_masks, RenderItem* out, uint32_t max, RenderFrame* frame_for_bones);
+
+// Builds an immutable render snapshot from the current scene state.
+void Engine_BuildRenderFrame(PrismEngine* engine, Scene* scene, RenderFrame* frame);
 
 // Main function to render a scene
 void Engine_RenderScene(PrismEngine* engine, Scene* scene);

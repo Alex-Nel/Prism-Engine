@@ -429,6 +429,7 @@ typedef struct RendererSettings
 
 
 typedef struct Renderer Renderer;
+typedef struct RenderFrame RenderFrame;
 
 typedef struct Renderer
 {
@@ -469,6 +470,7 @@ typedef struct Renderer
     // --- Command Submission ---
 
     void (*DrawWorld)(Renderer* r, const RenderWorld* world);
+    void (*DrawFrame)(Renderer* r, const RenderFrame* frame);
     uint32_t (*GetProbeResults)(Renderer* r, RenderProbeResult* out, uint32_t max_count);
 
 
@@ -734,6 +736,13 @@ static inline void Render_DrawWorld(Renderer* r, const RenderWorld* world)
 {
     if (r->DrawWorld && world)
         r->DrawWorld(r, world);
+}
+
+// Draws a scene into a render frame
+static inline void Render_DrawFrame(Renderer* r, const RenderFrame* frame)
+{
+    if (r && r->DrawFrame && frame)
+        r->DrawFrame(r, frame);
 }
 
 // Copies probe capture results from the last DrawWorld. If out is NULL, returns the available count.

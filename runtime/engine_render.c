@@ -1,13 +1,12 @@
 #include "engine_runtime.h"
+#include <string.h>
 
 
 
-#define ENGINE_MAX_GATHER_LIGHTS 8192
 #define ENGINE_MAX_GATHER_PROBES 16
 
 
 
-static RenderItem s_extracted_items[MAX_ENTITIES];
 
 
 
@@ -38,7 +37,7 @@ static int CompareProbePriority(const void* a, const void* b)
 
 
 // Gathers all the lights in a scene and puts them into a lighting packet.
-void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderLighting* lighting, DirectionalLightData* dir_lights, PointLightData* point_lights, SpotLightData* spot_lights)
+void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderLighting* lighting, DirectionalLightData* dir_lights, uint32_t max_dir, PointLightData* point_lights, uint32_t max_point, SpotLightData* spot_lights, uint32_t max_spot)
 {
     uint32_t dir_count = 0, point_count = 0, spot_count = 0;
     uint32_t light_mask = COMPONENT_TRANSFORM | COMPONENT_LIGHT;
@@ -55,7 +54,7 @@ void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderLighting*
         if (!l->is_active)
             continue;
 
-        if (l->type == LIGHT_DIRECTIONAL && dir_count < ENGINE_MAX_GATHER_LIGHTS)
+        if (l->type == LIGHT_DIRECTIONAL && dir_count < max_dir)
         {
             dir_lights[dir_count].direction = Transform_GetForwardVector(t);
             dir_lights[dir_count].color = l->color;
@@ -69,7 +68,7 @@ void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderLighting*
             dir_lights[dir_count].casts_shadows = l->casts_shadows;
             dir_count++;
         }
-        else if (l->type == LIGHT_POINT && point_count < ENGINE_MAX_GATHER_LIGHTS)
+        else if (l->type == LIGHT_POINT && point_count < max_point)
         {
             point_lights[point_count].position = Transform_GetGlobalPosition(t);
             point_lights[point_count].color = l->color;
@@ -80,7 +79,7 @@ void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderLighting*
             point_lights[point_count].casts_shadows = l->casts_shadows;
             point_count++;
         }
-        else if (l->type == LIGHT_SPOT && spot_count < ENGINE_MAX_GATHER_LIGHTS)
+        else if (l->type == LIGHT_SPOT && spot_count < max_spot)
         {
             spot_lights[spot_count].position = Transform_GetGlobalPosition(t);
             spot_lights[spot_count].direction = Transform_GetForwardVector(t);
@@ -201,6 +200,34 @@ void Engine_GatherReflectionProbes(PrismEngine* engine, Scene* scene, RenderLigh
 
 
 
+// Applies reflection probe capture results from a completed frame back to the components
+void Engine_ApplyFrameResults(PrismEngine* engine, Scene* scene, const RenderFrame* frame)
+{
+    if (!engine || !scene || !frame)
+        return;
+
+    for (uint32_t i = 0; i < frame->probe_result_count; i++)
+    {
+        uint32_t entity_id = frame->probe_results[i].entity_id;
+        if (entity_id >= MAX_ENTITIES || !(scene->component_masks[entity_id] & COMPONENT_REFLECTION_PROBE))
+            continue;
+        
+        ReflectionProbeComponent* component = &scene->reflection_probes[entity_id];
+        component->environment = frame->probe_results[i].environment;
+        component->dirty = frame->probe_results[i].dirty;
+        component->captured = frame->probe_results[i].captured;
+    }
+}
+
+
+
+
+
+
+
+
+
+
 // Applies reflection probe capture results from the last DrawWorld back to the components
 void Engine_ApplyReflectionProbeResults(PrismEngine* engine, Scene* scene)
 {
@@ -209,17 +236,16 @@ void Engine_ApplyReflectionProbeResults(PrismEngine* engine, Scene* scene)
 
     RenderProbeResult results[ENGINE_MAX_GATHER_PROBES];
     uint32_t probe_count = Render_GetProbeResults(engine->renderer, results, ENGINE_MAX_GATHER_PROBES);
+
+    RenderFrame temp = {0};
+    temp.probe_result_count = probe_count;
+
     for (uint32_t i = 0; i < probe_count; i++)
     {
-        uint32_t entity_id = results[i].entity_id;
-        if (entity_id >= MAX_ENTITIES || !(scene->component_masks[entity_id] & COMPONENT_REFLECTION_PROBE))
-            continue;
-
-        ReflectionProbeComponent* component = &scene->reflection_probes[entity_id];
-        component->environment = results[i].environment;
-        component->dirty = results[i].dirty;
-        component->captured = results[i].captured;
+        temp.probe_results[i] = results[i];
     }
+
+    Engine_ApplyFrameResults(engine, scene, &temp);
 }
 
 
@@ -299,13 +325,44 @@ static void Extract_TryPush(RenderItem* out, uint32_t max, uint32_t* count, cons
 
 
 
+static void RenderFrame_AssignBones(RenderFrame* frame, RenderItem* item, Matrix4* bone_ptr)
+{
+    if (!frame || !item || !bone_ptr)
+        return;
+
+    if (frame->bone_slot_count >= RENDER_FRAME_MAX_SKINNED)
+        return;
+    
+    uint32_t slot = frame->bone_slot_count++;
+    memcpy(frame->bone_matrices[slot], bone_ptr, sizeof(Matrix4) * MAX_BONES);
+    item->bone_matrices = frame->bone_matrices[slot];
+}
+
+
+
+
+
+static void Extract_TryPushSkinned(RenderItem* out, uint32_t max, uint32_t* count, RenderItem* item, RenderFrame* frame, Matrix4* bone_ptr)
+{
+    if (frame)
+        RenderFrame_AssignBones(frame, item, bone_ptr);
+    else
+        item->bone_matrices = bone_ptr;
+
+    Extract_TryPush(out, max, count, item);
+}
+
+
+
+
+
 
 
 
 
 
 // Extracts scene geometry into a RenderItem array for DrawWorld
-uint32_t Engine_GatherVisibleGeometry(Scene* scene, Vector3 cam_pos, uint32_t culling_masks, RenderItem* out, uint32_t max)
+uint32_t Engine_GatherVisibleGeometry(Scene* scene, Vector3 cam_pos, uint32_t culling_masks, RenderItem* out, uint32_t max, RenderFrame* frame_for_bones)
 {
     uint32_t count = 0;
     if (!scene || !out || max == 0)
@@ -370,14 +427,13 @@ uint32_t Engine_GatherVisibleGeometry(Scene* scene, Vector3 cam_pos, uint32_t cu
         RenderItem_SetMaterial(&item, rc->material);
         item.transform = t->world_matrix;
         item.local_bounds = rc->pose_bounds;
-        item.bone_matrices = bone_ptr;
         
         if (rc->casts_shadows)
             item.flags |= RENDER_ITEM_CAST_SHADOWS;
         if (rc->receives_shadows)
             item.flags |= RENDER_ITEM_RECEIVE_SHADOWS;
 
-        Extract_TryPush(out, max, &count, &item);
+        Extract_TryPushSkinned(out, max, &count, &item, frame_for_bones, bone_ptr);
     }
 
 
@@ -461,118 +517,143 @@ uint32_t Engine_GatherVisibleGeometry(Scene* scene, Vector3 cam_pos, uint32_t cu
 
 
 
-// Renders a specified scene
-void Engine_RenderScene(PrismEngine* engine, Scene* scene)
+// Builds an immutable render snapshot from the current scene state.
+void Engine_BuildRenderFrame(PrismEngine* engine, Scene* scene, RenderFrame* frame)
 {
-    if (!scene)
+    if (!engine || !scene || !frame)
         return;
 
-    uint32_t win_w = Platform_GetWindowWidth(engine->window);
-    uint32_t win_h = Platform_GetWindowHeight(engine->window);
+    RenderFrame_Reset(frame);
+    frame->frame_id = ++engine->render_frame_counter;
 
-    CameraComponent* cam = &scene->cameras[scene->main_camera_id];
-    if (win_w > 0 && win_h > 0)
-    {
-        cam->viewport_x = 0;
-        cam->viewport_y = 0;
-        cam->viewport_width = win_w;
-        cam->viewport_height = win_h;
-    }
+    frame->width = Platform_GetWindowWidth(engine->window);
+    frame->height = Platform_GetWindowHeight(engine->window);
 
     // Make an empty render packet to send to the renderer
-    RenderLighting lighting = {0};
     RendererSettings cur_settings = Render_GetSettings(engine->renderer);
-    lighting.enable_ssao = cur_settings.enable_ssao;
-    lighting.global_ambient_color = scene->ambient_color;
-    lighting.global_ambient_illumination = scene->ambient_illumination;
-    lighting.exposure = scene->exposure;
-    lighting.gamma = 2.2f;
+    frame->enable_ssao = cur_settings.enable_ssao;
+    frame->global_ambient_color = scene->ambient_color;
+    frame->global_ambient_illumination = scene->ambient_illumination;
+    frame->exposure = scene->exposure;
+    frame->gamma = 2.2f;
     if (cur_settings.gamma > 0.01f)
-        lighting.gamma = cur_settings.gamma;
+        frame->gamma = cur_settings.gamma;
     
-    lighting.has_probe_source_env_map = scene->has_env_map;
-
+    frame->has_probe_source_env_map = scene->has_env_map;
     if (scene->has_env_map && scene->env_map)
     {
-        lighting.env_map = scene->env_map->gpu_handle;
-        lighting.probe_source_env_map = scene->env_map->gpu_handle;
+        frame->env_map = scene->env_map->gpu_handle;
+        frame->probe_source_env_map = scene->env_map->gpu_handle;
     }
 
     // --- Get all Point Lights from the ECS ---
-    DirectionalLightData active_dir_lights[ENGINE_MAX_GATHER_LIGHTS];
-    PointLightData active_point_lights[ENGINE_MAX_GATHER_LIGHTS];
-    SpotLightData active_spot_lights[ENGINE_MAX_GATHER_LIGHTS];
-    ReflectionProbeData active_reflection_probes[ENGINE_MAX_GATHER_PROBES];
+    RenderLighting lighting = {0};
+    Engine_GatherSceneLights(engine, scene, &lighting,
+        frame->dir_lights, RENDER_FRAME_MAX_DIR_LIGHTS,
+        frame->point_lights, RENDER_FRAME_MAX_POINT_LIGHTS,
+        frame->spot_lights, RENDER_FRAME_MAX_SPOT_LIGHTS);
+    frame->dir_light_count = lighting.dir_light_count;
+    frame->point_light_count = lighting.point_light_count;
+    frame->spot_light_count = lighting.spot_light_count;
 
 
     // Fill the packet with all the lights in the scene
-    Engine_GatherSceneLights(engine, scene, &lighting, active_dir_lights, active_point_lights, active_spot_lights);
     uint32_t probe_cap = cur_settings.max_reflection_probes;
-    Engine_GatherReflectionProbes(engine, scene, &lighting, active_reflection_probes, probe_cap);
+    if (probe_cap > RENDER_FRAME_MAX_PROBES)
+        probe_cap = RENDER_FRAME_MAX_PROBES;
+    Engine_GatherReflectionProbes(engine, scene, &lighting, frame->reflection_probes, probe_cap);
+    frame->reflection_probe_count = lighting.reflection_probe_count;
 
     Transform* main_cam_t = &scene->transforms[scene->main_camera_id];
     CameraComponent* main_cam = &scene->cameras[scene->main_camera_id];
+    if (frame->width > 0 && frame->height > 0)
+    {
+        main_cam->viewport_x = 0;
+        main_cam->viewport_y = 0;
+        main_cam->viewport_width = frame->width;
+        main_cam->viewport_height = frame->height;
+    }
     Camera_RecalculateProjectionIfNeeded(main_cam);
-    lighting.shadow_camera_pos = Transform_GetGlobalPosition(main_cam_t);
-    lighting.camera_forward = Transform_GetForwardVector(main_cam_t);
-    lighting.camera_right = Transform_GetRightVector(main_cam_t);
-    lighting.camera_up = Transform_GetUpVector(main_cam_t);
-    lighting.camera_near = main_cam->nearZ;
-    lighting.camera_far = main_cam->farZ;
-    lighting.camera_fov = main_cam->fov;
-    lighting.camera_aspect = 1.0f;
-    if (main_cam->viewport_height > 0)
-        lighting.camera_aspect = (float)main_cam->viewport_width / (float)main_cam->viewport_height;
+    frame->shadow_camera_pos = Transform_GetGlobalPosition(main_cam_t);
+    frame->camera_forward = Transform_GetForwardVector(main_cam_t);
+    frame->camera_right = Transform_GetRightVector(main_cam_t);
+    frame->camera_up = Transform_GetUpVector(main_cam_t);
+    frame->camera_near = main_cam->nearZ;
+    frame->camera_far = main_cam->farZ;
+    frame->camera_fov = main_cam->fov;
+    frame->camera_aspect = 1.0f;
+    if (frame->height > 0)
+        frame->camera_aspect = (float)frame->width / (float)frame->height;
     
 
     // Gather and sort cameras
     ActiveCamera active_cameras[MAX_ENTITIES];
     uint32_t camera_count = Engine_GatherAndSortCameras(engine, scene, active_cameras);
+    if (camera_count > RENDER_FRAME_MAX_VIEWS)
+        camera_count = RENDER_FRAME_MAX_VIEWS;
+
+    uint32_t max_items = cur_settings.max_draw_items;
+    if (max_items == 0 || max_items > RENDER_FRAME_MAX_ITEMS)
+        max_items = RENDER_FRAME_MAX_ITEMS;
 
 
-    // Execute render pass per camera
     for (uint32_t c = 0; c < camera_count; c++)
     {
         uint32_t cam_id = active_cameras[c].entity_id;
         Transform* cam_transform = &scene->transforms[cam_id];
         CameraComponent* cam_comp = &scene->cameras[cam_id];
 
-        // Keep every cameras viewport in sync with the current window size
-        if (win_w > 0 && win_h > 0)
+        Vector3 global_pos = Transform_GetGlobalPosition(cam_transform);
+        if (frame->width > 0 && frame->height > 0)
         {
             cam_comp->viewport_x = 0;
             cam_comp->viewport_y = 0;
-            cam_comp->viewport_width = win_w;
-            cam_comp->viewport_height = win_h;
+            cam_comp->viewport_width = frame->width;
+            cam_comp->viewport_height = frame->height;
         }
-
-        // Setup Camera Matrices and clearing flags
-        Vector3 global_pos = Transform_GetGlobalPosition(cam_transform);
         Camera_RecalculateProjectionIfNeeded(cam_comp);
 
-        RenderView view = {0};
-        view.view_matrix = Matrix4Inverse(cam_transform->world_matrix);
-        view.projection_matrix = cam_comp->projection_matrix;
-        view.camera_pos = global_pos;
-        view.has_env_map = (cam_comp->clear_flags == CLEAR_COLOR_AND_DEPTH) ? scene->has_env_map : false;
-        view.window_width = cam_comp->viewport_width;
-        view.window_height = cam_comp->viewport_height;
-        view.clear_flags = (RenderClearFlags)cam_comp->clear_flags;
-        view.clear_color = scene->background_color;
+        RenderFrameView* view_slot = &frame->views[frame->view_count];
+        view_slot->item_start = frame->item_count;
 
-        uint32_t max_items = cur_settings.max_draw_items;
-        if (max_items == 0 || max_items > MAX_ENTITIES)
-            max_items = MAX_ENTITIES;
-        
-        uint32_t item_count = Engine_GatherVisibleGeometry(scene, global_pos, cam_comp->culling_masks, s_extracted_items, max_items);
-        RenderWorld world = {
-            .view = view,
-            .lighting = lighting,
-            .items = s_extracted_items,
-            .item_count = item_count
-        };
-        Render_DrawWorld(engine->renderer, &world);
+        uint32_t viewport_w = cam_comp->viewport_width;
+        uint32_t viewport_h = cam_comp->viewport_height;
 
-        Engine_ApplyReflectionProbeResults(engine, scene);
+        view_slot->view.view_matrix = Matrix4Inverse(cam_transform->world_matrix);
+        view_slot->view.projection_matrix = cam_comp->projection_matrix;
+        view_slot->view.camera_pos = global_pos;
+        view_slot->view.has_env_map = (cam_comp->clear_flags == CLEAR_COLOR_AND_DEPTH) ? scene->has_env_map : false;
+        view_slot->view.window_width = viewport_w;
+        view_slot->view.window_height = viewport_h;
+        view_slot->view.clear_flags = (RenderClearFlags)cam_comp->clear_flags;
+        view_slot->view.clear_color = scene->background_color;
+        uint32_t remaining = max_items - frame->item_count;
+        uint32_t gathered = Engine_GatherVisibleGeometry(scene, global_pos, cam_comp->culling_masks, frame->items + frame->item_count, remaining, frame);
+        view_slot->item_count = gathered;
+        frame->item_count += gathered;
+        frame->view_count++;
     }
+}
+
+
+
+
+
+
+
+
+
+
+// Renders a specified scene
+void Engine_RenderScene(PrismEngine* engine, Scene* scene)
+{
+    if (!engine || !scene || !engine->renderer)
+        return;
+
+    RenderFrame* frame = &engine->render_frame;
+    Engine_BuildRenderFrame(engine, scene, frame);
+    
+    Render_DrawFrame(engine->renderer, frame);
+    frame->probe_result_count = Render_GetProbeResults(engine->renderer, frame->probe_results, RENDER_FRAME_MAX_PROBES);
+    Engine_ApplyFrameResults(engine, scene, frame);
 }
