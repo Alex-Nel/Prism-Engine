@@ -14,13 +14,13 @@ namespace Prism
 {
 
     // Enum for graphics API's
-    enum GraphicsAPI 
+    enum class GraphicsAPI 
     {
-        GRAPHICS_API_OPENGL,
-        GRAPHICS_API_VULKAN,
-        GRAPHICS_API_DIRECTX,
-        GRAPHICS_API_SOFTWARE,
-        GRAPHICS_API_NONE
+        OPENGL,
+        VULKAN,
+        DIRECTX,
+        SOFTWARE,
+        NONE
     };
 
 
@@ -48,7 +48,7 @@ namespace Prism
 
         // --- Lifecycle ---
 
-        static bool Init(const std::string& title, uint32_t width, uint32_t height, uint32_t target_fps = 60, GraphicsAPI api = GRAPHICS_API_OPENGL);
+        static bool Init(const std::string& title, uint32_t width, uint32_t height, uint32_t target_fps = 60, GraphicsAPI api = GraphicsAPI::OPENGL);
         static void Run(Scene& active_scene);
         static void Shutdown();
 

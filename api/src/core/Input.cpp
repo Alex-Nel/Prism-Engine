@@ -84,7 +84,7 @@ namespace Prism
     bool Input::IsActionPressed(const std::string& actionName) {
         auto it = s_ActionMap.find(actionName);
         if (it != s_ActionMap.end()) {
-            ::KeyCode cCode = ::KeyCode(it->second);
+            ::KeyCode cCode = static_cast<::KeyCode>(it->second);
             return ::Input_IsKeyPressed(cCode); 
         }
         return false;
@@ -97,7 +97,7 @@ namespace Prism
     // Called once per frame by the C++ Engine Loop
     void Input::DispatchCallbacks() {
         for (const auto& pair : s_KeyPressedCallbacks) {
-            if (::Input_IsKeyPressed(::KeyCode(pair.first))) {
+            if (::Input_IsKeyPressed(static_cast<::KeyCode>(pair.first))) {
                 for (const auto& callback : pair.second) {
                     callback();
                 }
