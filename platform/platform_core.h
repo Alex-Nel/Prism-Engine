@@ -65,7 +65,7 @@ bool Platform_IsWindowMinimized(Window* window);
 
 
 
-// ----- Platform utility functions
+// ----- Platform utility functions -----
 
 // Registers the callback function
 void Platform_SetEventWatchCallback(PlatformEventWatchCallback callback, void* user_data);

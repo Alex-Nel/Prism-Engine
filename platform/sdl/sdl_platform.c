@@ -64,7 +64,7 @@ static KeyCode TranslateKey(SDL_Keycode sdl_key, SDL_Keymod mod)
         case SDLK_Z: return KEYCODE_Z;
         
         case SDLK_0: return shift ? KEYCODE_RIGHTPAREN   : KEYCODE_0;
-        case SDLK_1: return shift ? KEYCODE_EXCLAIMATION : KEYCODE_1;
+        case SDLK_1: return shift ? KEYCODE_EXCLAMATION  : KEYCODE_1;
         case SDLK_2: return shift ? KEYCODE_AT           : KEYCODE_2;
         case SDLK_3: return shift ? KEYCODE_HASH         : KEYCODE_3;
         case SDLK_4: return shift ? KEYCODE_DOLLAR       : KEYCODE_4;
@@ -91,7 +91,7 @@ static KeyCode TranslateKey(SDL_Keycode sdl_key, SDL_Keymod mod)
 
         case SDLK_GRAVE:     return shift ? KEYCODE_TILDE : KEYCODE_GRAVE;
         case SDLK_TILDE:     return KEYCODE_TILDE;
-        case SDLK_EXCLAIM:   return KEYCODE_EXCLAIMATION;
+        case SDLK_EXCLAIM:   return KEYCODE_EXCLAMATION;
         case SDLK_AT:        return KEYCODE_AT;
         case SDLK_HASH:      return KEYCODE_HASH;
         case SDLK_DOLLAR:    return KEYCODE_DOLLAR;

@@ -209,7 +209,7 @@ int main()
     
 
     // Setup basic input
-    Prism::Input::BindKeyPressed(Prism::KEYCODE_P, []() {
+    Prism::Input::BindKeyPressed(Prism::KeyCode::P, []() {
         is_simulating = !is_simulating;
         Prism::Engine::SetSimulationMode(is_simulating);
         Debug_Log("Simulation Mode: %s", is_simulating ? "ON" : "OFF");
@@ -250,7 +250,7 @@ int main()
 
 
         // --- Editor Camera Controls ---
-        if (Prism::Input::IsMouseButtonDown(Prism::MOUSE_BUTTON_RIGHT))
+        if (Prism::Input::IsMouseButtonDown(Prism::MouseButton::RIGHT))
         {
             if (!Prism::Engine::IsMouseCaptured())
                 Prism::Engine::CaptureMouse();
@@ -273,15 +273,15 @@ int main()
             Prism::Vector3 right = cam_t->GetRightVector();
             Prism::Vector3 up = Prism::Vector3{0.0f, 1.0f, 0.0f};
 
-            if (Prism::Input::IsKeyDown(Prism::KEYCODE_LEFTSHIFT)) move_speed = 10.0f * dt;
+            if (Prism::Input::IsKeyDown(Prism::KeyCode::LEFTSHIFT)) move_speed = 10.0f * dt;
             else move_speed = 5.0f * dt;
 
-            if (Prism::Input::IsKeyDown(Prism::KEYCODE_W)) cam_t->Translate(forward * move_speed);
-            if (Prism::Input::IsKeyDown(Prism::KEYCODE_S)) cam_t->Translate(forward * -move_speed);
-            if (Prism::Input::IsKeyDown(Prism::KEYCODE_A)) cam_t->Translate(right * -move_speed);
-            if (Prism::Input::IsKeyDown(Prism::KEYCODE_D)) cam_t->Translate(right * move_speed);
-            if (Prism::Input::IsKeyDown(Prism::KEYCODE_E)) cam_t->Translate(up * move_speed);
-            if (Prism::Input::IsKeyDown(Prism::KEYCODE_Q)) cam_t->Translate(up * -move_speed);
+            if (Prism::Input::IsKeyDown(Prism::KeyCode::W)) cam_t->Translate(forward * move_speed);
+            if (Prism::Input::IsKeyDown(Prism::KeyCode::S)) cam_t->Translate(forward * -move_speed);
+            if (Prism::Input::IsKeyDown(Prism::KeyCode::A)) cam_t->Translate(right * -move_speed);
+            if (Prism::Input::IsKeyDown(Prism::KeyCode::D)) cam_t->Translate(right * move_speed);
+            if (Prism::Input::IsKeyDown(Prism::KeyCode::E)) cam_t->Translate(up * move_speed);
+            if (Prism::Input::IsKeyDown(Prism::KeyCode::Q)) cam_t->Translate(up * -move_speed);
         }
         else
         {
