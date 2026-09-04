@@ -22,7 +22,7 @@ Renderer* OpenGL_Init(void* native_window, uint32_t init_width, uint32_t init_he
     OpenGL_Backend* internal = malloc(sizeof(OpenGL_Backend));
     memset(internal, 0, sizeof(OpenGL_Backend));
 
-    if (!OpenGL_Surface_Init(&internal->surface, native_window))
+    if (!RenderGLSurface_Init(&internal->surface, native_window))
     {
         Log_Error("ERROR: Failed to create OpenGL context.");
         free(internal);
@@ -52,10 +52,10 @@ Renderer* OpenGL_Init(void* native_window, uint32_t init_width, uint32_t init_he
     }
 
     // Load OpenGL functions using the renderer-owned surface loader
-    if (!gladLoadGLLoader((GLADloadproc)OpenGL_Surface_GetProcAddress))
+    if (!gladLoadGLLoader((GLADloadproc)RenderGLSurface_GetProcAddress))
     {
         Log_Error("ERROR: Failed to initialize OpenGL loader.");
-        OpenGL_Surface_Shutdown(&internal->surface);
+        RenderGLSurface_Shutdown(&internal->surface);
         free(internal);
         free(r);
         return NULL;
@@ -493,7 +493,7 @@ void OpenGL_Shutdown(Renderer* r)
             Render_DestroyMaterial(r, (MaterialHandle){i});
     }
 
-    OpenGL_Surface_Shutdown(&internal->surface);
+    RenderGLSurface_Shutdown(&internal->surface);
     free(internal);
     free(r);
 }
@@ -511,7 +511,7 @@ void OpenGL_Shutdown(Renderer* r)
 void OpenGL_Present(Renderer* r)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
-    OpenGL_Surface_Present(&internal->surface);
+    RenderGLSurface_Present(&internal->surface);
 }
 
 
@@ -527,7 +527,7 @@ void OpenGL_Present(Renderer* r)
 void OpenGL_SetVSync(Renderer* r, bool enabled)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
-    OpenGL_Surface_SetVSync(&internal->surface, enabled);
+    RenderGLSurface_SetVSync(&internal->surface, enabled);
 }
 
 
@@ -543,7 +543,7 @@ void OpenGL_SetVSync(Renderer* r, bool enabled)
 bool OpenGL_MakeCurrent(Renderer* r)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
-    return OpenGL_Surface_MakeCurrent(&internal->surface);
+    return RenderGLSurface_MakeCurrent(&internal->surface);
 }
 
 
@@ -559,7 +559,7 @@ bool OpenGL_MakeCurrent(Renderer* r)
 void OpenGL_ReleaseCurrent(Renderer* r)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
-    OpenGL_Surface_ReleaseCurrent(&internal->surface);
+    RenderGLSurface_ReleaseCurrent(&internal->surface);
 }
 
 

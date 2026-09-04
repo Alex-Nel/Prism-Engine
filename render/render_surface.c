@@ -25,3 +25,144 @@ void Render_ConfigurePlatformSurface(GraphicsAPI api)
             break;
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Initializes the OpenGL surface using the platform
+bool RenderGLSurface_Init(RenderGLSurface* surface, void* native_window)
+{
+    if (!surface || !native_window)
+        return false;
+    
+    void* context = Platform_GL_CreateContext(native_window);
+    if (!context)
+        return false;
+    
+    if (!Platform_GL_MakeCurrent(native_window, context))
+    {
+        Platform_GL_DestroyContext(context);
+        return false;
+    }
+    
+    surface->native_window = native_window;
+    surface->gl_context = context;
+    return true;
+}
+
+
+
+
+
+
+
+
+
+
+// Shuts down the OpenGL context
+void RenderGLSurface_Shutdown(RenderGLSurface* surface)
+{
+    if (!surface)
+        return;
+
+    if (surface->native_window && surface->gl_context)
+    {
+        Platform_GL_MakeCurrent(surface->native_window, NULL);
+        Platform_GL_DestroyContext(surface->gl_context);
+    }
+    
+    surface->native_window = NULL;
+    surface->gl_context = NULL;
+}
+
+
+
+
+
+
+
+
+
+
+// Makes a specific Opengl surface the current for the window
+bool RenderGLSurface_MakeCurrent(RenderGLSurface* surface)
+{
+    if (!surface || !surface->native_window || !surface->gl_context)
+        return false;
+
+    return Platform_GL_MakeCurrent(surface->native_window, surface->gl_context);
+}
+
+
+
+
+
+
+
+
+
+
+// Releases the current openGL context
+void RenderGLSurface_ReleaseCurrent(RenderGLSurface* surface)
+{
+    Platform_GL_ReleaseCurrent();
+}
+
+
+
+
+
+
+
+
+
+
+// Presents the OpenGL surface to the current window
+void RenderGLSurface_Present(RenderGLSurface* surface)
+{
+    if (!surface || !surface->native_window)
+        return;
+
+    Platform_GL_SwapBuffers(surface->native_window);
+}
+
+
+
+
+
+
+
+
+
+
+// Enabled/Disables VSync for an OpenGL surface
+void RenderGLSurface_SetVSync(RenderGLSurface* surface, bool enabled)
+{
+    Platform_GL_SetSwapInterval(enabled ? 1 : 0);
+}
+
+
+
+
+
+
+
+
+
+
+// Gets the proc address of the OpenGL surface
+void* RenderGLSurface_GetProcAddress(const char* name)
+{
+    return Platform_GL_GetProcAddress(name);
+}

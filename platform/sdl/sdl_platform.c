@@ -694,3 +694,92 @@ void Platform_FreeClipboardText(char* text)
 {
     SDL_free(text);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Makes an OpenGL context from the platform
+void* Platform_GL_CreateContext(void* native_window)
+{
+    if (!native_window)
+        return NULL;
+
+    return (void*)SDL_GL_CreateContext((SDL_Window*)native_window);
+}
+
+
+
+
+
+// Destroys an OpenGL context from the platform
+void Platform_GL_DestroyContext(void* context)
+{
+    if (!context)
+        return;
+
+    SDL_GL_DestroyContext((SDL_GLContext)context);
+}
+
+
+
+
+
+// Makes the given opengl context the current one displaed to a window
+bool Platform_GL_MakeCurrent(void* native_window, void* context)
+{
+    return SDL_GL_MakeCurrent((SDL_Window*)native_window, (SDL_GLContext)context);
+}
+
+
+
+
+
+// Released the current opengl context from the platform
+void Platform_GL_ReleaseCurrent(void)
+{
+    SDL_GL_MakeCurrent(NULL, NULL);
+}
+
+
+
+
+
+// Swaps opengl buffers on a platform window
+void Platform_GL_SwapBuffers(void* native_window)
+{
+    if (!native_window)
+        return;
+
+    SDL_GL_SwapWindow((SDL_Window*)native_window);
+}
+
+
+
+
+
+// Sets the opengl swap interval
+void Platform_GL_SetSwapInterval(int interval)
+{
+    SDL_GL_SetSwapInterval(interval);
+}
+
+
+
+
+
+// returns the opengl process address from the platform
+void* Platform_GL_GetProcAddress(const char* name)
+{
+    return (void*)SDL_GL_GetProcAddress(name);
+}

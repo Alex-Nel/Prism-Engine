@@ -100,4 +100,29 @@ void Platform_FreeClipboardText(char* text);
 
 
 
+// OpenGL specific platform functions
+
+// Makes an OpenGL context from the platform
+void* Platform_GL_CreateContext(void* native_window);
+
+// Destroys an OpenGL context from the platform
+void Platform_GL_DestroyContext(void* context);
+
+// Makes the given opengl context the current one displaed to a window
+bool Platform_GL_MakeCurrent(void* native_window, void* context);
+
+// Released the current opengl context from the platform
+void Platform_GL_ReleaseCurrent(void);
+
+// Swaps opengl buffers on a platform window
+void Platform_GL_SwapBuffers(void* native_window);
+
+// Sets the opengl swap interval
+void Platform_GL_SetSwapInterval(int interval);
+
+// returns the opengl process address from the platform
+void* Platform_GL_GetProcAddress(const char* name);
+
+
+
 #endif // PLATFORM_H

@@ -3,8 +3,8 @@
 #include "../../external/glad/glad.h"
 #include "../render.h"
 #include "../render_frame.h"
+#include "../render_surface.h"
 #include "../shadow_cascades.h"
-#include "opengl_context.h"
 
 #define NK_INCLUDE_FIXED_TYPES
 #define NK_INCLUDE_STANDARD_IO
@@ -347,7 +347,7 @@ typedef struct OpenGL_Backend
     GLuint default_normal_texture;
     GLuint default_black_texture;
 
-    OpenGL_Surface surface;
+    RenderGLSurface surface;
 } OpenGL_Backend;
 
 
