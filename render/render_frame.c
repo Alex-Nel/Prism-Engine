@@ -1,6 +1,4 @@
 #include "render_frame.h"
-#include <SDL3/SDL.h>
-
 #include <string.h>
 
 
@@ -77,8 +75,8 @@ void RenderFrameQueue_Init(RenderFrameQueue* queue)
     queue->write_index = 0;
     queue->read_index = 1;
 
-    queue->mutex = SDL_CreateMutex();
-    queue->frame_ready = SDL_CreateCondition();
+    queue->mutex = Platform_CreateMutex();
+    queue->frame_ready = Platform_CreateCondition();
 }
 
 
@@ -93,13 +91,13 @@ void RenderFrameQueue_Shutdown(RenderFrameQueue* queue)
 
     if (queue->frame_ready)
     {
-        SDL_DestroyCondition((SDL_Condition*)queue->frame_ready);
+        Platform_DestroyCondition(queue->frame_ready);
         queue->frame_ready = NULL;
     }
     
     if (queue->mutex)
     {
-        SDL_DestroyMutex((SDL_Mutex*)queue->mutex);
+        Platform_DestroyMutex(queue->mutex);
         queue->mutex = NULL;
     }
 }

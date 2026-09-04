@@ -5,6 +5,7 @@
 
 #include "render.h"
 #include "../core/mesh_core.h"
+#include "../platform/platform_core.h"
 
 
 
@@ -92,8 +93,8 @@ typedef struct RenderFrameQueue
     uint32_t read_index;
 
     // Render-thread handoff variables
-    void* mutex;
-    void* frame_ready;
+    PlatformMutex* mutex;
+    PlatformCondition* frame_ready;
 } RenderFrameQueue;
 
 

@@ -783,3 +783,141 @@ void* Platform_GL_GetProcAddress(const char* name)
 {
     return (void*)SDL_GL_GetProcAddress(name);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Creates a mutex from the platform
+PlatformMutex* Platform_CreateMutex(void)
+{
+    return (PlatformMutex*)SDL_CreateMutex();
+}
+
+
+
+
+
+// Destroys a mutex
+void Platform_DestroyMutex(PlatformMutex* mutex)
+{
+    if (!mutex)
+        return;
+
+    SDL_DestroyMutex((SDL_Mutex*)mutex);
+}
+
+
+
+
+
+// Locks a mutex
+void Platform_LockMutex(PlatformMutex* mutex)
+{
+    if (!mutex)
+        return;
+
+    SDL_LockMutex((SDL_Mutex*)mutex);
+}
+
+
+
+
+
+// Unlocks a mutex
+void Platform_UnlockMutex(PlatformMutex* mutex)
+{
+    if (!mutex)
+        return;
+    SDL_UnlockMutex((SDL_Mutex*)mutex);
+}
+
+
+
+
+
+
+
+
+
+
+// Creates a condition from the platform
+PlatformCondition* Platform_CreateCondition(void)
+{
+    return (PlatformCondition*)SDL_CreateCondition();
+}
+
+
+
+
+
+// Destroys a condition
+void Platform_DestroyCondition(PlatformCondition* condition)
+{
+    if (!condition)
+        return;
+
+    SDL_DestroyCondition((SDL_Condition*)condition);
+}
+
+
+
+
+
+// Signals a condition
+void Platform_SignalCondition(PlatformCondition* condition)
+{
+    if (!condition)
+        return;
+
+    SDL_SignalCondition((SDL_Condition*)condition);
+}
+
+
+
+
+
+// Broadcasts a condition
+void Platform_BroadcastCondition(PlatformCondition* condition)
+{
+    if (!condition)
+        return;
+
+    SDL_BroadcastCondition((SDL_Condition*)condition);
+}
+
+
+
+
+
+// Waits until a condition is met
+void Platform_WaitCondition(PlatformCondition* condition, PlatformMutex* mutex)
+{
+    if (!condition || !mutex)
+        return;
+
+    SDL_WaitCondition((SDL_Condition*)condition, (SDL_Mutex*)mutex);
+}
+
+
+
+
+
+// Waits until a condition is met or a certain time has passed
+bool Platform_WaitConditionTimeout(PlatformCondition* condition, PlatformMutex* mutex, uint32_t timeout_ms)
+{
+    if (!condition || !mutex)
+        return false;
+
+    return SDL_WaitConditionTimeout((SDL_Condition*)condition, (SDL_Mutex*)mutex, (Sint32)timeout_ms);
+}

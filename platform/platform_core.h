@@ -13,12 +13,20 @@
 // Definition of a "window", implemented by each platform
 typedef struct Window Window;
 
+// Opaque mutex primitives
+typedef struct PlatformMutex PlatformMutex;
+
+// Opaque condition primitive
+typedef struct PlatformCondition PlatformCondition;
+
 // Defines a function callback for a platform to watch events
 typedef void (*PlatformEventWatchCallback)(void* user_data);
 
 
 
-// Functions for initializing and shuting down platform
+
+
+// ----- Functions for initializing and shuting down platform -----
 
 // Sets a graphics surface hint before Platform_Init (OpenGL only).
 void Platform_SetGLAttribute(GraphicsGLAttribute attr, int value);
@@ -55,6 +63,9 @@ bool Platform_IsWindowMinimized(Window* window);
 
 
 
+
+
+// ----- Platform utility functions
 
 // Registers the callback function
 void Platform_SetEventWatchCallback(PlatformEventWatchCallback callback, void* user_data);
@@ -100,7 +111,9 @@ void Platform_FreeClipboardText(char* text);
 
 
 
-// OpenGL specific platform functions
+
+
+// ----- OpenGL specific platform functions -----
 
 // Makes an OpenGL context from the platform
 void* Platform_GL_CreateContext(void* native_window);
@@ -122,6 +135,26 @@ void Platform_GL_SetSwapInterval(int interval);
 
 // returns the opengl process address from the platform
 void* Platform_GL_GetProcAddress(const char* name);
+
+
+
+
+
+// ----- Synchronization -----
+
+PlatformMutex* Platform_CreateMutex(void);
+void Platform_DestroyMutex(PlatformMutex* mutex);
+void Platform_LockMutex(PlatformMutex* mutex);
+void Platform_UnlockMutex(PlatformMutex* mutex);
+
+PlatformCondition* Platform_CreateCondition(void);
+void Platform_DestroyCondition(PlatformCondition* condition);
+void Platform_SignalCondition(PlatformCondition* condition);
+void Platform_BroadcastCondition(PlatformCondition* condition);
+void Platform_WaitCondition(PlatformCondition* condition, PlatformMutex* mutex);
+bool Platform_WaitConditionTimeout(PlatformCondition* condition, PlatformMutex* mutex, uint32_t timeout_ms);
+
+
 
 
 
