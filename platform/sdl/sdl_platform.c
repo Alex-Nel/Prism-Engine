@@ -453,6 +453,8 @@ void Platform_Shutdown(Window* window)
         free(window);
     }
 
+    g_PlatformWindow = NULL;
+
     SDL_Quit();
 }
 
@@ -799,7 +801,7 @@ void* Platform_GL_GetProcAddress(const char* name)
 
 
 // Creates a mutex from the platform
-PlatformMutex* Platform_CreateMutex(void)
+PlatformMutex* Platform_CreateMutex()
 {
     return (PlatformMutex*)SDL_CreateMutex();
 }
@@ -852,7 +854,7 @@ void Platform_UnlockMutex(PlatformMutex* mutex)
 
 
 // Creates a condition from the platform
-PlatformCondition* Platform_CreateCondition(void)
+PlatformCondition* Platform_CreateCondition()
 {
     return (PlatformCondition*)SDL_CreateCondition();
 }
@@ -920,4 +922,50 @@ bool Platform_WaitConditionTimeout(PlatformCondition* condition, PlatformMutex* 
         return false;
 
     return SDL_WaitConditionTimeout((SDL_Condition*)condition, (SDL_Mutex*)mutex, (Sint32)timeout_ms);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Creates a joinable platform thread
+PlatformThread* Platform_CreateThread(PlatformThreadFunction function, const char* name, void* user_data)
+{
+    if (!function)
+        return NULL;
+
+    return (PlatformThread*)SDL_CreateThread((SDL_ThreadFunction)function, name ? name : "PrismThread", user_data);
+}
+
+
+
+
+
+// Waits for a platform thread and releases its SDL thread object
+void Platform_JoinThread(PlatformThread* thread, int* result)
+{
+    if (!thread)
+        return;
+
+    SDL_WaitThread((SDL_Thread*)thread, result);
+}
+
+
+
+
+
+// Returns a stable identifier for the calling thread
+uint64_t Platform_GetCurrentThreadID()
+{
+    return (uint64_t)SDL_GetCurrentThreadID();
 }

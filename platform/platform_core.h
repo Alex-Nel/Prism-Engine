@@ -19,6 +19,12 @@ typedef struct PlatformMutex PlatformMutex;
 // Opaque condition primitive
 typedef struct PlatformCondition PlatformCondition;
 
+// Opaque thread primitive
+typedef struct PlatformThread PlatformThread;
+
+// Entry point for a platform thread. Return value is reported by JoinThread.
+typedef int (*PlatformThreadFunction)(void* user_data);
+
 // Defines a function callback for a platform to watch events
 typedef void (*PlatformEventWatchCallback)(void* user_data);
 
@@ -142,17 +148,51 @@ void* Platform_GL_GetProcAddress(const char* name);
 
 // ----- Synchronization -----
 
-PlatformMutex* Platform_CreateMutex(void);
+// Creates a mutex from the platform
+PlatformMutex* Platform_CreateMutex();
+
+// Destroys a mutex
 void Platform_DestroyMutex(PlatformMutex* mutex);
+
+// Locks a mutex
 void Platform_LockMutex(PlatformMutex* mutex);
+
+// Unlocks a mutex
 void Platform_UnlockMutex(PlatformMutex* mutex);
 
-PlatformCondition* Platform_CreateCondition(void);
+
+// Creates a condition from the platform
+PlatformCondition* Platform_CreateCondition();
+
+// Destroys a condition
 void Platform_DestroyCondition(PlatformCondition* condition);
+
+// Signals a condition
 void Platform_SignalCondition(PlatformCondition* condition);
+
+// Broadcasts a condition
 void Platform_BroadcastCondition(PlatformCondition* condition);
+
+// Waits until a condition is met
 void Platform_WaitCondition(PlatformCondition* condition, PlatformMutex* mutex);
+
+// Waits until a condition is met or a certain time has passed
 bool Platform_WaitConditionTimeout(PlatformCondition* condition, PlatformMutex* mutex, uint32_t timeout_ms);
+
+
+
+
+
+// ----- Threads -----
+
+// Creates a joinable platform thread
+PlatformThread* Platform_CreateThread(PlatformThreadFunction function, const char* name, void* user_data);
+
+// Waits for a platform thread and releases its SDL thread object
+void Platform_JoinThread(PlatformThread* thread, int* result);
+
+// Returns a stable identifier for the calling thread
+uint64_t Platform_GetCurrentThreadID();
 
 
 
