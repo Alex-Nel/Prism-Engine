@@ -1741,13 +1741,14 @@ static GLReflectionProbe* OpenGL_FindOrCreateReflectionProbe(OpenGL_Backend* int
 
 
 // Records probe results into a result struct
-static void OpenGL_RecordProbeResult(OpenGL_Backend* internal, uint32_t entity_id, EnvironmentMapHandle environment, bool captured)
+static void OpenGL_RecordProbeResult(OpenGL_Backend* internal, uint32_t entity_id, uint32_t revision, EnvironmentMapHandle environment, bool captured)
 {
     if (internal->probe_result_count >= MAX_REFLECTION_PROBES)
         return;
     
     RenderProbeResult* out = &internal->probe_results[internal->probe_result_count++];
     out->entity_id = entity_id;
+    out->revision = revision;
     out->environment = environment;
     out->captured = captured;
     out->dirty = !captured;
@@ -1776,7 +1777,7 @@ static void OpenGL_UpdateReflectionProbes(OpenGL_Backend* internal, uint32_t opa
         
         if (!slot)
         {
-            OpenGL_RecordProbeResult(internal, data->entity_id, (EnvironmentMapHandle){0}, false);
+            OpenGL_RecordProbeResult(internal, data->entity_id, data->revision, (EnvironmentMapHandle){0}, false);
             continue;
         }
 
@@ -1792,7 +1793,7 @@ static void OpenGL_UpdateReflectionProbes(OpenGL_Backend* internal, uint32_t opa
 
         if (!needs_capture)
         {
-            OpenGL_RecordProbeResult(internal, data->entity_id, slot->environment, true);
+            OpenGL_RecordProbeResult(internal, data->entity_id, data->revision, slot->environment, true);
             continue;
         }
 
@@ -1817,7 +1818,7 @@ static void OpenGL_UpdateReflectionProbes(OpenGL_Backend* internal, uint32_t opa
             slot->capture_resolution = data->capture_resolution;
             slot->captured_global_skybox_id = source_skybox_id;
 
-            OpenGL_RecordProbeResult(internal, data->entity_id, slot->environment, true);
+            OpenGL_RecordProbeResult(internal, data->entity_id, data->revision, slot->environment, true);
             
             // Uncomment to log info about probe
             // Log_Info(
@@ -1830,7 +1831,7 @@ static void OpenGL_UpdateReflectionProbes(OpenGL_Backend* internal, uint32_t opa
         }
         else
         {
-            OpenGL_RecordProbeResult(internal, data->entity_id, (EnvironmentMapHandle){0}, false);
+            OpenGL_RecordProbeResult(internal, data->entity_id, data->revision, (EnvironmentMapHandle){0}, false);
             
             Log_Error("ERROR: Failed to capture local IBL probe %u", data->entity_id);
         }
@@ -2059,9 +2060,6 @@ void OpenGL_DrawFrame(Renderer* r, const RenderFrame* frame)
 {
     if (!r || !frame || frame->view_count == 0)
         return;
-
-    if (frame->width > 0 && frame->height > 0)
-        OpenGL_Resize(r, frame->width, frame->height);
 
     RenderLighting lighting;
     RenderFrame_FillLighting(frame, &lighting);

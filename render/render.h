@@ -97,6 +97,7 @@ typedef struct ReflectionProbeData
 typedef struct RenderProbeResult
 {
     uint32_t entity_id;
+    uint32_t revision;
     EnvironmentMapHandle environment;
     bool captured;
     bool dirty;
@@ -411,6 +412,69 @@ typedef struct RenderWorld
 
 
 
+// ----- Structs for renderer commands -----
+
+typedef enum RenderCommandType
+{
+    RENDER_COMMAND_CREATE_MESH = 0,
+    RENDER_COMMAND_UPDATE_MESH,
+    RENDER_COMMAND_DESTROY_MESH,
+    RENDER_COMMAND_CREATE_TEXTURE,
+    RENDER_COMMAND_DESTROY_TEXTURE,
+    RENDER_COMMAND_CREATE_SHADER,
+    RENDER_COMMAND_DESTROY_SHADER,
+    RENDER_COMMAND_CREATE_MATERIAL,
+    RENDER_COMMAND_UPDATE_MATERIAL,
+    RENDER_COMMAND_DESTROY_MATERIAL,
+    RENDER_COMMAND_CREATE_ENVIRONMENT,
+    RENDER_COMMAND_DESTROY_ENVIRONMENT,
+    RENDER_COMMAND_RESIZE,
+    RENDER_COMMAND_SET_SETTINGS,
+    RENDER_COMMAND_GET_SETTINGS,
+    RENDER_COMMAND_SET_VSYNC,
+    RENDER_COMMAND_GET_PROBE_RESULTS
+} RenderCommandType;
+
+
+typedef struct RenderMeshUpdateCommand
+{
+    MeshHandle handle;
+    const RenderMeshUpdate* update;
+} RenderMeshUpdateCommand;
+
+
+typedef struct RenderMaterialUpdateCommand
+{
+    MaterialHandle handle;
+    const RenderMaterialDesc* desc;
+} RenderMaterialUpdateCommand;
+
+
+typedef struct RenderResizeCommand
+{
+    uint32_t width;
+    uint32_t height;
+} RenderResizeCommand;
+
+
+typedef struct RenderProbeResultsCommand
+{
+    RenderProbeResult* out;
+    uint32_t max_count;
+} RenderProbeResultsCommand;
+
+
+typedef void (*RenderThreadWakeFunction)(void* user_data);
+
+
+
+
+
+
+
+
+
+
 // Structure holding all renderer settings. Acts as the policy that the renderer uses
 typedef struct RendererSettings
 {
@@ -493,6 +557,7 @@ typedef struct Renderer
 
     // --- Hidden implementation-specific data ---
     void* backend_internal_data;
+    void* command_dispatch_data;
 
 } Renderer;
 
@@ -508,6 +573,16 @@ typedef void* (*Render_LoadProcFn)(const char* name);
 // Initializes a renderer bound to a native window handle (SDL_Window* on SDL backends).
 Renderer* Render_Init(GraphicsAPI api, void* native_window, uint32_t init_width, uint32_t init_height);
 
+// Enables synchronous command marshalling from non-render threads.
+bool Render_EnableThreadDispatch(Renderer* r, RenderThreadWakeFunction wake, void* wake_user_data);
+void Render_SetRenderThreadID(Renderer* r, uint64_t thread_id);
+bool Render_IsOnRenderThread(Renderer* r);
+bool Render_ProcessPendingCommand(Renderer* r);
+void Render_DisableThreadDispatch(Renderer* r);
+bool Render_TryDispatchCommand(Renderer* r, RenderCommandType type, const void* input, void* output);
+
+
+
 // Shuts down the renderer
 static inline void Render_Shutdown(Renderer* r)
 {
@@ -518,18 +593,23 @@ static inline void Render_Shutdown(Renderer* r)
 // Resizes backend targets (G-buffer, SSAO, lighting). Call on window resize.
 static inline void Render_Resize(Renderer* r, uint32_t width, uint32_t height)
 {
+    RenderResizeCommand command = {width, height};
+    if (r && Render_TryDispatchCommand(r, RENDER_COMMAND_RESIZE, &command, NULL))
+        return;
     if (r && r->Resize)
         r->Resize(r, width, height);
 }
 
 static inline void Render_Present(Renderer* r)
 {
-    if (r && r->Present)
+    if (r && Render_IsOnRenderThread(r) && r->Present)
         r->Present(r);
 }
 
 static inline void Render_SetVSync(Renderer* r, bool enabled)
 {
+    if (r && Render_TryDispatchCommand(r, RENDER_COMMAND_SET_VSYNC, &enabled, NULL))
+        return;
     if (r && r->SetVSync)
         r->SetVSync(r, enabled);
 }
@@ -568,6 +648,9 @@ static inline RenderPixelFormat Render_PixelFormatFromChannels(uint32_t channels
 // Uploads vertex and index data to the GPU and returns a handle
 static inline MeshHandle Render_CreateMesh(Renderer* r, const RenderMeshDesc* desc)
 {
+    MeshHandle result = {0};
+    if (r && desc && Render_TryDispatchCommand(r, RENDER_COMMAND_CREATE_MESH, desc, &result))
+        return result;
     if (r && r->CreateMesh && desc)
         return r->CreateMesh(r, desc);
     MeshHandle invalid = {0};
@@ -606,12 +689,17 @@ static inline MeshHandle Render_CreateDynamicMesh(Renderer* r, uint32_t max_vert
 }
 static inline void Render_UpdateMesh(Renderer* r, MeshHandle handle, const RenderMeshUpdate* update)
 {
+    RenderMeshUpdateCommand command = {handle, update};
+    if (r && update && Render_TryDispatchCommand(r, RENDER_COMMAND_UPDATE_MESH, &command, NULL))
+        return;
     if (r && r->UpdateMesh && update)
         r->UpdateMesh(r, handle, update);
 }
 // Removes a mesh from the GPU
 static inline void Render_DestroyMesh(Renderer* r, MeshHandle mesh)
 {
+    if (r && Render_TryDispatchCommand(r, RENDER_COMMAND_DESTROY_MESH, &mesh, NULL))
+        return;
     if (r && r->DestroyMesh)
         r->DestroyMesh(r, mesh);
 }
@@ -621,6 +709,9 @@ static inline void Render_DestroyMesh(Renderer* r, MeshHandle mesh)
 // Uploads pixels to the renderer to make a texture. Returns a handle
 static inline TextureHandle Render_CreateTexture(Renderer* r, const RenderTextureDesc* desc)
 {
+    TextureHandle result = {0};
+    if (r && desc && Render_TryDispatchCommand(r, RENDER_COMMAND_CREATE_TEXTURE, desc, &result))
+        return result;
     if (r && r->CreateTexture && desc)
         return r->CreateTexture(r, desc);
     TextureHandle invalid = {0};
@@ -654,6 +745,8 @@ static inline TextureHandle Render_CreateCubemap(Renderer* r, const uint8_t* rig
 // Removes a texture from the GPU
 static inline void Render_DestroyTexture(Renderer* r, TextureHandle texture)
 {
+    if (r && Render_TryDispatchCommand(r, RENDER_COMMAND_DESTROY_TEXTURE, &texture, NULL))
+        return;
     if (r && r->DestroyTexture)
         r->DestroyTexture(r, texture);
 }
@@ -663,6 +756,9 @@ static inline void Render_DestroyTexture(Renderer* r, TextureHandle texture)
 // Uploads a shader program. Returns a handle
 static inline ShaderHandle Render_CreateShader(Renderer* r, const RenderShaderDesc* desc)
 {
+    ShaderHandle result = {0};
+    if (r && desc && Render_TryDispatchCommand(r, RENDER_COMMAND_CREATE_SHADER, desc, &result))
+        return result;
     if (r && r->CreateShader && desc)
         return r->CreateShader(r, desc);
     ShaderHandle invalid = {0};
@@ -679,6 +775,8 @@ static inline ShaderHandle Render_CreateShaderGLSL(Renderer* r, const char* vert
 // Removes a shader from the GPU
 static inline void Render_DestroyShader(Renderer* r, ShaderHandle shader)
 {
+    if (r && Render_TryDispatchCommand(r, RENDER_COMMAND_DESTROY_SHADER, &shader, NULL))
+        return;
     if (r && r->DestroyShader)
         r->DestroyShader(r, shader);
 }
@@ -688,6 +786,9 @@ static inline void Render_DestroyShader(Renderer* r, ShaderHandle shader)
 // Creates a GPU material from a CPU description
 static inline MaterialHandle Render_CreateMaterial(Renderer* r, const RenderMaterialDesc* desc)
 {
+    MaterialHandle result = {0};
+    if (r && desc && Render_TryDispatchCommand(r, RENDER_COMMAND_CREATE_MATERIAL, desc, &result))
+        return result;
     if (r && r->CreateMaterial && desc)
         return r->CreateMaterial(r, desc);
     MaterialHandle invalid = {0};
@@ -696,12 +797,17 @@ static inline MaterialHandle Render_CreateMaterial(Renderer* r, const RenderMate
 // Updates an existing GPU material
 static inline void Render_UpdateMaterial(Renderer* r, MaterialHandle handle, const RenderMaterialDesc* desc)
 {
+    RenderMaterialUpdateCommand command = {handle, desc};
+    if (r && desc && Render_TryDispatchCommand(r, RENDER_COMMAND_UPDATE_MATERIAL, &command, NULL))
+        return;
     if (r && r->UpdateMaterial && desc)
         r->UpdateMaterial(r, handle, desc);
 }
 // Removes a GPU material
 static inline void Render_DestroyMaterial(Renderer* r, MaterialHandle handle)
 {
+    if (r && Render_TryDispatchCommand(r, RENDER_COMMAND_DESTROY_MATERIAL, &handle, NULL))
+        return;
     if (r && r->DestroyMaterial)
         r->DestroyMaterial(r, handle);
 }
@@ -711,6 +817,9 @@ static inline void Render_DestroyMaterial(Renderer* r, MaterialHandle handle)
 // Creates GPU IBL resources (or wraps a cubemap as a skybox-only environment). Returns a handle
 static inline EnvironmentMapHandle Render_CreateEnvironmentMap(Renderer* r, const RenderEnvironmentMapDesc* desc)
 {
+    EnvironmentMapHandle result = {0};
+    if (r && desc && Render_TryDispatchCommand(r, RENDER_COMMAND_CREATE_ENVIRONMENT, desc, &result))
+        return result;
     if (r && r->CreateEnvironmentMap && desc)
         return r->CreateEnvironmentMap(r, desc);
     EnvironmentMapHandle invalid = {0};
@@ -718,6 +827,8 @@ static inline EnvironmentMapHandle Render_CreateEnvironmentMap(Renderer* r, cons
 }
 static inline void Render_DestroyEnvironmentMap(Renderer* r, EnvironmentMapHandle handle)
 {
+    if (r && Render_TryDispatchCommand(r, RENDER_COMMAND_DESTROY_ENVIRONMENT, &handle, NULL))
+        return;
     if (r && r->DestroyEnvironmentMap)
         r->DestroyEnvironmentMap(r, handle);
 }
@@ -734,20 +845,24 @@ static inline void Render_DestroyEnvironmentMap(Renderer* r, EnvironmentMapHandl
 // Draws a complete view snapshot. Backends must implement DrawWorld.
 static inline void Render_DrawWorld(Renderer* r, const RenderWorld* world)
 {
-    if (r->DrawWorld && world)
+    if (r && Render_IsOnRenderThread(r) && r->DrawWorld && world)
         r->DrawWorld(r, world);
 }
 
 // Draws a scene into a render frame
 static inline void Render_DrawFrame(Renderer* r, const RenderFrame* frame)
 {
-    if (r && r->DrawFrame && frame)
+    if (r && Render_IsOnRenderThread(r) && r->DrawFrame && frame)
         r->DrawFrame(r, frame);
 }
 
 // Copies probe capture results from the last DrawWorld. If out is NULL, returns the available count.
 static inline uint32_t Render_GetProbeResults(Renderer* r, RenderProbeResult* out, uint32_t max_count)
 {
+    uint32_t count = 0;
+    RenderProbeResultsCommand command = {out, max_count};
+    if (r && Render_TryDispatchCommand(r, RENDER_COMMAND_GET_PROBE_RESULTS, &command, &count))
+        return count;
     if (r && r->GetProbeResults)
         return r->GetProbeResults(r, out, max_count);
     return 0;
@@ -772,21 +887,21 @@ static inline void Render_UIinit(Renderer* r, void* nk_ctx)
 // Shuts down the UI rendering pipeline
 static inline void Render_UIShutdown(Renderer* r)
 {
-    if (r && r->UIShutdown)
+    if (r && Render_IsOnRenderThread(r) && r->UIShutdown)
         r->UIShutdown(r);
 }
 
 // Renders any UI
 static inline void Render_UIRender(Renderer* r, void* nk_ctx, uint32_t width, uint32_t height)
 {
-    if (r && r->UIRender)
+    if (r && Render_IsOnRenderThread(r) && r->UIRender)
         r->UIRender(r, nk_ctx, width, height);
 }
 
 // Renders any Overlay
 static inline void Render_DrawOverlay(Renderer* r, const OverlayDrawList* list, uint32_t width, uint32_t height)
 {
-    if (r && r->DrawOverlay)
+    if (r && Render_IsOnRenderThread(r) && r->DrawOverlay)
         r->DrawOverlay(r, list, width, height);
 }
 
@@ -802,6 +917,8 @@ static inline void Render_DrawOverlay(Renderer* r, const OverlayDrawList* list, 
 // Sets all renderer settings according to the specified struct
 static inline void Render_SetSettings(Renderer* r, const RendererSettings* settings)
 {
+    if (r && settings && Render_TryDispatchCommand(r, RENDER_COMMAND_SET_SETTINGS, settings, NULL))
+        return;
     if (r && r->SetSettings && settings)
         r->SetSettings(r, settings);
 }
@@ -809,6 +926,9 @@ static inline void Render_SetSettings(Renderer* r, const RendererSettings* setti
 // Returns all the settings of the renderer
 static inline RendererSettings Render_GetSettings(Renderer* r)
 {
+    RendererSettings dispatched = {0};
+    if (r && Render_TryDispatchCommand(r, RENDER_COMMAND_GET_SETTINGS, NULL, &dispatched))
+        return dispatched;
     if (r && r->GetSettings)
         return r->GetSettings(r);
     RendererSettings empty = {0};
