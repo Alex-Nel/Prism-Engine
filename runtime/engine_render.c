@@ -201,21 +201,24 @@ void Engine_GatherReflectionProbes(PrismEngine* engine, Scene* scene, RenderLigh
 
 
 // Applies reflection probe capture results from a completed frame back to the components
-void Engine_ApplyFrameResults(PrismEngine* engine, Scene* scene, const RenderFrame* frame)
+void Engine_ApplyFrameResults(PrismEngine* engine, Scene* scene, const RenderFrameResult* result)
 {
-    if (!engine || !scene || !frame)
+    if (!engine || !scene || !result)
         return;
 
-    for (uint32_t i = 0; i < frame->probe_result_count; i++)
+    for (uint32_t i = 0; i < result->probe_result_count; i++)
     {
-        uint32_t entity_id = frame->probe_results[i].entity_id;
+        uint32_t entity_id = result->probe_results[i].entity_id;
         if (entity_id >= MAX_ENTITIES || !(scene->component_masks[entity_id] & COMPONENT_REFLECTION_PROBE))
             continue;
         
         ReflectionProbeComponent* component = &scene->reflection_probes[entity_id];
-        component->environment = frame->probe_results[i].environment;
-        component->dirty = frame->probe_results[i].dirty;
-        component->captured = frame->probe_results[i].captured;
+        if (component->revision != result->probe_results[i].revision)
+            continue;
+
+        component->environment = result->probe_results[i].environment;
+        component->dirty = result->probe_results[i].dirty;
+        component->captured = result->probe_results[i].captured;
     }
 }
 
@@ -237,7 +240,7 @@ void Engine_ApplyReflectionProbeResults(PrismEngine* engine, Scene* scene)
     RenderProbeResult results[ENGINE_MAX_GATHER_PROBES];
     uint32_t probe_count = Render_GetProbeResults(engine->renderer, results, ENGINE_MAX_GATHER_PROBES);
 
-    RenderFrame temp = {0};
+    RenderFrameResult temp = {0};
     temp.probe_result_count = probe_count;
 
     for (uint32_t i = 0; i < probe_count; i++)
@@ -325,17 +328,28 @@ static void Extract_TryPush(RenderItem* out, uint32_t max, uint32_t* count, cons
 
 
 
-static void RenderFrame_AssignBones(RenderFrame* frame, RenderItem* item, Matrix4* bone_ptr)
+static bool RenderFrame_AssignBones(RenderFrame* frame, RenderItem* item, Matrix4* bone_ptr)
 {
     if (!frame || !item || !bone_ptr)
-        return;
+        return bone_ptr == NULL;
+
+    for (uint32_t slot = 0; slot < frame->bone_slot_count; slot++)
+    {
+        if (frame->bone_source_keys[slot] == bone_ptr)
+        {
+            item->bone_matrices = frame->bone_matrices[slot];
+            return true;
+        }
+    }
 
     if (frame->bone_slot_count >= RENDER_FRAME_MAX_SKINNED)
-        return;
+        return false;
     
     uint32_t slot = frame->bone_slot_count++;
     memcpy(frame->bone_matrices[slot], bone_ptr, sizeof(Matrix4) * MAX_BONES);
+    frame->bone_source_keys[slot] = bone_ptr;
     item->bone_matrices = frame->bone_matrices[slot];
+    return true;
 }
 
 
@@ -345,7 +359,10 @@ static void RenderFrame_AssignBones(RenderFrame* frame, RenderItem* item, Matrix
 static void Extract_TryPushSkinned(RenderItem* out, uint32_t max, uint32_t* count, RenderItem* item, RenderFrame* frame, Matrix4* bone_ptr)
 {
     if (frame)
-        RenderFrame_AssignBones(frame, item, bone_ptr);
+    {
+        if (bone_ptr && !RenderFrame_AssignBones(frame, item, bone_ptr))
+            return;
+    }
     else
         item->bone_matrices = bone_ptr;
 
@@ -593,8 +610,8 @@ void Engine_BuildRenderFrame(PrismEngine* engine, Scene* scene, RenderFrame* fra
         camera_count = RENDER_FRAME_MAX_VIEWS;
 
     uint32_t max_items = cur_settings.max_draw_items;
-    if (max_items == 0 || max_items > RENDER_FRAME_MAX_ITEMS)
-        max_items = RENDER_FRAME_MAX_ITEMS;
+    if (max_items == 0 || max_items > RENDER_FRAME_MAX_ITEMS_PER_VIEW)
+        max_items = RENDER_FRAME_MAX_ITEMS_PER_VIEW;
 
 
     for (uint32_t c = 0; c < camera_count; c++)
@@ -627,12 +644,18 @@ void Engine_BuildRenderFrame(PrismEngine* engine, Scene* scene, RenderFrame* fra
         view_slot->view.window_height = viewport_h;
         view_slot->view.clear_flags = (RenderClearFlags)cam_comp->clear_flags;
         view_slot->view.clear_color = scene->background_color;
-        uint32_t remaining = max_items - frame->item_count;
+        uint32_t remaining = max_items;
+        uint32_t frame_capacity = RENDER_FRAME_MAX_ITEMS - frame->item_count;
+        if (remaining > frame_capacity)
+            remaining = frame_capacity;
         uint32_t gathered = Engine_GatherVisibleGeometry(scene, global_pos, cam_comp->culling_masks, frame->items + frame->item_count, remaining, frame);
         view_slot->item_count = gathered;
         frame->item_count += gathered;
         frame->view_count++;
     }
+
+    // Source pointers are extraction-only deduplication keys, never render data.
+    memset(frame->bone_source_keys, 0, sizeof(frame->bone_source_keys));
 }
 
 
@@ -644,19 +667,43 @@ void Engine_BuildRenderFrame(PrismEngine* engine, Scene* scene, RenderFrame* fra
 
 
 
-// Renders a specified scene
+// Builds and submits an immutable world/UI snapshot to the render thread
 void Engine_RenderScene(PrismEngine* engine, Scene* scene)
 {
     if (!engine || !scene || !engine->renderer)
         return;
 
+    engine->active_scene = scene;
+    while (!RenderFrameQueue_HasFreeSlot(&engine->frame_queue))
+    {
+        uint32_t completed_slot = 0;
+        const RenderFrameResult* completed = NULL;
+        if (!RenderFrameQueue_AcquireCompleted(&engine->frame_queue, true, &completed_slot, &completed))
+            return;
+
+        Scene* completed_scene = (Scene*)completed->scene_identity;
+        if (completed_scene && completed_scene == engine->active_scene && completed->frame_id > engine->last_applied_render_frame)
+        {
+            Engine_ApplyFrameResults(engine, completed_scene, completed);
+            engine->last_applied_render_frame = completed->frame_id;
+        }
+
+        RenderFrameQueue_ReleaseCompleted(&engine->frame_queue, completed_slot);
+    }
+
     RenderFrame* write_frame = RenderFrameQueue_BeginWrite(&engine->frame_queue);
+    if (!write_frame)
+        return;
     Engine_BuildRenderFrame(engine, scene, write_frame);
 
-    RenderFrame* read_frame = RenderFrameQueue_CommitWrite(&engine->frame_queue);
-    Engine_ApplyPendingFramebufferResize(engine);
-    Render_DrawFrame(engine->renderer, read_frame);
+    RetainedUI_UpdateLayout(scene, write_frame->width, write_frame->height);
+    RetainedUI_BuildOverlay(scene);
+
+    if (!OverlayDrawList_Copy(&write_frame->retained_ui, &g_ui_state.draw_list))
+        Log_Warning("Failed to snapshot retained UI draw data");
     
-    read_frame->probe_result_count = Render_GetProbeResults(engine->renderer, read_frame->probe_results, RENDER_FRAME_MAX_PROBES);
-    Engine_ApplyFrameResults(engine, scene, read_frame);
+    if (!UI_BuildDrawList(&write_frame->immediate_ui))
+        Log_Warning("Failed to snapshot immediate UI draw data");
+
+    RenderFrameQueue_CommitWrite(&engine->frame_queue, scene);
 }

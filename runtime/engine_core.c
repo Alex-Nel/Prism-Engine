@@ -4,6 +4,145 @@
 
 // Forward declare OnModalEvent function
 static void Engine_OnModalEvent(void* userdata);
+static int Engine_RenderThreadMain(void* userdata);
+
+
+
+
+
+static void Engine_WakeRenderThread(void* userdata)
+{
+    PrismEngine* engine = (PrismEngine*)userdata;
+    if (engine)
+        RenderFrameQueue_Wake(&engine->frame_queue);
+}
+
+
+
+
+
+static int Engine_RenderThreadMain(void* userdata)
+{
+    PrismEngine* engine = (PrismEngine*)userdata;
+    if (!engine || !engine->renderer)
+        return -1;
+
+    Render_SetRenderThreadID(engine->renderer, Platform_GetCurrentThreadID());
+    bool context_ready = Render_MakeCurrent(engine->renderer);
+    
+    Platform_LockMutex(engine->render_start_mutex);
+    engine->render_thread_ready = context_ready;
+    engine->render_thread_failed = !context_ready;
+    
+    Platform_BroadcastCondition(engine->render_start_condition);
+    Platform_UnlockMutex(engine->render_start_mutex);
+    
+    if (!context_ready)
+        return -1;
+    
+    for (;;)
+    {
+        uint32_t slot_index = 0;
+        const RenderFrame* frame = NULL;
+        bool is_redraw = false;
+        uint32_t output_width = 0;
+        uint32_t output_height = 0;
+
+        if (RenderFrameQueue_WaitRead( &engine->frame_queue, &slot_index, &frame, &is_redraw, &output_width, &output_height))
+        {
+            RenderFrameResult result = {0};
+            result.frame_id = frame->frame_id;
+
+            (void)is_redraw;
+            Render_Resize(engine->renderer, output_width, output_height);
+            Render_DrawFrame(engine->renderer, frame);
+            Render_DrawOverlay(engine->renderer, &frame->retained_ui, output_width, output_height);
+            Render_DrawOverlay(engine->renderer, &frame->immediate_ui, output_width, output_height);
+            result.probe_result_count = Render_GetProbeResults(
+                engine->renderer, result.probe_results, RENDER_FRAME_MAX_PROBES);
+            Render_Present(engine->renderer);
+            RenderFrameQueue_CompleteRead(&engine->frame_queue, slot_index, &result);
+            continue;
+        }
+
+        while (Render_ProcessPendingCommand(engine->renderer))
+        {
+        }
+
+        if (RenderFrameQueue_IsStopping(&engine->frame_queue))
+            break;
+    }
+
+    Render_UIShutdown(engine->renderer);
+    Render_DisableThreadDispatch(engine->renderer);
+    Render_Shutdown(engine->renderer);
+    
+    return 0;
+}
+
+
+
+
+
+static bool Engine_StartRenderThread(PrismEngine* engine)
+{
+    engine->render_start_mutex = Platform_CreateMutex();
+    engine->render_start_condition = Platform_CreateCondition();
+    if (!engine->render_start_mutex || !engine->render_start_condition)
+        return false;
+
+    if (!Render_EnableThreadDispatch(engine->renderer, Engine_WakeRenderThread, engine))
+        return false;
+    
+    Render_ReleaseCurrent(engine->renderer);
+    engine->render_thread = Platform_CreateThread(Engine_RenderThreadMain, "PrismRender", engine);
+    if (!engine->render_thread)
+        return false;
+    
+    Platform_LockMutex(engine->render_start_mutex);
+    while (!engine->render_thread_ready && !engine->render_thread_failed)
+        Platform_WaitCondition(engine->render_start_condition, engine->render_start_mutex);
+    
+    bool ready = engine->render_thread_ready && !engine->render_thread_failed;
+    Platform_UnlockMutex(engine->render_start_mutex);
+    
+    return ready;
+}
+
+
+
+
+
+static bool Engine_ApplyOneRenderCompletion(PrismEngine* engine, bool wait)
+{
+    uint32_t slot_index = 0;
+    const RenderFrameResult* result = NULL;
+    if (!RenderFrameQueue_AcquireCompleted(&engine->frame_queue, wait, &slot_index, &result))
+        return false;
+
+    Scene* result_scene = (Scene*)result->scene_identity;
+    if (result_scene && result_scene == engine->active_scene && result->frame_id > engine->last_applied_render_frame)
+    {
+        Engine_ApplyFrameResults(engine, result_scene, result);
+        engine->last_applied_render_frame = result->frame_id;
+    }
+
+    RenderFrameQueue_ReleaseCompleted(&engine->frame_queue, slot_index);
+    return true;
+}
+
+
+
+
+
+static void Engine_PumpRenderCompletions(PrismEngine* engine)
+{
+    while (Engine_ApplyOneRenderCompletion(engine, false))
+    {
+    }
+}
+
+
 
 
 
@@ -62,10 +201,42 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
     engine->is_simulating = true;
     engine->accumulator = 0.0f;
     engine->render_frame_counter = 0;
+    engine->last_applied_render_frame = 0;
     engine->pending_frame_width = 0;
     engine->pending_frame_height = 0;
     engine->pending_framebuffer_resize = false;
-    RenderFrameQueue_Init(&engine->frame_queue);
+    engine->render_thread = NULL;
+    engine->render_start_mutex = NULL;
+    engine->render_start_condition = NULL;
+    engine->render_thread_ready = false;
+    engine->render_thread_failed = false;
+
+    if (!RenderFrameQueue_Init(&engine->frame_queue) || !Engine_StartRenderThread(engine))
+    {
+        Log_Error("Render thread failed to initialize.");
+        RenderFrameQueue_RequestStop(&engine->frame_queue);
+        if (engine->render_thread)
+            Platform_JoinThread(engine->render_thread, NULL);
+
+        Render_DisableThreadDispatch(engine->renderer);
+        Render_MakeCurrent(engine->renderer);
+        Render_UIShutdown(engine->renderer);
+        Render_Shutdown(engine->renderer);
+        
+        engine->renderer = NULL;
+        RenderFrameQueue_Shutdown(&engine->frame_queue);
+        
+        if (engine->render_start_condition)
+            Platform_DestroyCondition(engine->render_start_condition);
+        if (engine->render_start_mutex)
+            Platform_DestroyMutex(engine->render_start_mutex);
+        
+        UI_Shutdown();
+        Audio_Shutdown();
+        Platform_Shutdown(engine->window);
+        
+        return false;
+    }
 
     return true;
 }
@@ -77,14 +248,39 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
 // Shuts down all systems
 void Engine_Shutdown(PrismEngine* engine)
 {
-    UI_Shutdown();
+    if (!engine)
+        return;
+
     Audio_Shutdown();
-    Render_UIShutdown(engine->renderer);
-    Render_Shutdown(engine->renderer);
+
+    RenderFrameQueue_RequestStop(&engine->frame_queue);
+    if (engine->render_thread)
+    {
+        Platform_JoinThread(engine->render_thread, NULL);
+        engine->render_thread = NULL;
+    }
+    engine->renderer = NULL;
+
+    uint32_t completed_slot = 0;
+    const RenderFrameResult* discarded_result = NULL;
+    while (RenderFrameQueue_AcquireCompleted(&engine->frame_queue, false, &completed_slot, &discarded_result))
+    {
+        RenderFrameQueue_ReleaseCompleted(&engine->frame_queue, completed_slot);
+    }
+    UI_Shutdown();
+
     RenderFrameQueue_Shutdown(&engine->frame_queue);
 
-    if (engine->window)
-        Platform_Shutdown(engine->window);
+    if (engine->render_start_condition)
+        Platform_DestroyCondition(engine->render_start_condition);
+    if (engine->render_start_mutex)
+        Platform_DestroyMutex(engine->render_start_mutex);
+
+    engine->render_start_condition = NULL;
+    engine->render_start_mutex = NULL;
+
+    Platform_Shutdown(engine->window);
+    engine->window = NULL;
 }
 
 
@@ -208,10 +404,8 @@ void Engine_ApplyPendingFramebufferResize(PrismEngine* engine)
 static void Engine_OnModalEvent(void* userdata)
 {
     PrismEngine* engine = (PrismEngine*)userdata;
-    if (!engine || !engine->window || !engine->active_scene)
+    if (!engine || !engine->window)
         return;
-
-    Scene* active_scene = engine->active_scene;
 
     uint32_t w = Platform_GetWindowWidth(engine->window);
     uint32_t h = Platform_GetWindowHeight(engine->window);
@@ -219,50 +413,7 @@ static void Engine_OnModalEvent(void* userdata)
     if (w > 0 && h > 0)
         Engine_NotifyFramebufferResize(engine, w, h);
 
-    // Prevent physics/animation errors after a blocking resize.
-    Time_Tick();
-
-    engine->accumulator += Time_DeltaTime();
-
-    if (engine->is_simulating)
-    {
-        float fixed_dt = Time_FixedDeltaTime();
-        while (engine->accumulator >= fixed_dt)
-        {
-            Scene_FixedUpdate(active_scene);
-            engine->accumulator -= fixed_dt;
-        }
-    }
-    else
-    {
-        engine->accumulator = 0.0f;
-    }
-
-    Engine_TickRetainedUI(engine, active_scene);
-    
-    if (engine->is_simulating)
-    {
-        Scene_Update(active_scene);
-    }
-    else
-    {
-        Scene_UpdateTransforms(active_scene);
-        Scene_UpdateBoneAttachments(active_scene);
-        Scene_UpdateSkinnedMeshBounds(active_scene);
-        Scene_UpdateLineRenderers(active_scene);
-    }
-
-    Engine_UpdateTextInput(engine);
-    
-    if (!Platform_IsWindowMinimized(engine->window))
-    {
-        Engine_RenderScene(engine, active_scene);
-        Engine_DrawRetainedUI(engine, active_scene);
-        if (engine->modal_callback)
-            engine->modal_callback(engine->modal_userdata);
-        Render_UIRender(engine->renderer, UI_GetContext(), w, h);
-        Render_Present(engine->renderer);
-    }
+    RenderFrameQueue_RequestRedraw(&engine->frame_queue, w, h);
 }
 
 
@@ -372,21 +523,32 @@ void Engine_Render(PrismEngine* engine, Scene* active_scene)
     if (!active_scene)
         return;
 
+    engine->active_scene = active_scene;
+    Engine_PumpRenderCompletions(engine);
+    while (!RenderFrameQueue_HasFreeSlot(&engine->frame_queue))
+    {
+        if (!Engine_ApplyOneRenderCompletion(engine, true))
+            break;
+    }
+
     // Render the scene if the window is not minimized
     if (!Platform_IsWindowMinimized(engine->window))
     {
-        // Render scene
+        // Build and submit world plus UI snapshots. GPU work happens asynchronously.
         Engine_RenderScene(engine, active_scene);
-
-        // Render UI
-        Engine_DrawRetainedUI(engine, active_scene);
-        Engine_DrawImmediateUI(engine);
+    }
+    else
+    {
+        // Do not let immediate UI commands accumulate while rendering is paused.
+        OverlayDrawList discarded_ui = {0};
+        UI_BuildDrawList(&discarded_ui);
+        OverlayDrawList_Free(&discarded_ui);
     }
 
     // Process destroy queue
     Scene_ProcessDestroyQueue(active_scene);
     
-    // Swap Buffers & Reset Input arrays
+    // Cycle input state. Present is owned by the render thread.
     Engine_EndFrame(engine);
 }
 
@@ -466,12 +628,6 @@ void Engine_EndFrame(PrismEngine* engine)
 {
     if (!engine->is_running)
         return;
-
-    if (!Platform_IsWindowMinimized(engine->window))
-    {
-        // Swap the OS window buffers to display the new frame
-        Render_Present(engine->renderer);
-    }
 
     // Cycle the input arrays for the next frame
     Input_Update();
