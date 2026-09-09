@@ -53,6 +53,11 @@ typedef struct OverlayDrawList
 void OverlayDrawList_Init(OverlayDrawList* list);
 void OverlayDrawList_Reset(OverlayDrawList* list);
 void OverlayDrawList_Free(OverlayDrawList* list);
+bool OverlayDrawList_Copy(OverlayDrawList* destination, const OverlayDrawList* source);
+bool OverlayDrawList_Assign(OverlayDrawList* destination,
+    const OverlayVertex* vertices, uint32_t vertex_count,
+    const uint16_t* indices, uint32_t index_count,
+    const OverlayDrawCmd* commands, uint32_t command_count);
 
 void OverlayDrawList_AddRect(OverlayDrawList* list,
     float x, float y, float w, float h,

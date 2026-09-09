@@ -153,6 +153,58 @@ void OverlayDrawList_Free(OverlayDrawList* list)
 
 
 
+// Copies a draw list into reusable destination storage
+bool OverlayDrawList_Copy(OverlayDrawList* destination, const OverlayDrawList* source)
+{
+    if (!destination || !source)
+        return false;
+
+    OverlayDrawList_Reset(destination);
+    if (!OverlayDrawList_ReserveVertices(destination, source->vertex_count) ||
+        !OverlayDrawList_ReserveIndices(destination, source->index_count) ||
+        !OverlayDrawList_ReserveCommands(destination, source->command_count))
+        return false;
+    
+    if (source->vertex_count > 0)
+        memcpy(destination->vertices, source->vertices, source->vertex_count * sizeof(OverlayVertex));
+    if (source->index_count > 0)
+        memcpy(destination->indices, source->indices, source->index_count * sizeof(uint16_t));
+    if (source->command_count > 0)
+        memcpy(destination->commands, source->commands, source->command_count * sizeof(OverlayDrawCmd));
+    
+    destination->vertex_count = source->vertex_count;
+    destination->index_count = source->index_count;
+    destination->command_count = source->command_count;
+    
+    return true;
+}
+
+
+
+
+
+// Assigns an overlay draw list to a specific destination
+bool OverlayDrawList_Assign(OverlayDrawList* destination, const OverlayVertex* vertices, uint32_t vertex_count, const uint16_t* indices, uint32_t index_count, const OverlayDrawCmd* commands, uint32_t command_count)
+{
+    if (!destination)
+        return false;
+    
+    OverlayDrawList source = {
+        .vertices = (OverlayVertex*)vertices,
+        .vertex_count = vertex_count,
+        .indices = (uint16_t*)indices,
+        .index_count = index_count,
+        .commands = (OverlayDrawCmd*)commands,
+        .command_count = command_count
+    };
+
+    return OverlayDrawList_Copy(destination, &source);
+}
+
+
+
+
+
 void OverlayDrawList_AddQuad(OverlayDrawList* list,
     float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3,
     float u0, float v0, float u1, float v1, float u2, float v2, float u3, float v3,
