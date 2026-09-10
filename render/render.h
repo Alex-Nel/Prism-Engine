@@ -464,7 +464,11 @@ typedef struct RenderProbeResultsCommand
 } RenderProbeResultsCommand;
 
 
-typedef void (*RenderThreadWakeFunction)(void* user_data);
+// Optional runtime hook that forwards a renderer command to its chosen execution context
+typedef bool (*RenderCommandDispatchFunction)(void* user_data, RenderCommandType type, const void* input, void* output);
+
+// Optional runtime hook that reports whether direct backend access is currently safe
+typedef bool (*RenderDirectAccessFunction)(void* user_data);
 
 
 
@@ -557,6 +561,8 @@ typedef struct Renderer
 
     // --- Hidden implementation-specific data ---
     void* backend_internal_data;
+    RenderCommandDispatchFunction command_dispatch;
+    RenderDirectAccessFunction direct_access_check;
     void* command_dispatch_data;
 
 } Renderer;
@@ -573,23 +579,18 @@ typedef void* (*Render_LoadProcFn)(const char* name);
 // Initializes a renderer bound to a native window handle (SDL_Window* on SDL backends).
 Renderer* Render_Init(GraphicsAPI api, void* native_window, uint32_t init_width, uint32_t init_height);
 
-// Enables synchronous command marshalling from non-render threads.
-bool Render_EnableThreadDispatch(Renderer* r, RenderThreadWakeFunction wake, void* wake_user_data);
+// Installs optional runtime-owned command forwarding without coupling the renderer to threading
+void Render_SetCommandDispatch(Renderer* r, RenderCommandDispatchFunction dispatch, RenderDirectAccessFunction direct_access_check, void* user_data);
 
-// Records which platform thread exclusively owns backend rendering calls
-void Render_SetRenderThreadID(Renderer* r, uint64_t thread_id);
+// Removes runtime-owned command forwarding callbacks
+void Render_ClearCommandDispatch(Renderer* r);
 
 // Returns whether the calling thread may directly execute rendering functions
-bool Render_IsOnRenderThread(Renderer* r);
+bool Render_HasDirectAccess(Renderer* r);
 
-// Forwards one renderer command to the render thread and waits for its result
+// Gives an installed runtime dispatcher a chance to handle a renderer command
 bool Render_TryDispatchCommand(Renderer* r, RenderCommandType type, const void* input, void* output);
 
-// Executes one pending forwarded command on the render thread
-bool Render_ProcessPendingCommand(Renderer* r);
-
-// Stops command forwarding and releases its synchronization state
-void Render_DisableThreadDispatch(Renderer* r);
 
 
 
@@ -625,7 +626,7 @@ static inline void Render_Resize(Renderer* r, uint32_t width, uint32_t height)
 
 static inline void Render_Present(Renderer* r)
 {
-    if (r && Render_IsOnRenderThread(r) && r->Present)
+    if (r && Render_HasDirectAccess(r) && r->Present)
         r->Present(r);
 }
 
@@ -878,14 +879,14 @@ static inline void Render_DestroyEnvironmentMap(Renderer* r, EnvironmentMapHandl
 // Draws a complete view snapshot. Backends must implement DrawWorld.
 static inline void Render_DrawWorld(Renderer* r, const RenderWorld* world)
 {
-    if (r && Render_IsOnRenderThread(r) && r->DrawWorld && world)
+    if (r && Render_HasDirectAccess(r) && r->DrawWorld && world)
         r->DrawWorld(r, world);
 }
 
 // Draws a scene into a render frame
 static inline void Render_DrawFrame(Renderer* r, const RenderFrame* frame)
 {
-    if (r && Render_IsOnRenderThread(r) && r->DrawFrame && frame)
+    if (r && Render_HasDirectAccess(r) && r->DrawFrame && frame)
         r->DrawFrame(r, frame);
 }
 
@@ -920,21 +921,21 @@ static inline void Render_UIinit(Renderer* r, void* nk_ctx)
 // Shuts down the UI rendering pipeline
 static inline void Render_UIShutdown(Renderer* r)
 {
-    if (r && Render_IsOnRenderThread(r) && r->UIShutdown)
+    if (r && Render_HasDirectAccess(r) && r->UIShutdown)
         r->UIShutdown(r);
 }
 
 // Renders any UI
 static inline void Render_UIRender(Renderer* r, void* nk_ctx, uint32_t width, uint32_t height)
 {
-    if (r && Render_IsOnRenderThread(r) && r->UIRender)
+    if (r && Render_HasDirectAccess(r) && r->UIRender)
         r->UIRender(r, nk_ctx, width, height);
 }
 
 // Renders any Overlay
 static inline void Render_DrawOverlay(Renderer* r, const OverlayDrawList* list, uint32_t width, uint32_t height)
 {
-    if (r && Render_IsOnRenderThread(r) && r->DrawOverlay)
+    if (r && Render_HasDirectAccess(r) && r->DrawOverlay)
         r->DrawOverlay(r, list, width, height);
 }
 

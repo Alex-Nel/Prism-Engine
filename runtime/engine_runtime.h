@@ -3,7 +3,7 @@
 
 
 #include "Prism.h"
-#include "render/render_frame.h"
+#include "engine_render_thread.h"
 #include <stdint.h>
 
 

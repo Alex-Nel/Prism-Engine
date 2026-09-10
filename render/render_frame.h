@@ -5,7 +5,6 @@
 
 #include "render.h"
 #include "../core/mesh_core.h"
-#include "../platform/platform_core.h"
 
 
 
@@ -32,7 +31,7 @@ typedef struct RenderFrameView
 
 
 
-// Self-contained snapshot built on the update side and consumed by the renderer.
+// Self-contained snapshot built on the update side and consumed by the renderer
 typedef struct RenderFrame
 {
     uint64_t frame_id;
@@ -88,106 +87,11 @@ typedef struct RenderFrame
 
 
 
-// The render probe results from a render frame
-typedef struct RenderFrameResult
-{
-    uint64_t frame_id;
-    void* scene_identity;
-    RenderProbeResult probe_results[RENDER_FRAME_MAX_PROBES];
-    uint32_t probe_result_count;
-} RenderFrameResult;
-
-
-
-
-
-// Enum for the state of a render frame
-typedef enum RenderFrameSlotState
-{
-    RENDER_FRAME_SLOT_FREE = 0,
-    RENDER_FRAME_SLOT_WRITING,
-    RENDER_FRAME_SLOT_READY,
-    RENDER_FRAME_SLOT_RENDERING,
-    RENDER_FRAME_SLOT_COMPLETE,
-    RENDER_FRAME_SLOT_APPLYING
-} RenderFrameSlotState;
-
-
-
-
-
-// Struct for the render frame queue
-typedef struct RenderFrameQueue
-{
-    RenderFrame buffers[2];
-    RenderFrameResult results[2];
-    RenderFrameSlotState slot_states[2];
-    uint32_t write_index;
-    void* scene_identities[2];
-    bool stopping;
-    bool wake_requested;
-    bool redraw_requested;
-    uint32_t redraw_width;
-    uint32_t redraw_height;
-
-    // Render-thread handoff variables
-    PlatformMutex* mutex;
-    PlatformCondition* frame_ready;
-    PlatformCondition* slot_changed;
-} RenderFrameQueue;
-
-
-
-
-
 // Resets a render frame completely
 void RenderFrame_Reset(RenderFrame* frame);
 
 // Fills a render frame with lighting information
 void RenderFrame_FillLighting(const RenderFrame* frame, RenderLighting* out);
-
-
-
-
-
-// Initializes a render frame queue
-bool RenderFrameQueue_Init(RenderFrameQueue* queue);
-
-// Shuts down a render frame queue
-void RenderFrameQueue_Shutdown(RenderFrameQueue* queue);
-
-// Begins writing to a specific frame in a render frame queue
-RenderFrame* RenderFrameQueue_BeginWrite(RenderFrameQueue* queue);
-
-// Commits a write and wakes the render thread
-bool RenderFrameQueue_CommitWrite(RenderFrameQueue* queue, void* scene_identity);
-
-// Waits until the render thread can claim a submitted frame or redraw
-bool RenderFrameQueue_WaitRead(RenderFrameQueue* queue, uint32_t* slot_index, const RenderFrame** frame, bool* is_redraw, uint32_t* output_width, uint32_t* output_height);
-
-// Publishes renderer output for a consumed frame
-void RenderFrameQueue_CompleteRead(RenderFrameQueue* queue, uint32_t slot_index, const RenderFrameResult* result);
-
-// Claims the oldest completed result for main thread
-bool RenderFrameQueue_AcquireCompleted(RenderFrameQueue* queue, bool wait, uint32_t* slot_index, const RenderFrameResult** result);
-
-// Returns an applied completion slot to the producer
-void RenderFrameQueue_ReleaseCompleted(RenderFrameQueue* queue, uint32_t slot_index);
-
-// Returns whether the producer can begin another snapshot without blocking
-bool RenderFrameQueue_HasFreeSlot(RenderFrameQueue* queue);
-
-// Returns whether queue shutdown has been requested
-bool RenderFrameQueue_IsStopping(RenderFrameQueue* queue);
-
-// Wakes the render thread so it can process non-frame renderer commands
-void RenderFrameQueue_Wake(RenderFrameQueue* queue);
-
-// Requests replay of the newest completed snapshot at the latest window size
-void RenderFrameQueue_RequestRedraw(RenderFrameQueue* queue, uint32_t width, uint32_t height);
-
-// Stops new queue work and wakes every blocked producer or consumer
-void RenderFrameQueue_RequestStop(RenderFrameQueue* queue);
 
 
 
