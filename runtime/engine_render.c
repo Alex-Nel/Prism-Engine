@@ -674,6 +674,8 @@ void Engine_RenderScene(PrismEngine* engine, Scene* scene)
         return;
 
     engine->active_scene = scene;
+
+    // Two occupied slots create back-pressure until the oldest result is applied
     while (!RenderFrameQueue_HasFreeSlot(&engine->frame_queue))
     {
         uint32_t completed_slot = 0;
@@ -696,6 +698,7 @@ void Engine_RenderScene(PrismEngine* engine, Scene* scene)
         return;
     Engine_BuildRenderFrame(engine, scene, write_frame);
 
+    // Copy both UI systems into storage owned by the same immutable frame slot
     RetainedUI_UpdateLayout(scene, write_frame->width, write_frame->height);
     RetainedUI_BuildOverlay(scene);
 

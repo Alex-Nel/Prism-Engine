@@ -188,7 +188,7 @@ bool Platform_WaitConditionTimeout(PlatformCondition* condition, PlatformMutex* 
 // Creates a joinable platform thread
 PlatformThread* Platform_CreateThread(PlatformThreadFunction function, const char* name, void* user_data);
 
-// Waits for a platform thread and releases its SDL thread object
+// Waits for a platform thread to finish and releases its SDL thread object (optionally returns a result)
 void Platform_JoinThread(PlatformThread* thread, int* result);
 
 // Returns a stable identifier for the calling thread

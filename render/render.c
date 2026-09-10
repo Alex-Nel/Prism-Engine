@@ -39,6 +39,7 @@ typedef struct RenderCommandDispatch
 
 
 
+// Enables synchronized renderer command forwarding from non-render threads
 bool Render_EnableThreadDispatch(Renderer* r, RenderThreadWakeFunction wake, void* wake_user_data)
 {
     if (!r || r->command_dispatch_data)
@@ -77,6 +78,7 @@ bool Render_EnableThreadDispatch(Renderer* r, RenderThreadWakeFunction wake, voi
 
 
 
+// Records which platform thread exclusively owns backend rendering calls
 void Render_SetRenderThreadID(Renderer* r, uint64_t thread_id)
 {
     if (!r || !r->command_dispatch_data)
@@ -92,6 +94,7 @@ void Render_SetRenderThreadID(Renderer* r, uint64_t thread_id)
 
 
 
+// Returns whether the calling thread may directly execute rendering functions
 bool Render_IsOnRenderThread(Renderer* r)
 {
     if (!r || !r->command_dispatch_data)
@@ -109,6 +112,7 @@ bool Render_IsOnRenderThread(Renderer* r)
 
 
 
+// Forwards one renderer command to the render thread and waits for its result
 bool Render_TryDispatchCommand(Renderer* r, RenderCommandType type, const void* input, void* output)
 {
     if (!r || !r->command_dispatch_data)
@@ -116,25 +120,28 @@ bool Render_TryDispatchCommand(Renderer* r, RenderCommandType type, const void* 
 
     RenderCommandDispatch* dispatch = (RenderCommandDispatch*)r->command_dispatch_data;
     Platform_LockMutex(dispatch->mutex);
+
+    // Calls already on the render thread can use the backend vtable directly
     if (dispatch->render_thread_id == Platform_GetCurrentThreadID())
     {
         Platform_UnlockMutex(dispatch->mutex);
         return false;
     }
     
+    // Settings reads use the synchronized CPU copy instead of stalling on the backend
     if (type == RENDER_COMMAND_GET_SETTINGS && dispatch->cached_settings_valid)
     {
         *(RendererSettings*)output = dispatch->cached_settings;
         Platform_UnlockMutex(dispatch->mutex);
         return true;
     }
-    
     if (type == RENDER_COMMAND_SET_SETTINGS && input)
     {
         dispatch->cached_settings = *(const RendererSettings*)input;
         dispatch->cached_settings_valid = true;
     }
     
+    // Only one borrowed command payload may be pending at a time
     dispatch->active_callers++;
     while (dispatch->pending && !dispatch->stopping)
         Platform_WaitCondition(dispatch->command_complete, dispatch->mutex);
@@ -147,6 +154,7 @@ bool Render_TryDispatchCommand(Renderer* r, RenderCommandType type, const void* 
         return true;
     }
     
+    // Publish the command and wake the thread that owns the graphics context
     dispatch->type = type;
     dispatch->input = input;
     dispatch->output = output;
@@ -154,6 +162,7 @@ bool Render_TryDispatchCommand(Renderer* r, RenderCommandType type, const void* 
     if (dispatch->wake)
         dispatch->wake(dispatch->wake_user_data);
     
+    // The caller remains blocked so its input and output pointers stay valid
     while (dispatch->pending && !dispatch->stopping)
         Platform_WaitCondition(dispatch->command_complete, dispatch->mutex);
     
@@ -172,6 +181,7 @@ bool Render_TryDispatchCommand(Renderer* r, RenderCommandType type, const void* 
 
 
 
+// Executes one pending forwarded command on the render thread
 bool Render_ProcessPendingCommand(Renderer* r)
 {
     if (!r || !r->command_dispatch_data)
@@ -191,6 +201,7 @@ bool Render_ProcessPendingCommand(Renderer* r)
     bool refresh_settings = type == RENDER_COMMAND_SET_SETTINGS;
     Platform_UnlockMutex(dispatch->mutex);
 
+    // Dispatch directly through the vtable since wrapper calls would recurse
     switch (type)
     {
         case RENDER_COMMAND_CREATE_MESH:
@@ -268,17 +279,20 @@ bool Render_ProcessPendingCommand(Renderer* r)
         }
     }
 
+    // Publish any result and release the waiting caller
     Platform_LockMutex(dispatch->mutex);
     if (refresh_settings && r->GetSettings)
     {
         dispatch->cached_settings = r->GetSettings(r);
         dispatch->cached_settings_valid = true;
     }
+
     dispatch->pending = false;
     dispatch->input = NULL;
     dispatch->output = NULL;
     Platform_BroadcastCondition(dispatch->command_complete);
     Platform_UnlockMutex(dispatch->mutex);
+    
     return true;
 }
 
@@ -286,6 +300,7 @@ bool Render_ProcessPendingCommand(Renderer* r)
 
 
 
+// Stops command forwarding and releases its synchronization state
 void Render_DisableThreadDispatch(Renderer* r)
 {
     if (!r || !r->command_dispatch_data)

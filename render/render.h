@@ -575,13 +575,36 @@ Renderer* Render_Init(GraphicsAPI api, void* native_window, uint32_t init_width,
 
 // Enables synchronous command marshalling from non-render threads.
 bool Render_EnableThreadDispatch(Renderer* r, RenderThreadWakeFunction wake, void* wake_user_data);
+
+// Records which platform thread exclusively owns backend rendering calls
 void Render_SetRenderThreadID(Renderer* r, uint64_t thread_id);
+
+// Returns whether the calling thread may directly execute rendering functions
 bool Render_IsOnRenderThread(Renderer* r);
-bool Render_ProcessPendingCommand(Renderer* r);
-void Render_DisableThreadDispatch(Renderer* r);
+
+// Forwards one renderer command to the render thread and waits for its result
 bool Render_TryDispatchCommand(Renderer* r, RenderCommandType type, const void* input, void* output);
 
+// Executes one pending forwarded command on the render thread
+bool Render_ProcessPendingCommand(Renderer* r);
 
+// Stops command forwarding and releases its synchronization state
+void Render_DisableThreadDispatch(Renderer* r);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ----- Wrapper functions for the renderer -----
 
 // Shuts down the renderer
 static inline void Render_Shutdown(Renderer* r)
@@ -642,6 +665,8 @@ static inline RenderPixelFormat Render_PixelFormatFromChannels(uint32_t channels
         return RENDER_FORMAT_RGB8;
     return RENDER_FORMAT_RGBA8;
 }
+
+
 
 
 
@@ -706,6 +731,8 @@ static inline void Render_DestroyMesh(Renderer* r, MeshHandle mesh)
 
 
 
+
+
 // Uploads pixels to the renderer to make a texture. Returns a handle
 static inline TextureHandle Render_CreateTexture(Renderer* r, const RenderTextureDesc* desc)
 {
@@ -753,6 +780,8 @@ static inline void Render_DestroyTexture(Renderer* r, TextureHandle texture)
 
 
 
+
+
 // Uploads a shader program. Returns a handle
 static inline ShaderHandle Render_CreateShader(Renderer* r, const RenderShaderDesc* desc)
 {
@@ -780,6 +809,8 @@ static inline void Render_DestroyShader(Renderer* r, ShaderHandle shader)
     if (r && r->DestroyShader)
         r->DestroyShader(r, shader);
 }
+
+
 
 
 
@@ -811,6 +842,8 @@ static inline void Render_DestroyMaterial(Renderer* r, MaterialHandle handle)
     if (r && r->DestroyMaterial)
         r->DestroyMaterial(r, handle);
 }
+
+
 
 
 

@@ -4,12 +4,12 @@
 
 // Forward declare OnModalEvent function
 static void Engine_OnModalEvent(void* userdata);
-static int Engine_RenderThreadMain(void* userdata);
 
 
 
 
 
+// Wakes the render worker when a forwarded renderer command is available
 static void Engine_WakeRenderThread(void* userdata)
 {
     PrismEngine* engine = (PrismEngine*)userdata;
@@ -21,12 +21,14 @@ static void Engine_WakeRenderThread(void* userdata)
 
 
 
+// Owns the graphics context and consumes submitted frames and renderer commands
 static int Engine_RenderThreadMain(void* userdata)
 {
     PrismEngine* engine = (PrismEngine*)userdata;
     if (!engine || !engine->renderer)
         return -1;
 
+    // Transfer the renderer context to this worker before accepting any work
     Render_SetRenderThreadID(engine->renderer, Platform_GetCurrentThreadID());
     bool context_ready = Render_MakeCurrent(engine->renderer);
     
@@ -40,6 +42,7 @@ static int Engine_RenderThreadMain(void* userdata)
     if (!context_ready)
         return -1;
     
+    // Submitted frames take priority so later resource changes cannot overtake them
     for (;;)
     {
         uint32_t slot_index = 0;
@@ -65,14 +68,14 @@ static int Engine_RenderThreadMain(void* userdata)
             continue;
         }
 
-        while (Render_ProcessPendingCommand(engine->renderer))
-        {
-        }
+        // A wake without a frame means a synchronous resource/settings call is waiting
+        while (Render_ProcessPendingCommand(engine->renderer)) { }
 
         if (RenderFrameQueue_IsStopping(&engine->frame_queue))
             break;
     }
 
+    // GPU-side shutdown must happen before this thread releases its context
     Render_UIShutdown(engine->renderer);
     Render_DisableThreadDispatch(engine->renderer);
     Render_Shutdown(engine->renderer);
@@ -84,6 +87,7 @@ static int Engine_RenderThreadMain(void* userdata)
 
 
 
+// Starts the render worker and waits until it owns the graphics context
 static bool Engine_StartRenderThread(PrismEngine* engine)
 {
     engine->render_start_mutex = Platform_CreateMutex();
@@ -91,6 +95,7 @@ static bool Engine_StartRenderThread(PrismEngine* engine)
     if (!engine->render_start_mutex || !engine->render_start_condition)
         return false;
 
+    // Enable command forwarding before the main thread gives up the context
     if (!Render_EnableThreadDispatch(engine->renderer, Engine_WakeRenderThread, engine))
         return false;
     
@@ -99,6 +104,7 @@ static bool Engine_StartRenderThread(PrismEngine* engine)
     if (!engine->render_thread)
         return false;
     
+    // Initialization cannot succeed until MakeCurrent has completed on the worker
     Platform_LockMutex(engine->render_start_mutex);
     while (!engine->render_thread_ready && !engine->render_thread_failed)
         Platform_WaitCondition(engine->render_start_condition, engine->render_start_mutex);
@@ -113,6 +119,7 @@ static bool Engine_StartRenderThread(PrismEngine* engine)
 
 
 
+// Applies one completed render result and releases its frame slot
 static bool Engine_ApplyOneRenderCompletion(PrismEngine* engine, bool wait)
 {
     uint32_t slot_index = 0;
@@ -135,11 +142,10 @@ static bool Engine_ApplyOneRenderCompletion(PrismEngine* engine, bool wait)
 
 
 
+// Applies every render completion currently available without blocking
 static void Engine_PumpRenderCompletions(PrismEngine* engine)
 {
-    while (Engine_ApplyOneRenderCompletion(engine, false))
-    {
-    }
+    while (Engine_ApplyOneRenderCompletion(engine, false)) { }
 }
 
 
@@ -211,6 +217,7 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
     engine->render_thread_ready = false;
     engine->render_thread_failed = false;
 
+    // Start the frame handoff only after all main-thread renderer setup is complete
     if (!RenderFrameQueue_Init(&engine->frame_queue) || !Engine_StartRenderThread(engine))
     {
         Log_Error("Render thread failed to initialize.");
@@ -253,6 +260,7 @@ void Engine_Shutdown(PrismEngine* engine)
 
     Audio_Shutdown();
 
+    // Wake the worker, drain submitted frames, and shutdown GPU state on its owner thread
     RenderFrameQueue_RequestStop(&engine->frame_queue);
     if (engine->render_thread)
     {
@@ -261,6 +269,7 @@ void Engine_Shutdown(PrismEngine* engine)
     }
     engine->renderer = NULL;
 
+    // Results are no longer useful during shutdown, but their slots must be released
     uint32_t completed_slot = 0;
     const RenderFrameResult* discarded_result = NULL;
     while (RenderFrameQueue_AcquireCompleted(&engine->frame_queue, false, &completed_slot, &discarded_result))
@@ -524,6 +533,8 @@ void Engine_Render(PrismEngine* engine, Scene* active_scene)
         return;
 
     engine->active_scene = active_scene;
+
+    // Reclaim completed slots before attempting to build another bounded snapshot
     Engine_PumpRenderCompletions(engine);
     while (!RenderFrameQueue_HasFreeSlot(&engine->frame_queue))
     {

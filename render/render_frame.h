@@ -148,6 +148,8 @@ void RenderFrame_FillLighting(const RenderFrame* frame, RenderLighting* out);
 
 
 
+
+
 // Initializes a render frame queue
 bool RenderFrameQueue_Init(RenderFrameQueue* queue);
 
@@ -160,14 +162,31 @@ RenderFrame* RenderFrameQueue_BeginWrite(RenderFrameQueue* queue);
 // Commits a write and wakes the render thread
 bool RenderFrameQueue_CommitWrite(RenderFrameQueue* queue, void* scene_identity);
 
+// Waits until the render thread can claim a submitted frame or redraw
 bool RenderFrameQueue_WaitRead(RenderFrameQueue* queue, uint32_t* slot_index, const RenderFrame** frame, bool* is_redraw, uint32_t* output_width, uint32_t* output_height);
+
+// Publishes renderer output for a consumed frame
 void RenderFrameQueue_CompleteRead(RenderFrameQueue* queue, uint32_t slot_index, const RenderFrameResult* result);
+
+// Claims the oldest completed result for main thread
 bool RenderFrameQueue_AcquireCompleted(RenderFrameQueue* queue, bool wait, uint32_t* slot_index, const RenderFrameResult** result);
+
+// Returns an applied completion slot to the producer
 void RenderFrameQueue_ReleaseCompleted(RenderFrameQueue* queue, uint32_t slot_index);
+
+// Returns whether the producer can begin another snapshot without blocking
 bool RenderFrameQueue_HasFreeSlot(RenderFrameQueue* queue);
+
+// Returns whether queue shutdown has been requested
 bool RenderFrameQueue_IsStopping(RenderFrameQueue* queue);
+
+// Wakes the render thread so it can process non-frame renderer commands
 void RenderFrameQueue_Wake(RenderFrameQueue* queue);
+
+// Requests replay of the newest completed snapshot at the latest window size
 void RenderFrameQueue_RequestRedraw(RenderFrameQueue* queue, uint32_t width, uint32_t height);
+
+// Stops new queue work and wakes every blocked producer or consumer
 void RenderFrameQueue_RequestStop(RenderFrameQueue* queue);
 
 

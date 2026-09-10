@@ -147,6 +147,7 @@ void RenderFrameQueue_Shutdown(RenderFrameQueue* queue)
 
 
 
+// Finds the first frame slot in a requested ownership state
 static int RenderFrameQueue_FindState(const RenderFrameQueue* queue, RenderFrameSlotState state)
 {
     for (uint32_t i = 0; i < 2; i++)
@@ -162,6 +163,7 @@ static int RenderFrameQueue_FindState(const RenderFrameQueue* queue, RenderFrame
 
 
 
+// Finds the newest completed frame for modal redraw requests
 static int RenderFrameQueue_FindNewestComplete(const RenderFrameQueue* queue)
 {
     int newest = -1;
@@ -179,6 +181,7 @@ static int RenderFrameQueue_FindNewestComplete(const RenderFrameQueue* queue)
 
 
 
+// Finds the oldest unapplied completion to preserve result ordering
 static int RenderFrameQueue_FindOldestComplete(const RenderFrameQueue* queue)
 {
     int oldest = -1;
@@ -203,6 +206,8 @@ RenderFrame* RenderFrameQueue_BeginWrite(RenderFrameQueue* queue)
         return NULL;
     
     Platform_LockMutex(queue->mutex);
+
+    // Wait until the consumer releases one of the two bounded frame slots
     int slot = RenderFrameQueue_FindState(queue, RENDER_FRAME_SLOT_FREE);
     
     while (slot < 0 && !queue->stopping)
@@ -254,13 +259,15 @@ bool RenderFrameQueue_CommitWrite(RenderFrameQueue* queue, void* scene_identity)
 
 
 
-// Claims the oldest ready frame for the render thread
+// Waits until the render thread can claim a submitted frame or redraw
 bool RenderFrameQueue_WaitRead(RenderFrameQueue* queue, uint32_t* slot_index, const RenderFrame** frame, bool* is_redraw, uint32_t* output_width, uint32_t* output_height)
 {
     if (!queue || !slot_index || !frame || !is_redraw || !output_width || !output_height || !queue->mutex)
         return false;
 
     Platform_LockMutex(queue->mutex);
+
+    // Prefer newly submitted frames. Modal redraws only replay completed data
     int slot = RenderFrameQueue_FindState(queue, RENDER_FRAME_SLOT_READY);
     int redraw_slot = queue->redraw_requested ? RenderFrameQueue_FindNewestComplete(queue) : -1;
     
@@ -314,7 +321,7 @@ bool RenderFrameQueue_WaitRead(RenderFrameQueue* queue, uint32_t* slot_index, co
 
 
 
-// Publishes the render result and leaves the frame immutable
+// Publishes renderer output for a consumed frame
 void RenderFrameQueue_CompleteRead(RenderFrameQueue* queue, uint32_t slot_index, const RenderFrameResult* result)
 {
     if (!queue || !result || slot_index >= 2 || !queue->mutex)
@@ -338,7 +345,7 @@ void RenderFrameQueue_CompleteRead(RenderFrameQueue* queue, uint32_t slot_index,
 
 
 
-// Claims a completed result for the main thread
+// Claims the oldest completed result for the main thread
 bool RenderFrameQueue_AcquireCompleted(RenderFrameQueue* queue, bool wait, uint32_t* slot_index, const RenderFrameResult** result)
 {
     if (!queue || !slot_index || !result || !queue->mutex)
@@ -370,6 +377,7 @@ bool RenderFrameQueue_AcquireCompleted(RenderFrameQueue* queue, bool wait, uint3
 
 
 
+// Returns an applied completion slot to the producer
 void RenderFrameQueue_ReleaseCompleted(RenderFrameQueue* queue, uint32_t slot_index)
 {
     if (!queue || slot_index >= 2 || !queue->mutex)
@@ -390,6 +398,7 @@ void RenderFrameQueue_ReleaseCompleted(RenderFrameQueue* queue, uint32_t slot_in
 
 
 
+// Returns whether the producer can begin another snapshot without blocking
 bool RenderFrameQueue_HasFreeSlot(RenderFrameQueue* queue)
 {
     if (!queue || !queue->mutex)
@@ -406,6 +415,7 @@ bool RenderFrameQueue_HasFreeSlot(RenderFrameQueue* queue)
 
 
 
+// Returns whether queue shutdown has been requested
 bool RenderFrameQueue_IsStopping(RenderFrameQueue* queue)
 {
     if (!queue || !queue->mutex)
@@ -422,6 +432,7 @@ bool RenderFrameQueue_IsStopping(RenderFrameQueue* queue)
 
 
 
+// Wakes the render thread so it can process non-frame renderer commands
 void RenderFrameQueue_Wake(RenderFrameQueue* queue)
 {
     if (!queue || !queue->mutex)
@@ -437,6 +448,7 @@ void RenderFrameQueue_Wake(RenderFrameQueue* queue)
 
 
 
+// Requests replay of the newest completed snapshot at the latest window size
 void RenderFrameQueue_RequestRedraw(RenderFrameQueue* queue, uint32_t width, uint32_t height)
 {
     if (!queue || !queue->mutex || width == 0 || height == 0)
@@ -454,10 +466,12 @@ void RenderFrameQueue_RequestRedraw(RenderFrameQueue* queue, uint32_t width, uin
 
 
 
+// Stops new queue work and wakes every blocked producer or consumer
 void RenderFrameQueue_RequestStop(RenderFrameQueue* queue)
 {
     if (!queue || !queue->mutex)
         return;
+
     Platform_LockMutex(queue->mutex);
     queue->stopping = true;
     queue->redraw_requested = false;

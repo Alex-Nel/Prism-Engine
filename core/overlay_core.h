@@ -50,25 +50,42 @@ typedef struct OverlayDrawList
 
 
 
+
+
+// Initializes an overlay draw list
 void OverlayDrawList_Init(OverlayDrawList* list);
+
+// Resets the state of an overlay draw list
 void OverlayDrawList_Reset(OverlayDrawList* list);
+
+// Frees the memory from an overlay draw list
 void OverlayDrawList_Free(OverlayDrawList* list);
+
+// Copies one complete draw list into reusable destination storage
 bool OverlayDrawList_Copy(OverlayDrawList* destination, const OverlayDrawList* source);
+
+// Assigns raw overlay arrays by copying them into a draw list
 bool OverlayDrawList_Assign(OverlayDrawList* destination,
     const OverlayVertex* vertices, uint32_t vertex_count,
     const uint16_t* indices, uint32_t index_count,
     const OverlayDrawCmd* commands, uint32_t command_count);
 
-void OverlayDrawList_AddRect(OverlayDrawList* list,
-    float x, float y, float w, float h,
-    float u0, float v0, float u1, float v1,
+
+
+
+
+// Adds a quad with specific points to the draw list
+void OverlayDrawList_AddQuad(OverlayDrawList* list,
+    float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3,
+    float u0, float v0, float u1, float v1, float u2, float v2, float u3, float v3,
     uint8_t r, uint8_t g, uint8_t b, uint8_t a,
     TextureHandle texture,
     float clip_x, float clip_y, float clip_w, float clip_h);
 
-void OverlayDrawList_AddQuad(OverlayDrawList* list,
-    float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3,
-    float u0, float v0, float u1, float v1, float u2, float v2, float u3, float v3,
+// Adds a rectangle of specific dimensions to the draw list
+void OverlayDrawList_AddRect(OverlayDrawList* list,
+    float x, float y, float w, float h,
+    float u0, float v0, float u1, float v1,
     uint8_t r, uint8_t g, uint8_t b, uint8_t a,
     TextureHandle texture,
     float clip_x, float clip_y, float clip_w, float clip_h);

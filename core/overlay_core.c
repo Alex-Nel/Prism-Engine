@@ -183,7 +183,7 @@ bool OverlayDrawList_Copy(OverlayDrawList* destination, const OverlayDrawList* s
 
 
 
-// Assigns an overlay draw list to a specific destination
+// Assigns raw overlay arrays by copying them into a draw list
 bool OverlayDrawList_Assign(OverlayDrawList* destination, const OverlayVertex* vertices, uint32_t vertex_count, const uint16_t* indices, uint32_t index_count, const OverlayDrawCmd* commands, uint32_t command_count)
 {
     if (!destination)

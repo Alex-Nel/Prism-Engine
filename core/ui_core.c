@@ -209,7 +209,7 @@ struct nk_context* UI_GetContext()
 
 
 
-// Sets the texture handles for UI renderables
+// Stores backend-neutral texture information used during Nuklear conversion
 void UI_SetRenderTextureHandles(TextureHandle null_texture, float null_u, float null_v)
 {
     render_null_texture.texture = nk_handle_id((int)null_texture.id);
@@ -234,6 +234,7 @@ bool UI_BuildDrawList(OverlayDrawList* draw_list)
         return true;
     }
     
+    // This is the generic vertex layout shared by immediate and retained UI
     static const struct nk_draw_vertex_layout_element vertex_layout[] = {
         {NK_VERTEX_POSITION, NK_FORMAT_FLOAT, NK_OFFSETOF(OverlayVertex, position)},
         {NK_VERTEX_TEXCOORD, NK_FORMAT_FLOAT, NK_OFFSETOF(OverlayVertex, uv)},
@@ -254,6 +255,7 @@ bool UI_BuildDrawList(OverlayDrawList* draw_list)
     config.curve_segment_count = 22;
     config.arc_segment_count = 22;
 
+    // Nuklear converts its live widget state into temporary buffers
     struct nk_buffer command_buffer, vertex_buffer, index_buffer;
     nk_buffer_init_default(&command_buffer);
     nk_buffer_init_default(&vertex_buffer);
@@ -270,7 +272,7 @@ bool UI_BuildDrawList(OverlayDrawList* draw_list)
                 command_count++;
         }
 
-        
+        // Translate Nuklear draw commands into the renderer's generic overlay format
         OverlayDrawCmd* commands = command_count > 0
             ? (OverlayDrawCmd*)malloc(command_count * sizeof(OverlayDrawCmd))
             : NULL;
@@ -295,7 +297,7 @@ bool UI_BuildDrawList(OverlayDrawList* draw_list)
                 index_offset += command->elem_count;
             }
 
-
+            // The frame-owned list copies the temporary data before the buffers are freed
             success = OverlayDrawList_Assign(
                 draw_list,
                 (const OverlayVertex*)nk_buffer_memory(&vertex_buffer),
