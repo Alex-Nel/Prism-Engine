@@ -7,7 +7,7 @@
 
 namespace Prism
 {
-    enum UITheme
+    enum class UITheme
     {
         Dark = 0,
         Light = 1,
@@ -17,7 +17,7 @@ namespace Prism
 
 
 
-    enum UIElement
+    enum class UIElement
     {
         Text = 0,
         Window,
@@ -51,7 +51,7 @@ namespace Prism
 
 
 
-    enum WindowFlags
+    enum class WindowFlags
     {
         None              = 0,
         Bordered          = 1 << 0,

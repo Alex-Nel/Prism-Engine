@@ -43,7 +43,7 @@ namespace Prism
 
 
     // Enum for types of lights
-    enum LightType
+    enum class LightType
     {
         Directional = 0,
         Point = 1,

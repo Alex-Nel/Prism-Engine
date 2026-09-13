@@ -295,9 +295,9 @@ namespace Prism
     // Collider Implementation
     // ==========================================
     
-    void ColliderComponent::SetLayerAndMask(CollisionLayer layer, int mask) {
+    void ColliderComponent::SetLayerAndMask(CollisionLayer layer, CollisionMask mask) {
         ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
-        ::Collider_SetLayerAndMask(raw_e, static_cast<::CollisionLayer>(layer), mask);
+        ::Collider_SetLayerAndMask(raw_e, static_cast<::CollisionLayer>(layer), static_cast<::CollisionMask>(mask));
     }
 
     void BoxColliderComponent::SetBoxExtents(const Prism::Vector3& new_extents) {

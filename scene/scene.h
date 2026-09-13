@@ -58,8 +58,8 @@ void Scene_SetEnvironmentMap(Scene* scene, EnvironmentMap* env_map);
 void Scene_RemoveEnvironmentMap(Scene* scene);
 void Scene_SetExposure(Scene* scene, float exposure);
 float Scene_GetExposure(Scene* scene);
-bool Scene_Raycast(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hit, int collision_mask, bool hit_triggers);
-int Scene_RaycastAll(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hits, int max_hits, int collision_mask, bool hit_triggers);
+bool Scene_Raycast(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hit, CollisionMask collision_mask, bool hit_triggers);
+int Scene_RaycastAll(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hits, int max_hits, CollisionMask collision_mask, bool hit_triggers);
 
 
 
@@ -216,7 +216,7 @@ void Rigidbody_AddForceAtPosition(Entity entity, Vector3 force, Vector3 world_po
 
 // --- Collider setters ---
 
-void Collider_SetLayerAndMask(Entity entity, CollisionLayer layer, int mask);
+void Collider_SetLayerAndMask(Entity entity, CollisionLayer layer, CollisionMask mask);
 void Collider_SetBoxExtents(Entity entity, Vector3 new_extents);
 void Collider_SetSphereRadius(Entity entity, float new_radius);
 void Collider_SetMeshScale(Entity entity, Vector3 scale);

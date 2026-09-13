@@ -2,6 +2,7 @@
 #define SCENE_STRUCTURES_H
 
 #include <stdint.h>
+#include "collision_filter.h"
 #include "physics_bridge.h"
 #include "../audio/audio.h"
 #include "../core/font_core.h"
@@ -19,36 +20,6 @@
 #define MAX_MATERIAL_SLOTS 256
 #define MAX_LINE_POINTS 1024
 #define SHADOW_CASCADE_COUNT_DEFAULT 1
-
-
-
-
-
-// The collision layers and mask enum
-typedef enum CollisionLayer
-{
-    COLLISION_LAYER_NONE      = 0,
-    COLLISION_LAYER_DEFAULT   = (1 << 0),  // Standard colliders
-    COLLISION_LAYER_TRIGGER   = (1 << 1),  // Invisible triggers
-
-    // User defined layers
-    COLLISION_LAYER_USER_1    = (1 << 2),
-    COLLISION_LAYER_USER_2    = (1 << 3),
-    COLLISION_LAYER_USER_3    = (1 << 4),
-    COLLISION_LAYER_USER_4    = (1 << 5),
-    COLLISION_LAYER_USER_5    = (1 << 6),
-    COLLISION_LAYER_USER_6    = (1 << 7),
-    COLLISION_LAYER_USER_7    = (1 << 8),
-    COLLISION_LAYER_USER_8    = (1 << 9),
-    COLLISION_LAYER_USER_9    = (1 << 10),
-    COLLISION_LAYER_USER_10   = (1 << 11),
-    COLLISION_LAYER_USER_11   = (1 << 12),
-    COLLISION_LAYER_USER_12   = (1 << 13),
-    COLLISION_LAYER_USER_13   = (1 << 14),
-
-    COLLISION_MASK_NONE       = 0,
-    COLLISION_MASK_ALL        = -1
-} CollisionLayer;
 
 
 
@@ -309,7 +280,7 @@ typedef struct ColliderComponent
     uint32_t touching_count;
 
     CollisionLayer collision_layer;
-    int collision_mask;
+    CollisionMask collision_mask;
 } ColliderComponent;
 
 

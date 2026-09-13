@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "../core/math_core.h"
+#include "collision_filter.h"
 
 
 
@@ -130,14 +131,14 @@ void Physics_AddForceAtPosition(PhysicsBodyHandle body, Vector3 force, Vector3 w
 
 void Physics_SetBodySimulationState(PhysicsWorldHandle world, PhysicsBodyHandle body, bool enable_simulation);
 int Physics_GetEvents(PhysicsWorldHandle world, CollisionEvent* out_events, int max_events);
-void Physics_SetCollisionFilter(PhysicsWorldHandle world, PhysicsBodyHandle body, int layer, int mask);
+void Physics_SetCollisionFilter(PhysicsWorldHandle world, PhysicsBodyHandle body, CollisionLayer layer, CollisionMask mask);
 
 
 
 // --- Functions for raycasts ---
 
-bool Physics_Raycast(PhysicsWorldHandle world, Ray ray, float max_distance, RaycastHit* out_hit, int collision_mask, bool hit_triggers);
-int Physics_RaycastAll(PhysicsWorldHandle world, Ray ray, float max_distance, RaycastHit* out_hits, int max_hits, int collision_mask, bool hit_triggers);
+bool Physics_Raycast(PhysicsWorldHandle world, Ray ray, float max_distance, RaycastHit* out_hit, CollisionMask collision_mask, bool hit_triggers);
+int Physics_RaycastAll(PhysicsWorldHandle world, Ray ray, float max_distance, RaycastHit* out_hits, int max_hits, CollisionMask collision_mask, bool hit_triggers);
 
 
 

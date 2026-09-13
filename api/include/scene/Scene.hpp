@@ -81,7 +81,7 @@ namespace Prism
         
         // --- Physics & Raycasting ---
         
-        bool Raycast(const Prism::Ray ray, float maxDistance, RaycastHit& outHit, bool hit_triggers = false, int collisionMask = COLLISION_MASK_ALL);
-        int RaycastAll(const Prism::Ray ray, float maxDistance, RaycastHit* outHits, int maxHits, bool hit_triggers = false, int collisionMask = COLLISION_MASK_ALL);
+        bool Raycast(const Prism::Ray ray, float maxDistance, RaycastHit& outHit, bool hit_triggers = false, CollisionMask collisionMask = CollisionMask::COLLISION_MASK_ALL);
+        int RaycastAll(const Prism::Ray ray, float maxDistance, RaycastHit* outHits, int maxHits, bool hit_triggers = false, CollisionMask collisionMask = CollisionMask::COLLISION_MASK_ALL);
     };
 }

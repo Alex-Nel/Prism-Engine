@@ -1255,7 +1255,7 @@ int Physics_GetEvents(PhysicsWorldHandle world, CollisionEvent* out_events, int 
 
 
 // Sets the collision layer and mask of a physics body
-void Physics_SetCollisionFilter(PhysicsWorldHandle world, PhysicsBodyHandle body, int layer, int mask)
+void Physics_SetCollisionFilter(PhysicsWorldHandle world, PhysicsBodyHandle body, CollisionLayer layer, CollisionMask mask)
 {
     (void)world;
     if (!body)
@@ -1295,7 +1295,7 @@ void Physics_SetCollisionFilter(PhysicsWorldHandle world, PhysicsBodyHandle body
 
 
 // Performs a raycast in the world with a given ray. Returns the first object hit
-bool Physics_Raycast(PhysicsWorldHandle world, Ray ray, float max_distance, RaycastHit* out_hit, int collision_mask, bool hit_triggers)
+bool Physics_Raycast(PhysicsWorldHandle world, Ray ray, float max_distance, RaycastHit* out_hit, CollisionMask collision_mask, bool hit_triggers)
 {
     if (out_hit)
     {
@@ -1333,7 +1333,7 @@ bool Physics_Raycast(PhysicsWorldHandle world, Ray ray, float max_distance, Rayc
 
 
 // Performs a raycast in the world with a given ray. Returns all objects hit
-int Physics_RaycastAll(PhysicsWorldHandle world, Ray ray, float max_distance, RaycastHit* out_hits, int max_hits, int collision_mask, bool hit_triggers)
+int Physics_RaycastAll(PhysicsWorldHandle world, Ray ray, float max_distance, RaycastHit* out_hits, int max_hits, CollisionMask collision_mask, bool hit_triggers)
 {
     if (!world || !out_hits || max_hits <= 0 || max_distance <= 0.0f)
         return 0;

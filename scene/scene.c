@@ -1519,7 +1519,7 @@ float Scene_GetExposure(Scene* scene)
 
 
 // Performs a raycast from an origin, direction, and distance
-bool Scene_Raycast(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hit, int collision_mask, bool hit_triggers)
+bool Scene_Raycast(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hit, CollisionMask collision_mask, bool hit_triggers)
 {
     if (!scene || !scene->physics_world)
         return false;
@@ -1532,7 +1532,7 @@ bool Scene_Raycast(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hi
 
 
 // Performs a raycast from origin to distance. Returns all hit objects up to max_hits
-int Scene_RaycastAll(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hits, int max_hits, int collision_mask, bool hit_triggers)
+int Scene_RaycastAll(Scene* scene, Ray ray, float max_distance, RaycastHit* out_hits, int max_hits, CollisionMask collision_mask, bool hit_triggers)
 {
     if (!scene || !scene->physics_world)
         return 0;

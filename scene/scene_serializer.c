@@ -577,8 +577,8 @@ bool Scene_Load(Scene* scene, const char* filepath)
             bool is_trigger = cJSON_GetObjectItemCaseSensitive(comp_obj, "is_trigger")->valueint;
             bool is_convex = cJSON_GetObjectItemCaseSensitive(comp_obj, "is_convex")->valueint;
             
-            int layer = cJSON_GetObjectItemCaseSensitive(comp_obj, "layer")->valueint;
-            int col_mask = cJSON_GetObjectItemCaseSensitive(comp_obj, "mask")->valueint;
+            CollisionLayer layer = (CollisionLayer)cJSON_GetObjectItemCaseSensitive(comp_obj, "layer")->valueint;
+            CollisionMask col_mask = (CollisionMask)cJSON_GetObjectItemCaseSensitive(comp_obj, "mask")->valueint;
 
             if (type == COLLIDER_BOX)
             {

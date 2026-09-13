@@ -13,7 +13,7 @@
 namespace Prism
 {
     // Defines what the camera wipes before drawing
-    enum CameraClearFlags
+    enum class CameraClearFlags
     {
         CLEAR_COLOR_AND_DEPTH = 0,
         CLEAR_DEPTH_ONLY = 1,
@@ -224,7 +224,7 @@ namespace Prism
     // Rigidbody Wrapper
     // ==========================================
     
-    enum ForceMode
+    enum class ForceMode
     {
         Force,
         Acceleration,
@@ -268,7 +268,7 @@ namespace Prism
     #define MAX_COLLISION_OVERLAPS 16
 
     // Enum for collider types
-    enum ColliderType
+    enum class ColliderType
     {
         COLLIDER_BOX,
         COLLIDER_SPHERE,
@@ -277,7 +277,7 @@ namespace Prism
 
 
     // Enum for built in and custom collision layers
-    enum CollisionLayer
+    enum class CollisionLayer
     {
         COLLISION_LAYER_NONE      = 0,
         COLLISION_LAYER_DEFAULT   = (1 << 0),  // Standard colliders
@@ -298,14 +298,56 @@ namespace Prism
         COLLISION_LAYER_USER_10   = (1 << 11),
         COLLISION_LAYER_USER_11   = (1 << 12),
         COLLISION_LAYER_USER_12   = (1 << 13),
-        COLLISION_LAYER_USER_13   = (1 << 14),
-
-
-        // Collision Masks
-
-        COLLISION_MASK_NONE       = 0,
-        COLLISION_MASK_ALL        = -1
+        COLLISION_LAYER_USER_13   = (1 << 14)
     };
+
+
+    // A collision mask is a set of layers. Values may be combined with bitwise OR.
+    enum class CollisionMask
+    {
+        COLLISION_MASK_NONE      = 0,
+        COLLISION_MASK_DEFAULT   = (1 << 0),
+        COLLISION_MASK_TRIGGER   = (1 << 1),
+
+        COLLISION_MASK_USER_1    = (1 << 2),
+        COLLISION_MASK_USER_2    = (1 << 3),
+        COLLISION_MASK_USER_3    = (1 << 4),
+        COLLISION_MASK_USER_4    = (1 << 5),
+        COLLISION_MASK_USER_5    = (1 << 6),
+        COLLISION_MASK_USER_6    = (1 << 7),
+        COLLISION_MASK_USER_7    = (1 << 8),
+        COLLISION_MASK_USER_8    = (1 << 9),
+        COLLISION_MASK_USER_9    = (1 << 10),
+        COLLISION_MASK_USER_10   = (1 << 11),
+        COLLISION_MASK_USER_11   = (1 << 12),
+        COLLISION_MASK_USER_12   = (1 << 13),
+        COLLISION_MASK_USER_13   = (1 << 14),
+        
+        COLLISION_MASK_ALL       = -1
+    };
+
+
+    constexpr CollisionMask operator~(CollisionMask mask) noexcept {
+        return static_cast<CollisionMask>(~static_cast<int>(mask));
+    }
+
+    constexpr CollisionMask operator|(CollisionMask lhs, CollisionMask rhs) noexcept {
+        return static_cast<CollisionMask>(static_cast<int>(lhs) | static_cast<int>(rhs));
+    }
+
+    constexpr CollisionMask operator&(CollisionMask lhs, CollisionMask rhs) noexcept {
+        return static_cast<CollisionMask>(static_cast<int>(lhs) & static_cast<int>(rhs));
+    }
+    
+    constexpr CollisionMask& operator|=(CollisionMask& lhs, CollisionMask rhs) noexcept {
+        lhs = lhs | rhs;
+        return lhs;
+    }
+
+    constexpr CollisionMask& operator&=(CollisionMask& lhs, CollisionMask rhs) noexcept {
+        lhs = lhs & rhs;
+        return lhs;
+    }
 
 
     struct PRISM_API ColliderComponent
@@ -328,13 +370,13 @@ namespace Prism
         uint32_t touching_count;
 
         CollisionLayer collision_layer;
-        int collision_mask;
+        CollisionMask collision_mask;
 
     public:
         void SetActive(bool active) { this->is_active = active; }
         bool IsActive() const { return this->is_active; }
 
-        void SetLayerAndMask(CollisionLayer layer, int mask);
+        void SetLayerAndMask(CollisionLayer layer, CollisionMask mask);
         void SetConvex(bool is_convex);
     };
 
@@ -597,20 +639,20 @@ namespace Prism
     // UI Canvas Wrapper
     // ==========================================
 
-    enum UICanvasScaleMode
+    enum class UICanvasScaleMode
     {
         UI_CANVAS_CONSTANT_PIXEL_SIZE = 0,
         UI_CANVAS_SCALE_WITH_SCREEN_SIZE = 1
     };
 
-    enum UITextAlignment
+    enum class UITextAlignment
     {
         UI_TEXT_ALIGN_LEFT,
         UI_TEXT_ALIGN_CENTER,
         UI_TEXT_ALIGN_RIGHT
     };
 
-    enum UIButtonState
+    enum class UIButtonState
     {
         UI_BUTTON_STATE_NORMAL,
         UI_BUTTON_STATE_HOVERED,

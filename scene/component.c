@@ -144,7 +144,7 @@ void Rigidbody_AddForceAtPosition(Entity entity, Vector3 force, Vector3 world_po
 
 
 // Sets an entities collider with one collision layer and mask (several layers OR'd together)
-void Collider_SetLayerAndMask(Entity entity, CollisionLayer layer, int mask)
+void Collider_SetLayerAndMask(Entity entity, CollisionLayer layer, CollisionMask mask)
 {
     ColliderComponent* c = Entity_GetCollider(entity);
     if (c && c->physics_handle)
