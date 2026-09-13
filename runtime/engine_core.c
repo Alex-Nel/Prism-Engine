@@ -3,7 +3,7 @@
 
 
 // Forward declare OnModalEvent function
-static void Engine_OnModalEvent(void* userdata);
+static void Engine_OnModalEvent(Window* window, void* userdata);
 
 
 
@@ -32,8 +32,8 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
         return false;
     }
 
-    // Register global modal window event callback
-    Platform_SetEventWatchCallback(Engine_OnModalEvent, engine);
+    // Register modal event handling for this engine window
+    Platform_SetEventWatchCallback(engine->window, Engine_OnModalEvent, engine);
 
     void* native_window = NULL;
     if (engine->window)
@@ -286,14 +286,14 @@ static void Engine_AdvanceSceneState(PrismEngine* engine, Scene* active_scene, b
 
 
 // Advances and submits the engine while a native move or resize loop blocks Engine_Run
-static void Engine_OnModalEvent(void* userdata)
+static void Engine_OnModalEvent(Window* window, void* userdata)
 {
     PrismEngine* engine = (PrismEngine*)userdata;
-    if (!engine || !engine->window)
+    if (!engine || !window || window != engine->window)
         return;
 
-    uint32_t w = Platform_GetWindowWidth(engine->window);
-    uint32_t h = Platform_GetWindowHeight(engine->window);
+    uint32_t w = Platform_GetWindowWidth(window);
+    uint32_t h = Platform_GetWindowHeight(window);
     
     if (w > 0 && h > 0)
         Engine_NotifyFramebufferResize(engine, w, h);
@@ -362,8 +362,13 @@ void Engine_Update(PrismEngine* engine, Scene* active_scene)
     UI_InputBegin();
 
     Event e;
+    uint32_t engine_window_id = Platform_GetWindowID(engine->window);
+
     while (Platform_PollEvents(&e))
     {
+        if (e.window_id != 0 && e.window_id != engine_window_id)
+            continue;
+        
         bool ui_handled = false;
         if (!Engine_IsMouseCaptured(engine))
             ui_handled = UI_ProcessEvent(&e);

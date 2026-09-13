@@ -25,8 +25,8 @@ typedef struct PlatformThread PlatformThread;
 // Entry point for a platform thread. Return value is reported by JoinThread.
 typedef int (*PlatformThreadFunction)(void* user_data);
 
-// Defines a function callback for a platform to watch events
-typedef void (*PlatformEventWatchCallback)(void* user_data);
+// Defines a per-window callback for events processed inside a native modal loop
+typedef void (*PlatformEventWatchCallback)(Window* window, void* user_data);
 
 
 
@@ -43,11 +43,11 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
 // Shuts down the window
 void Platform_Shutdown(Window* window);
 
-// Returns the active window struct
-Window* Platform_GetActiveWindow();
-
 // Returns the native window handle
 void* Platform_GetNativeWindow(Window* window);
+
+// Returns the platform-independent identifier assigned to a window
+uint32_t Platform_GetWindowID(Window* window);
 
 // Gets the x and y position of the window (from the top left)
 void Platform_GetWindowPosition(Window* window, int* x, int* y);
@@ -73,8 +73,8 @@ bool Platform_IsWindowMinimized(Window* window);
 
 // ----- Platform utility functions -----
 
-// Registers the callback function
-void Platform_SetEventWatchCallback(PlatformEventWatchCallback callback, void* user_data);
+// Registers a modal event callback for one window
+void Platform_SetEventWatchCallback(Window* window, PlatformEventWatchCallback callback, void* user_data);
 
 // Platform specific function to poll events
 bool Platform_PollEvents(Event* e);

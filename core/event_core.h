@@ -86,6 +86,8 @@ typedef enum EventType
 typedef struct Event
 {
     EventType type;
+    uint32_t window_id;
+    
     union
     {
         // Window
