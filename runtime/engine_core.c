@@ -13,7 +13,13 @@ static void Engine_OnModalEvent(void* userdata);
 bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_width, uint32_t window_height, uint32_t target_fps, GraphicsAPI api)
 {
     engine->target_fps = target_fps;
+    engine->window = NULL;
+    engine->renderer = NULL;
     engine->active_scene = NULL;
+    engine->render_thread_ready = false;
+    engine->modal_update_active = false;
+    engine->modal_update_performed = false;
+
 
     if (api != GRAPHICS_API_NONE)
         Render_ConfigurePlatformSurface(api);
@@ -63,6 +69,8 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
     engine->is_running = true;
     engine->is_simulating = true;
     engine->accumulator = 0.0f;
+    engine->modal_update_active = false;
+    engine->modal_update_performed = false;
     engine->render_frame_counter = 0;
     engine->last_applied_render_frame = 0;
     engine->pending_frame_width = 0;
@@ -238,7 +246,46 @@ void Engine_ApplyPendingFramebufferResize(PrismEngine* engine)
 
 
 
-// A function to process window events without pausing main loop
+// Advances simulation and visual scene state without polling platform events
+static void Engine_AdvanceSceneState(PrismEngine* engine, Scene* active_scene, bool update_text_input)
+{
+    if (engine->is_simulating)
+    {
+        float fixed_dt = Time_FixedDeltaTime();
+        while (engine->accumulator >= fixed_dt)
+        {
+            Scene_FixedUpdate(active_scene);
+            engine->accumulator -= fixed_dt;
+        }
+    }
+    else
+    {
+        engine->accumulator = 0.0f;
+    }
+
+    Engine_TickRetainedUI(engine, active_scene);
+    
+    if (engine->is_simulating)
+    {
+        Scene_Update(active_scene);
+    }
+    else
+    {
+        Scene_UpdateTransforms(active_scene);
+        Scene_UpdateBoneAttachments(active_scene);
+        Scene_UpdateSkinnedMeshBounds(active_scene);
+        Scene_UpdateLineRenderers(active_scene);
+    }
+
+    if (update_text_input)
+        Engine_UpdateTextInput(engine);
+}
+
+
+
+
+
+// Advances and submits the engine while a native move or resize loop blocks Engine_Run
 static void Engine_OnModalEvent(void* userdata)
 {
     PrismEngine* engine = (PrismEngine*)userdata;
@@ -251,7 +298,40 @@ static void Engine_OnModalEvent(void* userdata)
     if (w > 0 && h > 0)
         Engine_NotifyFramebufferResize(engine, w, h);
 
-    RenderFrameQueue_RequestRedraw(&engine->frame_queue, w, h);
+    if (!engine->renderer || !engine->render_thread_ready)
+        return;
+
+    // Nested watcher calls must never re-enter scene or UI code
+    if (engine->modal_update_active || !engine->active_scene || Platform_IsWindowMinimized(engine->window))
+    {
+        RenderFrameQueue_RequestRedraw(&engine->frame_queue, w, h);
+        return;
+    }
+
+    engine->modal_update_active = true;
+    
+    // The normal loop is blocked inside the native move/resize loop, so tick here
+    Time_Tick();
+    engine->accumulator += Time_DeltaTime();
+    EngineRenderThread_PumpCompletions(engine);
+    Engine_AdvanceSceneState(engine, engine->active_scene, false);
+    
+    if (engine->modal_callback)
+        engine->modal_callback(engine->modal_userdata);
+    
+    // Submit only when a slot is immediately available; never block the window callback
+    if (RenderFrameQueue_HasFreeSlot(&engine->frame_queue))
+    {
+        Engine_RenderScene(engine, engine->active_scene);
+        Scene_ProcessDestroyQueue(engine->active_scene);
+    }
+    else
+    {
+        RenderFrameQueue_RequestRedraw(&engine->frame_queue, w, h);
+    }
+    
+    engine->modal_update_performed = true;
+    engine->modal_update_active = false;
 }
 
 
@@ -312,43 +392,19 @@ void Engine_Update(PrismEngine* engine, Scene* active_scene)
 
     UI_InputEnd();
 
+    // Modal events already advanced this iteration while the native loop was blocking
+    if (engine->modal_update_performed)
+    {
+        engine->modal_update_performed = false;
+        Engine_UpdateTextInput(engine);
+        return;
+    }
+
     // If the API registered a custom callback, call it
     if (engine->pre_update_callback != NULL)
         engine->pre_update_callback();
 
-    if (engine->is_simulating)
-    {
-        // Update accumulator and fixed updates
-        float fixed_dt = Time_FixedDeltaTime();
-        while (engine->accumulator >= fixed_dt)
-        {
-            Scene_FixedUpdate(active_scene);
-            engine->accumulator -= fixed_dt;
-        }
-    }
-    else
-    {
-        // Don't accumulate time if not simulating
-        engine->accumulator = 0.0f;
-    }
-
-    Engine_TickRetainedUI(engine, active_scene);
-
-    if (engine->is_simulating)
-    {
-        // Update scene, physics, and UI
-        Scene_Update(active_scene);
-    }
-    else
-    {
-        // If not simulating, only update visual entities
-        Scene_UpdateTransforms(active_scene);
-        Scene_UpdateBoneAttachments(active_scene);
-        Scene_UpdateSkinnedMeshBounds(active_scene);
-        Scene_UpdateLineRenderers(active_scene);
-    }
-
-    Engine_UpdateTextInput(engine);
+    Engine_AdvanceSceneState(engine, active_scene, true);
 }
 
 

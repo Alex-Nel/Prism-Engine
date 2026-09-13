@@ -23,6 +23,12 @@
 typedef struct RenderFrameView
 {
     RenderView view;
+    
+    // Projection parameters let runtime rebuild the matrix for transient resize redraws
+    float field_of_view;
+    float near_plane;
+    float far_plane;
+
     uint32_t item_start;
     uint32_t item_count;
 } RenderFrameView;

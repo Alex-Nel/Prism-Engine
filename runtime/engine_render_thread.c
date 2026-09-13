@@ -848,6 +848,68 @@ static void EngineRenderThread_Wake(void* user_data)
 
 
 
+// Draws a snapshot and adjusts camera projections when replaying it at a new size
+static void EngineRenderThread_DrawSnapshot(Renderer* renderer, const RenderFrame* frame, bool is_redraw, uint32_t output_width, uint32_t output_height)
+{
+    if (!renderer || !frame)
+        return;
+
+    if (!is_redraw)
+    {
+        Render_DrawFrame(renderer, frame);
+        return;
+    }
+    
+    RenderLighting lighting;
+    RenderFrame_FillLighting(frame, &lighting);
+    if (output_height > 0)
+        lighting.camera_aspect = (float)output_width / (float)output_height;
+    
+    // Rebuild only size-dependent view data while reusing the immutable scene snapshot.
+    for (uint32_t i = 0; i < frame->view_count; i++)
+    {
+        const RenderFrameView* source = &frame->views[i];
+        RenderWorld world = {
+            .view = source->view,
+            .lighting = lighting,
+            .items = source->item_count > 0 ? &frame->items[source->item_start] : NULL,
+            .item_count = source->item_count
+        };
+
+        uint32_t view_width = output_width;
+        uint32_t view_height = output_height;
+        
+        if (frame->width > 0 && source->view.window_width > 0)
+            view_width = (uint32_t)(((uint64_t)source->view.window_width * output_width) / frame->width);
+        if (frame->height > 0 && source->view.window_height > 0)
+            view_height = (uint32_t)(((uint64_t)source->view.window_height * output_height) / frame->height);
+        if (view_width == 0)
+            view_width = 1;
+        if (view_height == 0)
+            view_height = 1;
+        
+        world.view.window_width = view_width;
+        world.view.window_height = view_height;
+        
+        if (source->field_of_view > 0.0f && source->near_plane > 0.0f && source->far_plane > source->near_plane)
+        {
+            float aspect = (float)view_width / (float)view_height;
+            world.view.projection_matrix = Matrix4Perspective(source->field_of_view, aspect, source->near_plane, source->far_plane);
+        }
+
+        Render_DrawWorld(renderer, &world);
+    }
+}
+
+
+
+
+
+
+
+
+
+
 // Owns the graphics context and consumes submitted frames and renderer commands
 static int EngineRenderThread_Main(void* user_data)
 {
@@ -882,10 +944,9 @@ static int EngineRenderThread_Main(void* user_data)
             RenderFrameResult result = {0};
             result.frame_id = frame->frame_id;
 
-            (void)is_redraw;
             Render_Resize(engine->renderer, output_width, output_height);
 
-            Render_DrawFrame(engine->renderer, frame);
+            EngineRenderThread_DrawSnapshot(engine->renderer, frame, is_redraw, output_width, output_height);
             Render_DrawOverlay(engine->renderer, &frame->retained_ui, output_width, output_height);
             Render_DrawOverlay(engine->renderer, &frame->immediate_ui, output_width, output_height);
             result.probe_result_count = Render_GetProbeResults(engine->renderer, result.probe_results, RENDER_FRAME_MAX_PROBES);

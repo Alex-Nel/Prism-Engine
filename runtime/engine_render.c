@@ -632,6 +632,9 @@ void Engine_BuildRenderFrame(PrismEngine* engine, Scene* scene, RenderFrame* fra
 
         RenderFrameView* view_slot = &frame->views[frame->view_count];
         view_slot->item_start = frame->item_count;
+        view_slot->field_of_view = cam_comp->fov;
+        view_slot->near_plane = cam_comp->nearZ;
+        view_slot->far_plane = cam_comp->farZ;
 
         uint32_t viewport_w = cam_comp->viewport_width;
         uint32_t viewport_h = cam_comp->viewport_height;

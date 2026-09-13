@@ -26,6 +26,7 @@ struct Window
 static PlatformEventWatchCallback g_WatchCallback = NULL;
 static void* g_WatchUserData = NULL;
 static Window* g_PlatformWindow = NULL; // Global ref for the watcher function
+static uint64_t g_MainThreadID = 0;
 
 
 
@@ -221,6 +222,8 @@ void Platform_SetGLAttribute(GraphicsGLAttribute attr, int value)
 // Initializes a window with a title, width, height, and graphics API
 Window* Platform_Init(const char* title, uint32_t width, uint32_t height, GraphicsAPI api)
 {
+    g_MainThreadID = (uint64_t)SDL_GetCurrentThreadID();
+
     if (api == GRAPHICS_API_NONE)
     {
         if (!SDL_Init(SDL_INIT_EVENTS))
@@ -298,6 +301,10 @@ static bool SDLCALL WindowEventWatcher(void* userdata, SDL_Event* event)
             g_PlatformWindow->height = (uint32_t)event->window.data2;
         }
     }
+
+    // Scene-facing modal work must only run on the thread that owns SDL events.
+    if (g_MainThreadID != 0 && (uint64_t)SDL_GetCurrentThreadID() != g_MainThreadID)
+        return true;
 
     // If the window is resized, moved, or exposed, force the engine to render
     if (event->type == SDL_EVENT_WINDOW_RESIZED || 
@@ -454,6 +461,7 @@ void Platform_Shutdown(Window* window)
     }
 
     g_PlatformWindow = NULL;
+    g_MainThreadID = 0;
 
     SDL_Quit();
 }

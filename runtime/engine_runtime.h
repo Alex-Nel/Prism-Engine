@@ -29,6 +29,8 @@ typedef struct PrismEngine
     EngineUpdateCallback pre_update_callback;
     EngineModalCallback modal_callback;
     void* modal_userdata;
+    bool modal_update_active;
+    bool modal_update_performed;
     
     // Render Queue
     RenderFrameQueue frame_queue;
