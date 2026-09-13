@@ -3,7 +3,7 @@
 
 
 #include "Prism.h"
-#include "render/render_frame.h"
+#include "engine_render_thread.h"
 #include <stdint.h>
 
 
@@ -29,10 +29,18 @@ typedef struct PrismEngine
     EngineUpdateCallback pre_update_callback;
     EngineModalCallback modal_callback;
     void* modal_userdata;
+    bool modal_update_active;
+    bool modal_update_performed;
     
     // Render Queue
     RenderFrameQueue frame_queue;
     uint64_t render_frame_counter;
+    uint64_t last_applied_render_frame;
+    PlatformThread* render_thread;
+    PlatformMutex* render_start_mutex;
+    PlatformCondition* render_start_condition;
+    bool render_thread_ready;
+    bool render_thread_failed;
 
     // Written by the main thread on resize events; consumed before GPU draw.
     uint32_t pending_frame_width;
@@ -96,7 +104,7 @@ void Engine_GatherSceneLights(PrismEngine* engine, Scene* scene, RenderLighting*
 void Engine_GatherReflectionProbes(PrismEngine* engine, Scene* scene, RenderLighting* lighting, ReflectionProbeData* probes, uint32_t max_probes);
 
 // Applies capture results from a completed render frame back into the scene.
-void Engine_ApplyFrameResults(PrismEngine* engine, Scene* scene, const RenderFrame* frame);
+void Engine_ApplyFrameResults(PrismEngine* engine, Scene* scene, const RenderFrameResult* result);
 
 // Applies capture results from the last DrawWorld back into the scene.
 void Engine_ApplyReflectionProbeResults(PrismEngine* engine, Scene* scene);

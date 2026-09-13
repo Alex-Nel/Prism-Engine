@@ -19,8 +19,14 @@ typedef struct PlatformMutex PlatformMutex;
 // Opaque condition primitive
 typedef struct PlatformCondition PlatformCondition;
 
-// Defines a function callback for a platform to watch events
-typedef void (*PlatformEventWatchCallback)(void* user_data);
+// Opaque thread primitive
+typedef struct PlatformThread PlatformThread;
+
+// Entry point for a platform thread. Return value is reported by JoinThread.
+typedef int (*PlatformThreadFunction)(void* user_data);
+
+// Defines a per-window callback for events processed inside a native modal loop
+typedef void (*PlatformEventWatchCallback)(Window* window, void* user_data);
 
 
 
@@ -37,11 +43,11 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
 // Shuts down the window
 void Platform_Shutdown(Window* window);
 
-// Returns the active window struct
-Window* Platform_GetActiveWindow();
-
 // Returns the native window handle
 void* Platform_GetNativeWindow(Window* window);
+
+// Returns the platform-independent identifier assigned to a window
+uint32_t Platform_GetWindowID(Window* window);
 
 // Gets the x and y position of the window (from the top left)
 void Platform_GetWindowPosition(Window* window, int* x, int* y);
@@ -67,8 +73,8 @@ bool Platform_IsWindowMinimized(Window* window);
 
 // ----- Platform utility functions -----
 
-// Registers the callback function
-void Platform_SetEventWatchCallback(PlatformEventWatchCallback callback, void* user_data);
+// Registers a modal event callback for one window
+void Platform_SetEventWatchCallback(Window* window, PlatformEventWatchCallback callback, void* user_data);
 
 // Platform specific function to poll events
 bool Platform_PollEvents(Event* e);
@@ -142,17 +148,51 @@ void* Platform_GL_GetProcAddress(const char* name);
 
 // ----- Synchronization -----
 
-PlatformMutex* Platform_CreateMutex(void);
+// Creates a mutex from the platform
+PlatformMutex* Platform_CreateMutex();
+
+// Destroys a mutex
 void Platform_DestroyMutex(PlatformMutex* mutex);
+
+// Locks a mutex
 void Platform_LockMutex(PlatformMutex* mutex);
+
+// Unlocks a mutex
 void Platform_UnlockMutex(PlatformMutex* mutex);
 
-PlatformCondition* Platform_CreateCondition(void);
+
+// Creates a condition from the platform
+PlatformCondition* Platform_CreateCondition();
+
+// Destroys a condition
 void Platform_DestroyCondition(PlatformCondition* condition);
+
+// Signals a condition
 void Platform_SignalCondition(PlatformCondition* condition);
+
+// Broadcasts a condition
 void Platform_BroadcastCondition(PlatformCondition* condition);
+
+// Waits until a condition is met
 void Platform_WaitCondition(PlatformCondition* condition, PlatformMutex* mutex);
+
+// Waits until a condition is met or a certain time has passed
 bool Platform_WaitConditionTimeout(PlatformCondition* condition, PlatformMutex* mutex, uint32_t timeout_ms);
+
+
+
+
+
+// ----- Threads -----
+
+// Creates a joinable platform thread
+PlatformThread* Platform_CreateThread(PlatformThreadFunction function, const char* name, void* user_data);
+
+// Waits for a platform thread to finish and releases its SDL thread object (optionally returns a result)
+void Platform_JoinThread(PlatformThread* thread, int* result);
+
+// Returns a stable identifier for the calling thread
+uint64_t Platform_GetCurrentThreadID();
 
 
 

@@ -3,7 +3,9 @@
 
 
 // Forward declare OnModalEvent function
-static void Engine_OnModalEvent(void* userdata);
+static void Engine_OnModalEvent(Window* window, void* userdata);
+
+
 
 
 
@@ -11,7 +13,13 @@ static void Engine_OnModalEvent(void* userdata);
 bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_width, uint32_t window_height, uint32_t target_fps, GraphicsAPI api)
 {
     engine->target_fps = target_fps;
+    engine->window = NULL;
+    engine->renderer = NULL;
     engine->active_scene = NULL;
+    engine->render_thread_ready = false;
+    engine->modal_update_active = false;
+    engine->modal_update_performed = false;
+
 
     if (api != GRAPHICS_API_NONE)
         Render_ConfigurePlatformSurface(api);
@@ -24,8 +32,8 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
         return false;
     }
 
-    // Register global modal window event callback
-    Platform_SetEventWatchCallback(Engine_OnModalEvent, engine);
+    // Register modal event handling for this engine window
+    Platform_SetEventWatchCallback(engine->window, Engine_OnModalEvent, engine);
 
     void* native_window = NULL;
     if (engine->window)
@@ -61,11 +69,32 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
     engine->is_running = true;
     engine->is_simulating = true;
     engine->accumulator = 0.0f;
+    engine->modal_update_active = false;
+    engine->modal_update_performed = false;
     engine->render_frame_counter = 0;
+    engine->last_applied_render_frame = 0;
     engine->pending_frame_width = 0;
     engine->pending_frame_height = 0;
     engine->pending_framebuffer_resize = false;
-    RenderFrameQueue_Init(&engine->frame_queue);
+    engine->render_thread = NULL;
+    engine->render_start_mutex = NULL;
+    engine->render_start_condition = NULL;
+    engine->render_thread_ready = false;
+    engine->render_thread_failed = false;
+
+    // Start the frame handoff only after all main-thread renderer setup is complete
+    if (!RenderFrameQueue_Init(&engine->frame_queue) || !EngineRenderThread_Start(engine))
+    {
+        Log_Error("Render thread failed to initialize.");
+        EngineRenderThread_Stop(engine);
+        RenderFrameQueue_Shutdown(&engine->frame_queue);
+        
+        UI_Shutdown();
+        Audio_Shutdown();
+        Platform_Shutdown(engine->window);
+        
+        return false;
+    }
 
     return true;
 }
@@ -77,14 +106,27 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
 // Shuts down all systems
 void Engine_Shutdown(PrismEngine* engine)
 {
-    UI_Shutdown();
+    if (!engine)
+        return;
+
     Audio_Shutdown();
-    Render_UIShutdown(engine->renderer);
-    Render_Shutdown(engine->renderer);
+
+    // Wake the worker, drain submitted frames, and shutdown GPU state on its owner thread
+    EngineRenderThread_Stop(engine);
+
+    // Results are no longer useful during shutdown, but their slots must be released
+    uint32_t completed_slot = 0;
+    const RenderFrameResult* discarded_result = NULL;
+    while (RenderFrameQueue_AcquireCompleted(&engine->frame_queue, false, &completed_slot, &discarded_result))
+    {
+        RenderFrameQueue_ReleaseCompleted(&engine->frame_queue, completed_slot);
+    }
+    UI_Shutdown();
+
     RenderFrameQueue_Shutdown(&engine->frame_queue);
 
-    if (engine->window)
-        Platform_Shutdown(engine->window);
+    Platform_Shutdown(engine->window);
+    engine->window = NULL;
 }
 
 
@@ -204,26 +246,9 @@ void Engine_ApplyPendingFramebufferResize(PrismEngine* engine)
 
 
 
-// A function to process window events without pausing main loop
-static void Engine_OnModalEvent(void* userdata)
+// Advances simulation and visual scene state without polling platform events
+static void Engine_AdvanceSceneState(PrismEngine* engine, Scene* active_scene, bool update_text_input)
 {
-    PrismEngine* engine = (PrismEngine*)userdata;
-    if (!engine || !engine->window || !engine->active_scene)
-        return;
-
-    Scene* active_scene = engine->active_scene;
-
-    uint32_t w = Platform_GetWindowWidth(engine->window);
-    uint32_t h = Platform_GetWindowHeight(engine->window);
-    
-    if (w > 0 && h > 0)
-        Engine_NotifyFramebufferResize(engine, w, h);
-
-    // Prevent physics/animation errors after a blocking resize.
-    Time_Tick();
-
-    engine->accumulator += Time_DeltaTime();
-
     if (engine->is_simulating)
     {
         float fixed_dt = Time_FixedDeltaTime();
@@ -252,17 +277,61 @@ static void Engine_OnModalEvent(void* userdata)
         Scene_UpdateLineRenderers(active_scene);
     }
 
-    Engine_UpdateTextInput(engine);
+    if (update_text_input)
+        Engine_UpdateTextInput(engine);
+}
+
+
+
+
+
+// Advances and submits the engine while a native move or resize loop blocks Engine_Run
+static void Engine_OnModalEvent(Window* window, void* userdata)
+{
+    PrismEngine* engine = (PrismEngine*)userdata;
+    if (!engine || !window || window != engine->window)
+        return;
+
+    uint32_t w = Platform_GetWindowWidth(window);
+    uint32_t h = Platform_GetWindowHeight(window);
     
-    if (!Platform_IsWindowMinimized(engine->window))
+    if (w > 0 && h > 0)
+        Engine_NotifyFramebufferResize(engine, w, h);
+
+    if (!engine->renderer || !engine->render_thread_ready)
+        return;
+
+    // Nested watcher calls must never re-enter scene or UI code
+    if (engine->modal_update_active || !engine->active_scene || Platform_IsWindowMinimized(engine->window))
     {
-        Engine_RenderScene(engine, active_scene);
-        Engine_DrawRetainedUI(engine, active_scene);
-        if (engine->modal_callback)
-            engine->modal_callback(engine->modal_userdata);
-        Render_UIRender(engine->renderer, UI_GetContext(), w, h);
-        Render_Present(engine->renderer);
+        RenderFrameQueue_RequestRedraw(&engine->frame_queue, w, h);
+        return;
     }
+
+    engine->modal_update_active = true;
+    
+    // The normal loop is blocked inside the native move/resize loop, so tick here
+    Time_Tick();
+    engine->accumulator += Time_DeltaTime();
+    EngineRenderThread_PumpCompletions(engine);
+    Engine_AdvanceSceneState(engine, engine->active_scene, false);
+    
+    if (engine->modal_callback)
+        engine->modal_callback(engine->modal_userdata);
+    
+    // Submit only when a slot is immediately available; never block the window callback
+    if (RenderFrameQueue_HasFreeSlot(&engine->frame_queue))
+    {
+        Engine_RenderScene(engine, engine->active_scene);
+        Scene_ProcessDestroyQueue(engine->active_scene);
+    }
+    else
+    {
+        RenderFrameQueue_RequestRedraw(&engine->frame_queue, w, h);
+    }
+    
+    engine->modal_update_performed = true;
+    engine->modal_update_active = false;
 }
 
 
@@ -293,8 +362,13 @@ void Engine_Update(PrismEngine* engine, Scene* active_scene)
     UI_InputBegin();
 
     Event e;
+    uint32_t engine_window_id = Platform_GetWindowID(engine->window);
+
     while (Platform_PollEvents(&e))
     {
+        if (e.window_id != 0 && e.window_id != engine_window_id)
+            continue;
+        
         bool ui_handled = false;
         if (!Engine_IsMouseCaptured(engine))
             ui_handled = UI_ProcessEvent(&e);
@@ -323,43 +397,19 @@ void Engine_Update(PrismEngine* engine, Scene* active_scene)
 
     UI_InputEnd();
 
+    // Modal events already advanced this iteration while the native loop was blocking
+    if (engine->modal_update_performed)
+    {
+        engine->modal_update_performed = false;
+        Engine_UpdateTextInput(engine);
+        return;
+    }
+
     // If the API registered a custom callback, call it
     if (engine->pre_update_callback != NULL)
         engine->pre_update_callback();
 
-    if (engine->is_simulating)
-    {
-        // Update accumulator and fixed updates
-        float fixed_dt = Time_FixedDeltaTime();
-        while (engine->accumulator >= fixed_dt)
-        {
-            Scene_FixedUpdate(active_scene);
-            engine->accumulator -= fixed_dt;
-        }
-    }
-    else
-    {
-        // Don't accumulate time if not simulating
-        engine->accumulator = 0.0f;
-    }
-
-    Engine_TickRetainedUI(engine, active_scene);
-
-    if (engine->is_simulating)
-    {
-        // Update scene, physics, and UI
-        Scene_Update(active_scene);
-    }
-    else
-    {
-        // If not simulating, only update visual entities
-        Scene_UpdateTransforms(active_scene);
-        Scene_UpdateBoneAttachments(active_scene);
-        Scene_UpdateSkinnedMeshBounds(active_scene);
-        Scene_UpdateLineRenderers(active_scene);
-    }
-
-    Engine_UpdateTextInput(engine);
+    Engine_AdvanceSceneState(engine, active_scene, true);
 }
 
 
@@ -372,21 +422,34 @@ void Engine_Render(PrismEngine* engine, Scene* active_scene)
     if (!active_scene)
         return;
 
+    engine->active_scene = active_scene;
+
+    // Reclaim completed slots before attempting to build another bounded snapshot
+    EngineRenderThread_PumpCompletions(engine);
+    while (!RenderFrameQueue_HasFreeSlot(&engine->frame_queue))
+    {
+        if (!EngineRenderThread_ApplyOneCompletion(engine, true))
+            break;
+    }
+
     // Render the scene if the window is not minimized
     if (!Platform_IsWindowMinimized(engine->window))
     {
-        // Render scene
+        // Build and submit world plus UI snapshots. GPU work happens asynchronously.
         Engine_RenderScene(engine, active_scene);
-
-        // Render UI
-        Engine_DrawRetainedUI(engine, active_scene);
-        Engine_DrawImmediateUI(engine);
+    }
+    else
+    {
+        // Do not let immediate UI commands accumulate while rendering is paused.
+        OverlayDrawList discarded_ui = {0};
+        UI_BuildDrawList(&discarded_ui);
+        OverlayDrawList_Free(&discarded_ui);
     }
 
     // Process destroy queue
     Scene_ProcessDestroyQueue(active_scene);
     
-    // Swap Buffers & Reset Input arrays
+    // Cycle input state. Present is owned by the render thread.
     Engine_EndFrame(engine);
 }
 
@@ -466,12 +529,6 @@ void Engine_EndFrame(PrismEngine* engine)
 {
     if (!engine->is_running)
         return;
-
-    if (!Platform_IsWindowMinimized(engine->window))
-    {
-        // Swap the OS window buffers to display the new frame
-        Render_Present(engine->renderer);
-    }
 
     // Cycle the input arrays for the next frame
     Input_Update();

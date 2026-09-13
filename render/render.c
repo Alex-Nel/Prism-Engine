@@ -1,6 +1,5 @@
 #include "render.h"
 #include "../core/log_core.h"
-#include <stddef.h>
 
 
 
@@ -10,6 +9,64 @@ extern Renderer* OpenGL_Init(void* native_window, uint32_t init_width, uint32_t 
 // extern Renderer* Vulkan_Init(Render_LoadProcFn load_proc);
 // extern Renderer* DirectX_Init(Render_LoadProcFn load_proc);
 // extern Renderer* SoftwareRenderer_Init(Render_LoadProcFn load_proc);
+
+
+
+
+
+// Installs optional runtime-owned command forwarding callbacks
+void Render_SetCommandDispatch(Renderer* r, RenderCommandDispatchFunction dispatch, RenderDirectAccessFunction direct_access_check, void* user_data)
+{
+    if (!r)
+        return;
+
+    r->command_dispatch = dispatch;
+    r->direct_access_check = direct_access_check;
+    r->command_dispatch_data = user_data;
+}
+
+
+
+
+
+// Removes runtime-owned command forwarding callbacks
+void Render_ClearCommandDispatch(Renderer* r)
+{
+    if (!r)
+        return;
+
+    r->command_dispatch = NULL;
+    r->direct_access_check = NULL;
+    r->command_dispatch_data = NULL;
+}
+
+
+
+
+
+// Returns whether the caller is allowed to invoke the backend directly
+bool Render_HasDirectAccess(Renderer* r)
+{
+    if (!r || !r->direct_access_check)
+        return true;
+
+    return r->direct_access_check(r->command_dispatch_data);
+}
+
+
+
+
+
+// Gives an installed runtime dispatcher a chance to handle a renderer command
+bool Render_TryDispatchCommand(Renderer* r, RenderCommandType type, const void* input, void* output)
+{
+    if (!r || !r->command_dispatch)
+        return false;
+
+    return r->command_dispatch(r->command_dispatch_data, type, input, output);
+}
+
+
 
 
 

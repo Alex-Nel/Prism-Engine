@@ -269,7 +269,7 @@ typedef struct GL_UIPipeline
     
     GLint uniform_tex;
     GLint uniform_proj;
-    GLuint font_tex;
+    TextureHandle font_texture;
     
     struct nk_font_atlas atlas;
     struct nk_draw_null_texture tex_null;

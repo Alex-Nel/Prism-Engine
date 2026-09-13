@@ -17,6 +17,8 @@
 
 static struct nk_context ctx;
 static struct nk_color current_theme_table[NK_COLOR_COUNT];
+static struct nk_draw_null_texture render_null_texture;
+static bool render_texture_handles_ready = false;
 
 static UIClipboardSetCallback clipboard_set_text;
 static UIClipboardGetCallback clipboard_get_text;
@@ -72,6 +74,8 @@ static void UI_ClipboardCopy(nk_handle userdata, const char* text, int len)
 void UI_Init()
 {
     nk_init_default(&ctx, 0);
+    memset(&render_null_texture, 0, sizeof(render_null_texture));
+    render_texture_handles_ready = false;
     ctx.clip.copy = UI_ClipboardCopy;
     ctx.clip.paste = UI_ClipboardPaste;
     // Font setup is deferred to the UI renderer
@@ -199,6 +203,120 @@ bool UI_WantsTextInput()
 struct nk_context* UI_GetContext()
 {
     return &ctx;
+}
+
+
+
+
+
+// Stores backend-neutral texture information used during Nuklear conversion
+void UI_SetRenderTextureHandles(TextureHandle null_texture, float null_u, float null_v)
+{
+    render_null_texture.texture = nk_handle_id((int)null_texture.id);
+    render_null_texture.uv = nk_vec2(null_u, null_v);
+    render_texture_handles_ready = true;
+}
+
+
+
+
+
+// Converts immediate-mode commands on the update thread into an immutable draw list
+bool UI_BuildDrawList(OverlayDrawList* draw_list)
+{
+    if (!draw_list)
+        return false;
+
+    OverlayDrawList_Reset(draw_list);
+    if (!render_texture_handles_ready)
+    {
+        nk_clear(&ctx);
+        return true;
+    }
+    
+    // This is the generic vertex layout shared by immediate and retained UI
+    static const struct nk_draw_vertex_layout_element vertex_layout[] = {
+        {NK_VERTEX_POSITION, NK_FORMAT_FLOAT, NK_OFFSETOF(OverlayVertex, position)},
+        {NK_VERTEX_TEXCOORD, NK_FORMAT_FLOAT, NK_OFFSETOF(OverlayVertex, uv)},
+        {NK_VERTEX_COLOR, NK_FORMAT_R8G8B8A8, NK_OFFSETOF(OverlayVertex, color)},
+        {NK_VERTEX_LAYOUT_END}
+    };
+
+    struct nk_convert_config config;
+    memset(&config, 0, sizeof(config));
+    config.tex_null = render_null_texture;
+    config.vertex_layout = vertex_layout;
+    config.vertex_size = sizeof(OverlayVertex);
+    config.vertex_alignment = NK_ALIGNOF(OverlayVertex);
+    config.global_alpha = 1.0f;
+    config.shape_AA = NK_ANTI_ALIASING_ON;
+    config.line_AA = NK_ANTI_ALIASING_ON;
+    config.circle_segment_count = 22;
+    config.curve_segment_count = 22;
+    config.arc_segment_count = 22;
+
+    // Nuklear converts its live widget state into temporary buffers
+    struct nk_buffer command_buffer, vertex_buffer, index_buffer;
+    nk_buffer_init_default(&command_buffer);
+    nk_buffer_init_default(&vertex_buffer);
+    nk_buffer_init_default(&index_buffer);
+
+    bool success = false;
+    if (nk_convert(&ctx, &command_buffer, &vertex_buffer, &index_buffer, &config) == NK_CONVERT_SUCCESS)
+    {
+        uint32_t command_count = 0;
+        const struct nk_draw_command* command;
+        nk_draw_foreach(command, &ctx, &command_buffer)
+        {
+            if (command->elem_count > 0)
+                command_count++;
+        }
+
+        // Translate Nuklear draw commands into the renderer's generic overlay format
+        OverlayDrawCmd* commands = command_count > 0
+            ? (OverlayDrawCmd*)malloc(command_count * sizeof(OverlayDrawCmd))
+            : NULL;
+        
+
+        if (command_count == 0 || commands)
+        {
+            uint32_t command_index = 0;
+            uint32_t index_offset = 0;
+            nk_draw_foreach(command, &ctx, &command_buffer)
+            {
+                if (command->elem_count == 0)
+                    continue;
+                OverlayDrawCmd* output = &commands[command_index++];
+                output->index_offset = index_offset;
+                output->index_count = command->elem_count;
+                output->texture = (TextureHandle){(uint32_t)command->texture.id};
+                output->clip_x = command->clip_rect.x;
+                output->clip_y = command->clip_rect.y;
+                output->clip_w = command->clip_rect.w;
+                output->clip_h = command->clip_rect.h;
+                index_offset += command->elem_count;
+            }
+
+            // The frame-owned list copies the temporary data before the buffers are freed
+            success = OverlayDrawList_Assign(
+                draw_list,
+                (const OverlayVertex*)nk_buffer_memory(&vertex_buffer),
+                (uint32_t)(vertex_buffer.needed / sizeof(OverlayVertex)),
+                (const uint16_t*)nk_buffer_memory(&index_buffer),
+                (uint32_t)(index_buffer.needed / sizeof(uint16_t)),
+                commands,
+                command_count);
+
+            free(commands);
+        }
+    }
+
+    nk_clear(&ctx);
+    nk_buffer_free(&command_buffer);
+    nk_buffer_free(&vertex_buffer);
+    nk_buffer_free(&index_buffer);
+    
+    return success;
 }
 
 

@@ -52,6 +52,9 @@ static uint32_t font_count = 0;
 static Material material_pool[MAX_MATERIALS];
 static uint32_t material_count = 0;
 
+static RenderMaterialDesc material_gpu_desc[MAX_MATERIALS];
+static bool material_gpu_desc_valid[MAX_MATERIALS];
+
 static EnvironmentMap env_map_cache[MAX_CACHED_TEXTURES];
 static uint32_t env_map_count = 0;
 
@@ -82,6 +85,7 @@ void Asset_Init(Renderer* r)
     mesh_count = 0;
     material_count = 0;
     font_count = 0;
+    memset(material_gpu_desc_valid, 0, sizeof(material_gpu_desc_valid));
 }
 
 
@@ -1072,9 +1076,21 @@ void Asset_SyncMaterialGPU(Material* material)
     
     RenderMaterialDesc desc = Material_MakeDesc(material);
     if (material->gpu_handle.id == 0)
+    {
         material->gpu_handle = Render_CreateMaterial(renderer, &desc);
-    else
+    }
+    else if (material->id >= MAX_MATERIALS ||
+             !material_gpu_desc_valid[material->id] ||
+             memcmp(&material_gpu_desc[material->id], &desc, sizeof(desc)) != 0)
+    {
         Render_UpdateMaterial(renderer, material->gpu_handle, &desc);
+    }
+
+    if (material->id < MAX_MATERIALS)
+    {
+        material_gpu_desc[material->id] = desc;
+        material_gpu_desc_valid[material->id] = true;
+    }
 }
 
 

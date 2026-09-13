@@ -3,6 +3,7 @@
 
 #include "event_core.h"
 #include "color_core.h"
+#include "overlay_core.h"
 
 
 
@@ -39,6 +40,12 @@ struct nk_context* UI_GetContext();
 // Supplies optional clipboard operations without coupling core UI to other modules.
 // get_text must return owned text that can be released by free_text.
 void UI_SetClipboardCallbacks(UIClipboardSetCallback set_text, UIClipboardGetCallback get_text, UIClipboardFreeCallback free_text);
+
+// Configures backend-neutral handles used while converting Nuklear commands.
+void UI_SetRenderTextureHandles(TextureHandle null_texture, float null_u, float null_v);
+
+// Converts and clears the live Nuklear context into immutable generic draw data.
+bool UI_BuildDrawList(OverlayDrawList* draw_list);
 
 
 

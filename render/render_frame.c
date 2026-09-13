@@ -10,7 +10,35 @@ void RenderFrame_Reset(RenderFrame* frame)
 {
     if (!frame)
         return;
-    memset(frame, 0, sizeof(RenderFrame));
+
+    frame->frame_id = 0;
+    frame->width = 0;
+    frame->height = 0;
+    frame->dir_light_count = 0;
+    frame->point_light_count = 0;
+    frame->spot_light_count = 0;
+    frame->reflection_probe_count = 0;
+    frame->shadow_camera_pos = (Vector3){0};
+    frame->camera_forward = (Vector3){0};
+    frame->camera_right = (Vector3){0};
+    frame->camera_up = (Vector3){0};
+    frame->camera_near = 0.0f;
+    frame->camera_far = 0.0f;
+    frame->camera_fov = 0.0f;
+    frame->camera_aspect = 0.0f;
+    frame->enable_ssao = false;
+    frame->global_ambient_color = (Color){0};
+    frame->global_ambient_illumination = 0.0f;
+    frame->gamma = 0.0f;
+    frame->exposure = 0.0f;
+    frame->env_map = (EnvironmentMapHandle){0};
+    frame->has_probe_source_env_map = false;
+    frame->probe_source_env_map = (EnvironmentMapHandle){0};
+    frame->item_count = 0;
+    frame->bone_slot_count = 0;
+    frame->view_count = 0;
+    OverlayDrawList_Reset(&frame->retained_ui);
+    OverlayDrawList_Reset(&frame->immediate_ui);
 }
 
 
@@ -54,92 +82,4 @@ void RenderFrame_FillLighting(const RenderFrame* frame, RenderLighting* out)
     out->env_map = frame->env_map;
     out->has_probe_source_env_map = frame->has_probe_source_env_map;
     out->probe_source_env_map = frame->probe_source_env_map;
-}
-
-
-
-
-
-
-
-
-
-
-// Initializes a render frame queue
-void RenderFrameQueue_Init(RenderFrameQueue* queue)
-{
-    if (!queue)
-        return;
-    
-    memset(queue, 0, sizeof(RenderFrameQueue));
-    queue->write_index = 0;
-    queue->read_index = 1;
-
-    queue->mutex = Platform_CreateMutex();
-    queue->frame_ready = Platform_CreateCondition();
-}
-
-
-
-
-
-// Shuts down a render frame queue
-void RenderFrameQueue_Shutdown(RenderFrameQueue* queue)
-{
-    if (!queue)
-        return;
-
-    if (queue->frame_ready)
-    {
-        Platform_DestroyCondition(queue->frame_ready);
-        queue->frame_ready = NULL;
-    }
-    
-    if (queue->mutex)
-    {
-        Platform_DestroyMutex(queue->mutex);
-        queue->mutex = NULL;
-    }
-}
-
-
-
-
-
-// Begins writing to a specific frame in a render frame queue
-RenderFrame* RenderFrameQueue_BeginWrite(RenderFrameQueue* queue)
-{
-    if (!queue)
-        return NULL;
-    
-    return &queue->buffers[queue->write_index];
-}
-
-
-
-
-
-// Commits a write to a render queue frame
-RenderFrame* RenderFrameQueue_CommitWrite(RenderFrameQueue* queue)
-{
-    if (!queue)
-        return NULL;
-    
-    uint32_t next_write = queue->read_index;
-    queue->read_index = queue->write_index;
-    queue->write_index = next_write;
-    return &queue->buffers[queue->read_index];
-}
-
-
-
-
-
-// Returns the read information from a frame in the render frame queue
-const RenderFrame* RenderFrameQueue_GetReadFrame(const RenderFrameQueue* queue)
-{
-    if (!queue)
-        return NULL;
-    
-    return &queue->buffers[queue->read_index];
 }

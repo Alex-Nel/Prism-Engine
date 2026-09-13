@@ -12,20 +12,23 @@
 struct Window
 {
     SDL_Window* sdl_window;
+    uint32_t id;
     uint32_t width;
     uint32_t height;
     bool is_mouse_captured;
     bool is_minimized;
     bool should_close;
+    PlatformEventWatchCallback watch_callback;
+    void* watch_userdata;
 };
 
 
 
-// Static variables
+#define PRISM_WINDOW_POINTER_PROPERTY "PrismEngine.Window"
 
-static PlatformEventWatchCallback g_WatchCallback = NULL;
-static void* g_WatchUserData = NULL;
-static Window* g_PlatformWindow = NULL; // Global ref for the watcher function
+
+
+static bool SDLCALL WindowEventWatcher(void* userdata, SDL_Event* event);
 
 
 
@@ -272,14 +275,49 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
     }
 
     // Set window parameters
+    win->id = (uint32_t)SDL_GetWindowID(win->sdl_window);
     win->width = width;
     win->height = height;
     win->is_mouse_captured = false;
     win->is_minimized = false;
     win->should_close = false;
-    g_PlatformWindow = win;
+    win->watch_callback = NULL;
+    win->watch_userdata = NULL;
+
+    // Attach the wrapper so the global SDL watcher can resolve each event's window.
+    SDL_PropertiesID properties = SDL_GetWindowProperties(win->sdl_window);
+    if (!properties || !SDL_SetPointerProperty(properties, PRISM_WINDOW_POINTER_PROPERTY, win))
+    {
+        Log_Error("ERROR: Failed to associate SDL window with platform wrapper: %s\n", SDL_GetError());
+        SDL_DestroyWindow(win->sdl_window);
+        free(win);
+        return NULL;
+    }
+
+    SDL_AddEventWatch(WindowEventWatcher, NULL);
 
     return win;
+}
+
+
+
+
+
+// Resolves the wrapper associated with an SDL window event
+static Window* WindowFromEvent(const SDL_WindowEvent* event)
+{
+    if (!event)
+        return NULL;
+
+    SDL_Window* sdl_window = SDL_GetWindowFromID(event->windowID);
+    if (!sdl_window)
+        return NULL;
+    
+    SDL_PropertiesID properties = SDL_GetWindowProperties(sdl_window);
+    if (!properties)
+        return NULL;
+    
+    return (Window*)SDL_GetPointerProperty(properties, PRISM_WINDOW_POINTER_PROPERTY, NULL);
 }
 
 
@@ -289,29 +327,37 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
 // This runs synchronously, for any OS that blocks the main loop during events
 static bool SDLCALL WindowEventWatcher(void* userdata, SDL_Event* event)
 {
-    // If it's a resize event, update the Window immediately
+    (void)userdata;
+    if (!event)
+        return true;
+
+    bool is_modal_window_event = event->type == SDL_EVENT_WINDOW_RESIZED ||
+                                 event->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
+                                 event->type == SDL_EVENT_WINDOW_MOVED ||
+                                 event->type == SDL_EVENT_WINDOW_EXPOSED;
+
+    if (!is_modal_window_event)
+        return true;
+
+    Window* window = WindowFromEvent(&event->window);
+    if (!window)
+        return true;
+
+    // Resize events update only the window that generated them
     if (event->type == SDL_EVENT_WINDOW_RESIZED || event->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED)
     {
-        if (g_PlatformWindow)
-        {
-            g_PlatformWindow->width = (uint32_t)event->window.data1;
-            g_PlatformWindow->height = (uint32_t)event->window.data2;
-        }
-    }
-
-    // If the window is resized, moved, or exposed, force the engine to render
-    if (event->type == SDL_EVENT_WINDOW_RESIZED || 
-        event->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED || 
-        event->type == SDL_EVENT_WINDOW_MOVED || 
-        event->type == SDL_EVENT_WINDOW_EXPOSED)
-    {
-        if (g_WatchCallback)
-        {
-            g_WatchCallback(g_WatchUserData);
-        }
+        window->width = (uint32_t)event->window.data1;
+        window->height = (uint32_t)event->window.data2;
     }
     
-    return true; // Keep processing events
+    // Scene-facing modal work must stay on SDL's main event thread
+    if (!SDL_IsMainThread())
+        return true;
+
+    if (window->watch_callback)
+        window->watch_callback(window, window->watch_userdata);
+    
+    return true;
 }
 
 
@@ -319,17 +365,13 @@ static bool SDLCALL WindowEventWatcher(void* userdata, SDL_Event* event)
 
 
 // Sets the watch callback function
-void Platform_SetEventWatchCallback(PlatformEventWatchCallback callback, void* user_data)
+void Platform_SetEventWatchCallback(Window* window, PlatformEventWatchCallback callback, void* user_data)
 {
-    g_WatchCallback = callback;
-    g_WatchUserData = user_data;
-    
-    static bool watcher_added = false;
-    if (!watcher_added)
-    {
-        SDL_AddEventWatch(WindowEventWatcher, NULL);
-        watcher_added = true;
-    }
+    if (!window)
+        return;
+
+    window->watch_callback = callback;
+    window->watch_userdata = user_data;
 }
 
 
@@ -346,6 +388,7 @@ bool Platform_PollEvents(Event* e)
     while (SDL_PollEvent(&sdl_event))
     {
         e->type = EVENT_NONE;
+        e->window_id = 0;
 
         switch (sdl_event.type)
         {
@@ -353,26 +396,36 @@ bool Platform_PollEvents(Event* e)
                 e->type = EVENT_WINDOW_CLOSE;
                 break;
 
+            case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+                e->type = EVENT_WINDOW_CLOSE;
+                e->window_id = (uint32_t)sdl_event.window.windowID;
+                break;
+
             case SDL_EVENT_WINDOW_RESIZED:
                 e->type = EVENT_WINDOW_RESIZE;
+                e->window_id = (uint32_t)sdl_event.window.windowID;
                 e->window_resize.width = (uint32_t)sdl_event.window.data1;
                 e->window_resize.height = (uint32_t)sdl_event.window.data2;
                 break;
 
             case SDL_EVENT_WINDOW_FOCUS_GAINED:
                 e->type = EVENT_WINDOW_FOCUS_GAINED;
+                e->window_id = (uint32_t)sdl_event.window.windowID;
                 break;
 
             case SDL_EVENT_WINDOW_FOCUS_LOST:
                 e->type = EVENT_WINDOW_FOCUS_LOST;
+                e->window_id = (uint32_t)sdl_event.window.windowID;
                 break;
 
             case SDL_EVENT_WINDOW_MINIMIZED:
                 e->type = EVENT_WINDOW_MINIMIZED;
+                e->window_id = (uint32_t)sdl_event.window.windowID;
                 break;
 
             case SDL_EVENT_WINDOW_RESTORED:
                 e->type = EVENT_WINDOW_RESTORED;
+                e->window_id = (uint32_t)sdl_event.window.windowID;
                 break;
 
             case SDL_EVENT_KEY_DOWN:
@@ -382,6 +435,7 @@ bool Platform_PollEvents(Event* e)
                 else
                     e->type = EVENT_KEY_RELEASED;
                 
+                e->window_id = (uint32_t)sdl_event.window.windowID;
                 e->key.key = TranslateKey(sdl_event.key.key, sdl_event.key.mod);
                 
                 // If it's an unsupported key, ignore it
@@ -392,6 +446,7 @@ bool Platform_PollEvents(Event* e)
 
             case SDL_EVENT_MOUSE_MOTION:
                 e->type = EVENT_MOUSE_MOVED;
+                e->window_id = (uint32_t)sdl_event.window.windowID;
                 e->mouse_state.x = sdl_event.motion.x;
                 e->mouse_state.y = sdl_event.motion.y;
                 e->mouse_state.dx = sdl_event.motion.xrel;
@@ -405,6 +460,7 @@ bool Platform_PollEvents(Event* e)
                 else
                     e->type = EVENT_MOUSE_BUTTON_RELEASED;
 
+                e->window_id = (uint32_t)sdl_event.window.windowID;
                 e->mouse_button.button = TranslateMouseButton(sdl_event.button.button);
                 
                 if (e->mouse_button.button == MOUSE_BUTTON_MAX)
@@ -414,11 +470,13 @@ bool Platform_PollEvents(Event* e)
 
             case SDL_EVENT_MOUSE_WHEEL:
                 e->type = EVENT_MOUSEWHEEL_SCROLLED;
+                e->window_id = (uint32_t)sdl_event.window.windowID;
                 e->mouse_scroll.delta_y = sdl_event.wheel.y;
                 break;
 
             case SDL_EVENT_TEXT_INPUT:
                 e->type = EVENT_TEXT_INPUT;
+                e->window_id = (uint32_t)sdl_event.window.windowID;
 
                 // Copy the max size, with NULL terminator
                 strncpy(e->text_input.text, sdl_event.text.text, 255);
@@ -447,6 +505,8 @@ bool Platform_PollEvents(Event* e)
 // Shutdowns platform window
 void Platform_Shutdown(Window* window)
 {
+    SDL_RemoveEventWatch(WindowEventWatcher, NULL);
+
     if (window)
     {
         if (window->sdl_window) SDL_DestroyWindow(window->sdl_window);
@@ -472,10 +532,13 @@ void* Platform_GetNativeWindow(Window* window)
 
 
 
-// Returns the active window
-Window* Platform_GetActiveWindow()
+// Returns the platform-independent identifier assigned to a window
+uint32_t Platform_GetWindowID(Window* window)
 {
-    return g_PlatformWindow;
+    if (!window)
+        return 0;
+    
+    return window->id;
 }
 
 
@@ -799,7 +862,7 @@ void* Platform_GL_GetProcAddress(const char* name)
 
 
 // Creates a mutex from the platform
-PlatformMutex* Platform_CreateMutex(void)
+PlatformMutex* Platform_CreateMutex()
 {
     return (PlatformMutex*)SDL_CreateMutex();
 }
@@ -852,7 +915,7 @@ void Platform_UnlockMutex(PlatformMutex* mutex)
 
 
 // Creates a condition from the platform
-PlatformCondition* Platform_CreateCondition(void)
+PlatformCondition* Platform_CreateCondition()
 {
     return (PlatformCondition*)SDL_CreateCondition();
 }
@@ -920,4 +983,50 @@ bool Platform_WaitConditionTimeout(PlatformCondition* condition, PlatformMutex* 
         return false;
 
     return SDL_WaitConditionTimeout((SDL_Condition*)condition, (SDL_Mutex*)mutex, (Sint32)timeout_ms);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Creates a joinable platform thread
+PlatformThread* Platform_CreateThread(PlatformThreadFunction function, const char* name, void* user_data)
+{
+    if (!function)
+        return NULL;
+
+    return (PlatformThread*)SDL_CreateThread((SDL_ThreadFunction)function, name ? name : "PrismThread", user_data);
+}
+
+
+
+
+
+// Waits for a platform thread and releases its SDL thread object
+void Platform_JoinThread(PlatformThread* thread, int* result)
+{
+    if (!thread)
+        return;
+
+    SDL_WaitThread((SDL_Thread*)thread, result);
+}
+
+
+
+
+
+// Returns a stable identifier for the calling thread
+uint64_t Platform_GetCurrentThreadID()
+{
+    return (uint64_t)SDL_GetCurrentThreadID();
 }
