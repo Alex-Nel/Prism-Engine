@@ -64,7 +64,7 @@ namespace Prism
             Debug_Log("Failed to attach. Parent has no animator or bone does not exist.");
     }
     Prism::Entity Entity::GetParent() {
-        ::Entity raw_e = ::Entity_GetParent(ToCore(*this));        
+        ::Entity raw_e = ::Entity_GetParent(ToCore(*this));
         return Entity(raw_e.id, raw_e.scene);
     }
     void Entity::RemoveParent() {
@@ -121,7 +121,7 @@ namespace Prism
     // Component Setters
     // ==========================================
 
-    std::string Entity::SetName(const std::string& name) { 
+    std::string Entity::SetName(const std::string& name) {
         ::Entity_SetName(ToCore(*this), name.c_str());
         return this->GetName();
     }
@@ -445,6 +445,78 @@ namespace Prism
         return result;
     }
 
+    std::vector<Prism::ReflectionProbeComponent*> Entity::GetReflectionProbesInChildren(bool recursive) {
+        std::vector<Prism::ReflectionProbeComponent*> result;
+        std::vector<Prism::Entity> children = GetChildren(recursive);
+
+        for (Prism::Entity& child : children)
+        {
+            Prism::ReflectionProbeComponent* comp = child.GetReflectionProbe();
+            if (comp != nullptr) result.push_back(comp);
+        }
+        return result;
+    }
+
+    std::vector<Prism::UICanvasComponent*> Entity::GetUICanvasesInChildren(bool recursive) {
+        std::vector<Prism::UICanvasComponent*> result;
+        std::vector<Prism::Entity> children = GetChildren(recursive);
+
+        for (Prism::Entity& child : children)
+        {
+            Prism::UICanvasComponent* comp = child.GetUICanvas();
+            if (comp != nullptr) result.push_back(comp);
+        }
+        return result;
+    }
+
+    std::vector<Prism::RectTransformComponent*> Entity::GetRectTransformsInChildren(bool recursive) {
+        std::vector<Prism::RectTransformComponent*> result;
+        std::vector<Prism::Entity> children = GetChildren(recursive);
+
+        for (Prism::Entity& child : children)
+        {
+            Prism::RectTransformComponent* comp = child.GetRectTransform();
+            if (comp != nullptr) result.push_back(comp);
+        }
+        return result;
+    }
+
+    std::vector<Prism::UIImageComponent*> Entity::GetUIImagesInChildren(bool recursive) {
+        std::vector<Prism::UIImageComponent*> result;
+        std::vector<Prism::Entity> children = GetChildren(recursive);
+
+        for (Prism::Entity& child : children)
+        {
+            Prism::UIImageComponent* comp = child.GetUIImage();
+            if (comp != nullptr) result.push_back(comp);
+        }
+        return result;
+    }
+
+    std::vector<Prism::UITextComponent*> Entity::GetUITextsInChildren(bool recursive) {
+        std::vector<Prism::UITextComponent*> result;
+        std::vector<Prism::Entity> children = GetChildren(recursive);
+
+        for (Prism::Entity& child : children)
+        {
+            Prism::UITextComponent* comp = child.GetUIText();
+            if (comp != nullptr) result.push_back(comp);
+        }
+        return result;
+    }
+
+    std::vector<Prism::UIButtonComponent*> Entity::GetUIButtonsInChildren(bool recursive) {
+        std::vector<Prism::UIButtonComponent*> result;
+        std::vector<Prism::Entity> children = GetChildren(recursive);
+
+        for (Prism::Entity& child : children)
+        {
+            Prism::UIButtonComponent* comp = child.GetUIButton();
+            if (comp != nullptr) result.push_back(comp);
+        }
+        return result;
+    }
+
 
 
 
@@ -460,7 +532,7 @@ namespace Prism
         {
             Prism::Transform* comp = current.GetTransform();
             if (comp != nullptr) return comp;
-            
+
             current = current.GetParent(); // Move up one level
         }
         return nullptr; // Not found in any parent
@@ -474,7 +546,7 @@ namespace Prism
         {
             Prism::MeshRendererComponent* comp = current.GetMeshRenderer();
             if (comp != nullptr) return comp;
-            
+
             current = current.GetParent(); // Move up one level
         }
         return nullptr; // Not found in any parent
@@ -488,7 +560,7 @@ namespace Prism
         {
             Prism::SkinnedMeshRendererComponent* comp = current.GetSkinnedMeshRenderer();
             if (comp != nullptr) return comp;
-            
+
             current = current.GetParent(); // Move up one level
         }
         return nullptr; // Not found in any parent
@@ -502,7 +574,7 @@ namespace Prism
         {
             Prism::RigidbodyComponent* comp = current.GetRigidbody();
             if (comp != nullptr) return comp;
-            
+
             current = current.GetParent(); // Move up one level
         }
         return nullptr; // Not found in any parent
@@ -516,7 +588,7 @@ namespace Prism
         {
             Prism::ColliderComponent* comp = current.GetCollider();
             if (comp != nullptr) return comp;
-            
+
             current = current.GetParent(); // Move up one level
         }
         return nullptr; // Not found in any parent
@@ -530,7 +602,7 @@ namespace Prism
         {
             Prism::CameraComponent* comp = current.GetCamera();
             if (comp != nullptr) return comp;
-            
+
             current = current.GetParent(); // Move up one level
         }
         return nullptr; // Not found in any parent
@@ -544,7 +616,7 @@ namespace Prism
         {
             Prism::LightComponent* comp = current.GetLight();
             if (comp != nullptr) return comp;
-            
+
             current = current.GetParent(); // Move up one level
         }
         return nullptr; // Not found in any parent
@@ -558,7 +630,7 @@ namespace Prism
         {
             Prism::AudioListenerComponent* comp = current.GetAudioListener();
             if (comp != nullptr) return comp;
-            
+
             current = current.GetParent(); // Move up one level
         }
         return nullptr; // Not found in any parent
@@ -572,7 +644,7 @@ namespace Prism
         {
             Prism::AudioSourceComponent* comp = current.GetAudioSource();
             if (comp != nullptr) return comp;
-            
+
             current = current.GetParent(); // Move up one level
         }
         return nullptr; // Not found in any parent
@@ -586,7 +658,7 @@ namespace Prism
         {
             Prism::AnimatorComponent* comp = current.GetAnimator();
             if (comp != nullptr) return comp;
-            
+
             current = current.GetParent(); // Move up one level
         }
         return nullptr; // Not found in any parent
@@ -600,7 +672,7 @@ namespace Prism
         {
             Prism::BoneAttachmentComponent* comp = current.GetBoneAttachment();
             if (comp != nullptr) return comp;
-            
+
             current = current.GetParent(); // Move up one level
         }
         return nullptr; // Not found in any parent
@@ -614,7 +686,7 @@ namespace Prism
         {
             Prism::LineRendererComponent* comp = current.GetLineRenderer();
             if (comp != nullptr) return comp;
-            
+
             current = current.GetParent(); // Move up one level
         }
         return nullptr; // Not found in any parent
@@ -628,7 +700,91 @@ namespace Prism
         {
             Prism::SpriteRendererComponent* comp = current.GetSpriteRenderer();
             if (comp != nullptr) return comp;
-            
+
+            current = current.GetParent(); // Move up one level
+        }
+        return nullptr; // Not found in any parent
+    }
+
+    Prism::ReflectionProbeComponent* Entity::GetReflectionProbeInParent() {
+        Prism::Entity current = this->GetParent();
+
+        // Walk up the tree until we hit the root
+        while (current.IsValid())
+        {
+            Prism::ReflectionProbeComponent* comp = current.GetReflectionProbe();
+            if (comp != nullptr) return comp;
+
+            current = current.GetParent(); // Move up one level
+        }
+        return nullptr; // Not found in any parent
+    }
+
+    Prism::UICanvasComponent* Entity::GetUICanvasInParent() {
+        Prism::Entity current = this->GetParent();
+
+        // Walk up the tree until we hit the root
+        while (current.IsValid())
+        {
+            Prism::UICanvasComponent* comp = current.GetUICanvas();
+            if (comp != nullptr) return comp;
+
+            current = current.GetParent(); // Move up one level
+        }
+        return nullptr; // Not found in any parent
+    }
+
+    Prism::RectTransformComponent* Entity::GetRectTransformInParent() {
+        Prism::Entity current = this->GetParent();
+
+        // Walk up the tree until we hit the root
+        while (current.IsValid())
+        {
+            Prism::RectTransformComponent* comp = current.GetRectTransform();
+            if (comp != nullptr) return comp;
+
+            current = current.GetParent(); // Move up one level
+        }
+        return nullptr; // Not found in any parent
+    }
+
+    Prism::UIImageComponent* Entity::GetUIImageInParent() {
+        Prism::Entity current = this->GetParent();
+
+        // Walk up the tree until we hit the root
+        while (current.IsValid())
+        {
+            Prism::UIImageComponent* comp = current.GetUIImage();
+            if (comp != nullptr) return comp;
+
+            current = current.GetParent(); // Move up one level
+        }
+        return nullptr; // Not found in any parent
+    }
+
+    Prism::UITextComponent* Entity::GetUITextInParent() {
+        Prism::Entity current = this->GetParent();
+
+        // Walk up the tree until we hit the root
+        while (current.IsValid())
+        {
+            Prism::UITextComponent* comp = current.GetUIText();
+            if (comp != nullptr) return comp;
+
+            current = current.GetParent(); // Move up one level
+        }
+        return nullptr; // Not found in any parent
+    }
+
+    Prism::UIButtonComponent* Entity::GetUIButtonInParent() {
+        Prism::Entity current = this->GetParent();
+
+        // Walk up the tree until we hit the root
+        while (current.IsValid())
+        {
+            Prism::UIButtonComponent* comp = current.GetUIButton();
+            if (comp != nullptr) return comp;
+
             current = current.GetParent(); // Move up one level
         }
         return nullptr; // Not found in any parent
@@ -745,12 +901,12 @@ namespace Prism
     // ==========================================
     // Utility
     // ==========================================
-    
+
     Entity Entity::Find(const std::string& name)
     {
         // Grab the active scene
         void* active_scene_ptr = Scene::GetActive().GetRaw();
-        
+
         if (!active_scene_ptr)
         {
             Debug_Warning("No active scene");
@@ -759,7 +915,7 @@ namespace Prism
 
         // Query the backend
         ::Entity raw_e = ::Scene_GetEntity(static_cast<::Scene*>(active_scene_ptr), name.c_str());
-        
+
         // Return a API Entity
         return Entity(raw_e.id, raw_e.scene);
     }

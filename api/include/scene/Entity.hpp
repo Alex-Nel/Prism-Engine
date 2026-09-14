@@ -77,7 +77,7 @@ namespace Prism
 
 
         // --- Constructors ---
-        
+
         Entity();
         Entity(uint32_t entity_id, void* scene);
 
@@ -105,7 +105,7 @@ namespace Prism
 
 
         // --- Component Setters ---
-        
+
         std::string SetName(const std::string& name);
         Prism::Transform* AddTransform(const Vector3& pos, const Quaternion& rot, const Vector3& scale);
         Prism::MeshRendererComponent* AddMeshRenderer(Prism::Mesh mesh, Prism::Material material);
@@ -132,7 +132,7 @@ namespace Prism
 
 
         // --- Component Getters ---
-        
+
         std::string GetName();
         Prism::Transform* GetTransform();
         Prism::MeshRendererComponent* GetMeshRenderer();
@@ -171,9 +171,15 @@ namespace Prism
         std::vector<Prism::BoneAttachmentComponent*> GetBoneAttachmentsInChildren(bool recursive = true);
         std::vector<Prism::LineRendererComponent*> GetLineRenderersInChildren(bool recursive = true);
         std::vector<Prism::SpriteRendererComponent*> GetSpriteRenderersInChildren(bool recursive = true);
-        // TODO: Add for ReflectionProbe
-        
-        
+        std::vector<Prism::ReflectionProbeComponent*> GetReflectionProbesInChildren(bool recursive = true);
+        std::vector<Prism::UICanvasComponent*> GetUICanvasesInChildren(bool recursive = true);
+        std::vector<Prism::RectTransformComponent*> GetRectTransformsInChildren(bool recursive = true);
+        std::vector<Prism::UIImageComponent*> GetUIImagesInChildren(bool recursive = true);
+        std::vector<Prism::UITextComponent*> GetUITextsInChildren(bool recursive = true);
+        std::vector<Prism::UIButtonComponent*> GetUIButtonsInChildren(bool recursive = true);
+
+
+
         Prism::Transform* GetTransformInParent();
         Prism::MeshRendererComponent* GetMeshRendererInParent();
         Prism::SkinnedMeshRendererComponent* GetSkinnedMeshRendererInParent();
@@ -187,7 +193,12 @@ namespace Prism
         Prism::BoneAttachmentComponent* GetBoneAttachmentInParent();
         Prism::LineRendererComponent* GetLineRendererInParent();
         Prism::SpriteRendererComponent* GetSpriteRendererInParent();
-        // TODO: Add for ReflectionProbe
+        Prism::ReflectionProbeComponent* GetReflectionProbeInParent();
+        Prism::UICanvasComponent* GetUICanvasInParent();
+        Prism::RectTransformComponent* GetRectTransformInParent();
+        Prism::UIImageComponent* GetUIImageInParent();
+        Prism::UITextComponent* GetUITextInParent();
+        Prism::UIButtonComponent* GetUIButtonInParent();
 
 
 
@@ -639,5 +650,5 @@ namespace Prism
             Access::Remove(*this);
         }
     }
-    
+
 }
