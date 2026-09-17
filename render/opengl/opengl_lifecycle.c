@@ -442,9 +442,6 @@ Renderer* OpenGL_Init(void* native_window, uint32_t init_width, uint32_t init_he
     r->SetSettings = OpenGL_SetSettings;
     r->GetSettings = OpenGL_GetSettings;
 
-    r->UIinit = OpenGL_UIinit;
-    r->UIShutdown = OpenGL_UIShutdown;
-    r->UIRender = OpenGL_UIRender;
     r->DrawOverlay = OpenGL_DrawOverlay;
     
     return r;
@@ -658,8 +655,7 @@ void OpenGL_InitPipelines(OpenGL_Backend* internal)
     // 4. Skybox Pipeline
     internal->skybox.default_shader = OpenGL_CompileInternalShaderFromFile(internal, "Skybox", "assets/shaders/skybox/skybox.vert", NULL, "assets/shaders/skybox/skybox.frag");
 
-    // 5. Immediate UI and retained overlay pipelines
-    internal->ui.shader = OpenGL_CompileInternalShaderFromFile(internal, "UI Shader", "assets/shaders/ui/ui.vert", NULL, "assets/shaders/ui/ui.frag");
+    // 5. Generic overlay pipeline used by retained and immediate UI
     internal->overlay.shader = OpenGL_CompileInternalShaderFromFile(internal, "Overlay Shader", "assets/shaders/ui/ui.vert", NULL, "assets/shaders/ui/ui.frag");
 
     // 6. SSAO Pipeline

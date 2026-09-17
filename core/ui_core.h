@@ -7,16 +7,24 @@
 
 
 
-struct nk_context;
-
 typedef bool (*UIClipboardSetCallback)(const char* text);
 typedef char* (*UIClipboardGetCallback)(void);
 typedef void (*UIClipboardFreeCallback)(char* text);
 
 
 
+// CPU-side font atlas data. The pixel pointer remains valid until UI_FinalizeFontAtlas or UI_Shutdown.
+typedef struct UIFontAtlasData
+{
+    const void* pixels;
+    uint32_t width;
+    uint32_t height;
+} UIFontAtlasData;
+
+
+
 // Initialize the UI system
-void UI_Init();
+bool UI_Init();
 
 // Shut down the UI system
 void UI_Shutdown();
@@ -34,15 +42,15 @@ void UI_InputEnd();
 // Returns if the UI wants text input to be accepted. Safe to call more than once per frame since it only reads the state.
 bool UI_WantsTextInput();
 
-// Get the global nuklear context
-struct nk_context* UI_GetContext();
-
 // Supplies optional clipboard operations without coupling core UI to other modules.
 // get_text must return owned text that can be released by free_text.
 void UI_SetClipboardCallbacks(UIClipboardSetCallback set_text, UIClipboardGetCallback get_text, UIClipboardFreeCallback free_text);
 
-// Configures backend-neutral handles used while converting Nuklear commands.
-void UI_SetRenderTextureHandles(TextureHandle null_texture, float null_u, float null_v);
+// Bakes Nuklear's default font into CPU-side RGBA pixels.
+bool UI_BakeFontAtlas(UIFontAtlasData* atlas_data);
+
+// Completes font setup after the atlas has been uploaded as a generic renderer texture.
+bool UI_FinalizeFontAtlas(TextureHandle font_texture);
 
 // Converts and clears the live Nuklear context into immutable generic draw data.
 bool UI_BuildDrawList(OverlayDrawList* draw_list);

@@ -543,11 +543,8 @@ typedef struct Renderer
 
 
 
-    // --- UI Rendering ---
+    // --- Overlay Rendering ---
 
-    void (*UIinit)(Renderer* r, void* nk_ctx);
-    void (*UIShutdown)(Renderer* r);
-    void (*UIRender)(Renderer* r, void* nk_ctx, uint32_t width, uint32_t height);
     void (*DrawOverlay)(Renderer* r, const OverlayDrawList* list, uint32_t width, uint32_t height);
 
 
@@ -910,27 +907,6 @@ static inline uint32_t Render_GetProbeResults(Renderer* r, RenderProbeResult* ou
 
 
 
-
-// Initializes the UI rendering pipeline
-static inline void Render_UIinit(Renderer* r, void* nk_ctx)
-{
-    if (r && r->UIinit)
-        r->UIinit(r, nk_ctx);
-}
-
-// Shuts down the UI rendering pipeline
-static inline void Render_UIShutdown(Renderer* r)
-{
-    if (r && Render_HasDirectAccess(r) && r->UIShutdown)
-        r->UIShutdown(r);
-}
-
-// Renders any UI
-static inline void Render_UIRender(Renderer* r, void* nk_ctx, uint32_t width, uint32_t height)
-{
-    if (r && Render_HasDirectAccess(r) && r->UIRender)
-        r->UIRender(r, nk_ctx, width, height);
-}
 
 // Renders any Overlay
 static inline void Render_DrawOverlay(Renderer* r, const OverlayDrawList* list, uint32_t width, uint32_t height)

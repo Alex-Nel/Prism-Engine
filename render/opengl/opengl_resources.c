@@ -122,7 +122,7 @@ void OpenGL_DestroyMesh(Renderer* r, MeshHandle mesh)
 
 
 // Uploads pixels in uint8_t format to the renderer to make a texture. Returns a handle
-static TextureHandle OpenGL_CreateTexture2DU8(Renderer* r, const uint8_t* pixels, uint32_t width, uint32_t height, uint32_t channels)
+static TextureHandle OpenGL_CreateTexture2DU8(Renderer* r, const uint8_t* pixels, uint32_t width, uint32_t height, uint32_t channels, RenderTextureFilter min_filter, RenderTextureFilter mag_filter)
 {
     if (!pixels || width == 0 || height == 0 || channels == 0)
         return (TextureHandle){0};
@@ -137,16 +137,20 @@ static TextureHandle OpenGL_CreateTexture2DU8(Renderer* r, const uint8_t* pixels
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     
-    if (width == 1 && height == 1)
-    {
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    }
-    else
-    {
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    }
+    bool use_default_mipmaps = min_filter == RENDER_FILTER_DEFAULT && (width > 1 || height > 1);
+    GLint gl_min_filter = GL_LINEAR;
+
+    if (min_filter == RENDER_FILTER_NEAREST || (min_filter == RENDER_FILTER_DEFAULT && !use_default_mipmaps))
+        gl_min_filter = GL_NEAREST;
+    else if (use_default_mipmaps)
+        gl_min_filter = GL_LINEAR_MIPMAP_LINEAR;
+
+    GLint gl_mag_filter = mag_filter == RENDER_FILTER_NEAREST ? GL_NEAREST : GL_LINEAR;
+    if (mag_filter == RENDER_FILTER_DEFAULT && width == 1 && height == 1)
+        gl_mag_filter = GL_NEAREST;
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_min_filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_mag_filter);
 
     // Determine color format based on channels
     GLenum format = GL_RGBA;
@@ -178,10 +182,8 @@ static TextureHandle OpenGL_CreateTexture2DU8(Renderer* r, const uint8_t* pixels
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 
     
-    if (width > 1 || height > 1)
-    {
+    if (use_default_mipmaps)
         glGenerateMipmap(GL_TEXTURE_2D); 
-    }
 
 
     // Add openGL ID to the texture pool
@@ -1445,7 +1447,7 @@ TextureHandle OpenGL_CreateTexture(Renderer* r, const RenderTextureDesc* desc)
     if (OpenGL_FormatIsFloat(desc->format))
         return OpenGL_CreateTextureHDR(r, (const float*)desc->pixels, desc->width, desc->height, channels);
     
-    return OpenGL_CreateTexture2DU8(r, (const uint8_t*)desc->pixels, desc->width, desc->height, channels);
+    return OpenGL_CreateTexture2DU8(r, (const uint8_t*)desc->pixels, desc->width, desc->height, channels, desc->min_filter, desc->mag_filter);
 }
 
 

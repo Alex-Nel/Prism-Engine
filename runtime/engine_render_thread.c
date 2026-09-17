@@ -964,7 +964,6 @@ static int EngineRenderThread_Main(void* user_data)
     }
 
     // GPU-side teardown must happen before this thread releases its context.
-    Render_UIShutdown(engine->renderer);
     EngineRenderCommand_Disable(engine->renderer);
     Render_Shutdown(engine->renderer);
     
@@ -1039,7 +1038,6 @@ void EngineRenderThread_Stop(PrismEngine* engine)
     {
         EngineRenderCommand_Disable(engine->renderer);
         Render_MakeCurrent(engine->renderer);
-        Render_UIShutdown(engine->renderer);
         Render_Shutdown(engine->renderer);
     }
 

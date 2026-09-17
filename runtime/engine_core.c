@@ -9,6 +9,46 @@ static void Engine_OnModalEvent(Window* window, void* userdata);
 
 
 
+// Creates Nuklear's font texture through the renderer API
+static bool Engine_InitializeUI(Renderer* renderer)
+{
+    if (!renderer || !UI_Init())
+        return false;
+
+    UI_SetClipboardCallbacks(Platform_SetClipboardText, Platform_GetClipboardText, Platform_FreeClipboardText);
+    
+    UIFontAtlasData atlas = {0};
+    if (!UI_BakeFontAtlas(&atlas))
+    {
+        Log_Error("Failed to bake the immediate UI font atlas.");
+        return false;
+    }
+    
+    RenderTextureDesc font_desc = {
+        .type = RENDER_TEXTURE_2D,
+        .format = RENDER_FORMAT_RGBA8,
+        .width = atlas.width,
+        .height = atlas.height,
+        .min_filter = RENDER_FILTER_LINEAR,
+        .mag_filter = RENDER_FILTER_LINEAR,
+        .pixels = atlas.pixels
+    };
+
+    TextureHandle font_texture = Render_CreateTexture(renderer, &font_desc);
+    
+    if (font_texture.id == RENDER_INVALID_HANDLE || !UI_FinalizeFontAtlas(font_texture))
+    {
+        Log_Error("Failed to initialize the immediate UI font texture.");
+        return false;
+    }
+    
+    return true;
+}
+
+
+
+
+
 // Initializes all engine systems
 bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_width, uint32_t window_height, uint32_t target_fps, GraphicsAPI api)
 {
@@ -55,10 +95,16 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
     default_settings.gamma = 2.2f;
     Render_SetSettings(engine->renderer, &default_settings);
 
-    // Initialize UI
-    UI_Init();
-    UI_SetClipboardCallbacks(Platform_SetClipboardText, Platform_GetClipboardText, Platform_FreeClipboardText);
-    Render_UIinit(engine->renderer, UI_GetContext());
+    // Initialize UI before the graphics context moves to the render thread
+    if (!Engine_InitializeUI(engine->renderer))
+    {
+        UI_Shutdown();
+        Render_Shutdown(engine->renderer);
+        engine->renderer = NULL;
+        Platform_Shutdown(engine->window);
+        engine->window = NULL;
+        return false;
+    }
 
     // Core modules init
     Input_Init();
@@ -169,25 +215,6 @@ static void Engine_TickRetainedUI(PrismEngine* engine, Scene* active_scene)
 
 
 
-// Draws the retained UI
-static void Engine_DrawRetainedUI(PrismEngine* engine, Scene* active_scene)
-{
-    if (!engine->renderer || !active_scene)
-        return;
-
-    uint32_t w = Platform_GetWindowWidth(engine->window);
-    uint32_t h = Platform_GetWindowHeight(engine->window);
-    
-    RetainedUI_UpdateLayout(active_scene, w, h);
-    RetainedUI_BuildOverlay(active_scene);
-    
-    Render_DrawOverlay(engine->renderer, &g_ui_state.draw_list, w, h);
-}
-
-
-
-
-
 // Updates whether the engine should accept text input or not
 static void Engine_UpdateTextInput(PrismEngine* engine)
 {
@@ -201,16 +228,6 @@ static void Engine_UpdateTextInput(PrismEngine* engine)
         Platform_StartTextInput(engine->window);
     else
         Platform_StopTextInput(engine->window);
-}
-
-
-
-
-
-// Draws the immediate mode UI
-static void Engine_DrawImmediateUI(PrismEngine* engine)
-{
-    Render_UIRender(engine->renderer, UI_GetContext(), Platform_GetWindowWidth(engine->window), Platform_GetWindowHeight(engine->window));
 }
 
 

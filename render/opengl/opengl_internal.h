@@ -1,19 +1,9 @@
 #include "../../core/log_core.h"
-#include "../../core/ui_core.h"
 #include "../../external/glad/glad.h"
 #include "../render.h"
 #include "../render_frame.h"
 #include "../render_surface.h"
 #include "../shadow_cascades.h"
-
-#define NK_INCLUDE_FIXED_TYPES
-#define NK_INCLUDE_STANDARD_IO
-#define NK_INCLUDE_STANDARD_VARARGS
-#define NK_INCLUDE_DEFAULT_ALLOCATOR
-#define NK_INCLUDE_VERTEX_BUFFER_OUTPUT
-#define NK_INCLUDE_FONT_BAKING
-#define NK_INCLUDE_DEFAULT_FONT
-#include "../../external/nuklear.h"
 
 #include <stddef.h>
 #include <stdlib.h>
@@ -258,24 +248,6 @@ typedef struct GL_SkyboxPipeline
 } GL_SkyboxPipeline;
 
 
-typedef struct GL_UIPipeline
-{
-    GLuint vbo, vao, ebo;
-    ShaderHandle shader;
-
-    GLint attrib_pos;
-    GLint attrib_uv;
-    GLint attrib_col;
-    
-    GLint uniform_tex;
-    GLint uniform_proj;
-    TextureHandle font_texture;
-    
-    struct nk_font_atlas atlas;
-    struct nk_draw_null_texture tex_null;
-} GL_UIPipeline;
-
-
 typedef struct GL_OverlayPipeline
 {
     GLuint vbo, vao, ebo;
@@ -339,7 +311,6 @@ typedef struct OpenGL_Backend
     GL_ShadowPipeline   shadow;
     GL_SSAOPipeline     ssao;
     GL_SkyboxPipeline   skybox;
-    GL_UIPipeline       ui;
     GL_OverlayPipeline  overlay;
     GL_IBLPipeline      ibl;
 
@@ -474,11 +445,8 @@ uint32_t OpenGL_GetProbeResults(Renderer* r, RenderProbeResult* out, uint32_t ma
 
 
 
-// --- OpenGL UI Pipeline Functions ---
+// --- OpenGL Overlay Pipeline Functions ---
 
-void OpenGL_UIinit(Renderer* r, void* nk_ctx_void);
-void OpenGL_UIShutdown(Renderer* r);
-void OpenGL_UIRender(Renderer* r, void* nk_ctx_void, uint32_t width, uint32_t height);
 void OpenGL_OverlayInit(Renderer* r);
 void OpenGL_OverlayShutdown(Renderer* r);
 void OpenGL_DrawOverlay(Renderer* r, const OverlayDrawList* list, uint32_t width, uint32_t height);

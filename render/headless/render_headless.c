@@ -56,9 +56,6 @@ static void Headless_DrawFrame(Renderer* r, const RenderFrame* frame) {}
 
 static uint32_t Headless_GetProbeResults(Renderer* r, RenderProbeResult* out, uint32_t max_count) { return 0; }
 
-static void Headless_UIinit(Renderer* r, void* nk_ctx) { (void)r; (void)nk_ctx; }
-static void Headless_UIShutdown(Renderer* r) { (void)r; }
-static void Headless_UIRender(Renderer* r, void* nk_ctx, uint32_t width, uint32_t height) { (void)r; (void)nk_ctx; (void)width; (void)height; }
 static void Headless_DrawOverlay(Renderer* r, const OverlayDrawList* list, uint32_t width, uint32_t height) { (void)r; (void)list; (void)width; (void)height; }
 
 
@@ -178,9 +175,6 @@ Renderer* Headless_Init()
     r->SetSettings = Headless_SetSettings;
     r->GetSettings = Headless_GetSettings;
 
-    r->UIinit = Headless_UIinit;
-    r->UIShutdown = Headless_UIShutdown;
-    r->UIRender = Headless_UIRender;
     r->DrawOverlay = Headless_DrawOverlay;
 
     return r;

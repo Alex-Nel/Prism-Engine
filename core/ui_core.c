@@ -18,6 +18,11 @@
 static struct nk_context ctx;
 static struct nk_color current_theme_table[NK_COLOR_COUNT];
 static struct nk_draw_null_texture render_null_texture;
+static struct nk_font_atlas font_atlas;
+static struct nk_font* default_font;
+static bool ui_initialized = false;
+static bool font_atlas_initialized = false;
+static bool font_atlas_finalized = false;
 static bool render_texture_handles_ready = false;
 
 static UIClipboardSetCallback clipboard_set_text;
@@ -70,15 +75,23 @@ static void UI_ClipboardCopy(nk_handle userdata, const char* text, int len)
 
 
 
-// Initializes the UI system (Nuklear and UI rendering)
-void UI_Init()
+// Initializes the Nuklear context
+bool UI_Init()
 {
-    nk_init_default(&ctx, 0);
+    if (!nk_init_default(&ctx, 0))
+        return false;
+
     memset(&render_null_texture, 0, sizeof(render_null_texture));
+    memset(&font_atlas, 0, sizeof(font_atlas));
+    default_font = NULL;
+    ui_initialized = true;
+    font_atlas_initialized = false;
+    font_atlas_finalized = false;
     render_texture_handles_ready = false;
     ctx.clip.copy = UI_ClipboardCopy;
     ctx.clip.paste = UI_ClipboardPaste;
-    // Font setup is deferred to the UI renderer
+
+    return true;
 }
 
 
@@ -88,7 +101,19 @@ void UI_Init()
 // Shuts down the UI system
 void UI_Shutdown()
 {
-    nk_free(&ctx);
+    if (font_atlas_initialized)
+        nk_font_atlas_clear(&font_atlas);
+
+    if (ui_initialized)
+        nk_free(&ctx);
+
+    memset(&render_null_texture, 0, sizeof(render_null_texture));
+    memset(&font_atlas, 0, sizeof(font_atlas));
+    default_font = NULL;
+    ui_initialized = false;
+    font_atlas_initialized = false;
+    font_atlas_finalized = false;
+    render_texture_handles_ready = false;
 }
 
 
@@ -199,22 +224,54 @@ bool UI_WantsTextInput()
 
 
 
-// Returns the Nuklear UI context
-struct nk_context* UI_GetContext()
+// Bakes the default font atlas for upload through the renderer's texture API
+bool UI_BakeFontAtlas(UIFontAtlasData* atlas_data)
 {
-    return &ctx;
+    if (!atlas_data || !ui_initialized || font_atlas_initialized)
+        return false;
+
+    memset(atlas_data, 0, sizeof(*atlas_data));
+    nk_font_atlas_init_default(&font_atlas);
+    font_atlas_initialized = true;
+    nk_font_atlas_begin(&font_atlas);
+    
+    default_font = nk_font_atlas_add_default(&font_atlas, 13.0f, NULL);
+    int width = 0;
+    int height = 0;
+    const void* pixels = nk_font_atlas_bake(&font_atlas, &width, &height, NK_FONT_ATLAS_RGBA32);
+    
+    if (!default_font || !pixels || width <= 0 || height <= 0)
+    {
+        nk_font_atlas_clear(&font_atlas);
+        memset(&font_atlas, 0, sizeof(font_atlas));
+        default_font = NULL;
+        font_atlas_initialized = false;
+        return false;
+    }
+
+    atlas_data->pixels = pixels;
+    atlas_data->width = (uint32_t)width;
+    atlas_data->height = (uint32_t)height;
+    
+    return true;
 }
 
 
 
 
 
-// Stores backend-neutral texture information used during Nuklear conversion
-void UI_SetRenderTextureHandles(TextureHandle null_texture, float null_u, float null_v)
+// Connects the uploaded atlas texture to Nuklear's draw commands
+bool UI_FinalizeFontAtlas(TextureHandle font_texture)
 {
-    render_null_texture.texture = nk_handle_id((int)null_texture.id);
-    render_null_texture.uv = nk_vec2(null_u, null_v);
+    if (!ui_initialized || !font_atlas_initialized || font_atlas_finalized || !default_font || font_texture.id == 0)
+        return false;
+
+    nk_font_atlas_end(&font_atlas, nk_handle_id((int)font_texture.id), &render_null_texture);
+    nk_style_set_font(&ctx, &default_font->handle);
+    font_atlas_finalized = true;
     render_texture_handles_ready = true;
+
+    return true;
 }
 
 
