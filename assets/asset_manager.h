@@ -127,6 +127,20 @@ Shader* Asset_LoadShader(const char* name, const char* vert_path, const char* fr
 
 
 
+// Unload assets
+
+void Asset_UnloadModel(Model* model);
+void Asset_UnloadMesh(Mesh* mesh);
+void Asset_UnloadSkinnedMesh(SkinnedMesh* mesh);
+void Asset_UnloadTexture(Texture* texture);
+void Asset_UnloadEnvironmentMap(EnvironmentMap* env_map);
+void Asset_UnloadFont(Font* font);
+void Asset_UnloadShader(Shader* shader);
+void Asset_UnloadMaterial(Material* mat);
+
+
+
+
 // Functions to get built in meshes
 
 Mesh* Asset_GetBuiltinQuad();

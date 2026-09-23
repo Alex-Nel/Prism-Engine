@@ -137,6 +137,40 @@ namespace Prism
 
 
 
+    void AssetManager::UnloadModel(Model model) {
+        ::Asset_UnloadModel((::Model*)model.GetRawModel());
+    }
+
+    void AssetManager::UnloadMesh(Mesh mesh) {
+        ::Asset_UnloadMesh((::Mesh*)mesh.GetRaw());
+    }
+
+    void AssetManager::UnloadSkinnedMesh(SkinnedMesh mesh) {
+        ::Asset_UnloadSkinnedMesh((::SkinnedMesh*)mesh.GetRaw());
+    }
+
+    void AssetManager::UnloadTexture(Texture texture) {
+        ::Asset_UnloadTexture((::Texture*)texture.GetRaw());
+    }
+
+    void AssetManager::UnloadFont(Font font) {
+        ::Asset_UnloadFont((::Font*)font.GetRaw());
+    }
+
+    void AssetManager::UnloadShader(Shader shader) {
+        ::Asset_UnloadShader((::Shader*)shader.GetRaw());
+    }
+
+    void AssetManager::UnloadEnvironmentMap(EnvironmentMap env_map) {
+        ::Asset_UnloadEnvironmentMap((::EnvironmentMap*)env_map.GetRaw());
+    }
+
+    void AssetManager::UnloadMaterial(Material material) {
+        ::Asset_UnloadMaterial((::Material*)material.GetRaw());
+    }
+
+
+
     // ==========================================
     // Texture Management
     // ==========================================

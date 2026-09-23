@@ -67,6 +67,20 @@ namespace Prism
         static Font GetFontByName(const std::string& name);
 
 
+
+        // --- Unloading methods ---
+
+        static void UnloadModel(Model model);
+        static void UnloadMesh(Mesh mesh);
+        static void UnloadSkinnedMesh(SkinnedMesh mesh);
+        static void UnloadTexture(Texture texture);
+        static void UnloadFont(Font font);
+        static void UnloadShader(Shader shader);
+        static void UnloadEnvironmentMap(EnvironmentMap env_map);
+        static void UnloadMaterial(Material material);
+
+
+
         // --- Texture Management ---
 
         static Texture LoadTexture(const std::string& name, const std::string& filepath);
@@ -77,10 +91,12 @@ namespace Prism
         static Font LoadFont(const std::string& name, const std::string& filepath, float pixel_height = 32.0f);
 
 
+
         // --- Dynamic Meshes ---
 
         static Mesh CreateDynamicMesh(uint32_t max_vertices, uint32_t max_indices);
         static void UpdateDynamicMesh(Mesh mesh, Prism::Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
+
 
 
         // --- Material Management ---
@@ -88,12 +104,12 @@ namespace Prism
         static Material CreateMaterial(Texture diffuse);
 
 
+
         // --- Built-In Assets ---
         
         static Mesh GetBuiltinQuad();
         static Mesh GetBuiltinCube();
         static Mesh GetBuiltinSphere();
-        
         static Texture GetDefaultTexture();
     };
 }
