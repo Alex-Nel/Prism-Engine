@@ -8,6 +8,17 @@
 #include "render/render.h"
 
 
+
+#define MAX_CACHED_SHADERS 8192
+#define MAX_CACHED_TEXTURES 8192
+#define MAX_CACHED_MESHES 8192
+#define MAX_CACHED_SKINNED_MESHES 8192
+#define MAX_CACHED_MODELS 8192
+#define MAX_CACHED_FONTS 256
+#define MAX_MATERIALS 8192
+
+
+
 #define DEFAULT_SHADER  (ShaderHandle){0}
 #define DEFAULT_TEXTURE (TextureHandle){0}
 
@@ -40,8 +51,65 @@ typedef struct Model
 
 
 
-// The main loader function
-Model* Asset_LoadModel(const char* name, const char* filepath);
+
+
+// Structure for an asset manager
+typedef struct AssetManager
+{
+    // --- Pointer to renderer ---
+
+    Renderer* renderer;
+
+
+
+    // --- Asset caches ---
+    Shader shader_cache[MAX_CACHED_SHADERS];
+    uint32_t shader_count;
+
+    Texture texture_cache[MAX_CACHED_TEXTURES];
+    uint32_t texture_count;
+
+    Mesh mesh_cache[MAX_CACHED_MESHES];
+    uint32_t mesh_count;
+
+    SkinnedMesh skinned_mesh_cache[MAX_CACHED_SKINNED_MESHES];
+    uint32_t skinned_mesh_count;
+
+    Model* model_cache[MAX_CACHED_MODELS];
+    uint32_t model_count;
+
+    Font font_cache[MAX_CACHED_FONTS];
+    uint32_t font_count;
+
+    Material material_pool[MAX_MATERIALS];
+    uint32_t material_count;
+
+    RenderMaterialDesc material_gpu_desc[MAX_MATERIALS];
+    bool material_gpu_desc_valid[MAX_MATERIALS];
+
+    EnvironmentMap env_map_cache[MAX_CACHED_TEXTURES];
+    uint32_t env_map_count;
+
+
+
+    // --- Default assets ---
+
+    Mesh* builtin_quad;
+    Mesh* builtin_cube;
+    Mesh* builtin_sphere;
+    Texture* default_texture;
+    Shader* default_shader;
+    Shader* default_animated_shader;
+    Shader* default_skybox_shader;
+    Shader* default_shadow_shader;
+    Shader* default_skinned_shadow_shader;
+} AssetManager;
+
+
+
+
+
+
 
 
 
@@ -53,6 +121,7 @@ void Asset_Init(Renderer* r);
 
 // Loads assets from disk
 
+Model* Asset_LoadModel(const char* name, const char* filepath);
 Mesh* Asset_LoadMesh(const char* name, const char* filepath);
 Texture* Asset_LoadTexture(const char* name, const char* filepath);
 Texture* Asset_LoadCubemapTexture(const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back);
