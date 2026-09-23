@@ -98,11 +98,6 @@ typedef struct AssetManager
     Mesh* builtin_cube;
     Mesh* builtin_sphere;
     Texture* default_texture;
-    Shader* default_shader;
-    Shader* default_animated_shader;
-    Shader* default_skybox_shader;
-    Shader* default_shadow_shader;
-    Shader* default_skinned_shadow_shader;
 } AssetManager;
 
 

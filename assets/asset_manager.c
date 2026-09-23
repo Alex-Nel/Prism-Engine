@@ -44,6 +44,12 @@ void Asset_Init(Renderer* r)
     g_asset_manager->material_count = 0;
     g_asset_manager->env_map_count = 0;
     memset(g_asset_manager->material_gpu_desc_valid, 0, sizeof(g_asset_manager->material_gpu_desc_valid));
+
+    // Pre-initialize default assets
+    Asset_GetBuiltinQuad();
+    Asset_GetBuiltinCube();
+    Asset_GetBuiltinSphere();
+    Asset_GetDefaultTexture();
 }
 
 
