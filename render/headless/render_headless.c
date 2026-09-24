@@ -51,11 +51,13 @@ static RendererSettings Headless_GetSettings(Renderer* r)
     return ((Headless_Backend*)r->backend_internal_data)->settings;
 }
 
+static void Headless_BeginWorld(Renderer* r, const RenderView* view, const RenderLighting* lighting) {}
+static void Headless_SubmitItem(Renderer* r, const RenderItem* item) {}
+static void Headless_EndWorld(Renderer* r) {}
+
 static void Headless_DrawWorld(Renderer* r, const RenderWorld* world) {}
 static void Headless_DrawFrame(Renderer* r, const RenderFrame* frame) {}
-
 static uint32_t Headless_GetProbeResults(Renderer* r, RenderProbeResult* out, uint32_t max_count) { return 0; }
-
 static void Headless_DrawOverlay(Renderer* r, const OverlayDrawList* list, uint32_t width, uint32_t height) { (void)r; (void)list; (void)width; (void)height; }
 
 
@@ -167,6 +169,10 @@ Renderer* Headless_Init()
 
     r->CreateEnvironmentMap = Headless_CreateEnvironmentMap;
     r->DestroyEnvironmentMap = Headless_DestroyEnvironmentMap;
+
+    r->BeginWorld = Headless_BeginWorld;
+    r->SubmitItem = Headless_SubmitItem;
+    r->EndWorld = Headless_EndWorld;
 
     r->DrawWorld = Headless_DrawWorld;
     r->DrawFrame = Headless_DrawFrame;

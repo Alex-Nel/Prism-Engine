@@ -435,6 +435,10 @@ Renderer* OpenGL_Init(void* native_window, uint32_t init_width, uint32_t init_he
     r->CreateEnvironmentMap = OpenGL_CreateEnvironmentMap;
     r->DestroyEnvironmentMap = OpenGL_DestroyEnvironmentMap;
 
+    r->BeginWorld = OpenGL_BeginWorld;
+    r->SubmitItem = OpenGL_SubmitItem;
+    r->EndWorld = OpenGL_EndWorld;
+
     r->DrawWorld = OpenGL_DrawWorld;
     r->DrawFrame = OpenGL_DrawFrame;
     r->GetProbeResults = OpenGL_GetProbeResults;

@@ -71,6 +71,10 @@ typedef struct Renderer
 
     // --- Command Submission ---
 
+    void (*BeginWorld)(Renderer* r, const RenderView* view, const RenderLighting* lighting);
+    void (*SubmitItem)(Renderer* r, const RenderItem* item);
+    void (*EndWorld)(Renderer* r);
+
     void (*DrawWorld)(Renderer* r, const RenderWorld* world);
     void (*DrawFrame)(Renderer* r, const RenderFrame* frame);
     uint32_t (*GetProbeResults)(Renderer* r, RenderProbeResult* out, uint32_t max_count);
@@ -408,6 +412,27 @@ static inline void Render_DestroyEnvironmentMap(Renderer* r, EnvironmentMapHandl
 
 
 
+
+// Begins a world rendering pass, setting up the view and lighting
+static inline void Render_BeginWorld(Renderer* r, const RenderView* view, const RenderLighting* lighting)
+{
+    if (r && Render_HasDirectAccess(r) && r->BeginWorld && view && lighting)
+        r->BeginWorld(r, view, lighting);
+}
+
+// Submits a single item for rendering in the current world pass
+static inline void Render_SubmitItem(Renderer* r, const RenderItem* item)
+{
+    if (r && Render_HasDirectAccess(r) && r->SubmitItem && item)
+        r->SubmitItem(r, item);
+}
+
+// Ends the current world rendering pass and dispatches it
+static inline void Render_EndWorld(Renderer* r)
+{
+    if (r && Render_HasDirectAccess(r) && r->EndWorld)
+        r->EndWorld(r);
+}
 
 // Draws a complete view snapshot. Backends must implement DrawWorld.
 static inline void Render_DrawWorld(Renderer* r, const RenderWorld* world)

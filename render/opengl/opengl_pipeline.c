@@ -1911,7 +1911,7 @@ void OpenGL_DrawSkybox(OpenGL_Backend* internal)
 
 
 // Sets the global camera matrices for the current frame
-void OpenGL_BeginFrame(Renderer* r, const RenderView* view, const RenderLighting* lighting)
+void OpenGL_BeginWorld(Renderer* r, const RenderView* view, const RenderLighting* lighting)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
     if (!view)
@@ -2023,10 +2023,15 @@ void OpenGL_BeginFrame(Renderer* r, const RenderView* view, const RenderLighting
 
 
 // Copies an item into the queue and snapshots any borrowed bone matrices.
-static void OpenGL_QueueItem(OpenGL_Backend* internal, const RenderItem* item)
+void OpenGL_SubmitItem(Renderer* r, const RenderItem* item)
 {
+    if (!r || !item)
+        return;
+
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+
     // Return if the queue is full
-    if (!item || internal->command_count >= OpenGL_MaxDrawItems(internal))
+    if (internal->command_count >= OpenGL_MaxDrawItems(internal))
         return;
     
     RenderItem* dst = &internal->command_queue[internal->command_count++];
@@ -2086,13 +2091,13 @@ void OpenGL_DrawFrame(Renderer* r, const RenderFrame* frame)
 
 
 
-// Copies a frozen view snapshot into backend-owned storage and runs EndFrame.
+// Copies a frozen view snapshot into backend-owned storage and runs EndWorld
 void OpenGL_DrawWorld(Renderer* r, const RenderWorld* world)
 {
     if (!r || !world)
         return;
     
-    OpenGL_BeginFrame(r, &world->view, &world->lighting);
+    OpenGL_BeginWorld(r, &world->view, &world->lighting);
     
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
     
@@ -2103,9 +2108,9 @@ void OpenGL_DrawWorld(Renderer* r, const RenderWorld* world)
     if (count > max_items)
         count = max_items;
     for (uint32_t i = 0; i < count; i++)
-        OpenGL_QueueItem(internal, &world->items[i]);    
+        OpenGL_SubmitItem(r, &world->items[i]);    
     
-    OpenGL_EndFrame(r);
+    OpenGL_EndWorld(r);
 }
 
 
@@ -2180,7 +2185,7 @@ static int CompareRenderCommands(const void* a, const void* b)
 
 
 // Sorts the queue, binds the state, and executes the actual GPU draw calls
-void OpenGL_EndFrame(Renderer* r)
+void OpenGL_EndWorld(Renderer* r)
 {
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
