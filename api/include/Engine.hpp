@@ -27,7 +27,13 @@ namespace Prism
 
     struct RendererSettings
     {
-        bool enable_ssao = true;
+        bool enable_ssao = true;               // Enable or disable screen space ambient occlusion
+        bool enable_shadows = true;            // Enable or disable shadow mapping
+        bool enable_lighting = true;           // Enable or disable the deferred lighting pass
+        bool enable_skybox = true;             // Enable or disable skybox rendering
+        bool enable_transparency = true;       // Enable or disable forward transparent pass
+        bool wireframe_mode = false;           // Render opaque geometry in wireframe mode
+
         uint32_t shadow_map_resolution = 2048;
         float gamma = 2.2f;
 

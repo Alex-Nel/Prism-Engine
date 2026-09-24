@@ -70,6 +70,12 @@ namespace Prism
         ::RendererSettings c_settings;
         std::memset(&c_settings, 0, sizeof(c_settings));
         c_settings.enable_ssao = settings.enable_ssao;
+        c_settings.enable_shadows = settings.enable_shadows;
+        c_settings.enable_lighting = settings.enable_lighting;
+        c_settings.enable_skybox = settings.enable_skybox;
+        c_settings.enable_transparency = settings.enable_transparency;
+        c_settings.wireframe_mode = settings.wireframe_mode;
+
         c_settings.shadow_map_resolution = settings.shadow_map_resolution;
         c_settings.gamma = settings.gamma;
         c_settings.exposure = settings.exposure;
@@ -84,6 +90,12 @@ namespace Prism
         ::RendererSettings c_settings = ::Render_GetSettings(r);
         Prism::RendererSettings settings;
         settings.enable_ssao = c_settings.enable_ssao;
+        settings.enable_shadows = c_settings.enable_shadows;
+        settings.enable_lighting = c_settings.enable_lighting;
+        settings.enable_skybox = c_settings.enable_skybox;
+        settings.enable_transparency = c_settings.enable_transparency;
+        settings.wireframe_mode = c_settings.wireframe_mode;
+
         settings.shadow_map_resolution = c_settings.shadow_map_resolution;
         settings.gamma = c_settings.gamma;
         settings.exposure = c_settings.exposure;

@@ -31,6 +31,11 @@ static void Headless_SetSettings(Renderer* r, const RendererSettings* settings)
 
     Headless_Backend* internal = (Headless_Backend*)r->backend_internal_data;
     internal->settings.enable_ssao = settings->enable_ssao;
+    internal->settings.enable_shadows = settings->enable_shadows;
+    internal->settings.enable_lighting = settings->enable_lighting;
+    internal->settings.enable_skybox = settings->enable_skybox;
+    internal->settings.enable_transparency = settings->enable_transparency;
+    internal->settings.wireframe_mode = settings->wireframe_mode;
     if (settings->shadow_map_resolution > 0)
         internal->settings.shadow_map_resolution = settings->shadow_map_resolution;
     if (settings->gamma > 0.01f)
@@ -139,6 +144,12 @@ Renderer* Headless_Init()
     memset(internal, 0, sizeof(Headless_Backend));
     
     internal->resource_counter = 1; // Start at 1, since 0 is usually "Invalid"
+    internal->settings.enable_ssao = true;
+    internal->settings.enable_shadows = true;
+    internal->settings.enable_lighting = true;
+    internal->settings.enable_skybox = true;
+    internal->settings.enable_transparency = true;
+    internal->settings.wireframe_mode = false;
     internal->settings.gamma = 2.2f;
     internal->settings.exposure = 1.0f;
     internal->settings.max_draw_items = 32768;

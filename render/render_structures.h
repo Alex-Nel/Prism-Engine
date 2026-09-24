@@ -551,7 +551,13 @@ typedef struct RenderProbeResultsCommand
 // Structure holding all renderer settings. Acts as the policy that the renderer uses
 typedef struct RendererSettings
 {
-    bool enable_ssao;
+    bool enable_ssao;               // Enable or disable screen space ambient occlusion
+    bool enable_shadows;            // Enable or disable shadow mapping
+    bool enable_lighting;           // Enable or disable the deferred lighting pass
+    bool enable_skybox;             // Enable or disable skybox rendering
+    bool enable_transparency;       // Enable or disable forward transparent pass
+    bool wireframe_mode;            // Render opaque geometry in wireframe mode
+
     uint32_t shadow_map_resolution; // e.g., 1024, 2048, 4096
     float gamma;                    // e.g., 2.2f (default)
     float exposure;                 // e.g., 1.0f (default)

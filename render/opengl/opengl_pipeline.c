@@ -760,6 +760,10 @@ void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
+    // If wireframe setting is enabled, render in wireframe mode
+    if (internal->state.settings.wireframe_mode)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
     uint32_t current_g_shader = 0;
     uint32_t current_texture = 999999;
     Frustum camera_frustum = OpenGL_ExtractViewFrustum(&internal->state);
@@ -819,6 +823,9 @@ void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
         glBindVertexArray(gl_mesh->vao);
         glDrawElements(GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
     }
+
+    if (internal->state.settings.wireframe_mode)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
 
@@ -833,6 +840,22 @@ void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
 // Executes deferred lighting pass
 void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
 {
+    // If lighting is disabled, skip lighting pass
+    if (!internal->state.settings.enable_lighting)
+    {
+        OpenGL_BindDefaultFramebuffer();
+        GLuint post_prog = internal->shader_pool[internal->deferred.post_shader.id].program;
+        glUseProgram(post_prog);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, internal->ssao.gAlbedoSpec);
+        glUniform1i(glGetUniformLocation(post_prog, "hdrLightingMap"), 0);
+        OpenGL_UploadCommonUniforms(post_prog, &internal->state);
+        glBindVertexArray(internal->quad_vao);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        return;
+    }
+
+
     // Accumulate every light in linear HDR space. Tone mapping and gamma must happen once, after additive blending
     glBindFramebuffer(GL_FRAMEBUFFER, internal->deferred.lighting_fbo);
     glDrawBuffer(GL_COLOR_ATTACHMENT0);
@@ -2206,7 +2229,8 @@ void OpenGL_EndWorld(Renderer* r)
     }
 
     // Shadows first so probe capture and deferred lighting use this frame's maps
-    OpenGL_ExecuteShadowPass(internal);
+    if (internal->state.settings.enable_shadows)
+        OpenGL_ExecuteShadowPass(internal);
 
     // Generate dirty local probes from the complete static opaque queue before the camera's normal deferred pass consumes that queue.
     OpenGL_UpdateReflectionProbes(internal, transparent_start_idx);
@@ -2246,11 +2270,11 @@ void OpenGL_EndWorld(Renderer* r)
     OpenGL_BindDefaultFramebuffer();
 
     // Draw Skybox
-    if (internal->state.has_env_map)
+    if (internal->state.has_env_map && internal->state.settings.enable_skybox)
         OpenGL_DrawSkybox(internal);
 
     // Draw transparents using the forward renderer
-    if (transparent_start_idx < internal->command_count)
+    if (transparent_start_idx < internal->command_count && internal->state.settings.enable_transparency)
     {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

@@ -32,7 +32,12 @@ Renderer* OpenGL_Init(void* native_window, uint32_t init_width, uint32_t init_he
 
     internal->state.window_width = init_width;
     internal->state.window_height = init_height;
-    internal->state.settings.enable_ssao = false;
+    internal->state.settings.enable_ssao = true;
+    internal->state.settings.enable_shadows = true;
+    internal->state.settings.enable_lighting = true;
+    internal->state.settings.enable_skybox = true;
+    internal->state.settings.enable_transparency = true;
+    internal->state.settings.wireframe_mode = false;
     internal->state.settings.shadow_map_resolution = SHADOW_MAP_RESOLUTION_DEFAULT;
     internal->state.settings.gamma = 2.2f;
     internal->state.settings.exposure = 1.0f;
@@ -769,6 +774,11 @@ void OpenGL_SetSettings(Renderer* r, const RendererSettings* settings)
 
 
     internal->state.settings.enable_ssao = settings->enable_ssao;
+    internal->state.settings.enable_shadows = settings->enable_shadows;
+    internal->state.settings.enable_lighting = settings->enable_lighting;
+    internal->state.settings.enable_skybox = settings->enable_skybox;
+    internal->state.settings.enable_transparency = settings->enable_transparency;
+    internal->state.settings.wireframe_mode = settings->wireframe_mode;
 
     if (settings->gamma > 0.01f)
         internal->state.settings.gamma = settings->gamma;
