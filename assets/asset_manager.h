@@ -117,7 +117,6 @@ void Asset_Init(Renderer* r);
 // Loads assets from disk
 
 Model* Asset_LoadModel(const char* name, const char* filepath);
-Mesh* Asset_LoadMesh(const char* name, const char* filepath);
 Texture* Asset_LoadTexture(const char* name, const char* filepath);
 Texture* Asset_LoadCubemapTexture(const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back);
 EnvironmentMap* Asset_LoadEnvironmentMap(const char* filepath);

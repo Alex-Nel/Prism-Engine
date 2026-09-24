@@ -94,11 +94,6 @@ namespace Prism
         return Prism::Model(raw_model);
     }
 
-    Mesh AssetManager::LoadMesh(const std::string& name, const std::string& filepath) {
-        ::Mesh* h = ::Asset_LoadMesh(name.c_str(), filepath.c_str());
-        return Prism::Mesh(h);
-    }
-
     Shader AssetManager::LoadShader(const std::string& name, const std::string& vertPath, const std::string& fragPath) {
         ::Shader* h = ::Asset_LoadShader(name.c_str(), vertPath.c_str(), fragPath.c_str());
         return Prism::Shader(h);

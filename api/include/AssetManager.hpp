@@ -56,7 +56,6 @@ namespace Prism
         // --- Loading Methods ---
         
         static Model LoadModel(const std::string& name, const std::string& filepath);
-        static Mesh LoadMesh(const std::string& name, const std::string& filepath);
         static Shader LoadShader(const std::string& name, const std::string& vertPath, const std::string& fragPath);
         static AudioClip LoadAudio(const std::string& filepath);
 
