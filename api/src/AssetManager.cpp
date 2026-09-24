@@ -164,6 +164,11 @@ namespace Prism
         ::Asset_UnloadMaterial((::Material*)material.GetRaw());
     }
 
+    void AssetManager::UnloadAudioClip(AudioClip clip) {
+        ::AudioClipHandle raw_handle = { clip.GetID() };
+        ::Audio_DestroyClip(raw_handle);
+    }
+
 
 
     // ==========================================

@@ -77,6 +77,7 @@ namespace Prism
         static void UnloadShader(Shader shader);
         static void UnloadEnvironmentMap(EnvironmentMap env_map);
         static void UnloadMaterial(Material material);
+        static void UnloadAudioClip(AudioClip clip);
 
 
 
