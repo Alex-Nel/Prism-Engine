@@ -253,6 +253,7 @@ namespace Prism
 
         void SetGravity(bool use_gravity);
         void SetKinematic(bool kinematic);
+        void SetMass(float mass);
         void SetLinearVelocity(Prism::Vector3& velocity);
         void MovePosition(const Prism::Vector3& position);
         void AddForce(const Prism::Vector3& force, ForceMode mode = ForceMode::Force);
@@ -377,6 +378,7 @@ namespace Prism
         bool IsActive() const { return this->is_active; }
 
         void SetLayerAndMask(CollisionLayer layer, CollisionMask mask);
+        void SetTrigger(bool is_trigger);
         void SetConvex(bool is_convex);
     };
 
@@ -399,6 +401,7 @@ namespace Prism
     struct PRISM_API MeshColliderComponent : public ColliderComponent
     {
         void SetMeshScale(const Prism::Vector3& new_scale);
+        void SetMesh(Prism::Mesh mesh, bool is_convex);
     };
 
 
@@ -487,6 +490,9 @@ namespace Prism
         bool IsActive() const {
             return this->is_active;
         }
+
+
+        void SetSkeleton(void* raw_skeleton);
 
 
         // Animation Controls
@@ -583,6 +589,7 @@ namespace Prism
         void SetUseWorldSpace(bool UseWorldSpace);
         bool GetUseWorldSpace() const;
         void SetLoop(bool isLoop);
+        void SetMaterial(Prism::Material mat);
     };
 
 
@@ -597,10 +604,14 @@ namespace Prism
         Prism::Entity entity;
         bool is_active;
         Prism::Color color;
+    private:
+        void* raw_quad_ptr;
+        void* raw_material_ptr;
 
     public:
         void SetColor(const Prism::Color& color);
         Prism::Color GetColor() const;
+        void SetSprite(const Prism::Material sprite);
     };
 
 
@@ -753,7 +764,7 @@ namespace Prism
         void SetActive(bool active) { this->is_active = active; }
         bool IsActive() const { return this->is_active; }
         void SetText(const std::string& value);
-        void SetFont(Prism::Font font) { this->raw_font = font.GetRaw(); }
+        void SetFont(Prism::Font font);
         void SetColor(const Prism::Color& color) { this->color = color; }
         void SetAlignment(UITextAlignment align) { this->alignment = align; }
         void SetFontSize(float size) { this->font_size = size; }

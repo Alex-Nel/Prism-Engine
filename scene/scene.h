@@ -211,6 +211,7 @@ void Rigidbody_SetLinearVelocity(Entity entity, Vector3 velocity);
 void Rigidbody_MovePosition(Entity entity, Vector3 position);
 void Rigidbody_AddForce(Entity entity, Vector3 force, ForceMode mode);
 void Rigidbody_AddForceAtPosition(Entity entity, Vector3 force, Vector3 world_point, ForceMode mode);
+void Rigidbody_SetMass(Entity entity, float mass);
 
 
 
@@ -221,6 +222,8 @@ void Collider_SetBoxExtents(Entity entity, Vector3 new_extents);
 void Collider_SetSphereRadius(Entity entity, float new_radius);
 void Collider_SetMeshScale(Entity entity, Vector3 scale);
 void Collider_SetConvex(Entity entity, bool is_convex);
+void Collider_SetMesh(Entity entity, Mesh* mesh, bool is_convex);
+void Collider_SetTrigger(Entity entity, bool is_trigger);
 
 
 
@@ -236,6 +239,13 @@ void Camera_SetFOV(CameraComponent* cam, float FOV);
 // --- Renderable setters ---
 
 void MeshRenderer_SetMaterial(MeshRendererComponent* r, Material* material);
+
+
+
+// --- Animator setters ---
+
+void Animator_SetSkeleton(Entity entity, Skeleton* skeleton);
+void Animator_SetClip(Entity entity, AnimationClip* clip); 
 
 
 
@@ -281,6 +291,7 @@ void RectTransform_SetPivot(Entity entity, Vector2 pivot);
 // --- UI Text Transform Functions ---
 
 void UIText_SetText(Entity entity, const char* text);
+void UIText_SetFont(Entity entity, Font* font);
 
 
 

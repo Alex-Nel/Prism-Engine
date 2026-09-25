@@ -58,8 +58,14 @@ namespace Prism
         ::Entity_SetParent(ToCore(*this), ToCore(parent));
         int bone_idx = ::Entity_GetAnimatorBoneIndex(ToCore(parent), bone_name);
 
-        if (bone_idx != -1)
-            ::Entity_AddBoneAttachment(ToCore(*this), bone_idx, MatToCore(local_offset));
+        if (bone_idx != -1) {
+            ::Entity_AddBoneAttachment(ToCore(*this));
+            ::BoneAttachmentComponent* ba = ::Entity_GetBoneAttachment(ToCore(*this));
+            if (ba) {
+                ba->target_bone_index = bone_idx;
+                ba->local_offset = MatToCore(local_offset);
+            }
+        }
         else
             Debug_Log("Failed to attach. Parent has no animator or bone does not exist.");
     }
@@ -125,46 +131,44 @@ namespace Prism
         ::Entity_SetName(ToCore(*this), name.c_str());
         return this->GetName();
     }
-    Prism::Transform* Entity::AddTransform(const Vector3& pos, const Quaternion& rot, const Vector3& scale) {
-        ::Entity_AddTransform(ToCore(*this), {pos.x, pos.y, pos.z}, {rot.x, rot.y, rot.z, rot.w}, {scale.x, scale.y, scale.z});
+    Prism::Transform* Entity::AddTransform() {
+        ::Entity_AddTransform(ToCore(*this));
         return this->GetTransform();
     }
-    Prism::MeshRendererComponent* Entity::AddMeshRenderer(Prism::Mesh mesh, Prism::Material material) {
-        ::Entity_AddMeshRenderer(ToCore(*this), (::Mesh*)mesh.GetRaw(), (::Material*)material.GetRaw());
+    Prism::MeshRendererComponent* Entity::AddMeshRenderer() {
+        ::Entity_AddMeshRenderer(ToCore(*this));
         return this->GetMeshRenderer();
     }
-    Prism::SkinnedMeshRendererComponent* Entity::AddSkinnedMeshRenderer(Prism::SkinnedMesh mesh, Prism::Material material, Prism::Entity root_animator) {
-        uint32_t anim_id = root_animator.IsValid() ? root_animator.id : 0;
-        ::Entity_AddSkinnedMeshRenderer(ToCore(*this), (::SkinnedMesh*)mesh.GetRaw(), (::Material*)material.GetRaw(), anim_id);
+    Prism::SkinnedMeshRendererComponent* Entity::AddSkinnedMeshRenderer() {
+        ::Entity_AddSkinnedMeshRenderer(ToCore(*this));
         return this->GetSkinnedMeshRenderer();
     }
-    Prism::CameraComponent* Entity::AddCamera(float fovDegrees) {
-        float fov_radians = fovDegrees * (3.14159265f / 180.0f);
-        ::Entity_AddCamera(ToCore(*this), fov_radians, 0.1f, 1000.0f);
+    Prism::CameraComponent* Entity::AddCamera() {
+        ::Entity_AddCamera(ToCore(*this));
         return this->GetCamera();
     }
-    Prism::LightComponent* Entity::AddLight(Prism::LightType type, const Prism::Color& color) {
-        ::Entity_AddLight(ToCore(*this), static_cast<::LightType>(type), ::Color{color.r, color.g, color.b, color.a});
+    Prism::LightComponent* Entity::AddLight() {
+        ::Entity_AddLight(ToCore(*this));
         return this->GetLight();
     }
-    Prism::RigidbodyComponent* Entity::AddRigidbody(float mass) {
-        ::Entity_AddRigidbody(ToCore(*this), mass);
+    Prism::RigidbodyComponent* Entity::AddRigidbody() {
+        ::Entity_AddRigidbody(ToCore(*this));
         return this->GetRigidbody();
     }
-    Prism::ColliderComponent* Entity::AddColliderBox(const Prism::Vector3 extents, bool is_trigger) {
-        ::Entity_AddColliderBox(ToCore(*this), {extents.x, extents.y, extents.z}, is_trigger);
+    Prism::ColliderComponent* Entity::AddColliderBox() {
+        ::Entity_AddColliderBox(ToCore(*this));
         return this->GetCollider();
     }
-    Prism::ColliderComponent* Entity::AddColliderBoxAuto(bool is_trigger) {
-        ::Entity_AddColliderBoxAuto(ToCore(*this), is_trigger);
+    Prism::ColliderComponent* Entity::AddColliderBoxAuto() {
+        ::Entity_AddColliderBoxAuto(ToCore(*this));
         return this->GetCollider();
     }
-    Prism::ColliderComponent* Entity::AddColliderSphere(float radius, bool is_trigger) {
-        ::Entity_AddColliderSphere(ToCore(*this), radius, is_trigger);
+    Prism::ColliderComponent* Entity::AddColliderSphere() {
+        ::Entity_AddColliderSphere(ToCore(*this));
         return this->GetCollider();
     }
-    Prism::ColliderComponent* Entity::AddColliderMesh(Prism::Mesh mesh, bool is_trigger, bool is_convex) {
-        ::Entity_AddColliderMesh(ToCore(*this), (::Mesh*)mesh.GetRaw(), is_trigger, is_convex);
+    Prism::ColliderComponent* Entity::AddColliderMesh() {
+        ::Entity_AddColliderMesh(ToCore(*this));
         return this->GetCollider();
     }
     Prism::AudioListenerComponent* Entity::AddAudioListener() {
@@ -175,22 +179,20 @@ namespace Prism
         ::Entity_AddAudioSource(ToCore(*this));
         return this->GetAudioSource();
     }
-    Prism::AnimatorComponent* Entity::AddAnimator(void* raw_skeleton, const Prism::AnimationClip& default_clip) {
-        ::Entity_AddAnimator(ToCore(*this), raw_skeleton, default_clip.GetRaw());
+    Prism::AnimatorComponent* Entity::AddAnimator() {
+        ::Entity_AddAnimator(ToCore(*this));
         return this->GetAnimator();
     }
-    Prism::LineRendererComponent* Entity::AddLineRenderer(Prism::Material* mat) {
-        ::Material* raw_material = mat ? static_cast<::Material*>(mat->GetRaw()) : nullptr;
-        ::Entity_AddLineRenderer(ToCore(*this), raw_material);
+    Prism::LineRendererComponent* Entity::AddLineRenderer() {
+        ::Entity_AddLineRenderer(ToCore(*this));
         return this->GetLineRenderer();
     }
-    Prism::SpriteRendererComponent* Entity::AddSpriteRenderer(Prism::Material* mat) {
-        ::Material* raw_material = mat ? static_cast<::Material*>(mat->GetRaw()) : nullptr;
-        ::Entity_AddSpriteRenderer(ToCore(*this), raw_material);
+    Prism::SpriteRendererComponent* Entity::AddSpriteRenderer() {
+        ::Entity_AddSpriteRenderer(ToCore(*this));
         return this->GetSpriteRenderer();
     }
-    Prism::ReflectionProbeComponent* Entity::AddReflectionProbe(const Prism::Vector3& box_extents, float blend_distance, uint32_t capture_resolution) {
-        ::Entity_AddReflectionProbe(ToCore(*this), ::Vector3{box_extents.x, box_extents.y, box_extents.z}, blend_distance, capture_resolution);
+    Prism::ReflectionProbeComponent* Entity::AddReflectionProbe() {
+        ::Entity_AddReflectionProbe(ToCore(*this));
         return this->GetReflectionProbe();
     }
     Prism::UICanvasComponent* Entity::AddUICanvas() {
@@ -201,12 +203,12 @@ namespace Prism
         ::Entity_AddRectTransform(ToCore(*this));
         return this->GetRectTransform();
     }
-    Prism::UIImageComponent* Entity::AddUIImage(Prism::Texture texture) {
-        ::Entity_AddUIImage(ToCore(*this), static_cast<::Texture*>(texture.GetRaw()));
+    Prism::UIImageComponent* Entity::AddUIImage() {
+        ::Entity_AddUIImage(ToCore(*this));
         return this->GetUIImage();
     }
-    Prism::UITextComponent* Entity::AddUIText(const std::string& text, Prism::Font font) {
-        ::Entity_AddUIText(ToCore(*this), text.c_str(), static_cast<::Font*>(font.GetRaw()));
+    Prism::UITextComponent* Entity::AddUIText() {
+        ::Entity_AddUIText(ToCore(*this));
         return this->GetUIText();
     }
     Prism::UIButtonComponent* Entity::AddUIButton() {

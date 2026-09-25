@@ -269,6 +269,11 @@ namespace Prism
         ::Rigidbody_SetKinematic(raw_e, kinematic); 
     }
 
+    void RigidbodyComponent::SetMass(float mass) { 
+        ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
+        ::Rigidbody_SetMass(raw_e, mass); 
+    }
+
     void RigidbodyComponent::SetLinearVelocity(Prism::Vector3& velocity) {
         ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
         ::Rigidbody_SetLinearVelocity(raw_e, ::Vector3{velocity.x, velocity.y, velocity.z}); 
@@ -300,6 +305,11 @@ namespace Prism
         ::Collider_SetLayerAndMask(raw_e, static_cast<::CollisionLayer>(layer), static_cast<::CollisionMask>(mask));
     }
 
+    void ColliderComponent::SetTrigger(bool is_trigger) {
+        ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
+        ::Collider_SetTrigger(raw_e, is_trigger);
+    }
+
     void BoxColliderComponent::SetBoxExtents(const Prism::Vector3& new_extents) {
         ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
         ::Collider_SetBoxExtents(raw_e, {new_extents.x, new_extents.y, new_extents.z});
@@ -315,6 +325,11 @@ namespace Prism
         ::Collider_SetMeshScale(raw_e, {new_scale.x, new_scale.y, new_scale.z});
     }
 
+    void MeshColliderComponent::SetMesh(Prism::Mesh mesh, bool is_convex) {
+        ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
+        ::Collider_SetMesh(raw_e, static_cast<::Mesh*>(mesh.GetRaw()), is_convex);
+    }
+
     void ColliderComponent::SetConvex(bool is_convex) {
         if (type != COLLIDER_MESH) {
             Debug_Warning("Only mesh colliders can be convex");
@@ -323,6 +338,17 @@ namespace Prism
 
         ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
         ::Collider_SetConvex(raw_e, is_convex);
+    }
+
+
+
+    // ==========================================
+    // Animator Implementation
+    // ==========================================
+
+    void AnimatorComponent::SetSkeleton(void* raw_skeleton) {
+        ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::Animator_SetSkeleton(raw, static_cast<::Skeleton*>(raw_skeleton));
     }
 
 
@@ -397,6 +423,10 @@ namespace Prism
         static_cast<::Scene*>(this->entity.scene_ptr)->line_renderers[this->entity.id].is_loop = isLoop;
     }
 
+    void LineRendererComponent::SetMaterial(Prism::Material mat) {
+        static_cast<::Scene*>(this->entity.scene_ptr)->line_renderers[this->entity.id].material = (::Material*)mat.GetRaw();
+    }
+
 
 
     // ==========================================
@@ -407,10 +437,16 @@ namespace Prism
         ::Entity e = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
         static_cast<::Scene*>(e.scene)->sprite_renderers[e.id].color = ::Color{color.r, color.g, color.b, color.a};
     }
+
     Prism::Color SpriteRendererComponent::GetColor() const {
         ::Entity e = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
         ::Color c = static_cast<::Scene*>(e.scene)->sprite_renderers[e.id].color;
         return Prism::Color(c.r, c.g, c.b, c.a);
+    }
+
+    void SpriteRendererComponent::SetSprite(const Prism::Material sprite) {
+        ::Entity e = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        static_cast<::Scene*>(e.scene)->sprite_renderers[e.id].material = (::Material*)sprite.GetRaw();
     }
 
 
@@ -494,5 +530,10 @@ namespace Prism
     void UITextComponent::SetText(const std::string& value) {
         ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
         ::UIText_SetText(raw, value.c_str());
+    }
+
+    void UITextComponent::SetFont(Prism::Font font) {
+        ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::UIText_SetFont(raw, static_cast<::Font*>(font.GetRaw()));
     }
 }

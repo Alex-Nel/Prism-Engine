@@ -143,6 +143,26 @@ void Rigidbody_AddForceAtPosition(Entity entity, Vector3 force, Vector3 world_po
 
 
 
+// Sets the mass of a rigidbody and updates physics
+void Rigidbody_SetMass(Entity entity, float mass)
+{
+    RigidbodyComponent* rb = Entity_GetRigidbody(entity);
+    ColliderComponent* col = Entity_GetCollider(entity);
+    
+    if (!rb) return;
+    
+    rb->mass = mass;
+    
+    if (col && col->physics_handle && !rb->is_kinematic && mass > 0.0f)
+    {
+        Physics_RecalculateMass(col->physics_handle, mass);
+    }
+}
+
+
+
+
+
 // Sets an entities collider with one collision layer and mask (several layers OR'd together)
 void Collider_SetLayerAndMask(Entity entity, CollisionLayer layer, CollisionMask mask)
 {
@@ -314,6 +334,98 @@ void Collider_SetConvex(Entity entity, bool is_convex)
 
 
 
+// Rebuilds the mesh collider with a new mesh
+void Collider_SetMesh(Entity entity, Mesh* mesh, bool is_convex)
+{
+    if (!Entity_IsValid(entity))
+        return;
+
+    ColliderComponent* c = &entity.scene->colliders[entity.id];
+
+    if (c->type != COLLIDER_MESH)
+        return;
+
+    // Destroy the old physics body
+    if (c->physics_handle)
+        Physics_DestroyBody(entity.scene->physics_world, c->physics_handle);
+
+    // Update internal flag and mesh
+    c->is_convex = is_convex;
+    c->mesh_ptr = mesh;
+
+    if (!mesh)
+    {
+        c->physics_handle = NULL;
+        return;
+    }
+
+    // Rebuild the physics body
+    Transform* t = &entity.scene->transforms[entity.id];
+    
+    if (is_convex)
+    {
+        c->physics_handle = Physics_CreateConvexCollider(
+            entity.scene->physics_world, entity.id, t->local_position,
+            c->mesh_ptr->vertices, sizeof(Vertex3D), c->mesh_ptr->vertex_count, c->is_trigger
+        );
+    }
+    else
+    {
+        c->physics_handle = Physics_CreateMeshCollider(
+            entity.scene->physics_world, entity.id, t->local_position,
+            c->mesh_ptr->vertices, sizeof(Vertex3D), c->mesh_ptr->vertex_count,
+            c->mesh_ptr->indices, c->mesh_ptr->index_count, c->is_trigger
+        );
+    }
+
+    // Restore the base Collider properties
+    Physics_SetBodyScale(c->physics_handle, t->local_scale);
+    Physics_SetBodyRotation(c->physics_handle, t->local_rotation);
+    Physics_SetCollisionFilter(entity.scene->physics_world, c->physics_handle, c->collision_layer, c->collision_mask);
+
+    // Restore the Rigidbody properties (if the entity has one)
+    if (entity.scene->component_masks[entity.id] & COMPONENT_RIGIDBODY)
+    {
+        RigidbodyComponent* rb = &entity.scene->rigidbodies[entity.id];
+        
+        // Non-convex meshes cammpt have mass
+        if (!is_convex) 
+        {
+            rb->mass = 0.0f;
+        }
+
+        // Push all the saved states back into the new physics object
+        Physics_AddRigidbody(entity.scene->physics_world, c->physics_handle, rb->mass);
+        Physics_SetDamping(c->physics_handle, rb->linear_drag, rb->angular_drag);
+        Physics_SetGravityState(entity.scene->physics_world, c->physics_handle, rb->use_gravity);
+        Physics_SetRotationConstraints(c->physics_handle, rb->freeze_rot_x, rb->freeze_rot_y, rb->freeze_rot_z);
+        Physics_SetKinematicState(entity.scene->physics_world, c->physics_handle, rb->is_kinematic);
+    }
+}
+
+
+
+
+
+// Sets the trigger state of a collider
+void Collider_SetTrigger(Entity entity, bool is_trigger)
+{
+    ColliderComponent* c = Entity_GetCollider(entity);
+    
+    if (!c || !c->physics_handle)
+        return;
+    
+    c->is_trigger = is_trigger;
+    
+    // Toggling trigger state requires calling Physics_SetBodySimulationState
+    Physics_SetBodySimulationState(entity.scene->physics_world, c->physics_handle, !is_trigger);
+}
+
+
+
+
+
+
 
 
 
@@ -338,7 +450,9 @@ void Camera_RecalculateProjectionIfNeeded(CameraComponent* cam)
     if (cam->viewport_height > 0)
     {
         float aspect = (float)cam->viewport_width / (float)cam->viewport_height;
-        cam->projection_matrix = Matrix4Perspective(cam->fov, aspect, cam->nearZ, cam->farZ);
+        // cam->projection_matrix = Matrix4Perspective(cam->fov, aspect, cam->nearZ, cam->farZ);
+        float fov_radians = cam->fov * (3.14159265358979323846f / 180.0f);
+        cam->projection_matrix = Matrix4Perspective(fov_radians, aspect, cam->nearZ, cam->farZ);
     }
 }
 
@@ -484,6 +598,50 @@ void MeshRenderer_SetMaterial(MeshRendererComponent* r, Material* material)
     }
 
     r->material = material;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Sets the skeleton of an animator component
+void Animator_SetSkeleton(Entity entity, Skeleton* skeleton)
+{
+    AnimatorComponent* anim = Entity_GetAnimator(entity);
+    if (!anim)
+        return;
+    
+    anim->skeleton = skeleton;
+    anim->current_time_ticks = 0.0f; // Reset time to be safe
+    
+    // Reset matrices
+    for (int i = 0; i < MAX_BONES; i++)
+        anim->final_bone_matrices[i] = Matrix4Identity();
+}
+
+
+
+
+
+// Sets the animation clip of an animator component
+void Animator_SetClip(Entity entity, AnimationClip* clip)
+{
+    AnimatorComponent* anim = Entity_GetAnimator(entity);
+    if (!anim)
+        return;
+    
+    anim->current_clip = clip;
+    anim->current_time_ticks = 0.0f; // Reset time to avoid out-of-bounds reading
 }
 
 

@@ -894,7 +894,8 @@ static void EngineRenderThread_DrawSnapshot(Renderer* renderer, const RenderFram
         if (source->field_of_view > 0.0f && source->near_plane > 0.0f && source->far_plane > source->near_plane)
         {
             float aspect = (float)view_width / (float)view_height;
-            world.view.projection_matrix = Matrix4Perspective(source->field_of_view, aspect, source->near_plane, source->far_plane);
+            float fov_radians = source->field_of_view * (3.14159265358979323846f / 180.0f);
+            world.view.projection_matrix = Matrix4Perspective(fov_radians, aspect, source->near_plane, source->far_plane);
         }
 
         Render_DrawWorld(renderer, &world);

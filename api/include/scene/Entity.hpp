@@ -107,26 +107,26 @@ namespace Prism
         // --- Component Setters ---
 
         std::string SetName(const std::string& name);
-        Prism::Transform* AddTransform(const Vector3& pos, const Quaternion& rot, const Vector3& scale);
-        Prism::MeshRendererComponent* AddMeshRenderer(Prism::Mesh mesh, Prism::Material material);
-        Prism::SkinnedMeshRendererComponent* AddSkinnedMeshRenderer(Prism::SkinnedMesh mesh, Prism::Material material, Prism::Entity root_animator = Prism::Entity());
-        Prism::CameraComponent* AddCamera(float fovDegrees);
-        Prism::LightComponent* AddLight(Prism::LightType type, const Prism::Color& color);
-        Prism::RigidbodyComponent* AddRigidbody(float mass);
-        Prism::ColliderComponent* AddColliderBox(const Prism::Vector3 extents = Prism::Vector3{1, 1, 1}, bool is_trigger = false);
-        Prism::ColliderComponent* AddColliderBoxAuto(bool is_trigger = false);
-        Prism::ColliderComponent* AddColliderSphere(float radius = 0.5f, bool is_trigger = false);
-        Prism::ColliderComponent* AddColliderMesh(Prism::Mesh mesh, bool is_trigger = false, bool is_convex = false);
+        Prism::Transform* AddTransform();
+        Prism::MeshRendererComponent* AddMeshRenderer();
+        Prism::SkinnedMeshRendererComponent* AddSkinnedMeshRenderer();
+        Prism::CameraComponent* AddCamera();
+        Prism::LightComponent* AddLight();
+        Prism::RigidbodyComponent* AddRigidbody();
+        Prism::ColliderComponent* AddColliderBox();
+        Prism::ColliderComponent* AddColliderBoxAuto();
+        Prism::ColliderComponent* AddColliderSphere();
+        Prism::ColliderComponent* AddColliderMesh();
         Prism::AudioListenerComponent* AddAudioListener();
         Prism::AudioSourceComponent* AddAudioSource();
-        Prism::AnimatorComponent* AddAnimator(void* raw_skeleton, const Prism::AnimationClip& default_clip);
-        Prism::LineRendererComponent* AddLineRenderer(Prism::Material* mat = nullptr);
-        Prism::SpriteRendererComponent* AddSpriteRenderer(Prism::Material* mat = nullptr);
-        Prism::ReflectionProbeComponent* AddReflectionProbe(const Prism::Vector3& box_extents, float blend_distance = 1.0f, uint32_t capture_resolution = 128);
+        Prism::AnimatorComponent* AddAnimator();
+        Prism::LineRendererComponent* AddLineRenderer();
+        Prism::SpriteRendererComponent* AddSpriteRenderer();
+        Prism::ReflectionProbeComponent* AddReflectionProbe();
         Prism::UICanvasComponent* AddUICanvas();
         Prism::RectTransformComponent* AddRectTransform();
-        Prism::UIImageComponent* AddUIImage(Prism::Texture texture = Prism::Texture());
-        Prism::UITextComponent* AddUIText(const std::string& text = "", Prism::Font font = Prism::Font());
+        Prism::UIImageComponent* AddUIImage();
+        Prism::UITextComponent* AddUIText();
         Prism::UIButtonComponent* AddUIButton();
 
 
@@ -226,9 +226,9 @@ namespace Prism
 
         // --- Generic Component API ---
 
-        // Adds a supported component using the same arguments as its named Add function.
-        template<typename T, typename... Args>
-        T* AddComponent(Args&&... args);
+        // Adds a supported component.
+        template<typename T>
+        T* AddComponent();
 
         // Returns the requested component, or nullptr if the entity does not have it.
         template<typename T>
@@ -299,7 +299,7 @@ namespace Prism
             static constexpr bool removable = false;
 
             static Transform* Get(Entity& entity) { return entity.GetTransform(); }
-            static Transform* Add(Entity& entity, const Vector3& pos, const Quaternion& rot, const Vector3& scale) { return entity.AddTransform(pos, rot, scale); }
+            static Transform* Add(Entity& entity) { return entity.AddTransform(); }
         };
 
         template<>
@@ -310,7 +310,7 @@ namespace Prism
             static constexpr bool removable = true;
 
             static MeshRendererComponent* Get(Entity& entity) { return entity.GetMeshRenderer(); }
-            static MeshRendererComponent* Add(Entity& entity, Mesh mesh, Material material) { return entity.AddMeshRenderer(mesh, material); }
+            static MeshRendererComponent* Add(Entity& entity) { return entity.AddMeshRenderer(); }
             static void Remove(Entity& entity) { entity.RemoveMeshRenderer(); }
         };
 
@@ -322,7 +322,7 @@ namespace Prism
             static constexpr bool removable = true;
 
             static SkinnedMeshRendererComponent* Get(Entity& entity) { return entity.GetSkinnedMeshRenderer(); }
-            static SkinnedMeshRendererComponent* Add(Entity& entity, SkinnedMesh mesh, Material material, Entity root_animator = Entity()) { return entity.AddSkinnedMeshRenderer(mesh, material, root_animator); }
+            static SkinnedMeshRendererComponent* Add(Entity& entity) { return entity.AddSkinnedMeshRenderer(); }
             static void Remove(Entity& entity) { entity.RemoveSkinnedMeshRenderer(); }
         };
 
@@ -334,7 +334,7 @@ namespace Prism
             static constexpr bool removable = true;
 
             static RigidbodyComponent* Get(Entity& entity) { return entity.GetRigidbody(); }
-            static RigidbodyComponent* Add(Entity& entity, float mass) { return entity.AddRigidbody(mass); }
+            static RigidbodyComponent* Add(Entity& entity) { return entity.AddRigidbody(); }
             static void Remove(Entity& entity) { entity.RemoveRigidbody(); }
         };
 
@@ -393,7 +393,7 @@ namespace Prism
             static constexpr bool removable = true;
 
             static CameraComponent* Get(Entity& entity) { return entity.GetCamera(); }
-            static CameraComponent* Add(Entity& entity, float fov_degrees) { return entity.AddCamera(fov_degrees); }
+            static CameraComponent* Add(Entity& entity) { return entity.AddCamera(); }
             static void Remove(Entity& entity) { entity.RemoveCamera(); }
         };
 
@@ -405,7 +405,7 @@ namespace Prism
             static constexpr bool removable = true;
 
             static LightComponent* Get(Entity& entity) { return entity.GetLight(); }
-            static LightComponent* Add(Entity& entity, LightType type, const Color& color) { return entity.AddLight(type, color); }
+            static LightComponent* Add(Entity& entity) { return entity.AddLight(); }
             static void Remove(Entity& entity) { entity.RemoveLight(); }
         };
 
@@ -441,7 +441,7 @@ namespace Prism
             static constexpr bool removable = true;
 
             static AnimatorComponent* Get(Entity& entity) { return entity.GetAnimator(); }
-            static AnimatorComponent* Add(Entity& entity, void* raw_skeleton, const AnimationClip& default_clip) { return entity.AddAnimator(raw_skeleton, default_clip); }
+            static AnimatorComponent* Add(Entity& entity) { return entity.AddAnimator(); }
             static void Remove(Entity& entity) { entity.RemoveAnimator(); }
         };
 
@@ -463,7 +463,7 @@ namespace Prism
             static constexpr bool removable = true;
 
             static LineRendererComponent* Get(Entity& entity) { return entity.GetLineRenderer(); }
-            static LineRendererComponent* Add(Entity& entity, Material* material = nullptr) { return entity.AddLineRenderer(material); }
+            static LineRendererComponent* Add(Entity& entity) { return entity.AddLineRenderer(); }
             static void Remove(Entity& entity) { entity.RemoveLineRenderer(); }
         };
 
@@ -475,7 +475,7 @@ namespace Prism
             static constexpr bool removable = true;
 
             static SpriteRendererComponent* Get(Entity& entity) { return entity.GetSpriteRenderer(); }
-            static SpriteRendererComponent* Add(Entity& entity, Material* material = nullptr) { return entity.AddSpriteRenderer(material); }
+            static SpriteRendererComponent* Add(Entity& entity) { return entity.AddSpriteRenderer(); }
             static void Remove(Entity& entity) { entity.RemoveSpriteRenderer(); }
         };
 
@@ -487,7 +487,7 @@ namespace Prism
             static constexpr bool removable = true;
 
             static ReflectionProbeComponent* Get(Entity& entity) { return entity.GetReflectionProbe(); }
-            static ReflectionProbeComponent* Add(Entity& entity, const Vector3& extents, float blend_distance = 1.0f, uint32_t resolution = 128) { return entity.AddReflectionProbe(extents, blend_distance, resolution); }
+            static ReflectionProbeComponent* Add(Entity& entity) { return entity.AddReflectionProbe(); }
             static void Remove(Entity& entity) { entity.RemoveReflectionProbe(); }
         };
 
@@ -523,7 +523,7 @@ namespace Prism
             static constexpr bool removable = true;
 
             static UIImageComponent* Get(Entity& entity) { return entity.GetUIImage(); }
-            static UIImageComponent* Add(Entity& entity, Texture texture = Texture()) { return entity.AddUIImage(texture); }
+            static UIImageComponent* Add(Entity& entity) { return entity.AddUIImage(); }
             static void Remove(Entity& entity) { entity.RemoveUIImage(); }
         };
 
@@ -535,7 +535,7 @@ namespace Prism
             static constexpr bool removable = true;
 
             static UITextComponent* Get(Entity& entity) { return entity.GetUIText(); }
-            static UITextComponent* Add(Entity& entity, const std::string& text = "", Font font = Font()) { return entity.AddUIText(text, font); }
+            static UITextComponent* Add(Entity& entity) { return entity.AddUIText(); }
             static void Remove(Entity& entity) { entity.RemoveUIText(); }
         };
 
@@ -556,8 +556,8 @@ namespace Prism
 
 
 
-    template<typename T, typename... Args>
-    T* Entity::AddComponent(Args&&... args)
+    template<typename T>
+    T* Entity::AddComponent()
     {
         using Access = Detail::EntityComponentAccess<T>;
 
@@ -570,7 +570,7 @@ namespace Prism
             return nullptr;
         }
         else {
-            return Access::Add(*this, std::forward<Args>(args)...);
+            return Access::Add(*this);
         }
     }
 

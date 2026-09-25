@@ -583,12 +583,27 @@ bool Scene_Load(Scene* scene, const char* filepath)
             if (type == COLLIDER_BOX)
             {
                 Vector3 extents = LoadVec3(cJSON_GetObjectItemCaseSensitive(comp_obj, "extents"));
-                Entity_AddColliderBox(e, extents, is_trigger);
+                Entity_AddColliderBox(e);
+                ColliderComponent* c = Entity_GetCollider(e);
+                c->is_trigger = is_trigger;
+                c->extents = extents;
+                if (c->physics_handle)
+                {
+                    Physics_SetBoxExtents(c->physics_handle, extents);
+                    Physics_SetBodySimulationState(scene->physics_world, c->physics_handle, !is_trigger); // rough approximation of is_trigger for now
+                }
             } 
             else if (type == COLLIDER_SPHERE)
             {
                 float radius = cJSON_GetObjectItemCaseSensitive(comp_obj, "radius")->valuedouble;
-                Entity_AddColliderSphere(e, radius, is_trigger);
+                Entity_AddColliderSphere(e);
+                ColliderComponent* c = Entity_GetCollider(e);
+                c->is_trigger = is_trigger;
+                c->radius = radius;
+                if (c->physics_handle)
+                {
+                    Physics_SetSphereRadius(c->physics_handle, radius);
+                }
             }
             else if (type == COLLIDER_MESH)
             {
@@ -596,7 +611,34 @@ bool Scene_Load(Scene* scene, const char* filepath)
                 if (mesh_name)
                 {
                     Mesh* mesh_ptr = Asset_GetMeshByName(mesh_name->valuestring);
-                    Entity_AddColliderMesh(e, mesh_ptr, is_trigger, is_convex);
+                    Entity_AddColliderMesh(e);
+                    ColliderComponent* c = Entity_GetCollider(e);
+                    c->is_trigger = is_trigger;
+                    c->is_convex = is_convex;
+                    c->mesh_ptr = mesh_ptr;
+                    
+                    // We can't build it without Collider_SetMesh, so for now we'll do what SetMesh would do
+                    if (mesh_ptr)
+                    {
+                        Transform* t = &e.scene->transforms[e.id];
+                        if (is_convex)
+                        {
+                            c->physics_handle = Physics_CreateConvexCollider(
+                                e.scene->physics_world, e.id, t->local_position,
+                                mesh_ptr->vertices, sizeof(Vertex3D), mesh_ptr->vertex_count, is_trigger
+                            );
+                        }
+                        else
+                        {
+                            c->physics_handle = Physics_CreateMeshCollider(
+                                e.scene->physics_world, e.id, t->local_position,
+                                mesh_ptr->vertices, sizeof(Vertex3D), mesh_ptr->vertex_count,
+                                mesh_ptr->indices, mesh_ptr->index_count, is_trigger
+                            );
+                        }
+                        Physics_SetBodyScale(c->physics_handle, t->local_scale);
+                        Physics_SetBodyRotation(c->physics_handle, t->local_rotation);
+                    }
                 }
             }
             
@@ -612,10 +654,14 @@ bool Scene_Load(Scene* scene, const char* filepath)
             cJSON* comp_obj = cJSON_GetObjectItemCaseSensitive(entity_json, "rigidbody");
             
             float mass = cJSON_GetObjectItemCaseSensitive(comp_obj, "mass")->valuedouble;
-            Entity_AddRigidbody(e, mass);
-            
-            // Re-apply specific settings
+            Entity_AddRigidbody(e);
             RigidbodyComponent* rb = Entity_GetRigidbody(e);
+            rb->mass = mass;
+            ColliderComponent* c = Entity_GetCollider(e);
+            if (c && c->physics_handle)
+            {
+                Physics_RecalculateMass(c->physics_handle, mass);
+            }
 
             rb->is_kinematic = cJSON_GetObjectItemCaseSensitive(comp_obj, "is_kinematic")->valueint;
             Rigidbody_SetKinematic(e, rb->is_kinematic);
@@ -694,9 +740,12 @@ bool Scene_Load(Scene* scene, const char* filepath)
                 Vector3 extents = LoadVec3(cJSON_GetObjectItemCaseSensitive(comp_obj, "box_extents"));
                 cJSON* blend = cJSON_GetObjectItemCaseSensitive(comp_obj, "blend_distance");
                 cJSON* resolution = cJSON_GetObjectItemCaseSensitive(comp_obj, "capture_resolution");
-                Entity_AddReflectionProbe(e, extents, blend ? (float)blend->valuedouble : 1.0f, resolution ? (uint32_t)resolution->valueint : 128 );
+                Entity_AddReflectionProbe(e);
 
                 ReflectionProbeComponent* probe = Entity_GetReflectionProbe(e);
+                probe->box_extents = extents;
+                probe->blend_distance = blend ? (float)blend->valuedouble : 1.0f;
+                probe->capture_resolution = resolution ? (uint32_t)resolution->valueint : 128;
                 cJSON* active = cJSON_GetObjectItemCaseSensitive(comp_obj, "active");
                 cJSON* priority = cJSON_GetObjectItemCaseSensitive(comp_obj, "priority");
                 if (active) probe->is_active = active->valueint != 0;
@@ -761,8 +810,9 @@ bool Scene_Load(Scene* scene, const char* filepath)
                 if (tex_name && cJSON_IsString(tex_name))
                     tex = Asset_GetTextureByName(tex_name->valuestring);
             }
-            Entity_AddUIImage(e, tex);
+            Entity_AddUIImage(e);
             UIImageComponent* image = Entity_GetUIImage(e);
+            image->texture = tex;
             if (comp_obj && image)
             {
                 cJSON* active = cJSON_GetObjectItemCaseSensitive(comp_obj, "active");
@@ -790,8 +840,12 @@ bool Scene_Load(Scene* scene, const char* filepath)
                 if (font_name && cJSON_IsString(font_name))
                     font = Asset_GetFontByName(font_name->valuestring);
             }
-            Entity_AddUIText(e, text_value, font);
+            Entity_AddUIText(e);
             UITextComponent* text = Entity_GetUIText(e);
+            if (text_value) strncpy(text->text, text_value, 255);
+            text->text[255] = '\0';
+            text->font = font;
+            text->font_size = font ? font->size : 32.0f;
             if (comp_obj && text)
             {
                 cJSON* active = cJSON_GetObjectItemCaseSensitive(comp_obj, "active");

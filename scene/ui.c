@@ -295,3 +295,17 @@ void UIText_SetText(Entity entity, const char* text)
         strncpy(ui_text->text, text, 255);
     ui_text->text[255] = '\0';
 }
+
+
+
+
+
+// Sets the font of a UI Text component
+void UIText_SetFont(Entity entity, Font* font)
+{
+    UITextComponent* ui_text = Entity_GetUIText(entity);
+    if (!ui_text)
+        return;
+
+    ui_text->font = font;
+}

@@ -22,12 +22,7 @@ Entity Entity_Create(Scene* scene, const char* name)
             
 
             // Adds the default transform
-            Entity_AddTransform(
-                new_entity,
-                (Vector3){0.0f, 0.0f, 0.0f},
-                QuaternionIdentity(),
-                (Vector3){1.0f, 1.0f, 1.0f}
-            );
+            Entity_AddTransform(new_entity);
 
             // Set the entity active in the scene
             scene->is_active_self[new_entity.id] = true;
@@ -778,7 +773,7 @@ void Entity_AddCamera(Entity entity)
     CameraComponent* cam = &entity.scene->cameras[entity.id];
     cam->entity = entity;
     cam->is_active = true;
-    cam->fov = 90 * (3.14159265f / 180.0f);
+    cam->fov = 80;
     cam->nearZ = 0.1f;
     cam->farZ = 1000.0f;
     cam->is_dirty = true;
