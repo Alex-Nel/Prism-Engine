@@ -253,9 +253,20 @@ void Entity_AddModel(Entity parent, Model* model)
     if (model->node_count == 1)
     {
         if (model->nodes[0].is_skinned)
-            Entity_AddSkinnedMeshRenderer(parent, model->nodes[0].skinned_mesh, model->nodes[0].material, parent.id);
+        {
+            Entity_AddSkinnedMeshRenderer(parent);
+            SkinnedMeshRendererComponent* r = Entity_GetSkinnedMeshRenderer(parent);
+            r->mesh = model->nodes[0].skinned_mesh;
+            r->material = model->nodes[0].material;
+            r->root_animator_entity_id = parent.id;
+        }
         else
-            Entity_AddMeshRenderer(parent, model->nodes[0].mesh, model->nodes[0].material);
+        {
+            Entity_AddMeshRenderer(parent);
+            MeshRendererComponent* r = Entity_GetMeshRenderer(parent);
+            r->mesh = model->nodes[0].mesh;
+            r->material = model->nodes[0].material;
+        }
 
         return;
     }
@@ -285,9 +296,20 @@ void Entity_AddModel(Entity parent, Model* model)
 
         // Give it the specific mesh and material
         if (model->nodes[i].is_skinned)
-            Entity_AddSkinnedMeshRenderer(child, model->nodes[i].skinned_mesh, model->nodes[i].material, parent.id);
+        {
+            Entity_AddSkinnedMeshRenderer(child);
+            SkinnedMeshRendererComponent* r = Entity_GetSkinnedMeshRenderer(child);
+            r->mesh = model->nodes[i].skinned_mesh;
+            r->material = model->nodes[i].material;
+            r->root_animator_entity_id = parent.id;
+        }
         else
-            Entity_AddMeshRenderer(child, model->nodes[i].mesh, model->nodes[i].material);
+        {
+            Entity_AddMeshRenderer(child);
+            MeshRendererComponent* r = Entity_GetMeshRenderer(child);
+            r->mesh = model->nodes[i].mesh;
+            r->material = model->nodes[i].material;
+        }
 
         // Handle bone attachments
         if (model->animation_count > 0 && model->skeleton && model->skeleton->bone_count > 0)
@@ -304,7 +326,12 @@ void Entity_AddModel(Entity parent, Model* model)
             }
 
             if (bone_idx != -1)
-                Entity_AddBoneAttachment(child, bone_idx, Matrix4Identity());
+            {
+                Entity_AddBoneAttachment(child);
+                BoneAttachmentComponent* ba = Entity_GetBoneAttachment(child);
+                ba->target_bone_index = bone_idx;
+                ba->local_offset = Matrix4Identity();
+            }
         }
     }
 }
@@ -668,16 +695,16 @@ void Entity_SetTag(Entity entity, const char* tag)
 
 
 // Adds a transform to an entity with a specified position, rotation, and scale
-void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, Vector3 scale)
+void Entity_AddTransform(Entity entity)
 {
     if (!Entity_IsValid(entity))
         return;
 
     Transform* t = &entity.scene->transforms[entity.id];
     t->entity = entity;
-    t->local_position = position;
-    t->local_rotation = rotation;
-    t->local_scale = scale;
+    t->local_position = (Vector3){0, 0, 0};
+    t->local_rotation = QuaternionIdentity();
+    t->local_scale = (Vector3){1, 1, 1};
 
     t->local_rotation_euler = (Vector3){0.0f, 0.0f, 0.0f};
 
@@ -700,15 +727,15 @@ void Entity_AddTransform(Entity entity, Vector3 position, Quaternion rotation, V
 
 
 // Adds a mesh renderer component to an entity with a specified mesh and material
-void Entity_AddMeshRenderer(Entity entity, Mesh* mesh, Material* material)
+void Entity_AddMeshRenderer(Entity entity)
 {
     if (!Entity_IsValid(entity)) return;
 
     MeshRendererComponent* r = &entity.scene->mesh_renderers[entity.id];
     r->entity = entity;
     r->is_active = true;
-    r->mesh = mesh;
-    r->material = material;
+    r->mesh = NULL;
+    r->material = NULL;
     r->layer_mask = 1; // 1 is the default layer (layer 0)
     r->casts_shadows = true;
     r->receives_shadows = true;
@@ -721,20 +748,20 @@ void Entity_AddMeshRenderer(Entity entity, Mesh* mesh, Material* material)
 
 
 // Adds a skinned mesh renderer component to an entity with a specified skinned mesh and material
-void Entity_AddSkinnedMeshRenderer(Entity entity, SkinnedMesh* mesh, Material* material, uint32_t animator_id)
+void Entity_AddSkinnedMeshRenderer(Entity entity)
 {
     if (!Entity_IsValid(entity)) return;
 
     SkinnedMeshRendererComponent* r = &entity.scene->skinned_mesh_renderers[entity.id];
     r->entity = entity;
     r->is_active = true;
-    r->mesh = mesh;
-    r->material = material;
+    r->mesh = NULL;
+    r->material = NULL;
     r->layer_mask = 1; // 1 is the default layer (layer 0)
     r->casts_shadows = true;
     r->receives_shadows = true;
-    r->pose_bounds = mesh ? mesh->local_bounds : (AABB){ {0, 0, 0}, {0, 0, 0} };
-    r->root_animator_entity_id = animator_id;
+    r->pose_bounds = (AABB){ {0, 0, 0}, {0, 0, 0} };
+    r->root_animator_entity_id = 0;
 
     entity.scene->component_masks[entity.id] |= COMPONENT_SKINNED_MESH_RENDERER;
 }
@@ -744,16 +771,16 @@ void Entity_AddSkinnedMeshRenderer(Entity entity, SkinnedMesh* mesh, Material* m
 
 
 // Adds a camera component to an entity with a specified FOX, near clipping plane, and far clipping plane
-void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ)
+void Entity_AddCamera(Entity entity)
 {
     if (!Entity_IsValid(entity)) return;
 
     CameraComponent* cam = &entity.scene->cameras[entity.id];
     cam->entity = entity;
     cam->is_active = true;
-    cam->fov = fov;
-    cam->nearZ = nearZ;
-    cam->farZ = farZ;
+    cam->fov = 90 * (3.14159265f / 180.0f);
+    cam->nearZ = 0.1f;
+    cam->farZ = 1000.0f;
     cam->is_dirty = true;
     cam->culling_masks = 0xFFFFFFFF;
     cam->render_order = 0;
@@ -771,23 +798,23 @@ void Entity_AddCamera(Entity entity, float fov, float nearZ, float farZ)
 
 
 // Adds a point light component to an entity with specified light attributes
-void Entity_AddLight(Entity entity, LightType type, Color color)
+void Entity_AddLight(Entity entity)
 {
     if (!Entity_IsValid(entity)) return;
     
     LightComponent* light = &entity.scene->lights[entity.id];
     light->entity = entity;
     light->is_active = true;
-    light->type = type;
-    light->color = color;
+    light->type = LIGHT_POINT;
+    light->color = (Color){1, 1, 1, 1};
     light->intensity = 1.0f;
-    light->ambient_strength = (type == LIGHT_DIRECTIONAL) ? 0.1f : 0.0f;
+    light->ambient_strength = 0.0f;
     light->constant = 1.0f;
     light->linear = 0.09f;
     light->quadratic = 0.032f;
     light->inner_cut_off = 12.5f;
     light->outer_cut_off = 17.5f;
-    light->shadow_box_size = (type == LIGHT_DIRECTIONAL) ? 20.0f : 0.0f;
+    light->shadow_box_size = 0.0f;
     light->shadow_cascade_count = SHADOW_CASCADE_COUNT_DEFAULT;
     light->shadow_max_distance = 100.0f;
     light->cascade_split_lambda = 0.5f;
@@ -802,7 +829,7 @@ void Entity_AddLight(Entity entity, LightType type, Color color)
 
 
 // Adds a box collider to an entity
-void Entity_AddColliderBox(Entity entity, Vector3 extents, bool is_trigger)
+void Entity_AddColliderBox(Entity entity)
 {
     if (!Entity_IsValid(entity)) return;
 
@@ -810,16 +837,16 @@ void Entity_AddColliderBox(Entity entity, Vector3 extents, bool is_trigger)
     c->owner = entity;
     c->is_active = true;
     c->type = COLLIDER_BOX;
-    c->is_trigger = is_trigger;
+    c->is_trigger = false;
     c->mesh_ptr = NULL;
-    c->extents = extents;
+    c->extents = (Vector3){0.5f, 0.5f, 0.5f};
     c->radius = 0.0f;
     c->touching_count = 0;
     Transform* t = &entity.scene->transforms[entity.id];
     c->mesh_scale = (Vector3){1.0f, 1.0f, 1.0f};
 
     // Creates a static box for the physics engine
-    c->physics_handle = Physics_CreateBoxCollider(entity.scene->physics_world, entity.id, t->local_position, extents, is_trigger);
+    c->physics_handle = Physics_CreateBoxCollider(entity.scene->physics_world, entity.id, t->local_position, c->extents, c->is_trigger);
     Physics_SetBodyScale(c->physics_handle, t->local_scale);
     Physics_SetBodyRotation(c->physics_handle, t->local_rotation);
 
@@ -836,7 +863,7 @@ void Entity_AddColliderBox(Entity entity, Vector3 extents, bool is_trigger)
 
 
 // Adds a box collider while automatically finding mesh extends
-void Entity_AddColliderBoxAuto(Entity entity, bool is_trigger)
+void Entity_AddColliderBoxAuto(Entity entity)
 {
     if (!Entity_IsValid(entity)) return;
 
@@ -860,7 +887,11 @@ void Entity_AddColliderBoxAuto(Entity entity, bool is_trigger)
             (bounds.max.z - bounds.min.z)
         };
 
-        Entity_AddColliderBox(entity, extents, is_trigger);
+        Entity_AddColliderBox(entity);
+        ColliderComponent* c = &entity.scene->colliders[entity.id];
+        c->extents = extents;
+        if (c->physics_handle)
+            Physics_SetBoxExtents(c->physics_handle, extents);
     }
 }
 
@@ -869,7 +900,7 @@ void Entity_AddColliderBoxAuto(Entity entity, bool is_trigger)
 
 
 // Adds a sphere collider to an entity
-void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger)
+void Entity_AddColliderSphere(Entity entity)
 {
     if (!Entity_IsValid(entity)) return;
 
@@ -877,16 +908,16 @@ void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger)
     c->owner = entity;
     c->is_active = true;
     c->type = COLLIDER_SPHERE;
-    c->is_trigger = is_trigger;
+    c->is_trigger = false;
     c->mesh_ptr = NULL;
     c->extents = (Vector3){0, 0, 0};
-    c->radius = radius;
+    c->radius = 0.5f;
     c->touching_count = 0;
     Transform* t = &entity.scene->transforms[entity.id];
     c->mesh_scale = (Vector3){1.0f, 1.0f, 1.0f};
 
     // Creates a static sphere
-    c->physics_handle = Physics_CreateSphereCollider(entity.scene->physics_world, entity.id, t->local_position, radius, is_trigger);
+    c->physics_handle = Physics_CreateSphereCollider(entity.scene->physics_world, entity.id, t->local_position, c->radius, c->is_trigger);
     Physics_SetBodyScale(c->physics_handle, t->local_scale);
     Physics_SetBodyRotation(c->physics_handle, t->local_rotation);
 
@@ -903,23 +934,18 @@ void Entity_AddColliderSphere(Entity entity, float radius, bool is_trigger)
 
 
 // Adds a collider to an entity that matches its mesh
-void Entity_AddColliderMesh(Entity entity, Mesh* mesh, bool is_trigger, bool is_convex)
+void Entity_AddColliderMesh(Entity entity)
 {
-    if (!Entity_IsValid(entity)) return;
-    
-    if (!mesh)
-    {
-        Log_Error("ERROR: Tried to add Mesh Collider to an invalid mesh.");
+    if (!Entity_IsValid(entity))
         return;
-    }
-
+    
     ColliderComponent* c = &entity.scene->colliders[entity.id];
     c->owner = entity;
     c->is_active = true;
     c->type = COLLIDER_MESH;
-    c->is_trigger = is_trigger;
-    c->is_convex = is_convex;
-    c->mesh_ptr = mesh;
+    c->is_trigger = false;
+    c->is_convex = false;
+    c->mesh_ptr = NULL;
     c->extents = (Vector3){0, 0, 0};
     c->radius = 0.0f;
     c->touching_count = 0;
@@ -927,30 +953,12 @@ void Entity_AddColliderMesh(Entity entity, Mesh* mesh, bool is_trigger, bool is_
     Transform* t = &entity.scene->transforms[entity.id];
     c->mesh_scale = t->local_scale;
 
-    if (is_convex)
-    {
-        c->physics_handle = Physics_CreateConvexCollider(
-            entity.scene->physics_world, entity.id, t->local_position,
-            mesh->vertices, sizeof(Vertex3D), mesh->vertex_count, is_trigger
-        );
-    }
-    else
-    {
-        c->physics_handle = Physics_CreateMeshCollider(
-            entity.scene->physics_world, entity.id, t->local_position,
-            mesh->vertices, sizeof(Vertex3D), mesh->vertex_count,
-            mesh->indices, mesh->index_count, is_trigger
-        );
-    }
-
-    // Set the physics bodies scale and rotation
-    Physics_SetBodyScale(c->physics_handle, t->local_scale);
-    Physics_SetBodyRotation(c->physics_handle, t->local_rotation);
+    // Cannot build physics mesh without a valud mesh_ptr
+    c->physics_handle = NULL;
 
     // Push default layers/mask to Bullet
     c->collision_layer = COLLISION_LAYER_DEFAULT;
     c->collision_mask = COLLISION_MASK_ALL;
-    Physics_SetCollisionFilter(entity.scene->physics_world, c->physics_handle, c->collision_layer, c->collision_mask);
 
     entity.scene->component_masks[entity.id] |= COMPONENT_COLLIDER;
 }
@@ -960,7 +968,7 @@ void Entity_AddColliderMesh(Entity entity, Mesh* mesh, bool is_trigger, bool is_
 
 
 // Adds a rigidbody to an entity with a specified mass
-void Entity_AddRigidbody(Entity entity, float mass)
+void Entity_AddRigidbody(Entity entity)
 {
     if (!Entity_IsValid(entity)) return;
 
@@ -983,7 +991,7 @@ void Entity_AddRigidbody(Entity entity, float mass)
     RigidbodyComponent* rb = &entity.scene->rigidbodies[entity.id];
     rb->owner = entity;
     rb->is_active = true;
-    rb->mass = mass;
+    rb->mass = 1.0f;
     rb->linear_drag = 0.0f;
     rb->angular_drag = 0.05f; // A bit of rotational drag looks more realistic
     rb->use_gravity = true;
@@ -993,7 +1001,7 @@ void Entity_AddRigidbody(Entity entity, float mass)
     rb->freeze_rot_z = false;
 
     // Change the static collider into a dynamic physics object
-    Physics_AddRigidbody(entity.scene->physics_world, c->physics_handle, mass);
+    Physics_AddRigidbody(entity.scene->physics_world, c->physics_handle, 1.0f);
     Physics_SetDamping(c->physics_handle, rb->linear_drag, rb->angular_drag);
     Physics_SetGravityState(entity.scene->physics_world, c->physics_handle, rb->use_gravity);
     Physics_SetRotationConstraints(c->physics_handle, rb->freeze_rot_x, rb->freeze_rot_y, rb->freeze_rot_z);
@@ -1047,7 +1055,7 @@ void Entity_AddAudioSource(Entity entity)
 
 
 // Addds an animator to an entity
-void Entity_AddAnimator(Entity entity, void* raw_skeleton, void* raw_clip)
+void Entity_AddAnimator(Entity entity)
 {
     if (!Entity_IsValid(entity))
         return;
@@ -1060,8 +1068,8 @@ void Entity_AddAnimator(Entity entity, void* raw_skeleton, void* raw_clip)
     // Core setup
     anim->is_active = true;
     anim->entity = entity; 
-    anim->skeleton = (Skeleton*)raw_skeleton;
-    anim->current_clip = (AnimationClip*)raw_clip;
+    anim->skeleton = NULL;
+    anim->current_clip = NULL;
 
     // Playback defaults
     anim->current_time_ticks = 0.0f;
@@ -1082,7 +1090,7 @@ void Entity_AddAnimator(Entity entity, void* raw_skeleton, void* raw_clip)
 
 
 // Adds a bone attachment to an entity
-void Entity_AddBoneAttachment(Entity entity, int bone_index, Matrix4 offset)
+void Entity_AddBoneAttachment(Entity entity)
 {
     if (!Entity_IsValid(entity))
         return;
@@ -1094,8 +1102,8 @@ void Entity_AddBoneAttachment(Entity entity, int bone_index, Matrix4 offset)
 
     attachment->owner = entity;
     attachment->is_active = true;
-    attachment->target_bone_index = bone_index;
-    attachment->local_offset = offset;
+    attachment->target_bone_index = 0;
+    attachment->local_offset = Matrix4Identity();
 }
 
 
@@ -1103,7 +1111,7 @@ void Entity_AddBoneAttachment(Entity entity, int bone_index, Matrix4 offset)
 
 
 // Adds a line renderer to an entity
-void Entity_AddLineRenderer(Entity entity, Material* material)
+void Entity_AddLineRenderer(Entity entity)
 {
     if (!Entity_IsValid(entity))
         return;
@@ -1123,7 +1131,7 @@ void Entity_AddLineRenderer(Entity entity, Material* material)
     line->use_world_space = true;
 
     line->dynamic_mesh = Asset_CreateDynamicMesh(MAX_LINE_POINTS * 2, MAX_LINE_POINTS * 6);
-    line->material = material;
+    line->material = NULL;
 }
 
 
@@ -1131,7 +1139,7 @@ void Entity_AddLineRenderer(Entity entity, Material* material)
 
 
 // Adds a sprite renderer to a component
-void Entity_AddSpriteRenderer(Entity entity, Material* material)
+void Entity_AddSpriteRenderer(Entity entity)
 {
     if (!Entity_IsValid(entity))
         return;
@@ -1143,7 +1151,7 @@ void Entity_AddSpriteRenderer(Entity entity, Material* material)
     sprite->entity = entity;
     sprite->is_active = true;
     sprite->color = (Color){1.0f, 1.0f, 1.0f, 1.0f};
-    sprite->material = material;
+    sprite->material = NULL;
     sprite->quad = Asset_GetBuiltinQuad();
 }
 
@@ -1152,7 +1160,7 @@ void Entity_AddSpriteRenderer(Entity entity, Material* material)
 
 
 // Adds a local reflection/irradiance probe volume.
-void Entity_AddReflectionProbe(Entity entity, Vector3 box_extents, float blend_distance, uint32_t capture_resolution)
+void Entity_AddReflectionProbe(Entity entity)
 {
     if (!Entity_IsValid(entity))
         return;
@@ -1160,10 +1168,10 @@ void Entity_AddReflectionProbe(Entity entity, Vector3 box_extents, float blend_d
     ReflectionProbeComponent* probe = &entity.scene->reflection_probes[entity.id];
     probe->entity = entity;
     probe->is_active = true;
-    probe->box_extents = box_extents;
-    probe->blend_distance = blend_distance;
+    probe->box_extents = (Vector3){1.0f, 1.0f, 1.0f};
+    probe->blend_distance = 1.0f;
     probe->priority = 0;
-    probe->capture_resolution = capture_resolution > 0 ? capture_resolution : 128;
+    probe->capture_resolution = 128;
     probe->revision = 1;
     probe->dirty = true;
     probe->captured = false;
@@ -1253,7 +1261,7 @@ void Entity_AddUICanvas(Entity entity)
 
 
 // Adds a UI image component
-void Entity_AddUIImage(Entity entity, Texture* texture)
+void Entity_AddUIImage(Entity entity)
 {
     if (!Entity_IsValid(entity))
         return;
@@ -1264,7 +1272,7 @@ void Entity_AddUIImage(Entity entity, Texture* texture)
     UIImageComponent* image = &entity.scene->ui_images[entity.id];
     image->entity = entity;
     image->is_active = true;
-    image->texture = texture;
+    image->texture = NULL;
     image->color = (Color){1.0f, 1.0f, 1.0f, 1.0f};
     image->raycast_target = true;
 
@@ -1276,7 +1284,7 @@ void Entity_AddUIImage(Entity entity, Texture* texture)
 
 
 // Adds a UI text component
-void Entity_AddUIText(Entity entity, const char* text, Font* font)
+void Entity_AddUIText(Entity entity)
 {
     if (!Entity_IsValid(entity))
         return;
@@ -1288,13 +1296,10 @@ void Entity_AddUIText(Entity entity, const char* text, Font* font)
     ui_text->entity = entity;
     ui_text->is_active = true;
     ui_text->text[0] = '\0';
-    if (text)
-        strncpy(ui_text->text, text, 255);
-    ui_text->text[255] = '\0';
-    ui_text->font = font;
+    ui_text->font = NULL;
     ui_text->color = (Color){1.0f, 1.0f, 1.0f, 1.0f};
     ui_text->alignment = UI_TEXT_ALIGN_LEFT;
-    ui_text->font_size = font ? font->size : 32.0f;
+    ui_text->font_size = 32.0f;
     ui_text->wrap = false;
     ui_text->raycast_target = false;
 
