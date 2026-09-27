@@ -878,7 +878,7 @@ namespace Prism
     }
 
     Prism::SphereColliderComponent* Detail::EntityComponentAccess<SphereColliderComponent>::Add(Entity& entity) {
-        Prism::ColliderComponent* comp = entity.AddColliderBoxAuto();
+        Prism::ColliderComponent* comp = entity.AddColliderSphere();
         if (comp != nullptr && comp->type == COLLIDER_SPHERE)
             return static_cast<SphereColliderComponent*>(comp);
         return nullptr;
@@ -892,7 +892,7 @@ namespace Prism
     }
 
     Prism::MeshColliderComponent* Detail::EntityComponentAccess<MeshColliderComponent>::Add(Entity& entity) {
-        Prism::ColliderComponent* comp = entity.AddColliderBoxAuto();
+        Prism::ColliderComponent* comp = entity.AddColliderMesh();
         if (comp != nullptr && comp->type == COLLIDER_MESH)
             return static_cast<MeshColliderComponent*>(comp);
         return nullptr;

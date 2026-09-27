@@ -107,6 +107,12 @@ namespace Prism
         // --- Component Setters ---
 
         std::string SetName(const std::string& name);
+        std::string GetName();
+
+    private:
+        template<typename T>
+        friend struct Detail::EntityComponentAccess;
+
         Prism::Transform* AddTransform();
         Prism::MeshRendererComponent* AddMeshRenderer();
         Prism::SkinnedMeshRendererComponent* AddSkinnedMeshRenderer();
@@ -133,7 +139,6 @@ namespace Prism
 
         // --- Component Getters ---
 
-        std::string GetName();
         Prism::Transform* GetTransform();
         Prism::MeshRendererComponent* GetMeshRenderer();
         Prism::SkinnedMeshRendererComponent* GetSkinnedMeshRenderer();
@@ -224,6 +229,7 @@ namespace Prism
 
 
 
+    public:
         // --- Generic Component API ---
 
         // Adds a supported component.
