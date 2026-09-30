@@ -8,8 +8,6 @@
 
 
 
-RetainedUIState g_ui_state = {0};
-
 
 
 // Resets the UI context of a scene
@@ -24,18 +22,18 @@ void RetainedUI_Reset(Scene* scene)
     memset(scene->ui_texts, 0, MAX_ENTITIES * sizeof(UITextComponent));
     memset(scene->ui_buttons, 0, MAX_ENTITIES * sizeof(UIButtonComponent));
 
-    if (!g_ui_state.draw_list.vertices)
-        OverlayDrawList_Init(&g_ui_state.draw_list);
+    if (!scene->ui_state.draw_list.vertices)
+        OverlayDrawList_Init(&scene->ui_state.draw_list);
     else
-        OverlayDrawList_Reset(&g_ui_state.draw_list);
+        OverlayDrawList_Reset(&scene->ui_state.draw_list);
     
-    g_ui_state.canvas_count = 0;
-    g_ui_state.hovered_entity_id = ENTITY_NONE;
-    g_ui_state.pressed_entity_id = ENTITY_NONE;
-    g_ui_state.window_width = 0;
-    g_ui_state.window_height = 0;
-    g_ui_state.blocks_pointer = false;
-    g_ui_state.layout_dirty = true;
+    scene->ui_state.canvas_count = 0;
+    scene->ui_state.hovered_entity_id = ENTITY_NONE;
+    scene->ui_state.pressed_entity_id = ENTITY_NONE;
+    scene->ui_state.window_width = 0;
+    scene->ui_state.window_height = 0;
+    scene->ui_state.blocks_pointer = false;
+    scene->ui_state.layout_dirty = true;
 }
 
 
@@ -45,8 +43,8 @@ void RetainedUI_Reset(Scene* scene)
 // Shuts down the UI context in a scene
 void RetainedUI_Shutdown(Scene* scene)
 {
-    OverlayDrawList_Free(&g_ui_state.draw_list);
-    g_ui_state.canvas_count = 0;
+    OverlayDrawList_Free(&scene->ui_state.draw_list);
+    scene->ui_state.canvas_count = 0;
 }
 
 
@@ -62,7 +60,7 @@ void RetainedUI_PreUpdate(Scene* scene, uint32_t window_w, uint32_t window_h, fl
     RetainedUI_UpdateLayout(scene, window_w, window_h);
     RetainedUI_ProcessPointer(scene, mouse_x, mouse_y, mouse_captured);
 
-    if (g_ui_state.blocks_pointer)
+    if (scene->ui_state.blocks_pointer)
         Input_ConsumeMouseButton(MOUSE_BUTTON_LEFT);
 }
 
@@ -86,12 +84,12 @@ uint32_t RetainedUI_GatherCanvases(Scene* scene)
         if (!scene->ui_canvases[i].is_active)
             continue;
 
-        g_ui_state.canvas_entries[count].entity_id = i;
-        g_ui_state.canvas_entries[count].sort_order = scene->ui_canvases[i].sort_order;
+        scene->ui_state.canvas_entries[count].entity_id = i;
+        scene->ui_state.canvas_entries[count].sort_order = scene->ui_canvases[i].sort_order;
         count++;
     }
 
-    g_ui_state.canvas_count = count;
+    scene->ui_state.canvas_count = count;
     return count;
 }
 
@@ -125,7 +123,7 @@ static void MarkRectDirtyRecursive(Scene* scene, uint32_t entity_id)
         child = scene->transforms[child].next_sibling_id;
     }
 
-    g_ui_state.layout_dirty = true;
+    scene->ui_state.layout_dirty = true;
 }
 
 
@@ -221,7 +219,7 @@ void UICanvas_SetActive(Entity entity, bool active)
         return;
 
     canvas->is_active = active;
-    g_ui_state.layout_dirty = true;
+    entity.scene->ui_state.layout_dirty = true;
 }
 
 
@@ -235,7 +233,7 @@ void UICanvas_SetScaleMode(Entity entity, UICanvasScaleMode mode)
     if (!canvas)
         return;
     canvas->scale_mode = mode;
-    g_ui_state.layout_dirty = true;
+    entity.scene->ui_state.layout_dirty = true;
 }
 
 
@@ -249,7 +247,7 @@ void UICanvas_SetReferenceResolution(Entity entity, Vector2 resolution)
     if (!canvas)
         return;
     canvas->reference_resolution = resolution;
-    g_ui_state.layout_dirty = true;
+    entity.scene->ui_state.layout_dirty = true;
 }
 
 
@@ -266,7 +264,7 @@ void UICanvas_SetMatchWidthOrHeight(Entity entity, float match)
     if (match > 1.0f) match = 1.0f;
 
     canvas->match_width_or_height = match;
-    g_ui_state.layout_dirty = true;
+    entity.scene->ui_state.layout_dirty = true;
 }
 
 

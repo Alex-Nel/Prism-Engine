@@ -634,11 +634,6 @@ typedef struct RetainedUIState
 
 
 
-// Extern variable for the state of the UI
-extern RetainedUIState g_ui_state;
-
-
-
 
 
 
@@ -681,6 +676,8 @@ typedef struct Scene
     UIButtonComponent ui_buttons[MAX_ENTITIES];
     
     ScriptComponent scripts[MAX_ENTITIES];
+
+    RetainedUIState ui_state;
 
 
 

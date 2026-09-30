@@ -705,7 +705,7 @@ void Engine_RenderScene(PrismEngine* engine, Scene* scene)
     RetainedUI_UpdateLayout(scene, write_frame->width, write_frame->height);
     RetainedUI_BuildOverlay(scene);
 
-    if (!OverlayDrawList_Copy(&write_frame->retained_ui, &g_ui_state.draw_list))
+    if (!OverlayDrawList_Copy(&write_frame->retained_ui, &scene->ui_state.draw_list))
         Log_Warning("Failed to snapshot retained UI draw data");
     
     if (!UI_BuildDrawList(&write_frame->immediate_ui))

@@ -450,7 +450,6 @@ void Camera_RecalculateProjectionIfNeeded(CameraComponent* cam)
     if (cam->viewport_height > 0)
     {
         float aspect = (float)cam->viewport_width / (float)cam->viewport_height;
-        // cam->projection_matrix = Matrix4Perspective(cam->fov, aspect, cam->nearZ, cam->farZ);
         float fov_radians = cam->fov * (3.14159265358979323846f / 180.0f);
         cam->projection_matrix = Matrix4Perspective(fov_radians, aspect, cam->nearZ, cam->farZ);
     }

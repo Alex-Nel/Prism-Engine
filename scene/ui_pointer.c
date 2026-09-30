@@ -169,27 +169,27 @@ void RetainedUI_ProcessPointer(Scene* scene, float mouse_x, float mouse_y, bool 
             scene->ui_buttons[i].clicked_this_frame = false;
     }
 
-    if (!IsLiveUIEntity(scene, g_ui_state.hovered_entity_id))
-        g_ui_state.hovered_entity_id = ENTITY_NONE;
-    if (!IsLiveUIEntity(scene, g_ui_state.pressed_entity_id))
-        g_ui_state.pressed_entity_id = ENTITY_NONE;
+    if (!IsLiveUIEntity(scene, scene->ui_state.hovered_entity_id))
+        scene->ui_state.hovered_entity_id = ENTITY_NONE;
+    if (!IsLiveUIEntity(scene, scene->ui_state.pressed_entity_id))
+        scene->ui_state.pressed_entity_id = ENTITY_NONE;
 
     if (mouse_captured)
     {
-        FirePointer(scene, g_ui_state.hovered_entity_id, UI_POINTER_EXIT);
-        g_ui_state.hovered_entity_id = ENTITY_NONE;
-        g_ui_state.pressed_entity_id = ENTITY_NONE;
-        g_ui_state.blocks_pointer = false;
+        FirePointer(scene, scene->ui_state.hovered_entity_id, UI_POINTER_EXIT);
+        scene->ui_state.hovered_entity_id = ENTITY_NONE;
+        scene->ui_state.pressed_entity_id = ENTITY_NONE;
+        scene->ui_state.blocks_pointer = false;
         return;
     }
 
     uint32_t canvas_count = RetainedUI_GatherCanvases(scene);
-    qsort(g_ui_state.canvas_entries, canvas_count, sizeof(UICanvasSortEntry), CompareCanvasHitOrder);
+    qsort(scene->ui_state.canvas_entries, canvas_count, sizeof(UICanvasSortEntry), CompareCanvasHitOrder);
 
     uint32_t hit = ENTITY_NONE;
     for (uint32_t i = 0; i < canvas_count; i++)
     {
-        uint32_t canvas_id = g_ui_state.canvas_entries[i].entity_id;
+        uint32_t canvas_id = scene->ui_state.canvas_entries[i].entity_id;
         if (!scene->ui_canvases[canvas_id].blocks_raycasts)
             continue;
 
@@ -198,27 +198,27 @@ void RetainedUI_ProcessPointer(Scene* scene, float mouse_x, float mouse_y, bool 
             break;
     }
 
-    if (hit != g_ui_state.hovered_entity_id)
+    if (hit != scene->ui_state.hovered_entity_id)
     {
-        FirePointer(scene, g_ui_state.hovered_entity_id, UI_POINTER_EXIT);
+        FirePointer(scene, scene->ui_state.hovered_entity_id, UI_POINTER_EXIT);
         FirePointer(scene, hit, UI_POINTER_ENTER);
-        g_ui_state.hovered_entity_id = hit;
+        scene->ui_state.hovered_entity_id = hit;
     }
 
     bool pressed_this_frame = Input_IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
     bool down = Input_IsMouseButtonDown(MOUSE_BUTTON_LEFT);
     bool released = Input_IsMouseButtonReleased(MOUSE_BUTTON_LEFT);
-    bool owned_release = released && g_ui_state.pressed_entity_id != ENTITY_NONE;
+    bool owned_release = released && scene->ui_state.pressed_entity_id != ENTITY_NONE;
 
     if (pressed_this_frame && hit != ENTITY_NONE)
     {
-        g_ui_state.pressed_entity_id = hit;
+        scene->ui_state.pressed_entity_id = hit;
         FirePointer(scene, hit, UI_POINTER_DOWN);
     }
 
-    if (released && g_ui_state.pressed_entity_id != ENTITY_NONE)
+    if (released && scene->ui_state.pressed_entity_id != ENTITY_NONE)
     {
-        uint32_t pressed_id = g_ui_state.pressed_entity_id;
+        uint32_t pressed_id = scene->ui_state.pressed_entity_id;
         FirePointer(scene, pressed_id, UI_POINTER_UP);
         if (pressed_id == hit)
         {
@@ -230,7 +230,7 @@ void RetainedUI_ProcessPointer(Scene* scene, float mouse_x, float mouse_y, bool 
             }
             FirePointer(scene, hit, UI_POINTER_CLICK);
         }
-        g_ui_state.pressed_entity_id = ENTITY_NONE;
+        scene->ui_state.pressed_entity_id = ENTITY_NONE;
     }
 
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
@@ -238,8 +238,8 @@ void RetainedUI_ProcessPointer(Scene* scene, float mouse_x, float mouse_y, bool 
         if (!(scene->component_masks[i] & COMPONENT_UI_BUTTON))
             continue;
         
-        UpdateButtonState(scene, i, i == hit, i == g_ui_state.pressed_entity_id && down);
+        UpdateButtonState(scene, i, i == hit, i == scene->ui_state.pressed_entity_id && down);
     }
 
-    g_ui_state.blocks_pointer = hit != ENTITY_NONE || g_ui_state.pressed_entity_id != ENTITY_NONE || owned_release;
+    scene->ui_state.blocks_pointer = hit != ENTITY_NONE || scene->ui_state.pressed_entity_id != ENTITY_NONE || owned_release;
 }

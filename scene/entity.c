@@ -574,16 +574,17 @@ void Entity_RemoveComponent(Entity entity, ComponentMask component)
         component |= COMPONENT_UI_CANVAS | COMPONENT_UI_IMAGE | COMPONENT_UI_TEXT | COMPONENT_UI_BUTTON;
     }
 
+    Scene* scene = entity.scene;
     const ComponentMask ui_components = COMPONENT_UI_CANVAS | COMPONENT_UI_RECT_TRANSFORM | COMPONENT_UI_IMAGE | COMPONENT_UI_TEXT | COMPONENT_UI_BUTTON;
     if (component & ui_components)
     {
-        if (g_ui_state.hovered_entity_id == entity.id)
-            g_ui_state.hovered_entity_id = ENTITY_NONE;
-        if (g_ui_state.pressed_entity_id == entity.id)
-            g_ui_state.pressed_entity_id = ENTITY_NONE;
+        if (scene->ui_state.hovered_entity_id == entity.id)
+            scene->ui_state.hovered_entity_id = ENTITY_NONE;
+        if (scene->ui_state.pressed_entity_id == entity.id)
+            scene->ui_state.pressed_entity_id = ENTITY_NONE;
 
-        g_ui_state.blocks_pointer = false;
-        g_ui_state.layout_dirty = true;
+        scene->ui_state.blocks_pointer = false;
+        scene->ui_state.layout_dirty = true;
     }
     
 
@@ -1206,7 +1207,7 @@ static void Entity_InitDefaultRectTransform(Entity entity, bool stretch)
     rect->is_dirty = true;
     
     entity.scene->component_masks[entity.id] |= COMPONENT_UI_RECT_TRANSFORM;
-    g_ui_state.layout_dirty = true;
+    entity.scene->ui_state.layout_dirty = true;
 }
 
 

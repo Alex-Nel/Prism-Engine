@@ -106,10 +106,8 @@ void Scene_Clear(Scene* scene)
         scene->component_masks[i] = 0;
         scene->is_active_in_hierarchy[i] = false;
         
-        if (scene->names)
-        {
-            scene->names[i].name[0] = '\0';
-        }
+        // Reset all entity names    
+        scene->names[i].name[0] = '\0';
     }
 
     RetainedUI_Reset(scene);

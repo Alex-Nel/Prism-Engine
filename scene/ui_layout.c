@@ -68,17 +68,17 @@ void RetainedUI_UpdateLayout(Scene* scene, uint32_t window_w, uint32_t window_h)
     if (!scene || window_w == 0 || window_h == 0)
         return;
 
-    bool window_changed = g_ui_state.window_width != window_w || g_ui_state.window_height != window_h;
-    if (!window_changed && !g_ui_state.layout_dirty)
+    bool window_changed = scene->ui_state.window_width != window_w || scene->ui_state.window_height != window_h;
+    if (!window_changed && !scene->ui_state.layout_dirty)
         return;
 
-    g_ui_state.window_width = window_w;
-    g_ui_state.window_height = window_h;
+    scene->ui_state.window_width = window_w;
+    scene->ui_state.window_height = window_h;
 
     uint32_t canvas_count = RetainedUI_GatherCanvases(scene);
     for (uint32_t i = 0; i < canvas_count; i++)
     {
-        uint32_t id = g_ui_state.canvas_entries[i].entity_id;
+        uint32_t id = scene->ui_state.canvas_entries[i].entity_id;
         UICanvasComponent* canvas = &scene->ui_canvases[id];
         RectTransformComponent* rect = &scene->ui_rect_transforms[id];
 
@@ -100,5 +100,5 @@ void RetainedUI_UpdateLayout(Scene* scene, uint32_t window_w, uint32_t window_h)
         }
     }
 
-    g_ui_state.layout_dirty = false;
+    scene->ui_state.layout_dirty = false;
 }
