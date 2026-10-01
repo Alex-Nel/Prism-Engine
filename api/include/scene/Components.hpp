@@ -236,6 +236,7 @@ namespace Prism
     {
         Prism::Entity owner; // The Entity that this component is attached to
         bool is_active;
+    private:
         float mass;
         float linear_drag;
         float angular_drag;
@@ -247,13 +248,26 @@ namespace Prism
         bool freeze_rot_z;
 
 
+    public:
         void SetActive(bool active) { this->is_active = active; }
         bool IsActive() const { return this->is_active; }
 
-
+        void SetMass(float mass);
+        void SetLinearDrag(float linear_drag);
+        void SetAngularDrag(float angular_drag);
         void SetGravity(bool use_gravity);
         void SetKinematic(bool kinematic);
-        void SetMass(float mass);
+        void SetFreezeRotation(bool freeze_x, bool freeze_y, bool freeze_z);
+
+        float GetMass() { return this->mass; }
+        float GetLinearDrag() { return this->linear_drag; }
+        float GetAngularDrag() { return this->angular_drag; }
+        bool GetGravity() { return this->use_gravity; }
+        bool GetKinematic() { return this->is_kinematic; }
+        bool GetFreezeRotationX() { return this->freeze_rot_x; }
+        bool GetFreezeRotationY() { return this->freeze_rot_y; }
+        bool GetFreezeRotationZ() { return this->freeze_rot_z; }
+        
         void SetLinearVelocity(Prism::Vector3& velocity);
         void MovePosition(const Prism::Vector3& position);
         void AddForce(const Prism::Vector3& force, ForceMode mode = ForceMode::Force);

@@ -212,6 +212,8 @@ void Rigidbody_MovePosition(Entity entity, Vector3 position);
 void Rigidbody_AddForce(Entity entity, Vector3 force, ForceMode mode);
 void Rigidbody_AddForceAtPosition(Entity entity, Vector3 force, Vector3 world_point, ForceMode mode);
 void Rigidbody_SetMass(Entity entity, float mass);
+void Rigidbody_SetDamping(Entity entity, float linear_drag, float angular_drag);
+void Rigidbody_SetRotationConstraints(Entity entity, bool freeze_x, bool freeze_y, bool freeze_z);
 
 
 
@@ -245,7 +247,14 @@ void MeshRenderer_SetMaterial(MeshRendererComponent* r, Material* material);
 // --- Animator setters ---
 
 void Animator_SetSkeleton(Entity entity, Skeleton* skeleton);
-void Animator_SetClip(Entity entity, AnimationClip* clip); 
+void Animator_SetClip(Entity entity, AnimationClip* clip);
+
+
+
+// --- Bone Attachment setters ---
+
+void BoneAttachment_SetTargetBoneIndex(Entity entity, int index);
+void BoneAttachment_SetOffset(Entity entity, Matrix4 offset);
 
 
 

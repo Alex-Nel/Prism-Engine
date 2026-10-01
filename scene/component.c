@@ -163,6 +163,47 @@ void Rigidbody_SetMass(Entity entity, float mass)
 
 
 
+// Sets the linear and angular drag of a physics body
+void Rigidbody_SetDamping(Entity entity, float linear_drag, float angular_drag)
+{
+    RigidbodyComponent* rb = Entity_GetRigidbody(entity);
+    ColliderComponent* col = Entity_GetCollider(entity);
+
+    if (!rb)
+        return;
+
+    rb->linear_drag = linear_drag;
+    rb->angular_drag = angular_drag;
+
+    if (col && col->physics_handle)
+        Physics_SetDamping(col->physics_handle, linear_drag, angular_drag);
+}
+
+
+
+
+
+// Sets the rotational constraints of a physics body
+void Rigidbody_SetRotationConstraints(Entity entity, bool freeze_x, bool freeze_y, bool freeze_z)
+{
+    RigidbodyComponent* rb = Entity_GetRigidbody(entity);
+    ColliderComponent* col = Entity_GetCollider(entity);
+
+    if (!rb)
+        return;
+
+    rb->freeze_rot_x = freeze_x;
+    rb->freeze_rot_y = freeze_y;
+    rb->freeze_rot_z = freeze_z;
+
+    if (col && col->physics_handle)
+        Physics_SetRotationConstraints(col->physics_handle, freeze_x, freeze_y, freeze_z);
+}
+
+
+
+
+
 // Sets an entities collider with one collision layer and mask (several layers OR'd together)
 void Collider_SetLayerAndMask(Entity entity, CollisionLayer layer, CollisionMask mask)
 {

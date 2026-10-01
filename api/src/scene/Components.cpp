@@ -258,6 +258,21 @@ namespace Prism
     // Rigidbody Implementation
     // ==========================================
     
+    void RigidbodyComponent::SetMass(float mass) { 
+        ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
+        ::Rigidbody_SetMass(raw_e, mass); 
+    }
+
+    void RigidbodyComponent::SetLinearDrag(float linear_drag) { 
+        ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
+        ::Rigidbody_SetDamping(raw_e, linear_drag, this->angular_drag); 
+    }
+
+    void RigidbodyComponent::SetAngularDrag(float angular_drag) { 
+        ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
+        ::Rigidbody_SetDamping(raw_e, this->linear_drag, angular_drag); 
+    }
+
     void RigidbodyComponent::SetGravity(bool use_gravity) { 
         // Reconstruct the ::Entity from Prism::Entity
         ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
@@ -269,10 +284,12 @@ namespace Prism
         ::Rigidbody_SetKinematic(raw_e, kinematic); 
     }
 
-    void RigidbodyComponent::SetMass(float mass) { 
+    void RigidbodyComponent::SetFreezeRotation(bool freeze_x, bool freeze_y, bool freeze_z) { 
         ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
-        ::Rigidbody_SetMass(raw_e, mass); 
+        ::Rigidbody_SetRotationConstraints(raw_e, freeze_x, freeze_y, freeze_z); 
     }
+
+
 
     void RigidbodyComponent::SetLinearVelocity(Prism::Vector3& velocity) {
         ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
