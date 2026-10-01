@@ -251,13 +251,6 @@ void Animator_SetClip(Entity entity, AnimationClip* clip);
 
 
 
-// --- Bone Attachment setters ---
-
-void BoneAttachment_SetTargetBoneIndex(Entity entity, int index);
-void BoneAttachment_SetOffset(Entity entity, Matrix4 offset);
-
-
-
 // --- Line Renderer Function ---
 
 void LineRenderer_AddPoint(LineRendererComponent* line, Vector3 point);

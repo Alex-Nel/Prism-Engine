@@ -368,6 +368,22 @@ namespace Prism
         ::Animator_SetSkeleton(raw, static_cast<::Skeleton*>(raw_skeleton));
     }
 
+    void AnimatorComponent::SetClip(Prism::AnimationClip clip) {
+        ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::Animator_SetClip(raw, static_cast<::AnimationClip*>(clip.GetRaw()));
+    }
+
+
+
+    // ==========================================
+    // Bone Attachment Implementation
+    // ==========================================
+
+    void BoneAttachmentComponent::SetLocalOffset(const Prism::Vector3& position, const Prism::Vector3& rotationEuler, const Prism::Vector3& scale) {
+        Prism::Quaternion rot = Prism::Quaternion::FromEuler(rotationEuler);
+        this->local_offset = Prism::Matrix4::CreateTransform(position, rot, scale);
+    }
+
 
 
     // ==========================================

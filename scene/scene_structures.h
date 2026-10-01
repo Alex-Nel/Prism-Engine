@@ -358,7 +358,7 @@ typedef struct BoneAttachmentComponent
     Entity owner;
     bool is_active;
     int target_bone_index;       // The integer ID of the bone in the skeleton
-    Matrix4 local_offset;  // An offset matrix to adjust how the item sits in the hand
+    Matrix4 local_offset;        // An offset matrix to adjust how the item sits in the hand
 } BoneAttachmentComponent;
 
 
