@@ -1,11 +1,11 @@
 .cache/
+.cursor/
+.idea/
 .vscode/
+.vs/
+
 build*/
 lib*/
-
-*.png
-*.jpg
-*.jpeg
 
 *.exe
 *.dll
