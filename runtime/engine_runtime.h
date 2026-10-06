@@ -88,9 +88,6 @@ void Engine_Render(PrismEngine* engine, Scene* active_scene);
 void Engine_Run(PrismEngine* engine, Scene* active_scene);
 bool Engine_IsRunning(PrismEngine* engine); // Deprecated
 
-// Swaps buffers, cycles Input state
-void Engine_EndFrame(PrismEngine* engine);
-
 
 
 

@@ -466,8 +466,8 @@ void Engine_Render(PrismEngine* engine, Scene* active_scene)
     // Process destroy queue
     Scene_ProcessDestroyQueue(active_scene);
     
-    // Cycle input state. Present is owned by the render thread.
-    Engine_EndFrame(engine);
+    // Cycle input state
+    Input_Update();
 }
 
 
@@ -535,18 +535,4 @@ bool Engine_IsRunning(PrismEngine* engine)
     }
 
     return engine->is_running;
-}
-
-
-
-
-
-// Renders the frame, swaps the buffers and updates the input
-void Engine_EndFrame(PrismEngine* engine)
-{
-    if (!engine->is_running)
-        return;
-
-    // Cycle the input arrays for the next frame
-    Input_Update();
 }
