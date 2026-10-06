@@ -10,16 +10,7 @@ extern "C"
 }
 
 
-static_assert(sizeof(Prism::UICanvasComponent) == sizeof(::UICanvasComponent), "UICanvasComponent bridge layout mismatch");
-static_assert(sizeof(Prism::RectTransformComponent) == sizeof(::RectTransformComponent), "RectTransformComponent bridge layout mismatch");
-static_assert(sizeof(Prism::UIImageComponent) == sizeof(::UIImageComponent), "UIImageComponent bridge layout mismatch");
-static_assert(sizeof(Prism::UITextComponent) == sizeof(::UITextComponent), "UITextComponent bridge layout mismatch");
-static_assert(sizeof(Prism::UIButtonComponent) == sizeof(::UIButtonComponent), "UIButtonComponent bridge layout mismatch");
-static_assert(offsetof(Prism::UICanvasComponent, sort_order) == offsetof(::UICanvasComponent, sort_order), "UICanvasComponent field offset mismatch");
-static_assert(offsetof(Prism::RectTransformComponent, anchored_position) == offsetof(::RectTransformComponent, anchored_position), "RectTransformComponent field offset mismatch");
-static_assert(offsetof(Prism::UIImageComponent, color) == offsetof(::UIImageComponent, color), "UIImageComponent field offset mismatch");
-static_assert(offsetof(Prism::UITextComponent, font_size) == offsetof(::UITextComponent, font_size), "UITextComponent field offset mismatch");
-static_assert(offsetof(Prism::UIButtonComponent, clicked_this_frame) == offsetof(::UIButtonComponent, clicked_this_frame), "UIButtonComponent field offset mismatch");
+
 
 
 namespace Prism
@@ -112,34 +103,6 @@ namespace Prism
     // Light Component Implementation
     // ==========================================
 
-    void LightComponent::SetType(LightType type) {
-        this->type = type;
-    }
-    void LightComponent::SetColor(const Prism::Color& color) {
-        this->color = color;
-    }
-    void LightComponent::SetIntensity(float intensity) {
-        this->intensity = intensity;
-    }
-    void LightComponent::SetAmbientStrength(float ambient_strength) {
-        this->ambient_strength = ambient_strength;
-    }
-    void LightComponent::SetAttenuation(float constant, float linear, float quadratic) {
-        this->constant = constant;
-        this->linear = linear;
-        this->quadratic = quadratic;
-    }
-    void LightComponent::SetSpotAngles(float inner_cutoff_degrees, float outer_cutoff_degrees) {
-        this->inner_cut_off = inner_cutoff_degrees;
-        this->outer_cut_off = outer_cutoff_degrees;
-    }
-    void LightComponent::SetShadowBoxSize(float half_extent) {
-        this->shadow_box_size = half_extent;
-    }
-    float LightComponent::GetShadowBoxSize() const {
-        return this->shadow_box_size;
-    }
-
     void LightComponent::SetCascadedShadows(uint8_t cascade_count, float max_distance, float split_lambda, float blend_fraction) {
         if (cascade_count < 2)
             cascade_count = 2;
@@ -150,24 +113,9 @@ namespace Prism
         this->cascade_split_lambda = split_lambda;
         this->cascade_blend_fraction = blend_fraction;
     }
-    void LightComponent::SetCastsShadows(bool casts_shadows) {
-        this->casts_shadows = casts_shadows;
-    }
 
     void LightComponent::DisableCascadedShadows() {
         this->shadow_cascade_count = 1;
-    }
-    uint8_t LightComponent::GetShadowCascadeCount() const {
-        return this->shadow_cascade_count;
-    }
-    float LightComponent::GetShadowMaxDistance() const {
-        return this->shadow_max_distance;
-    }
-    float LightComponent::GetCascadeSplitLambda() const {
-        return this->cascade_split_lambda;
-    }
-    float LightComponent::GetCascadeBlendFraction() const {
-        return this->cascade_blend_fraction;
     }
 
 
@@ -176,17 +124,14 @@ namespace Prism
     // Mesh Renderer Component Implementation
     // ==========================================
 
+    void MeshRendererComponent::SetMesh(Prism::Mesh mesh) {
+        ::MeshRenderer_SetMesh(reinterpret_cast<::MeshRendererComponent*>(this), static_cast<::Mesh*>(mesh.GetRaw()));
+    }
     void MeshRendererComponent::SetMaterial(Prism::Material material) {
-        this->raw_material_ptr = material.GetRaw();
+        ::MeshRenderer_SetMaterial(reinterpret_cast<::MeshRendererComponent*>(this), static_cast<::Material*>(material.GetRaw()));
     }
     void MeshRendererComponent::SetLayerMask(uint8_t layer_index) {
         this->layer_mask = (1u << layer_index); // Sets the object to a specific layer (0 through 31)
-    }
-    void MeshRendererComponent::SetCastsShadow(bool casts_shadow) {
-        this->casts_shadows = casts_shadow;
-    }
-    void MeshRendererComponent::SetReceivesShadow(bool receives_shadow) {
-        this->receives_shadows = receives_shadow;
     }
 
 
@@ -195,17 +140,18 @@ namespace Prism
     // Skinned Mesh Renderer Component Implementation
     // ==========================================
 
+    void SkinnedMeshRendererComponent::SetMesh(Prism::SkinnedMesh mesh) {
+        ::SkinnedMeshRenderer_SetMesh(reinterpret_cast<::SkinnedMeshRendererComponent*>(this), static_cast<::SkinnedMesh*>(mesh.GetRaw()));
+    }
     void SkinnedMeshRendererComponent::SetMaterial(Prism::Material material) {
-        this->raw_material_ptr = material.GetRaw();
+        ::SkinnedMeshRenderer_SetMaterial(reinterpret_cast<::SkinnedMeshRendererComponent*>(this), static_cast<::Material*>(material.GetRaw()));
     }
     void SkinnedMeshRendererComponent::SetLayerMask(uint8_t layer_index) {
         this->layer_mask = (1u << layer_index); // Sets the object to a specific layer (0 through 31)
     }
-    void SkinnedMeshRendererComponent::SetCastsShadow(bool casts_shadow) {
-        this->casts_shadows = casts_shadow;
-    }
-    void SkinnedMeshRendererComponent::SetReceivesShadow(bool receives_shadow) {
-        this->receives_shadows = receives_shadow;
+    void SkinnedMeshRendererComponent::SetRootAnimator(Prism::Entity entity) {
+        ::Entity raw_e = { entity.id, static_cast<::Scene*>(entity.scene_ptr) };
+        ::SkinnedMeshRenderer_SetRootAnimator(reinterpret_cast<::SkinnedMeshRendererComponent*>(this), raw_e);
     }
 
 
@@ -242,9 +188,11 @@ namespace Prism
     void CameraComponent::RemoveLayerFromMask(uint8_t layer_index) {
         this->culling_masks &= ~(1u << layer_index); // Remove a specific layer from the camera's sight
     }
-    void CameraComponent::SetViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height) {
+    void CameraComponent::SetViewportPosition(uint32_t x, uint32_t y) {
         this->viewport_x = x;
         this->viewport_y = y;
+    }
+    void CameraComponent::SetViewportSize(uint32_t width, uint32_t height) {
         this->viewport_width = width;
         this->viewport_height = height;
     }
@@ -258,6 +206,21 @@ namespace Prism
     // Rigidbody Implementation
     // ==========================================
     
+    void RigidbodyComponent::SetMass(float mass) { 
+        ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
+        ::Rigidbody_SetMass(raw_e, mass); 
+    }
+
+    void RigidbodyComponent::SetLinearDrag(float linear_drag) { 
+        ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
+        ::Rigidbody_SetDamping(raw_e, linear_drag, this->angular_drag); 
+    }
+
+    void RigidbodyComponent::SetAngularDrag(float angular_drag) { 
+        ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
+        ::Rigidbody_SetDamping(raw_e, this->linear_drag, angular_drag); 
+    }
+
     void RigidbodyComponent::SetGravity(bool use_gravity) { 
         // Reconstruct the ::Entity from Prism::Entity
         ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
@@ -269,10 +232,12 @@ namespace Prism
         ::Rigidbody_SetKinematic(raw_e, kinematic); 
     }
 
-    void RigidbodyComponent::SetMass(float mass) { 
+    void RigidbodyComponent::SetFreezeRotation(bool freeze_x, bool freeze_y, bool freeze_z) { 
         ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
-        ::Rigidbody_SetMass(raw_e, mass); 
+        ::Rigidbody_SetRotationConstraints(raw_e, freeze_x, freeze_y, freeze_z); 
     }
+
+
 
     void RigidbodyComponent::SetLinearVelocity(Prism::Vector3& velocity) {
         ::Entity raw_e = { owner.id, static_cast<::Scene*>(owner.scene_ptr) };
@@ -351,6 +316,22 @@ namespace Prism
         ::Animator_SetSkeleton(raw, static_cast<::Skeleton*>(raw_skeleton));
     }
 
+    void AnimatorComponent::SetClip(Prism::AnimationClip clip) {
+        ::Entity raw = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::Animator_SetClip(raw, static_cast<::AnimationClip*>(clip.GetRaw()));
+    }
+
+
+
+    // ==========================================
+    // Bone Attachment Implementation
+    // ==========================================
+
+    void BoneAttachmentComponent::SetLocalOffset(const Prism::Vector3& position, const Prism::Vector3& rotationEuler, const Prism::Vector3& scale) {
+        Prism::Quaternion rot = Prism::Quaternion::FromEuler(rotationEuler);
+        this->local_offset = Prism::Matrix4::CreateTransform(position, rot, scale);
+    }
+
 
 
     // ==========================================
@@ -397,32 +378,6 @@ namespace Prism
         return result;
     }
 
-    void LineRendererComponent::SetThickness(float startThickness, float endThickness) {
-        ::LineRendererComponent* c_line = &static_cast<::Scene*>(this->entity.scene_ptr)->line_renderers[this->entity.id];
-        c_line->start_thickness = startThickness;
-        c_line->end_thickness = endThickness;
-    }
-
-    void LineRendererComponent::SetThickness(float thickness) {
-        SetThickness(thickness, thickness);
-    }
-
-    void LineRendererComponent::SetColor(const Prism::Color& color) {
-        static_cast<::Scene*>(this->entity.scene_ptr)->line_renderers[this->entity.id].color = ::Color{color.r, color.g, color.b, color.a};
-    }
-
-    void LineRendererComponent::SetUseWorldSpace(bool useWorldSpace) {
-        static_cast<::Scene*>(this->entity.scene_ptr)->line_renderers[this->entity.id].use_world_space = useWorldSpace;
-    }
-
-    bool LineRendererComponent::GetUseWorldSpace() const {
-        return static_cast<::Scene*>(this->entity.scene_ptr)->line_renderers[this->entity.id].use_world_space;
-    }
-
-    void LineRendererComponent::SetLoop(bool isLoop) {
-        static_cast<::Scene*>(this->entity.scene_ptr)->line_renderers[this->entity.id].is_loop = isLoop;
-    }
-
     void LineRendererComponent::SetMaterial(Prism::Material mat) {
         static_cast<::Scene*>(this->entity.scene_ptr)->line_renderers[this->entity.id].material = (::Material*)mat.GetRaw();
     }
@@ -433,20 +388,8 @@ namespace Prism
     // Sprite Renderer Implementation
     // ==========================================
 
-    void SpriteRendererComponent::SetColor(const Prism::Color& color) {
-        ::Entity e = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
-        static_cast<::Scene*>(e.scene)->sprite_renderers[e.id].color = ::Color{color.r, color.g, color.b, color.a};
-    }
-
-    Prism::Color SpriteRendererComponent::GetColor() const {
-        ::Entity e = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
-        ::Color c = static_cast<::Scene*>(e.scene)->sprite_renderers[e.id].color;
-        return Prism::Color(c.r, c.g, c.b, c.a);
-    }
-
-    void SpriteRendererComponent::SetSprite(const Prism::Material sprite) {
-        ::Entity e = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
-        static_cast<::Scene*>(e.scene)->sprite_renderers[e.id].material = (::Material*)sprite.GetRaw();
+    void SpriteRendererComponent::SetSprite(const Prism::Texture sprite) {
+        ::SpriteRenderer_SetSprite(reinterpret_cast<::SpriteRendererComponent*>(this), static_cast<::Texture*>(sprite.GetRaw()));
     }
 
 

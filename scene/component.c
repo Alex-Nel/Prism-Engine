@@ -163,6 +163,47 @@ void Rigidbody_SetMass(Entity entity, float mass)
 
 
 
+// Sets the linear and angular drag of a physics body
+void Rigidbody_SetDamping(Entity entity, float linear_drag, float angular_drag)
+{
+    RigidbodyComponent* rb = Entity_GetRigidbody(entity);
+    ColliderComponent* col = Entity_GetCollider(entity);
+
+    if (!rb)
+        return;
+
+    rb->linear_drag = linear_drag;
+    rb->angular_drag = angular_drag;
+
+    if (col && col->physics_handle)
+        Physics_SetDamping(col->physics_handle, linear_drag, angular_drag);
+}
+
+
+
+
+
+// Sets the rotational constraints of a physics body
+void Rigidbody_SetRotationConstraints(Entity entity, bool freeze_x, bool freeze_y, bool freeze_z)
+{
+    RigidbodyComponent* rb = Entity_GetRigidbody(entity);
+    ColliderComponent* col = Entity_GetCollider(entity);
+
+    if (!rb)
+        return;
+
+    rb->freeze_rot_x = freeze_x;
+    rb->freeze_rot_y = freeze_y;
+    rb->freeze_rot_z = freeze_z;
+
+    if (col && col->physics_handle)
+        Physics_SetRotationConstraints(col->physics_handle, freeze_x, freeze_y, freeze_z);
+}
+
+
+
+
+
 // Sets an entities collider with one collision layer and mask (several layers OR'd together)
 void Collider_SetLayerAndMask(Entity entity, CollisionLayer layer, CollisionMask mask)
 {
@@ -587,16 +628,75 @@ void Camera_SetFOV(CameraComponent* cam, float FOV)
 
 
 
+// Sets a mesh a mesh renderer will hold
+void MeshRenderer_SetMesh(MeshRendererComponent* r, Mesh* mesh)
+{
+    if (!r || !mesh)
+        return;
+
+    r->mesh = mesh;
+}
+
+
+
+
+
 // Sets the specific material slot with a chosen material
 void MeshRenderer_SetMaterial(MeshRendererComponent* r, Material* material)
 {
     if (!r)
-    {
-        Log_Error("ERROR: Renderer component does not exist");
         return;
-    }
 
     r->material = material;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Sets a mesh a mesh renderer will hold
+void SkinnedMeshRenderer_SetMesh(SkinnedMeshRendererComponent* r, SkinnedMesh* mesh)
+{
+    if (!r || !mesh)
+        return;
+
+    r->mesh = mesh;
+}
+
+
+
+
+
+// Sets the specific material slot with a chosen material
+void SkinnedMeshRenderer_SetMaterial(SkinnedMeshRendererComponent* r, Material* material)
+{
+    if (!r || !material)
+        return;
+
+    r->material = material;
+}
+
+
+
+
+
+// Sets the entity with an animator component that this mesh will follow
+void SkinnedMeshRenderer_SetRootAnimator(SkinnedMeshRendererComponent* r, Entity root)
+{
+    if (!r || !Entity_IsValid(root))
+        return;
+
+    r->root_animator_entity_id = root.id;
 }
 
 
@@ -723,6 +823,39 @@ void LineRenderer_SetPoints(LineRendererComponent* line, Vector3* points, uint32
     
     for (uint32_t i = 0; i < line->point_count; i++)
         line->points[i] = points[i];
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Sets the sprite of a sprite renderer
+void SpriteRenderer_SetSprite(SpriteRendererComponent* comp, Texture* sprite)
+{
+    if (!comp || !sprite)
+        return;
+
+    Material* mat = comp->material;
+    if (!mat)
+    {
+        comp->material = Asset_CreateMaterial(NULL, sprite);
+        return;
+    }
+    else
+    {
+        mat->albedo_texture = sprite;
+        Asset_SyncMaterialGPU(mat);
+    }
 }
 
 

@@ -212,6 +212,8 @@ void Rigidbody_MovePosition(Entity entity, Vector3 position);
 void Rigidbody_AddForce(Entity entity, Vector3 force, ForceMode mode);
 void Rigidbody_AddForceAtPosition(Entity entity, Vector3 force, Vector3 world_point, ForceMode mode);
 void Rigidbody_SetMass(Entity entity, float mass);
+void Rigidbody_SetDamping(Entity entity, float linear_drag, float angular_drag);
+void Rigidbody_SetRotationConstraints(Entity entity, bool freeze_x, bool freeze_y, bool freeze_z);
 
 
 
@@ -236,16 +238,25 @@ void Camera_SetFOV(CameraComponent* cam, float FOV);
 
 
 
-// --- Renderable setters ---
+// --- Mesh Renderable setters ---
 
+void MeshRenderer_SetMesh(MeshRendererComponent* r, Mesh* mesh);
 void MeshRenderer_SetMaterial(MeshRendererComponent* r, Material* material);
+
+
+
+// --- Skinned Mesh Renderable setters ---
+
+void SkinnedMeshRenderer_SetMesh(SkinnedMeshRendererComponent* r, SkinnedMesh* mesh);
+void SkinnedMeshRenderer_SetMaterial(SkinnedMeshRendererComponent* r, Material* material);
+void SkinnedMeshRenderer_SetRootAnimator(SkinnedMeshRendererComponent* r, Entity root);
 
 
 
 // --- Animator setters ---
 
 void Animator_SetSkeleton(Entity entity, Skeleton* skeleton);
-void Animator_SetClip(Entity entity, AnimationClip* clip); 
+void Animator_SetClip(Entity entity, AnimationClip* clip);
 
 
 
@@ -256,6 +267,12 @@ void LineRenderer_ClearPoints(LineRendererComponent* line);
 void LineRenderer_SetPoint(LineRendererComponent* line, uint32_t index, Vector3 point);
 Vector3 LineRenderer_GetPoint(LineRendererComponent* line, uint32_t index);
 void LineRenderer_SetPoints(LineRendererComponent* line, Vector3* points, uint32_t count);
+
+
+
+// --- Sprite Renderer Function ---
+
+void SpriteRenderer_SetSprite(SpriteRendererComponent* comp, Texture* sprite);
 
 
 

@@ -106,24 +106,8 @@ namespace Prism
         bool IsActive() const { return this->is_active; }
 
 
-        void SetType(LightType type);
-        void SetColor(const Prism::Color& color);
-        void SetIntensity(float intensity);
-        void SetAmbientStrength(float ambient_strength);
-        void SetAttenuation(float constant, float linear, float quadratic);
-        void SetSpotAngles(float inner_cutoff_degrees, float outer_cutoff_degrees);
-
-        void SetShadowBoxSize(float half_extent);
-        float GetShadowBoxSize() const;
-
         void SetCascadedShadows(uint8_t cascade_count, float max_distance, float split_lambda = 0.5f, float blend_fraction = 0.12f);
-        void SetCascadeBlendFraction(float fraction) { this->cascade_blend_fraction = fraction; }
-        void SetCastsShadows(bool casts_shadows);
         void DisableCascadedShadows();
-        uint8_t GetShadowCascadeCount() const;
-        float GetShadowMaxDistance() const; 
-        float GetCascadeSplitLambda() const;
-        float GetCascadeBlendFraction() const;
     };
 
 
@@ -136,8 +120,10 @@ namespace Prism
     {
         Prism::Entity entity; // The Entity that this component is attached to
         bool is_active;
+    private:
         void* raw_mesh_ptr;
         void* raw_material_ptr;
+    public:
         uint32_t layer_mask;
         bool casts_shadows;
         bool receives_shadows;
@@ -146,11 +132,10 @@ namespace Prism
         void SetActive(bool active) { this->is_active = active; }
         bool IsActive() const { return this->is_active; }
 
+        void SetMesh(Prism::Mesh mesh);
         void SetMaterial(Prism::Material material);
 
         void SetLayerMask(uint8_t mask);
-        void SetCastsShadow(bool casts_shadow);
-        void SetReceivesShadow(bool receives_shadow);
     };
 
 
@@ -163,22 +148,26 @@ namespace Prism
     {
         Prism::Entity entity; // The Entity that this component is attached to
         bool is_active;
+    private:
         void* raw_mesh_ptr;
         void* raw_material_ptr;
+    public:
         uint32_t layer_mask;
         bool casts_shadows;
         bool receives_shadows;
+    private:
         Prism::Entity root_animator;
 
 
+    public:
         void SetActive(bool active) { this->is_active = active; }
         bool IsActive() const { return this->is_active; }
 
+        void SetMesh(Prism::SkinnedMesh mesh);
         void SetMaterial(Prism::Material material);
 
         void SetLayerMask(uint8_t mask);
-        void SetCastsShadow(bool casts_shadow);
-        void SetReceivesShadow(bool receives_shadow);
+        void SetRootAnimator(Prism::Entity entity);
     };
 
 
@@ -194,9 +183,11 @@ namespace Prism
         float fov;
         float nearZ;
         float farZ;
+    private:
         Prism::Matrix4 projection_matrix; 
         bool is_dirty;
         uint32_t culling_masks;
+    public:
         int render_order;
         CameraClearFlags clear_flags;
         uint32_t viewport_x;
@@ -214,7 +205,8 @@ namespace Prism
         void SetCullingMask(uint32_t layer_index);
         void AddLayerToMask(uint8_t layer_index);
         void RemoveLayerFromMask(uint8_t layer_index);
-        void SetViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height);
+        void SetViewportPosition(uint32_t x, uint32_t y);
+        void SetViewportSize(uint32_t width, uint32_t height);
         void SetFOV(float fov);
     };
 
@@ -236,6 +228,7 @@ namespace Prism
     {
         Prism::Entity owner; // The Entity that this component is attached to
         bool is_active;
+    private:
         float mass;
         float linear_drag;
         float angular_drag;
@@ -247,13 +240,26 @@ namespace Prism
         bool freeze_rot_z;
 
 
+    public:
         void SetActive(bool active) { this->is_active = active; }
         bool IsActive() const { return this->is_active; }
 
-
+        void SetMass(float mass);
+        void SetLinearDrag(float linear_drag);
+        void SetAngularDrag(float angular_drag);
         void SetGravity(bool use_gravity);
         void SetKinematic(bool kinematic);
-        void SetMass(float mass);
+        void SetFreezeRotation(bool freeze_x, bool freeze_y, bool freeze_z);
+
+        float GetMass() { return this->mass; }
+        float GetLinearDrag() { return this->linear_drag; }
+        float GetAngularDrag() { return this->angular_drag; }
+        bool GetGravity() { return this->use_gravity; }
+        bool GetKinematic() { return this->is_kinematic; }
+        bool GetFreezeRotationX() { return this->freeze_rot_x; }
+        bool GetFreezeRotationY() { return this->freeze_rot_y; }
+        bool GetFreezeRotationZ() { return this->freeze_rot_z; }
+        
         void SetLinearVelocity(Prism::Vector3& velocity);
         void MovePosition(const Prism::Vector3& position);
         void AddForce(const Prism::Vector3& force, ForceMode mode = ForceMode::Force);
@@ -484,39 +490,19 @@ namespace Prism
 
 
     public:
-        void SetActive(bool active) {
-            this->is_active = active;
-        }
-        bool IsActive() const {
-            return this->is_active;
-        }
-
+        void SetActive(bool active) { this->is_active = active; }
+        bool IsActive() const { return this->is_active; }
 
         void SetSkeleton(void* raw_skeleton);
+        void SetClip(Prism::AnimationClip clip);
 
 
         // Animation Controls
 
-        void Play() {
-            this->is_playing = true;
-        }
-        void Pause() {
-            this->is_playing = false;
-        }
-        void Stop() { 
-            this->is_playing = false; 
-            this->current_time_ticks = 0.0f; 
-        }
-        
-        void SetPlaybackSpeed(float speed) {
-            this->playback_speed = speed;
-        }
-        
-        // Swap animations
-        void SetClip(const Prism::AnimationClip& clip) {
-            this->raw_current_clip = clip.GetRaw();
-            this->current_time_ticks = 0.0f; // Reset timeline
-        }
+        void Play() { this->is_playing = true; }
+        void Pause() { this->is_playing = false; }
+        void Stop() { this->is_playing = false; this->current_time_ticks = 0.0f; }
+        void SetPlaybackSpeed(float speed) { this->playback_speed = speed; }
     };
 
 
@@ -530,20 +516,26 @@ namespace Prism
     public:
         Prism::Entity owner;
         bool is_active;
-    private:
         int target_bone_index;
+    private:
         Prism::Matrix4 local_offset;
-        uint32_t target_animator_id;
+
 
     public:
-        void SetActive(bool active) {
-            this->is_active = active;
-        }
-        bool IsActive() const {
-            return this->is_active;
-        }
-        void SetOffset(const Prism::Matrix4& offset) {
-            this->local_offset = offset;
+        void SetActive(bool active) { this->is_active = active; }
+        bool IsActive() const { return this->is_active; }
+
+        void SetLocalOffset(const Prism::Vector3& position, const Prism::Vector3& rotationEuler, const Prism::Vector3& scale);
+        void SetOffsetMatrix(const Prism::Matrix4& offset) { this->local_offset = offset; }
+
+        Prism::Matrix4 GetOffsetMatrix() const { return this->local_offset; }
+        Prism::Vector3 GetLocalOffsetPosition() const { return Prism::Vector3(this->local_offset.m03, this->local_offset.m13, this->local_offset.m23); }
+        Prism::Vector3 GetLocalOffsetRotationEuler() const { return this->local_offset.ToQuaternion().ToEuler(); }
+        Prism::Vector3 GetLocalOffsetScale() const {
+            float sx = Prism::Vector3::Length(Prism::Vector3(this->local_offset.m00, this->local_offset.m10, this->local_offset.m20));
+            float sy = Prism::Vector3::Length(Prism::Vector3(this->local_offset.m01, this->local_offset.m11, this->local_offset.m21));
+            float sz = Prism::Vector3::Length(Prism::Vector3(this->local_offset.m02, this->local_offset.m12, this->local_offset.m22));
+            return Prism::Vector3(sx, sy, sz);
         }
     };
 
@@ -580,15 +572,8 @@ namespace Prism
         uint32_t GetPointCount();
         Prism::Vector3 GetPoint(uint32_t index) const;
         std::vector<Prism::Vector3> GetPoints() const;
-        
         void ClearPoints();
 
-        void SetThickness(float startThickness, float endThickness);
-        void SetThickness(float thickness);
-        void SetColor(const Prism::Color& color);
-        void SetUseWorldSpace(bool UseWorldSpace);
-        bool GetUseWorldSpace() const;
-        void SetLoop(bool isLoop);
         void SetMaterial(Prism::Material mat);
     };
 
@@ -609,9 +594,7 @@ namespace Prism
         void* raw_material_ptr;
 
     public:
-        void SetColor(const Prism::Color& color);
-        Prism::Color GetColor() const;
-        void SetSprite(const Prism::Material sprite);
+        void SetSprite(const Prism::Texture sprite);
     };
 
 
@@ -702,22 +685,31 @@ namespace Prism
     struct PRISM_API RectTransformComponent
     {
         Prism::Entity entity;
+    private:
         Prism::Vector2 anchor_min;
         Prism::Vector2 anchor_max;
         Prism::Vector2 pivot;
         Prism::Vector2 size_delta;
         Prism::Vector2 anchored_position;
+    public:
         float screen_x;
         float screen_y;
         float screen_width;
         float screen_height;
+    private:
         bool is_dirty;
 
-        void SetAnchoredPosition(const Prism::Vector2& position);
-        void SetSizeDelta(const Prism::Vector2& size);
+    public:
         void SetAnchors(const Prism::Vector2& min, const Prism::Vector2& max);
         void SetPivot(const Prism::Vector2& pivot);
+        void SetSizeDelta(const Prism::Vector2& size);
+        void SetAnchoredPosition(const Prism::Vector2& position);
         void MarkDirty();
+        Prism::Vector2 GetAnchorMin() const { return anchor_min; }
+        Prism::Vector2 GetAnchorMax() const { return anchor_max; }
+        Prism::Vector2 GetPivot() const { return pivot; }
+        Prism::Vector2 GetSizeDelta() const { return size_delta; }
+        Prism::Vector2 GetAnchoredPosition() const { return anchored_position; }
         Prism::Vector2 GetScreenPosition() const { return Prism::Vector2(screen_x, screen_y); }
         Prism::Vector2 GetScreenSize() const { return Prism::Vector2(screen_width, screen_height); }
     };
@@ -732,7 +724,9 @@ namespace Prism
     {
         Prism::Entity entity;
         bool is_active;
+    private:
         void* raw_texture;
+    public:
         Prism::Color color;
         bool raycast_target;
 
@@ -753,8 +747,10 @@ namespace Prism
     {
         Prism::Entity entity;
         bool is_active;
+    private:
         char text[256];
         void* raw_font;
+    public:
         Prism::Color color;
         UITextAlignment alignment;
         float font_size;
@@ -765,10 +761,6 @@ namespace Prism
         bool IsActive() const { return this->is_active; }
         void SetText(const std::string& value);
         void SetFont(Prism::Font font);
-        void SetColor(const Prism::Color& color) { this->color = color; }
-        void SetAlignment(UITextAlignment align) { this->alignment = align; }
-        void SetFontSize(float size) { this->font_size = size; }
-        void SetWrap(bool should_wrap) { this->wrap = should_wrap; }
         std::string GetText() const { return std::string(text); }
     };
 
@@ -788,11 +780,12 @@ namespace Prism
         Prism::Color color_hovered;
         Prism::Color color_pressed;
         Prism::Color color_disabled;
+    private:
         bool clicked_this_frame;
 
+    public:
         void SetActive(bool active) { this->is_active = active; }
         bool IsActive() const { return this->is_active; }
-        void SetInteractable(bool value) { this->interactable = value; }
         bool WasClicked() const { return this->clicked_this_frame; }
     };
 
