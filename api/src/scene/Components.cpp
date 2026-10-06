@@ -112,34 +112,6 @@ namespace Prism
     // Light Component Implementation
     // ==========================================
 
-    void LightComponent::SetType(LightType type) {
-        this->type = type;
-    }
-    void LightComponent::SetColor(const Prism::Color& color) {
-        this->color = color;
-    }
-    void LightComponent::SetIntensity(float intensity) {
-        this->intensity = intensity;
-    }
-    void LightComponent::SetAmbientStrength(float ambient_strength) {
-        this->ambient_strength = ambient_strength;
-    }
-    void LightComponent::SetAttenuation(float constant, float linear, float quadratic) {
-        this->constant = constant;
-        this->linear = linear;
-        this->quadratic = quadratic;
-    }
-    void LightComponent::SetSpotAngles(float inner_cutoff_degrees, float outer_cutoff_degrees) {
-        this->inner_cut_off = inner_cutoff_degrees;
-        this->outer_cut_off = outer_cutoff_degrees;
-    }
-    void LightComponent::SetShadowBoxSize(float half_extent) {
-        this->shadow_box_size = half_extent;
-    }
-    float LightComponent::GetShadowBoxSize() const {
-        return this->shadow_box_size;
-    }
-
     void LightComponent::SetCascadedShadows(uint8_t cascade_count, float max_distance, float split_lambda, float blend_fraction) {
         if (cascade_count < 2)
             cascade_count = 2;
@@ -150,24 +122,9 @@ namespace Prism
         this->cascade_split_lambda = split_lambda;
         this->cascade_blend_fraction = blend_fraction;
     }
-    void LightComponent::SetCastsShadows(bool casts_shadows) {
-        this->casts_shadows = casts_shadows;
-    }
 
     void LightComponent::DisableCascadedShadows() {
         this->shadow_cascade_count = 1;
-    }
-    uint8_t LightComponent::GetShadowCascadeCount() const {
-        return this->shadow_cascade_count;
-    }
-    float LightComponent::GetShadowMaxDistance() const {
-        return this->shadow_max_distance;
-    }
-    float LightComponent::GetCascadeSplitLambda() const {
-        return this->cascade_split_lambda;
-    }
-    float LightComponent::GetCascadeBlendFraction() const {
-        return this->cascade_blend_fraction;
     }
 
 
@@ -185,12 +142,6 @@ namespace Prism
     void MeshRendererComponent::SetLayerMask(uint8_t layer_index) {
         this->layer_mask = (1u << layer_index); // Sets the object to a specific layer (0 through 31)
     }
-    void MeshRendererComponent::SetCastsShadow(bool casts_shadow) {
-        this->casts_shadows = casts_shadow;
-    }
-    void MeshRendererComponent::SetReceivesShadow(bool receives_shadow) {
-        this->receives_shadows = receives_shadow;
-    }
 
 
 
@@ -206,12 +157,6 @@ namespace Prism
     }
     void SkinnedMeshRendererComponent::SetLayerMask(uint8_t layer_index) {
         this->layer_mask = (1u << layer_index); // Sets the object to a specific layer (0 through 31)
-    }
-    void SkinnedMeshRendererComponent::SetCastsShadow(bool casts_shadow) {
-        this->casts_shadows = casts_shadow;
-    }
-    void SkinnedMeshRendererComponent::SetReceivesShadow(bool receives_shadow) {
-        this->receives_shadows = receives_shadow;
     }
     void SkinnedMeshRendererComponent::SetRootAnimator(Prism::Entity entity) {
         ::Entity raw_e = { entity.id, static_cast<::Scene*>(entity.scene_ptr) };
@@ -252,9 +197,11 @@ namespace Prism
     void CameraComponent::RemoveLayerFromMask(uint8_t layer_index) {
         this->culling_masks &= ~(1u << layer_index); // Remove a specific layer from the camera's sight
     }
-    void CameraComponent::SetViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height) {
+    void CameraComponent::SetViewportPosition(uint32_t x, uint32_t y) {
         this->viewport_x = x;
         this->viewport_y = y;
+    }
+    void CameraComponent::SetViewportSize(uint32_t width, uint32_t height) {
         this->viewport_width = width;
         this->viewport_height = height;
     }

@@ -106,24 +106,8 @@ namespace Prism
         bool IsActive() const { return this->is_active; }
 
 
-        void SetType(LightType type);
-        void SetColor(const Prism::Color& color);
-        void SetIntensity(float intensity);
-        void SetAmbientStrength(float ambient_strength);
-        void SetAttenuation(float constant, float linear, float quadratic);
-        void SetSpotAngles(float inner_cutoff_degrees, float outer_cutoff_degrees);
-
-        void SetShadowBoxSize(float half_extent);
-        float GetShadowBoxSize() const;
-
         void SetCascadedShadows(uint8_t cascade_count, float max_distance, float split_lambda = 0.5f, float blend_fraction = 0.12f);
-        void SetCascadeBlendFraction(float fraction) { this->cascade_blend_fraction = fraction; }
-        void SetCastsShadows(bool casts_shadows);
         void DisableCascadedShadows();
-        uint8_t GetShadowCascadeCount() const;
-        float GetShadowMaxDistance() const; 
-        float GetCascadeSplitLambda() const;
-        float GetCascadeBlendFraction() const;
     };
 
 
@@ -152,8 +136,6 @@ namespace Prism
         void SetMaterial(Prism::Material material);
 
         void SetLayerMask(uint8_t mask);
-        void SetCastsShadow(bool casts_shadow);
-        void SetReceivesShadow(bool receives_shadow);
     };
 
 
@@ -185,8 +167,6 @@ namespace Prism
         void SetMaterial(Prism::Material material);
 
         void SetLayerMask(uint8_t mask);
-        void SetCastsShadow(bool casts_shadow);
-        void SetReceivesShadow(bool receives_shadow);
         void SetRootAnimator(Prism::Entity entity);
     };
 
@@ -203,10 +183,12 @@ namespace Prism
         float fov;
         float nearZ;
         float farZ;
+    private:
         Prism::Matrix4 projection_matrix; 
         bool is_dirty;
         uint32_t culling_masks;
         int render_order;
+    public:
         CameraClearFlags clear_flags;
         uint32_t viewport_x;
         uint32_t viewport_y;
@@ -223,7 +205,8 @@ namespace Prism
         void SetCullingMask(uint32_t layer_index);
         void AddLayerToMask(uint8_t layer_index);
         void RemoveLayerFromMask(uint8_t layer_index);
-        void SetViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height);
+        void SetViewportPosition(uint32_t x, uint32_t y);
+        void SetViewportSize(uint32_t width, uint32_t height);
         void SetFOV(float fov);
     };
 
@@ -702,22 +685,31 @@ namespace Prism
     struct PRISM_API RectTransformComponent
     {
         Prism::Entity entity;
+    private:
         Prism::Vector2 anchor_min;
         Prism::Vector2 anchor_max;
         Prism::Vector2 pivot;
         Prism::Vector2 size_delta;
         Prism::Vector2 anchored_position;
+    public:
         float screen_x;
         float screen_y;
         float screen_width;
         float screen_height;
+    private:
         bool is_dirty;
 
-        void SetAnchoredPosition(const Prism::Vector2& position);
-        void SetSizeDelta(const Prism::Vector2& size);
+    public:
         void SetAnchors(const Prism::Vector2& min, const Prism::Vector2& max);
         void SetPivot(const Prism::Vector2& pivot);
+        void SetSizeDelta(const Prism::Vector2& size);
+        void SetAnchoredPosition(const Prism::Vector2& position);
         void MarkDirty();
+        Prism::Vector2 GetAnchorMin() const { return anchor_min; }
+        Prism::Vector2 GetAnchorMax() const { return anchor_max; }
+        Prism::Vector2 GetPivot() const { return pivot; }
+        Prism::Vector2 GetSizeDelta() const { return size_delta; }
+        Prism::Vector2 GetAnchoredPosition() const { return anchored_position; }
         Prism::Vector2 GetScreenPosition() const { return Prism::Vector2(screen_x, screen_y); }
         Prism::Vector2 GetScreenSize() const { return Prism::Vector2(screen_width, screen_height); }
     };
@@ -732,7 +724,9 @@ namespace Prism
     {
         Prism::Entity entity;
         bool is_active;
+    private:
         void* raw_texture;
+    public:
         Prism::Color color;
         bool raycast_target;
 
@@ -753,8 +747,10 @@ namespace Prism
     {
         Prism::Entity entity;
         bool is_active;
+    private:
         char text[256];
         void* raw_font;
+    public:
         Prism::Color color;
         UITextAlignment alignment;
         float font_size;
@@ -765,10 +761,6 @@ namespace Prism
         bool IsActive() const { return this->is_active; }
         void SetText(const std::string& value);
         void SetFont(Prism::Font font);
-        void SetColor(const Prism::Color& color) { this->color = color; }
-        void SetAlignment(UITextAlignment align) { this->alignment = align; }
-        void SetFontSize(float size) { this->font_size = size; }
-        void SetWrap(bool should_wrap) { this->wrap = should_wrap; }
         std::string GetText() const { return std::string(text); }
     };
 
@@ -788,11 +780,12 @@ namespace Prism
         Prism::Color color_hovered;
         Prism::Color color_pressed;
         Prism::Color color_disabled;
+    private:
         bool clicked_this_frame;
 
+    public:
         void SetActive(bool active) { this->is_active = active; }
         bool IsActive() const { return this->is_active; }
-        void SetInteractable(bool value) { this->interactable = value; }
         bool WasClicked() const { return this->clicked_this_frame; }
     };
 
