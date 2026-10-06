@@ -28,7 +28,7 @@ namespace Prism
         {
             Factory[className] = [className](Prism::Entity e) -> Behavior* {
                 T* script = e.AddScript<T>();
-                script->script_class_name = className;
+                script->script_name = className;
                 return script;
             };
         }

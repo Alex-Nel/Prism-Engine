@@ -23,7 +23,7 @@ namespace Prism
 
     void Behavior::OnSerialize(cJSON* json)
     {
-        cJSON_AddStringToObject(json, "class_name", script_class_name.c_str());
+        cJSON_AddStringToObject(json, "class_name", script_name.c_str());
 
         for (const auto& pair : m_Properties)
         {

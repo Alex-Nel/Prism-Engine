@@ -33,7 +33,7 @@ namespace Prism
     public:
         // The entity this script is attached to.
         Prism::Entity entity; 
-        std::string script_class_name;
+        std::string script_name;
 
         // Virtual destructor ensures proper cleanup of derived classes
         virtual ~Behavior() = default;
