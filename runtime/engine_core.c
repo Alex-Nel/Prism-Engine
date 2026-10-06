@@ -56,9 +56,9 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
     engine->window = NULL;
     engine->renderer = NULL;
     engine->active_scene = NULL;
-    engine->render_thread_ready = false;
-    engine->modal_update_active = false;
-    engine->modal_update_performed = false;
+    engine->render_worker.is_ready = false;
+    engine->modal.is_active = false;
+    engine->modal.update_performed = false;
 
 
     if (api != GRAPHICS_API_NONE)
@@ -115,25 +115,24 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
     engine->is_running = true;
     engine->is_simulating = true;
     engine->accumulator = 0.0f;
-    engine->modal_update_active = false;
-    engine->modal_update_performed = false;
-    engine->render_frame_counter = 0;
-    engine->last_applied_render_frame = 0;
-    engine->pending_frame_width = 0;
-    engine->pending_frame_height = 0;
-    engine->pending_framebuffer_resize = false;
-    engine->render_thread = NULL;
-    engine->render_start_mutex = NULL;
-    engine->render_start_condition = NULL;
-    engine->render_thread_ready = false;
-    engine->render_thread_failed = false;
+    engine->modal.is_active = false;
+    engine->modal.update_performed = false;
+    engine->render_worker.frame_counter = 0;
+    engine->render_worker.last_applied_frame = 0;
+    engine->pending_resize.width = 0;
+    engine->pending_resize.height = 0;
+    engine->render_worker.thread = NULL;
+    engine->render_worker.start_mutex = NULL;
+    engine->render_worker.start_condition = NULL;
+    engine->render_worker.is_ready = false;
+    engine->render_worker.has_failed = false;
 
     // Start the frame handoff only after all main-thread renderer setup is complete
-    if (!RenderFrameQueue_Init(&engine->frame_queue) || !EngineRenderThread_Start(engine))
+    if (!RenderFrameQueue_Init(&engine->render_worker.frame_queue) || !EngineRenderThread_Start(engine))
     {
         Log_Error("Render thread failed to initialize.");
         EngineRenderThread_Stop(engine);
-        RenderFrameQueue_Shutdown(&engine->frame_queue);
+        RenderFrameQueue_Shutdown(&engine->render_worker.frame_queue);
         
         UI_Shutdown();
         Audio_Shutdown();
@@ -163,13 +162,13 @@ void Engine_Shutdown(PrismEngine* engine)
     // Results are no longer useful during shutdown, but their slots must be released
     uint32_t completed_slot = 0;
     const RenderFrameResult* discarded_result = NULL;
-    while (RenderFrameQueue_AcquireCompleted(&engine->frame_queue, false, &completed_slot, &discarded_result))
+    while (RenderFrameQueue_AcquireCompleted(&engine->render_worker.frame_queue, false, &completed_slot, &discarded_result))
     {
-        RenderFrameQueue_ReleaseCompleted(&engine->frame_queue, completed_slot);
+        RenderFrameQueue_ReleaseCompleted(&engine->render_worker.frame_queue, completed_slot);
     }
     UI_Shutdown();
 
-    RenderFrameQueue_Shutdown(&engine->frame_queue);
+    RenderFrameQueue_Shutdown(&engine->render_worker.frame_queue);
 
     Platform_Shutdown(engine->window);
     engine->window = NULL;
@@ -182,7 +181,7 @@ void Engine_Shutdown(PrismEngine* engine)
 // Sets the custom callback function
 void Engine_SetPreUpdateCallback(PrismEngine* engine, EngineUpdateCallback callback)
 {
-    engine->pre_update_callback = callback;
+    engine->modal.pre_update_callback = callback;
 }
 
 
@@ -240,9 +239,8 @@ void Engine_NotifyFramebufferResize(PrismEngine* engine, uint32_t width, uint32_
     if (!engine || width == 0 || height == 0)
         return;
     
-    engine->pending_frame_width = width;
-    engine->pending_frame_height = height;
-    engine->pending_framebuffer_resize = true;
+    engine->pending_resize.width = width;
+    engine->pending_resize.height = height;
 }
 
 
@@ -252,11 +250,12 @@ void Engine_NotifyFramebufferResize(PrismEngine* engine, uint32_t width, uint32_
 // Applies a pending resize on the render path before GPU work begins.
 void Engine_ApplyPendingFramebufferResize(PrismEngine* engine)
 {
-    if (!engine || !engine->renderer || !engine->pending_framebuffer_resize)
+    if (!engine || !engine->renderer || engine->pending_resize.width == 0 || engine->pending_resize.height == 0)
         return;
 
-    Render_Resize(engine->renderer, engine->pending_frame_width, engine->pending_frame_height);
-    engine->pending_framebuffer_resize = false;
+    Render_Resize(engine->renderer, engine->pending_resize.width, engine->pending_resize.height);
+    engine->pending_resize.width = 0;
+    engine->pending_resize.height = 0;
 }
 
 
@@ -315,17 +314,17 @@ static void Engine_OnModalEvent(Window* window, void* userdata)
     if (w > 0 && h > 0)
         Engine_NotifyFramebufferResize(engine, w, h);
 
-    if (!engine->renderer || !engine->render_thread_ready)
+    if (!engine->renderer || !engine->render_worker.is_ready)
         return;
 
     // Nested watcher calls must never re-enter scene or UI code
-    if (engine->modal_update_active || !engine->active_scene || Platform_IsWindowMinimized(engine->window))
+    if (engine->modal.is_active || !engine->active_scene || Platform_IsWindowMinimized(engine->window))
     {
-        RenderFrameQueue_RequestRedraw(&engine->frame_queue, w, h);
+        RenderFrameQueue_RequestRedraw(&engine->render_worker.frame_queue, w, h);
         return;
     }
 
-    engine->modal_update_active = true;
+    engine->modal.is_active = true;
     
     // The normal loop is blocked inside the native move/resize loop, so tick here
     Time_Tick();
@@ -333,22 +332,22 @@ static void Engine_OnModalEvent(Window* window, void* userdata)
     EngineRenderThread_PumpCompletions(engine);
     Engine_AdvanceSceneState(engine, false);
     
-    if (engine->modal_callback)
-        engine->modal_callback(engine->modal_userdata);
+    if (engine->modal.callback)
+        engine->modal.callback(engine->modal.userdata);
     
     // Submit only when a slot is immediately available; never block the window callback
-    if (RenderFrameQueue_HasFreeSlot(&engine->frame_queue))
+    if (RenderFrameQueue_HasFreeSlot(&engine->render_worker.frame_queue))
     {
         Engine_RenderScene(engine);
         Scene_ProcessDestroyQueue(engine->active_scene);
     }
     else
     {
-        RenderFrameQueue_RequestRedraw(&engine->frame_queue, w, h);
+        RenderFrameQueue_RequestRedraw(&engine->render_worker.frame_queue, w, h);
     }
     
-    engine->modal_update_performed = true;
-    engine->modal_update_active = false;
+    engine->modal.update_performed = true;
+    engine->modal.is_active = false;
 }
 
 
@@ -357,8 +356,8 @@ static void Engine_OnModalEvent(Window* window, void* userdata)
 
 void Engine_SetModalCallback(PrismEngine* engine, EngineModalCallback callback, void* userdata)
 {
-    engine->modal_callback = callback;
-    engine->modal_userdata = userdata;
+    engine->modal.callback = callback;
+    engine->modal.userdata = userdata;
 }
 
 
@@ -413,16 +412,16 @@ void Engine_Update(PrismEngine* engine)
     UI_InputEnd();
 
     // Modal events already advanced this iteration while the native loop was blocking
-    if (engine->modal_update_performed)
+    if (engine->modal.update_performed)
     {
-        engine->modal_update_performed = false;
+        engine->modal.update_performed = false;
         Engine_UpdateTextInput(engine);
         return;
     }
 
     // If the API registered a custom callback, call it
-    if (engine->pre_update_callback != NULL)
-        engine->pre_update_callback();
+    if (engine->modal.pre_update_callback != NULL)
+        engine->modal.pre_update_callback();
 
     Engine_AdvanceSceneState(engine, true);
 }
@@ -439,7 +438,7 @@ void Engine_Render(PrismEngine* engine)
 
     // Reclaim completed slots before attempting to build another bounded snapshot
     EngineRenderThread_PumpCompletions(engine);
-    while (!RenderFrameQueue_HasFreeSlot(&engine->frame_queue))
+    while (!RenderFrameQueue_HasFreeSlot(&engine->render_worker.frame_queue))
     {
         if (!EngineRenderThread_ApplyOneCompletion(engine, true))
             break;

@@ -836,7 +836,7 @@ static void EngineRenderThread_Wake(void* user_data)
 {
     PrismEngine* engine = (PrismEngine*)user_data;
     if (engine)
-        RenderFrameQueue_Wake(&engine->frame_queue);
+        RenderFrameQueue_Wake(&engine->render_worker.frame_queue);
 }
 
 
@@ -922,11 +922,11 @@ static int EngineRenderThread_Main(void* user_data)
     EngineRenderCommand_SetOwner(engine->renderer, Platform_GetCurrentThreadID());
     bool context_ready = Render_MakeCurrent(engine->renderer);
     
-    Platform_LockMutex(engine->render_start_mutex);
-    engine->render_thread_ready = context_ready;
-    engine->render_thread_failed = !context_ready;
-    Platform_BroadcastCondition(engine->render_start_condition);
-    Platform_UnlockMutex(engine->render_start_mutex);
+    Platform_LockMutex(engine->render_worker.start_mutex);
+    engine->render_worker.is_ready = context_ready;
+    engine->render_worker.has_failed = !context_ready;
+    Platform_BroadcastCondition(engine->render_worker.start_condition);
+    Platform_UnlockMutex(engine->render_worker.start_mutex);
     
     if (!context_ready)
         return -1;
@@ -940,7 +940,7 @@ static int EngineRenderThread_Main(void* user_data)
         uint32_t output_width = 0;
         uint32_t output_height = 0;
 
-        if (RenderFrameQueue_WaitRead(&engine->frame_queue, &slot_index, &frame, &is_redraw, &output_width, &output_height))
+        if (RenderFrameQueue_WaitRead(&engine->render_worker.frame_queue, &slot_index, &frame, &is_redraw, &output_width, &output_height))
         {
             RenderFrameResult result = {0};
             result.frame_id = frame->frame_id;
@@ -953,14 +953,14 @@ static int EngineRenderThread_Main(void* user_data)
             result.probe_result_count = Render_GetProbeResults(engine->renderer, result.probe_results, RENDER_FRAME_MAX_PROBES);
             Render_Present(engine->renderer);
             
-            RenderFrameQueue_CompleteRead(&engine->frame_queue, slot_index, &result);
+            RenderFrameQueue_CompleteRead(&engine->render_worker.frame_queue, slot_index, &result);
             continue;
         }
 
         // A wake without a frame means a synchronous resource/settings call is waiting.
         while (EngineRenderCommand_ProcessPending(engine->renderer)) { }
 
-        if (RenderFrameQueue_IsStopping(&engine->frame_queue))
+        if (RenderFrameQueue_IsStopping(&engine->render_worker.frame_queue))
             break;
     }
 
@@ -986,9 +986,9 @@ bool EngineRenderThread_Start(PrismEngine* engine)
     if (!engine || !engine->renderer)
         return false;
 
-    engine->render_start_mutex = Platform_CreateMutex();
-    engine->render_start_condition = Platform_CreateCondition();
-    if (!engine->render_start_mutex || !engine->render_start_condition)
+    engine->render_worker.start_mutex = Platform_CreateMutex();
+    engine->render_worker.start_condition = Platform_CreateCondition();
+    if (!engine->render_worker.start_mutex || !engine->render_worker.start_condition)
         return false;
     
     // Install runtime dispatch before the main thread gives up the context.
@@ -996,17 +996,17 @@ bool EngineRenderThread_Start(PrismEngine* engine)
         return false;
     
     Render_ReleaseCurrent(engine->renderer);
-    engine->render_thread = Platform_CreateThread(EngineRenderThread_Main, "PrismRender", engine);
-    if (!engine->render_thread)
+    engine->render_worker.thread = Platform_CreateThread(EngineRenderThread_Main, "PrismRender", engine);
+    if (!engine->render_worker.thread)
         return false;
 
     // Initialization cannot succeed until MakeCurrent has completed on the worker.
-    Platform_LockMutex(engine->render_start_mutex);
-    while (!engine->render_thread_ready && !engine->render_thread_failed)
-        Platform_WaitCondition(engine->render_start_condition, engine->render_start_mutex);
+    Platform_LockMutex(engine->render_worker.start_mutex);
+    while (!engine->render_worker.is_ready && !engine->render_worker.has_failed)
+        Platform_WaitCondition(engine->render_worker.start_condition, engine->render_worker.start_mutex);
     
-    bool ready = engine->render_thread_ready && !engine->render_thread_failed;
-    Platform_UnlockMutex(engine->render_start_mutex);
+    bool ready = engine->render_worker.is_ready && !engine->render_worker.has_failed;
+    Platform_UnlockMutex(engine->render_worker.start_mutex);
     
     return ready;
 }
@@ -1026,12 +1026,12 @@ void EngineRenderThread_Stop(PrismEngine* engine)
     if (!engine)
         return;
 
-    bool worker_owned_renderer = engine->render_thread_ready;
-    RenderFrameQueue_RequestStop(&engine->frame_queue);
-    if (engine->render_thread)
+    bool worker_owned_renderer = engine->render_worker.is_ready;
+    RenderFrameQueue_RequestStop(&engine->render_worker.frame_queue);
+    if (engine->render_worker.thread)
     {
-        Platform_JoinThread(engine->render_thread, NULL);
-        engine->render_thread = NULL;
+        Platform_JoinThread(engine->render_worker.thread, NULL);
+        engine->render_worker.thread = NULL;
     }
     
     // If startup failed, reclaim and destroy the renderer from the main thread.
@@ -1044,15 +1044,15 @@ void EngineRenderThread_Stop(PrismEngine* engine)
 
     engine->renderer = NULL;
     
-    if (engine->render_start_condition)
-        Platform_DestroyCondition(engine->render_start_condition);
-    if (engine->render_start_mutex)
-        Platform_DestroyMutex(engine->render_start_mutex);
+    if (engine->render_worker.start_condition)
+        Platform_DestroyCondition(engine->render_worker.start_condition);
+    if (engine->render_worker.start_mutex)
+        Platform_DestroyMutex(engine->render_worker.start_mutex);
     
-    engine->render_start_condition = NULL;
-    engine->render_start_mutex = NULL;
-    engine->render_thread_ready = false;
-    engine->render_thread_failed = false;
+    engine->render_worker.start_condition = NULL;
+    engine->render_worker.start_mutex = NULL;
+    engine->render_worker.is_ready = false;
+    engine->render_worker.has_failed = false;
 }
 
 
@@ -1072,17 +1072,17 @@ bool EngineRenderThread_ApplyOneCompletion(PrismEngine* engine, bool wait)
 
     uint32_t slot_index = 0;
     const RenderFrameResult* result = NULL;
-    if (!RenderFrameQueue_AcquireCompleted(&engine->frame_queue, wait, &slot_index, &result))
+    if (!RenderFrameQueue_AcquireCompleted(&engine->render_worker.frame_queue, wait, &slot_index, &result))
         return false;
     
     Scene* result_scene = (Scene*)result->scene_identity;
-    if (result_scene && result_scene == engine->active_scene && result->frame_id > engine->last_applied_render_frame)
+    if (result_scene && result_scene == engine->active_scene && result->frame_id > engine->render_worker.last_applied_frame)
     {
         Engine_ApplyFrameResults(engine, result_scene, result);
-        engine->last_applied_render_frame = result->frame_id;
+        engine->render_worker.last_applied_frame = result->frame_id;
     }
 
-    RenderFrameQueue_ReleaseCompleted(&engine->frame_queue, slot_index);
+    RenderFrameQueue_ReleaseCompleted(&engine->render_worker.frame_queue, slot_index);
     
     return true;
 }

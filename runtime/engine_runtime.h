@@ -11,6 +11,35 @@
 typedef void (*EngineUpdateCallback)(void);
 typedef void (*EngineModalCallback)(void*);
 
+
+
+// Sub-struct for modal and update callbacks
+typedef struct EngineModalState
+{
+    EngineUpdateCallback pre_update_callback;
+    EngineModalCallback callback;
+    void* userdata;
+    bool is_active;
+    bool update_performed;
+} EngineModalState;
+
+
+
+// Sub-struct for the render thread worker
+typedef struct RenderWorkerState
+{
+    RenderFrameQueue frame_queue;
+    uint64_t frame_counter;
+    uint64_t last_applied_frame;
+    PlatformThread* thread;
+    PlatformMutex* start_mutex;
+    PlatformCondition* start_condition;
+    bool is_ready;
+    bool has_failed;
+} RenderWorkerState;
+
+
+
 // Struct for an "engine"
 typedef struct PrismEngine
 {
@@ -19,33 +48,22 @@ typedef struct PrismEngine
     Renderer* renderer;
     Scene* active_scene;
 
-    // Engine state variables
+    // Core State
     bool is_running;
     bool is_simulating;
     float accumulator;
     uint32_t target_fps;
     
-    // Modal and update callbacks
-    EngineUpdateCallback pre_update_callback;
-    EngineModalCallback modal_callback;
-    void* modal_userdata;
-    bool modal_update_active;
-    bool modal_update_performed;
-    
-    // Render Queue
-    RenderFrameQueue frame_queue;
-    uint64_t render_frame_counter;
-    uint64_t last_applied_render_frame;
-    PlatformThread* render_thread;
-    PlatformMutex* render_start_mutex;
-    PlatformCondition* render_start_condition;
-    bool render_thread_ready;
-    bool render_thread_failed;
+    // Sub systems
+    EngineModalState modal;
+    RenderWorkerState render_worker;
 
-    // Written by the main thread on resize events; consumed before GPU draw.
-    uint32_t pending_frame_width;
-    uint32_t pending_frame_height;
-    bool pending_framebuffer_resize;
+    // Deferred cross-thread state (width/height > 0 means a resize is pending)
+    struct {
+        uint32_t width;
+        uint32_t height;
+    } pending_resize;
+
 } PrismEngine;
 
 

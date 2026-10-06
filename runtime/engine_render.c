@@ -541,7 +541,7 @@ void Engine_BuildRenderFrame(PrismEngine* engine, Scene* scene, RenderFrame* fra
         return;
 
     RenderFrame_Reset(frame);
-    frame->frame_id = ++engine->render_frame_counter;
+    frame->frame_id = ++engine->render_worker.frame_counter;
 
     frame->width = Platform_GetWindowWidth(engine->window);
     frame->height = Platform_GetWindowHeight(engine->window);
@@ -679,24 +679,24 @@ void Engine_RenderScene(PrismEngine* engine)
     Scene* scene = engine->active_scene;
 
     // Two occupied slots create back-pressure until the oldest result is applied
-    while (!RenderFrameQueue_HasFreeSlot(&engine->frame_queue))
+    while (!RenderFrameQueue_HasFreeSlot(&engine->render_worker.frame_queue))
     {
         uint32_t completed_slot = 0;
         const RenderFrameResult* completed = NULL;
-        if (!RenderFrameQueue_AcquireCompleted(&engine->frame_queue, true, &completed_slot, &completed))
+        if (!RenderFrameQueue_AcquireCompleted(&engine->render_worker.frame_queue, true, &completed_slot, &completed))
             return;
 
         Scene* completed_scene = (Scene*)completed->scene_identity;
-        if (completed_scene && completed_scene == engine->active_scene && completed->frame_id > engine->last_applied_render_frame)
+        if (completed_scene && completed_scene == engine->active_scene && completed->frame_id > engine->render_worker.last_applied_frame)
         {
             Engine_ApplyFrameResults(engine, completed_scene, completed);
-            engine->last_applied_render_frame = completed->frame_id;
+            engine->render_worker.last_applied_frame = completed->frame_id;
         }
 
-        RenderFrameQueue_ReleaseCompleted(&engine->frame_queue, completed_slot);
+        RenderFrameQueue_ReleaseCompleted(&engine->render_worker.frame_queue, completed_slot);
     }
 
-    RenderFrame* write_frame = RenderFrameQueue_BeginWrite(&engine->frame_queue);
+    RenderFrame* write_frame = RenderFrameQueue_BeginWrite(&engine->render_worker.frame_queue);
     if (!write_frame)
         return;
     Engine_BuildRenderFrame(engine, scene, write_frame);
@@ -711,5 +711,5 @@ void Engine_RenderScene(PrismEngine* engine)
     if (!UI_BuildDrawList(&write_frame->immediate_ui))
         Log_Warning("Failed to snapshot immediate UI draw data");
 
-    RenderFrameQueue_CommitWrite(&engine->frame_queue, scene);
+    RenderFrameQueue_CommitWrite(&engine->render_worker.frame_queue, scene);
 }
