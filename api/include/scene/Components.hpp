@@ -589,15 +589,8 @@ namespace Prism
         uint32_t GetPointCount();
         Prism::Vector3 GetPoint(uint32_t index) const;
         std::vector<Prism::Vector3> GetPoints() const;
-        
         void ClearPoints();
 
-        void SetThickness(float startThickness, float endThickness);
-        void SetThickness(float thickness);
-        void SetColor(const Prism::Color& color);
-        void SetUseWorldSpace(bool UseWorldSpace);
-        bool GetUseWorldSpace() const;
-        void SetLoop(bool isLoop);
         void SetMaterial(Prism::Material mat);
     };
 
@@ -618,9 +611,7 @@ namespace Prism
         void* raw_material_ptr;
 
     public:
-        void SetColor(const Prism::Color& color);
-        Prism::Color GetColor() const;
-        void SetSprite(const Prism::Material sprite);
+        void SetSprite(const Prism::Texture sprite);
     };
 
 

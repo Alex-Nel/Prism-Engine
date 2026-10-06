@@ -839,6 +839,39 @@ void LineRenderer_SetPoints(LineRendererComponent* line, Vector3* points, uint32
 
 
 
+// Sets the sprite of a sprite renderer
+void SpriteRenderer_SetSprite(SpriteRendererComponent* comp, Texture* sprite)
+{
+    if (!comp || !sprite)
+        return;
+
+    Material* mat = comp->material;
+    if (!mat)
+    {
+        comp->material = Asset_CreateMaterial(NULL, sprite);
+        return;
+    }
+    else
+    {
+        mat->albedo_texture = sprite;
+        Asset_SyncMaterialGPU(mat);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // Marks a reflection probe as dirty
 void ReflectionProbe_MarkDirty(ReflectionProbeComponent* probe)
 {

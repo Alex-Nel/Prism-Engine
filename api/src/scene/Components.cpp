@@ -440,32 +440,6 @@ namespace Prism
         return result;
     }
 
-    void LineRendererComponent::SetThickness(float startThickness, float endThickness) {
-        ::LineRendererComponent* c_line = &static_cast<::Scene*>(this->entity.scene_ptr)->line_renderers[this->entity.id];
-        c_line->start_thickness = startThickness;
-        c_line->end_thickness = endThickness;
-    }
-
-    void LineRendererComponent::SetThickness(float thickness) {
-        SetThickness(thickness, thickness);
-    }
-
-    void LineRendererComponent::SetColor(const Prism::Color& color) {
-        static_cast<::Scene*>(this->entity.scene_ptr)->line_renderers[this->entity.id].color = ::Color{color.r, color.g, color.b, color.a};
-    }
-
-    void LineRendererComponent::SetUseWorldSpace(bool useWorldSpace) {
-        static_cast<::Scene*>(this->entity.scene_ptr)->line_renderers[this->entity.id].use_world_space = useWorldSpace;
-    }
-
-    bool LineRendererComponent::GetUseWorldSpace() const {
-        return static_cast<::Scene*>(this->entity.scene_ptr)->line_renderers[this->entity.id].use_world_space;
-    }
-
-    void LineRendererComponent::SetLoop(bool isLoop) {
-        static_cast<::Scene*>(this->entity.scene_ptr)->line_renderers[this->entity.id].is_loop = isLoop;
-    }
-
     void LineRendererComponent::SetMaterial(Prism::Material mat) {
         static_cast<::Scene*>(this->entity.scene_ptr)->line_renderers[this->entity.id].material = (::Material*)mat.GetRaw();
     }
@@ -476,20 +450,8 @@ namespace Prism
     // Sprite Renderer Implementation
     // ==========================================
 
-    void SpriteRendererComponent::SetColor(const Prism::Color& color) {
-        ::Entity e = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
-        static_cast<::Scene*>(e.scene)->sprite_renderers[e.id].color = ::Color{color.r, color.g, color.b, color.a};
-    }
-
-    Prism::Color SpriteRendererComponent::GetColor() const {
-        ::Entity e = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
-        ::Color c = static_cast<::Scene*>(e.scene)->sprite_renderers[e.id].color;
-        return Prism::Color(c.r, c.g, c.b, c.a);
-    }
-
-    void SpriteRendererComponent::SetSprite(const Prism::Material sprite) {
-        ::Entity e = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
-        static_cast<::Scene*>(e.scene)->sprite_renderers[e.id].material = (::Material*)sprite.GetRaw();
+    void SpriteRendererComponent::SetSprite(const Prism::Texture sprite) {
+        ::SpriteRenderer_SetSprite(reinterpret_cast<::SpriteRendererComponent*>(this), static_cast<::Texture*>(sprite.GetRaw()));
     }
 
 

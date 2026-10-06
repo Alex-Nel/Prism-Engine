@@ -270,6 +270,12 @@ void LineRenderer_SetPoints(LineRendererComponent* line, Vector3* points, uint32
 
 
 
+// --- Sprite Renderer Function ---
+
+void SpriteRenderer_SetSprite(SpriteRendererComponent* comp, Texture* sprite);
+
+
+
 // --- Reflection Probe Functions ---
 
 void ReflectionProbe_SetBoxExtents(ReflectionProbeComponent* probe, Vector3 extents);
