@@ -200,7 +200,7 @@ void Engine_SetSimulationMode(PrismEngine* engine, bool is_simulating)
 
 
 // Forwards the UI in time
-static void Engine_TickRetainedUI(PrismEngine* engine, Scene* active_scene)
+static void Engine_TickRetainedUI(PrismEngine* engine)
 {
     uint32_t w = Platform_GetWindowWidth(engine->window);
     uint32_t h = Platform_GetWindowHeight(engine->window);
@@ -208,7 +208,7 @@ static void Engine_TickRetainedUI(PrismEngine* engine, Scene* active_scene)
     float mouse_y = 0.0f;
     Input_GetMousePosition(&mouse_x, &mouse_y);
 
-    RetainedUI_PreUpdate(active_scene, w, h, mouse_x, mouse_y, Engine_IsMouseCaptured(engine));
+    RetainedUI_PreUpdate(engine->active_scene, w, h, mouse_x, mouse_y, Engine_IsMouseCaptured(engine));
 }
 
 
@@ -264,14 +264,14 @@ void Engine_ApplyPendingFramebufferResize(PrismEngine* engine)
 
 
 // Advances simulation and visual scene state without polling platform events
-static void Engine_AdvanceSceneState(PrismEngine* engine, Scene* active_scene, bool update_text_input)
+static void Engine_AdvanceSceneState(PrismEngine* engine, bool update_text_input)
 {
     if (engine->is_simulating)
     {
         float fixed_dt = Time_FixedDeltaTime();
         while (engine->accumulator >= fixed_dt)
         {
-            Scene_FixedUpdate(active_scene);
+            Scene_FixedUpdate(engine->active_scene);
             engine->accumulator -= fixed_dt;
         }
     }
@@ -280,18 +280,18 @@ static void Engine_AdvanceSceneState(PrismEngine* engine, Scene* active_scene, b
         engine->accumulator = 0.0f;
     }
 
-    Engine_TickRetainedUI(engine, active_scene);
+    Engine_TickRetainedUI(engine);
     
     if (engine->is_simulating)
     {
-        Scene_Update(active_scene);
+        Scene_Update(engine->active_scene);
     }
     else
     {
-        Scene_UpdateTransforms(active_scene);
-        Scene_UpdateBoneAttachments(active_scene);
-        Scene_UpdateSkinnedMeshBounds(active_scene);
-        Scene_UpdateLineRenderers(active_scene);
+        Scene_UpdateTransforms(engine->active_scene);
+        Scene_UpdateBoneAttachments(engine->active_scene);
+        Scene_UpdateSkinnedMeshBounds(engine->active_scene);
+        Scene_UpdateLineRenderers(engine->active_scene);
     }
 
     if (update_text_input)
@@ -331,7 +331,7 @@ static void Engine_OnModalEvent(Window* window, void* userdata)
     Time_Tick();
     engine->accumulator += Time_DeltaTime();
     EngineRenderThread_PumpCompletions(engine);
-    Engine_AdvanceSceneState(engine, engine->active_scene, false);
+    Engine_AdvanceSceneState(engine, false);
     
     if (engine->modal_callback)
         engine->modal_callback(engine->modal_userdata);
@@ -339,7 +339,7 @@ static void Engine_OnModalEvent(Window* window, void* userdata)
     // Submit only when a slot is immediately available; never block the window callback
     if (RenderFrameQueue_HasFreeSlot(&engine->frame_queue))
     {
-        Engine_RenderScene(engine, engine->active_scene);
+        Engine_RenderScene(engine);
         Scene_ProcessDestroyQueue(engine->active_scene);
     }
     else
@@ -366,12 +366,10 @@ void Engine_SetModalCallback(PrismEngine* engine, EngineModalCallback callback, 
 
 
 // Updates the engines state
-void Engine_Update(PrismEngine* engine, Scene* active_scene)
+void Engine_Update(PrismEngine* engine)
 {
-    if (!active_scene)
+    if (!engine->active_scene)
         return;
-
-    engine->active_scene = active_scene;
 
     Time_Tick();
     engine->accumulator += Time_DeltaTime();
@@ -426,7 +424,7 @@ void Engine_Update(PrismEngine* engine, Scene* active_scene)
     if (engine->pre_update_callback != NULL)
         engine->pre_update_callback();
 
-    Engine_AdvanceSceneState(engine, active_scene, true);
+    Engine_AdvanceSceneState(engine, true);
 }
 
 
@@ -434,12 +432,10 @@ void Engine_Update(PrismEngine* engine, Scene* active_scene)
 
 
 // Renders everything in a scene including overlays and UI
-void Engine_Render(PrismEngine* engine, Scene* active_scene)
+void Engine_Render(PrismEngine* engine)
 {
-    if (!active_scene)
+    if (!engine->active_scene)
         return;
-
-    engine->active_scene = active_scene;
 
     // Reclaim completed slots before attempting to build another bounded snapshot
     EngineRenderThread_PumpCompletions(engine);
@@ -453,7 +449,7 @@ void Engine_Render(PrismEngine* engine, Scene* active_scene)
     if (!Platform_IsWindowMinimized(engine->window))
     {
         // Build and submit world plus UI snapshots. GPU work happens asynchronously.
-        Engine_RenderScene(engine, active_scene);
+        Engine_RenderScene(engine);
     }
     else
     {
@@ -464,7 +460,7 @@ void Engine_Render(PrismEngine* engine, Scene* active_scene)
     }
 
     // Process destroy queue
-    Scene_ProcessDestroyQueue(active_scene);
+    Scene_ProcessDestroyQueue(engine->active_scene);
     
     // Cycle input state
     Input_Update();
@@ -475,15 +471,13 @@ void Engine_Render(PrismEngine* engine, Scene* active_scene)
 
 
 // Runs the engine, updates and renders the scene
-void Engine_Run(PrismEngine* engine, Scene* active_scene)
+void Engine_Run(PrismEngine* engine)
 {
-    if (!active_scene)
+    if (!engine->active_scene)
     {
         Log_Error("Cannot run engine without an active scene");
         return;
     }
-
-    engine->active_scene = active_scene;
 
     Log_Info("Running Scene");
 
@@ -491,8 +485,8 @@ void Engine_Run(PrismEngine* engine, Scene* active_scene)
 
     while (engine->is_running)
     {
-        Engine_Update(engine, active_scene);
-        Engine_Render(engine, active_scene);
+        Engine_Update(engine);
+        Engine_Render(engine);
     }
 }
 
@@ -535,4 +529,20 @@ bool Engine_IsRunning(PrismEngine* engine)
     }
 
     return engine->is_running;
+}
+
+
+
+
+
+// Sets the active scene pointer
+void Engine_SetActiveScene(PrismEngine* engine, Scene* active_scene)
+{
+    if (!active_scene)
+    {
+        Log_Error("ERROR: Invalid scene");
+        return;
+    }
+    
+    engine->active_scene = active_scene;
 }

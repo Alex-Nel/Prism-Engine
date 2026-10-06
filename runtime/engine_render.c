@@ -671,12 +671,12 @@ void Engine_BuildRenderFrame(PrismEngine* engine, Scene* scene, RenderFrame* fra
 
 
 // Builds and submits an immutable world/UI snapshot to the render thread
-void Engine_RenderScene(PrismEngine* engine, Scene* scene)
+void Engine_RenderScene(PrismEngine* engine)
 {
-    if (!engine || !scene || !engine->renderer)
+    if (!engine || !engine->active_scene || !engine->renderer)
         return;
 
-    engine->active_scene = scene;
+    Scene* scene = engine->active_scene;
 
     // Two occupied slots create back-pressure until the oldest result is applied
     while (!RenderFrameQueue_HasFreeSlot(&engine->frame_queue))

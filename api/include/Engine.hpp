@@ -61,6 +61,7 @@ namespace Prism
 
         // --- Utility ---
 
+        static void SetActiveScene(Prism::Scene scene);
         static void CaptureMouse();
         static void ReleaseMouse();
         static bool IsMouseCaptured();

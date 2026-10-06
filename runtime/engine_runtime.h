@@ -79,14 +79,17 @@ void Engine_SetModalCallback(PrismEngine* engine, EngineModalCallback callback, 
 void Engine_SetSimulationMode(PrismEngine* engine, bool is_simulating);
 
 // Updates the engines state
-void Engine_Update(PrismEngine* engine, Scene* active_scene);
+void Engine_Update(PrismEngine* engine);
 
 // Renders everything in a scene including overlays and UI
-void Engine_Render(PrismEngine* engine, Scene* active_scene);
+void Engine_Render(PrismEngine* engine);
 
 // Starts the main engine loop
-void Engine_Run(PrismEngine* engine, Scene* active_scene);
+void Engine_Run(PrismEngine* engine);
 bool Engine_IsRunning(PrismEngine* engine); // Deprecated
+
+// Sets the active scene pointer
+void Engine_SetActiveScene(PrismEngine* engine, Scene* active_scene);
 
 
 
@@ -116,7 +119,7 @@ uint32_t Engine_GatherVisibleGeometry(Scene* scene, Vector3 cam_pos, uint32_t cu
 void Engine_BuildRenderFrame(PrismEngine* engine, Scene* scene, RenderFrame* frame);
 
 // Main function to render a scene
-void Engine_RenderScene(PrismEngine* engine, Scene* scene);
+void Engine_RenderScene(PrismEngine* engine);
 
 // Records a pending framebuffer resize (main thread only)
 void Engine_NotifyFramebufferResize(PrismEngine* engine, uint32_t width, uint32_t height);

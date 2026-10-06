@@ -28,7 +28,8 @@ namespace Prism
     {
         ::Engine_SetPreUpdateCallback(&s_engine, &Prism::Input::DispatchCallbacks);
         ::Scene* raw_scene = static_cast<::Scene*>(active_scene.GetRaw());
-        ::Engine_Run(&s_engine, raw_scene);
+        ::Engine_SetActiveScene(&s_engine, raw_scene);
+        ::Engine_Run(&s_engine);
     }
 
     void Engine::Shutdown() 
@@ -40,6 +41,10 @@ namespace Prism
 
 
     // --- Utility ---
+
+    void Engine::SetActiveScene(Prism::Scene scene) {
+        ::Engine_SetActiveScene(&s_engine, static_cast<::Scene*>(scene.GetRaw()));
+    }
 
     void Engine::CaptureMouse() {
         ::Engine_CaptureMouse(&s_engine);
@@ -118,13 +123,13 @@ namespace Prism
 #ifdef PRISM_EDITOR
 
     void Engine::Update(Scene& active_scene) {
-        ::Scene* raw_scene = static_cast<::Scene*>(active_scene.GetRaw());
-        ::Engine_Update(&s_engine, raw_scene);
+        // ::Scene* raw_scene = static_cast<::Scene*>(active_scene.GetRaw());
+        ::Engine_Update(&s_engine);
     }
 
     void Engine::Render(Scene& active_scene) {
-        ::Scene* raw_scene = static_cast<::Scene*>(active_scene.GetRaw());
-        ::Engine_Render(&s_engine, raw_scene);
+        // ::Scene* raw_scene = static_cast<::Scene*>(active_scene.GetRaw());
+        ::Engine_Render(&s_engine);
     }
 
     bool Engine::IsRunning() {
