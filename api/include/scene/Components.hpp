@@ -187,8 +187,8 @@ namespace Prism
         Prism::Matrix4 projection_matrix; 
         bool is_dirty;
         uint32_t culling_masks;
-        int render_order;
     public:
+        int render_order;
         CameraClearFlags clear_flags;
         uint32_t viewport_x;
         uint32_t viewport_y;

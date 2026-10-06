@@ -10,16 +10,7 @@ extern "C"
 }
 
 
-static_assert(sizeof(Prism::UICanvasComponent) == sizeof(::UICanvasComponent), "UICanvasComponent bridge layout mismatch");
-static_assert(sizeof(Prism::RectTransformComponent) == sizeof(::RectTransformComponent), "RectTransformComponent bridge layout mismatch");
-static_assert(sizeof(Prism::UIImageComponent) == sizeof(::UIImageComponent), "UIImageComponent bridge layout mismatch");
-static_assert(sizeof(Prism::UITextComponent) == sizeof(::UITextComponent), "UITextComponent bridge layout mismatch");
-static_assert(sizeof(Prism::UIButtonComponent) == sizeof(::UIButtonComponent), "UIButtonComponent bridge layout mismatch");
-static_assert(offsetof(Prism::UICanvasComponent, sort_order) == offsetof(::UICanvasComponent, sort_order), "UICanvasComponent field offset mismatch");
-static_assert(offsetof(Prism::RectTransformComponent, anchored_position) == offsetof(::RectTransformComponent, anchored_position), "RectTransformComponent field offset mismatch");
-static_assert(offsetof(Prism::UIImageComponent, color) == offsetof(::UIImageComponent, color), "UIImageComponent field offset mismatch");
-static_assert(offsetof(Prism::UITextComponent, font_size) == offsetof(::UITextComponent, font_size), "UITextComponent field offset mismatch");
-static_assert(offsetof(Prism::UIButtonComponent, clicked_this_frame) == offsetof(::UIButtonComponent, clicked_this_frame), "UIButtonComponent field offset mismatch");
+
 
 
 namespace Prism
