@@ -176,8 +176,11 @@ namespace Prism
     // Mesh Renderer Component Implementation
     // ==========================================
 
+    void MeshRendererComponent::SetMesh(Prism::Mesh mesh) {
+        ::MeshRenderer_SetMesh(reinterpret_cast<::MeshRendererComponent*>(this), static_cast<::Mesh*>(mesh.GetRaw()));
+    }
     void MeshRendererComponent::SetMaterial(Prism::Material material) {
-        this->raw_material_ptr = material.GetRaw();
+        ::MeshRenderer_SetMaterial(reinterpret_cast<::MeshRendererComponent*>(this), static_cast<::Material*>(material.GetRaw()));
     }
     void MeshRendererComponent::SetLayerMask(uint8_t layer_index) {
         this->layer_mask = (1u << layer_index); // Sets the object to a specific layer (0 through 31)
@@ -195,8 +198,11 @@ namespace Prism
     // Skinned Mesh Renderer Component Implementation
     // ==========================================
 
+    void SkinnedMeshRendererComponent::SetMesh(Prism::SkinnedMesh mesh) {
+        ::SkinnedMeshRenderer_SetMesh(reinterpret_cast<::SkinnedMeshRendererComponent*>(this), static_cast<::SkinnedMesh*>(mesh.GetRaw()));
+    }
     void SkinnedMeshRendererComponent::SetMaterial(Prism::Material material) {
-        this->raw_material_ptr = material.GetRaw();
+        ::SkinnedMeshRenderer_SetMaterial(reinterpret_cast<::SkinnedMeshRendererComponent*>(this), static_cast<::Material*>(material.GetRaw()));
     }
     void SkinnedMeshRendererComponent::SetLayerMask(uint8_t layer_index) {
         this->layer_mask = (1u << layer_index); // Sets the object to a specific layer (0 through 31)
@@ -206,6 +212,10 @@ namespace Prism
     }
     void SkinnedMeshRendererComponent::SetReceivesShadow(bool receives_shadow) {
         this->receives_shadows = receives_shadow;
+    }
+    void SkinnedMeshRendererComponent::SetRootAnimator(Prism::Entity entity) {
+        ::Entity raw_e = { entity.id, static_cast<::Scene*>(entity.scene_ptr) };
+        ::SkinnedMeshRenderer_SetRootAnimator(reinterpret_cast<::SkinnedMeshRendererComponent*>(this), raw_e);
     }
 
 

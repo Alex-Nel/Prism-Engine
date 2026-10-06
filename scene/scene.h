@@ -238,9 +238,18 @@ void Camera_SetFOV(CameraComponent* cam, float FOV);
 
 
 
-// --- Renderable setters ---
+// --- Mesh Renderable setters ---
 
+void MeshRenderer_SetMesh(MeshRendererComponent* r, Mesh* mesh);
 void MeshRenderer_SetMaterial(MeshRendererComponent* r, Material* material);
+
+
+
+// --- Skinned Mesh Renderable setters ---
+
+void SkinnedMeshRenderer_SetMesh(SkinnedMeshRendererComponent* r, SkinnedMesh* mesh);
+void SkinnedMeshRenderer_SetMaterial(SkinnedMeshRendererComponent* r, Material* material);
+void SkinnedMeshRenderer_SetRootAnimator(SkinnedMeshRendererComponent* r, Entity root);
 
 
 

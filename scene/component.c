@@ -628,16 +628,75 @@ void Camera_SetFOV(CameraComponent* cam, float FOV)
 
 
 
+// Sets a mesh a mesh renderer will hold
+void MeshRenderer_SetMesh(MeshRendererComponent* r, Mesh* mesh)
+{
+    if (!r || !mesh)
+        return;
+
+    r->mesh = mesh;
+}
+
+
+
+
+
 // Sets the specific material slot with a chosen material
 void MeshRenderer_SetMaterial(MeshRendererComponent* r, Material* material)
 {
     if (!r)
-    {
-        Log_Error("ERROR: Renderer component does not exist");
         return;
-    }
 
     r->material = material;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Sets a mesh a mesh renderer will hold
+void SkinnedMeshRenderer_SetMesh(SkinnedMeshRendererComponent* r, SkinnedMesh* mesh)
+{
+    if (!r || !mesh)
+        return;
+
+    r->mesh = mesh;
+}
+
+
+
+
+
+// Sets the specific material slot with a chosen material
+void SkinnedMeshRenderer_SetMaterial(SkinnedMeshRendererComponent* r, Material* material)
+{
+    if (!r || !material)
+        return;
+
+    r->material = material;
+}
+
+
+
+
+
+// Sets the entity with an animator component that this mesh will follow
+void SkinnedMeshRenderer_SetRootAnimator(SkinnedMeshRendererComponent* r, Entity root)
+{
+    if (!r || !Entity_IsValid(root))
+        return;
+
+    r->root_animator_entity_id = root.id;
 }
 
 

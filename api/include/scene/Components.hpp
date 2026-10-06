@@ -136,8 +136,10 @@ namespace Prism
     {
         Prism::Entity entity; // The Entity that this component is attached to
         bool is_active;
+    private:
         void* raw_mesh_ptr;
         void* raw_material_ptr;
+    public:
         uint32_t layer_mask;
         bool casts_shadows;
         bool receives_shadows;
@@ -146,6 +148,7 @@ namespace Prism
         void SetActive(bool active) { this->is_active = active; }
         bool IsActive() const { return this->is_active; }
 
+        void SetMesh(Prism::Mesh mesh);
         void SetMaterial(Prism::Material material);
 
         void SetLayerMask(uint8_t mask);
@@ -163,22 +166,28 @@ namespace Prism
     {
         Prism::Entity entity; // The Entity that this component is attached to
         bool is_active;
+    private:
         void* raw_mesh_ptr;
         void* raw_material_ptr;
+    public:
         uint32_t layer_mask;
         bool casts_shadows;
         bool receives_shadows;
+    private:
         Prism::Entity root_animator;
 
 
+    public:
         void SetActive(bool active) { this->is_active = active; }
         bool IsActive() const { return this->is_active; }
 
+        void SetMesh(Prism::SkinnedMesh mesh);
         void SetMaterial(Prism::Material material);
 
         void SetLayerMask(uint8_t mask);
         void SetCastsShadow(bool casts_shadow);
         void SetReceivesShadow(bool receives_shadow);
+        void SetRootAnimator(Prism::Entity entity);
     };
 
 
