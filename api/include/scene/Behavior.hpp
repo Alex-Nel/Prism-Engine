@@ -31,7 +31,6 @@ namespace Prism
         }
 
     public:
-        bool is_active = true; // Scripts start active by default
         // The entity this script is attached to.
         Prism::Entity entity; 
         std::string script_class_name;

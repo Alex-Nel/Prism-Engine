@@ -138,6 +138,7 @@ void Entity_AddUIButton(Entity entity);
 void Entity_BindScript(Entity entity, ScriptInstance new_script);
 void Script_SetActive(Entity entity, void* instance_data, bool active);
 void Bridge_SpawnScript(Entity raw_e, const char* class_name, struct cJSON* json_data);
+bool Script_IsActive(Entity entity, void* instance_data);
 
 
 

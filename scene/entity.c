@@ -1392,6 +1392,29 @@ void Script_SetActive(Entity entity, void* instance_data, bool active)
 
 
 
+// Returns whether a specific script instance is active or not
+bool Script_IsActive(Entity entity, void* instance_data)
+{
+    if (!entity.scene) return false;
+
+    if (!(entity.scene->component_masks[entity.id] & COMPONENT_SCRIPT)) return false;
+
+    ScriptComponent* script_comp = &entity.scene->scripts[entity.id];
+    
+    // Find the specific instance
+    for (uint32_t s = 0; s < script_comp->count; s++)
+    {
+        if (script_comp->instances[s].instance_data == instance_data)
+        {
+            return script_comp->instances[s].is_active;
+        }
+    }
+}
+
+
+
+
+
 
 
 

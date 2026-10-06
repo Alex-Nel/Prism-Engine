@@ -66,7 +66,7 @@ namespace Prism
         ::Script_SetActive(ToCore(this->entity), this, active);
     }
     bool Behavior::IsActive() {
-        return this->is_active;
+        return ::Script_IsActive(ToCore(this->entity), this);
     }
 
 
