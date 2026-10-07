@@ -1189,16 +1189,8 @@ void ExecuteSSAOPass(OpenGL_Backend* internal)
 
     glUniformMatrix4fv(glGetUniformLocation(ssao_prog, "projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
     glUniformMatrix4fv(glGetUniformLocation(ssao_prog, "view"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
-    glUniform1i(glGetUniformLocation(ssao_prog, "kernelSize"), 16);
     glUniform1f(glGetUniformLocation(ssao_prog, "radius"), 0.5f);
     glUniform1f(glGetUniformLocation(ssao_prog, "bias"), 0.025f);
-
-    for (int k = 0; k < 64; ++k)
-    {
-        char var_name[32];
-        sprintf(var_name, "samples[%d]", k);
-        glUniform3fv(glGetUniformLocation(ssao_prog, var_name), 1, (float*)&internal->ssao.kernel[k]);
-    }
 
     glUniform2f(glGetUniformLocation(ssao_prog, "noiseScale"), (float)internal->state.window_width / 4.0f, (float)internal->state.window_height / 4.0f);
 

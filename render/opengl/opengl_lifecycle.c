@@ -226,7 +226,7 @@ Renderer* OpenGL_Init(void* native_window, uint32_t init_width, uint32_t init_he
     // Position color buffer (use RGBA16F for GPU alignment)
     glGenTextures(1, &internal->ssao.gPosition);
     glBindTexture(GL_TEXTURE_2D, internal->ssao.gPosition);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, win_w, win_h, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, win_w, win_h, 0, GL_RGBA, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -673,6 +673,23 @@ void OpenGL_InitPipelines(OpenGL_Backend* internal)
     internal->ssao.ssao_shader = OpenGL_CompileInternalShaderFromFile(internal, "SSAO Compute", "assets/shaders/ssao/ssao.vert", NULL, "assets/shaders/ssao/ssao.frag");
     internal->ssao.blur_shader = OpenGL_CompileInternalShaderFromFile(internal, "SSAO Blur", "assets/shaders/ssao/ssao.vert", NULL, "assets/shaders/ssao/ssao_blur.frag");
 
+    // The shader evaluates 16 samples. Upload the immutable kernel once instead of looking up and uploading all 64 array elements every frame.
+    if (internal->ssao.ssao_shader.id != 0)
+    {
+        GLuint ssao_program = internal->shader_pool[internal->ssao.ssao_shader.id].program;
+        glUseProgram(ssao_program);
+
+        GLint samples_location = glGetUniformLocation(ssao_program, "samples[0]");
+        if (samples_location != -1)
+            glUniform3fv(samples_location, 16, (float*)internal->ssao.kernel);
+        
+        GLint kernel_size_location = glGetUniformLocation(ssao_program, "kernelSize");
+        if (kernel_size_location != -1)
+            glUniform1i(kernel_size_location, 16);
+        
+        glUseProgram(0);
+    }
+
     // 7. IBL Precomputation Pipeline
     internal->ibl.equirectangular_to_cubemap = OpenGL_CompileInternalShaderFromFile(internal, "Equirectangular to Cubemap", "assets/shaders/ibl/cubemap.vert", NULL, "assets/shaders/ibl/equirectangular_to_cubemap.frag");
     internal->ibl.irradiance_convolution = OpenGL_CompileInternalShaderFromFile(internal, "Irradiance Convolution", "assets/shaders/ibl/cubemap.vert", NULL, "assets/shaders/ibl/irradiance_convolution.frag");
@@ -706,7 +723,7 @@ void OpenGL_Resize(Renderer* r, uint32_t width, uint32_t height)
 
         // Resize G-Buffer Textures
         glBindTexture(GL_TEXTURE_2D, internal->ssao.gPosition);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
 
         glBindTexture(GL_TEXTURE_2D, internal->ssao.gNormal);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
