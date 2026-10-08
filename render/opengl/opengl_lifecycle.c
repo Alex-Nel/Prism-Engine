@@ -679,11 +679,11 @@ void OpenGL_InitPipelines(OpenGL_Backend* internal)
         GLuint ssao_program = internal->shader_pool[internal->ssao.ssao_shader.id].program;
         glUseProgram(ssao_program);
 
-        GLint samples_location = glGetUniformLocation(ssao_program, "samples[0]");
+        GLint samples_location = OpenGL_GetCachedUniformLocation(internal, ssao_program, "samples[0]");
         if (samples_location != -1)
             glUniform3fv(samples_location, 16, (float*)internal->ssao.kernel);
         
-        GLint kernel_size_location = glGetUniformLocation(ssao_program, "kernelSize");
+        GLint kernel_size_location = OpenGL_GetCachedUniformLocation(internal, ssao_program, "kernelSize");
         if (kernel_size_location != -1)
             glUniform1i(kernel_size_location, 16);
         

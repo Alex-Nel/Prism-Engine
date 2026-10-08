@@ -77,63 +77,69 @@ static uint32_t OpenGL_EnvSkyboxTextureId(OpenGL_Backend* internal, EnvironmentM
 
 
 // Applies a material
-static void OpenGL_ApplyMaterial(OpenGL_Backend* internal, GLuint program, MaterialHandle handle, Color instance_color, bool gbuffer_tint)
+static void OpenGL_ApplyMaterial(OpenGL_Backend* internal, GLuint program, MaterialHandle handle, Color instance_color, bool gbuffer_tint, bool bind_material_state)
 {
-    const GLMaterial* mat = OpenGL_GetMaterial(internal, handle);
-    TextureHandle albedo = {0};
-    TextureHandle normal = {0};
-    TextureHandle metallic = {0};
-    TextureHandle roughness = {0};
-    TextureHandle ao = {0};
-    float metallic_factor = 0.0f;
-    float roughness_factor = 0.5f;
-
-    if (mat)
+    if (bind_material_state)
     {
-        albedo = mat->albedo;
-        normal = mat->normal;
-        metallic = mat->metallic;
-        roughness = mat->roughness;
-        ao = mat->ao;
-        metallic_factor = mat->properties.metallic_factor;
-        roughness_factor = mat->properties.roughness_factor;
+        const GLMaterial* mat = OpenGL_GetMaterial(internal, handle);
+        TextureHandle albedo = {0};
+        TextureHandle normal = {0};
+        TextureHandle metallic = {0};
+        TextureHandle roughness = {0};
+        TextureHandle ao = {0};
+        float metallic_factor = 0.0f;
+        float roughness_factor = 0.5f;
+        
+        if (mat)
+        {
+            albedo = mat->albedo;
+            normal = mat->normal;
+            metallic = mat->metallic;
+            roughness = mat->roughness;
+            ao = mat->ao;
+            metallic_factor = mat->properties.metallic_factor;
+            roughness_factor = mat->properties.roughness_factor;
+        }
+
+        glActiveTexture(GL_TEXTURE0);
+        bool valid_albedo = OpenGL_TextureValid(internal, albedo);
+        glBindTexture(GL_TEXTURE_2D, valid_albedo ? internal->texture_pool[albedo.id].id : internal->texture_pool[1].id);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "u_Material.albedoMap"), 0);
+        if (!gbuffer_tint)
+            glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "u_Material.diffuse"), 0);
+
+        bool valid_normal = OpenGL_TextureValid(internal, normal);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "u_Material.hasNormalMap"), valid_normal ? 1 : 0);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, valid_normal ? internal->texture_pool[normal.id].id : internal->texture_pool[2].id);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "u_Material.normalMap"), 1);
+
+        bool valid_metallic = OpenGL_TextureValid(internal, metallic);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "u_Material.hasMetallicMap"), valid_metallic ? 1 : 0);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, valid_metallic ? internal->texture_pool[metallic.id].id : internal->texture_pool[3].id);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "u_Material.metallicMap"), 2);
+
+        bool valid_roughness = OpenGL_TextureValid(internal, roughness);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "u_Material.hasRoughnessMap"), valid_roughness ? 1 : 0);
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, valid_roughness ? internal->texture_pool[roughness.id].id : internal->texture_pool[1].id);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "u_Material.roughnessMap"), 3);
+
+        bool valid_ao = OpenGL_TextureValid(internal, ao);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "u_Material.hasAOMap"), valid_ao ? 1 : 0);
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, valid_ao ? internal->texture_pool[ao.id].id : internal->texture_pool[1].id);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "u_Material.aoMap"), 4);
+
+
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, "u_Material.metallicFactor"), metallic_factor);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, "u_Material.roughnessFactor"), roughness_factor);
     }
 
-    glActiveTexture(GL_TEXTURE0);
-    bool valid_albedo = OpenGL_TextureValid(internal, albedo);
-    glBindTexture(GL_TEXTURE_2D, valid_albedo ? internal->texture_pool[albedo.id].id : internal->texture_pool[1].id);
-    glUniform1i(glGetUniformLocation(program, "u_Material.albedoMap"), 0);
-    if (!gbuffer_tint)
-        glUniform1i(glGetUniformLocation(program, "u_Material.diffuse"), 0);
-    
-    bool valid_normal = OpenGL_TextureValid(internal, normal);
-    glUniform1i(glGetUniformLocation(program, "u_Material.hasNormalMap"), valid_normal ? 1 : 0);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, valid_normal ? internal->texture_pool[normal.id].id : internal->texture_pool[2].id);
-    glUniform1i(glGetUniformLocation(program, "u_Material.normalMap"), 1);
-    
-    bool valid_metallic = OpenGL_TextureValid(internal, metallic);
-    glUniform1i(glGetUniformLocation(program, "u_Material.hasMetallicMap"), valid_metallic ? 1 : 0);
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, valid_metallic ? internal->texture_pool[metallic.id].id : internal->texture_pool[3].id);
-    glUniform1i(glGetUniformLocation(program, "u_Material.metallicMap"), 2);
-    
-    bool valid_roughness = OpenGL_TextureValid(internal, roughness);
-    glUniform1i(glGetUniformLocation(program, "u_Material.hasRoughnessMap"), valid_roughness ? 1 : 0);
-    glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_2D, valid_roughness ? internal->texture_pool[roughness.id].id : internal->texture_pool[1].id);
-    glUniform1i(glGetUniformLocation(program, "u_Material.roughnessMap"), 3);
-    
-    bool valid_ao = OpenGL_TextureValid(internal, ao);
-    glUniform1i(glGetUniformLocation(program, "u_Material.hasAOMap"), valid_ao ? 1 : 0);
-    glActiveTexture(GL_TEXTURE4);
-    glBindTexture(GL_TEXTURE_2D, valid_ao ? internal->texture_pool[ao.id].id : internal->texture_pool[1].id);
-    glUniform1i(glGetUniformLocation(program, "u_Material.aoMap"), 4);
-    
+
     const char* tint_name = gbuffer_tint ? "u_Material.albedoTint" : "u_Material.tint";
-    glUniform3fv(glGetUniformLocation(program, tint_name), 1, (float*)&instance_color);
-    glUniform1f(glGetUniformLocation(program, "u_Material.metallicFactor"), metallic_factor);
-    glUniform1f(glGetUniformLocation(program, "u_Material.roughnessFactor"), roughness_factor);
+    glUniform3fv(OpenGL_GetCachedUniformLocation(internal, program, tint_name), 1, (float*)&instance_color);
 }
 
 
@@ -148,7 +154,7 @@ static void OpenGL_ApplyMaterial(OpenGL_Backend* internal, GLuint program, Mater
 // Binds the SSAO result (or a white fallback when SSAO is disabled).
 void OpenGL_BindSSAOTexture(OpenGL_Backend* internal, GLuint program)
 {
-    GLint ssao_loc = glGetUniformLocation(program, "ssaoMap");
+    GLint ssao_loc = OpenGL_GetCachedUniformLocation(internal, program, "ssaoMap");
     if (ssao_loc == -1)
         return;
 
@@ -199,40 +205,40 @@ static void OpenGL_ApplyCascadeResult(RenderState* state, const ShadowCascadeRes
 
 
 // Uploads cascaded shadow-map uniforms to a lit shader program.
-void OpenGL_UploadShadowUniforms(GLuint program, const RenderState* state)
+void OpenGL_UploadShadowUniforms(OpenGL_Backend* internal, GLuint program, const RenderState* state)
 {
-    GLint loc = glGetUniformLocation(program, "u_LightSpaceMatrices");
+    GLint loc = OpenGL_GetCachedUniformLocation(internal, program, "u_LightSpaceMatrices");
     if (loc != -1)
         glUniformMatrix4fv(loc, (GLsizei)state->shadow_cascade_count, GL_FALSE, (float*)state->light_space_matrices);
 
-    loc = glGetUniformLocation(program, "u_ShadowCascadeCount");
+    loc = OpenGL_GetCachedUniformLocation(internal, program, "u_ShadowCascadeCount");
     if (loc != -1)
         glUniform1i(loc, (GLint)state->shadow_cascade_count);
 
-    loc = glGetUniformLocation(program, "u_ShadowTexelSizes");
+    loc = OpenGL_GetCachedUniformLocation(internal, program, "u_ShadowTexelSizes");
     if (loc != -1)
         glUniform1fv(loc, (GLsizei)state->shadow_cascade_count, state->shadow_texel_world_sizes);
 
     if (state->shadow_cascade_count > 1)
     {
-        loc = glGetUniformLocation(program, "u_CascadeSplits");
+        loc = OpenGL_GetCachedUniformLocation(internal, program, "u_CascadeSplits");
         if (loc != -1)
             glUniform1fv(loc, (GLsizei)(state->shadow_cascade_count - 1), state->cascade_splits);
         
-        loc = glGetUniformLocation(program, "u_ShadowCameraNear");
+        loc = OpenGL_GetCachedUniformLocation(internal, program, "u_ShadowCameraNear");
         if (loc != -1)
             glUniform1f(loc, state->shadow_camera_near);
 
-        loc = glGetUniformLocation(program, "u_CascadeBlendFraction");
+        loc = OpenGL_GetCachedUniformLocation(internal, program, "u_CascadeBlendFraction");
         if (loc != -1)
             glUniform1f(loc, state->cascade_blend_fraction);
     }
 
-    loc = glGetUniformLocation(program, "u_CameraForward");
+    loc = OpenGL_GetCachedUniformLocation(internal, program, "u_CameraForward");
     if (loc != -1)
         glUniform3fv(loc, 1, (float*)&state->camera_forward);
 
-    loc = glGetUniformLocation(program, "u_ShadowMaxDistance");
+    loc = OpenGL_GetCachedUniformLocation(internal, program, "u_ShadowMaxDistance");
     if (loc != -1)
     {
         // If there are no directional lights, fallback to a safe 200.0f units
@@ -254,6 +260,7 @@ void OpenGL_UploadShadowUniforms(GLuint program, const RenderState* state)
 void OpenGL_DrawShadowQueue(OpenGL_Backend* internal, const Matrix4* light_space_matrix)
 {
     uint32_t current_shader = 0;
+    uint32_t current_mesh = UINT32_MAX;
     Frustum light_frustum = Frustum_ExtractFromMatrix(*light_space_matrix);
 
     for (uint32_t i = 0; i < internal->command_count; i++)
@@ -280,16 +287,16 @@ void OpenGL_DrawShadowQueue(OpenGL_Backend* internal, const Matrix4* light_space
             glUseProgram(gl_shader->program);
             current_shader = target_shader.id;
 
-            GLint light_space_loc = glGetUniformLocation(gl_shader->program, "u_LightSpaceMatrix");
+            GLint light_space_loc = OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "u_LightSpaceMatrix");
             if (light_space_loc != -1)
                 glUniformMatrix4fv(light_space_loc, 1, GL_FALSE, (float*)light_space_matrix);
         }
 
-        GLint model_loc = glGetUniformLocation(gl_shader->program, "u_Model");
+        GLint model_loc = OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "u_Model");
         if (model_loc != -1)
             glUniformMatrix4fv(model_loc, 1, GL_FALSE, (float*)&cmd->transform);
 
-        GLint bone_loc = glGetUniformLocation(gl_shader->program, "u_BoneMatrices");
+        GLint bone_loc = OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "u_BoneMatrices");
         if (bone_loc != -1)
         {
             if (cmd->bone_matrices != NULL && gl_mesh->is_skinned)
@@ -309,7 +316,12 @@ void OpenGL_DrawShadowQueue(OpenGL_Backend* internal, const Matrix4* light_space
             }
         }
 
-        glBindVertexArray(gl_mesh->vao);
+        if (current_mesh != cmd->mesh.id)
+        {
+            glBindVertexArray(gl_mesh->vao);
+            current_mesh = cmd->mesh.id;
+        }
+
         glDrawElements(GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
     }
 }
@@ -444,6 +456,7 @@ void OpenGL_ExecuteShadowPass(OpenGL_Backend* internal)
     
     int shadow_point_index = 0; 
     uint32_t current_point_shader = 0;
+    uint32_t current_point_mesh = UINT32_MAX;
 
     for (uint32_t i = 0; i < internal->state.point_light_count; i++)
     {
@@ -454,6 +467,10 @@ void OpenGL_ExecuteShadowPass(OpenGL_Backend* internal)
 
         if (!pl->casts_shadows)
             continue;
+
+        // Matrices and light position change for every point light.
+        current_point_shader = 0;
+        current_point_mesh = UINT32_MAX;
 
         // glFramebufferTexture allows the Geometry shader to route to the 6 faces via gl_Layer
         glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, internal->shadow.pointDepthMaps[shadow_point_index], 0);        
@@ -533,15 +550,15 @@ void OpenGL_ExecuteShadowPass(OpenGL_Backend* internal)
                 glUseProgram(pt_prog);
                 current_point_shader = target_shader.id;
 
-                glUniformMatrix4fv(glGetUniformLocation(pt_prog, "u_ShadowMatrices"), 6, GL_FALSE, (float*)shadowTransforms);
-                glUniform3fv(glGetUniformLocation(pt_prog, "u_LightPos"), 1, (float*)&pos);
-                glUniform1f(glGetUniformLocation(pt_prog, "u_FarPlane"), 100.0f);
+                glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, pt_prog, "u_ShadowMatrices"), 6, GL_FALSE, (float*)shadowTransforms);
+                glUniform3fv(OpenGL_GetCachedUniformLocation(internal, pt_prog, "u_LightPos"), 1, (float*)&pos);
+                glUniform1f(OpenGL_GetCachedUniformLocation(internal, pt_prog, "u_FarPlane"), 100.0f);
             }
 
             GLuint prog = internal->shader_pool[target_shader.id].program;
-            glUniformMatrix4fv(glGetUniformLocation(prog, "u_Model"), 1, GL_FALSE, (float*)&cmd->transform);
+            glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, prog, "u_Model"), 1, GL_FALSE, (float*)&cmd->transform);
             
-            GLint bone_loc = glGetUniformLocation(prog, "u_BoneMatrices");
+            GLint bone_loc = OpenGL_GetCachedUniformLocation(internal, prog, "u_BoneMatrices");
             if (bone_loc != -1)
             {
                 if (cmd->bone_matrices != NULL && internal->mesh_pool[cmd->mesh.id].is_skinned)
@@ -561,7 +578,12 @@ void OpenGL_ExecuteShadowPass(OpenGL_Backend* internal)
                 }
             }
 
-            glBindVertexArray(internal->mesh_pool[cmd->mesh.id].vao);
+            if (current_point_mesh != cmd->mesh.id)
+            {
+                glBindVertexArray(internal->mesh_pool[cmd->mesh.id].vao);
+                current_point_mesh = cmd->mesh.id;
+            }
+
             glDrawElements(GL_TRIANGLES, internal->mesh_pool[cmd->mesh.id].index_count, GL_UNSIGNED_INT, 0);
         }
         
@@ -610,21 +632,21 @@ void OpenGL_BindDefaultFramebuffer()
 
 
 // Uploads generic renderer uniforms
-void OpenGL_UploadCommonUniforms(GLuint program, const RenderState* state)
+void OpenGL_UploadCommonUniforms(OpenGL_Backend* internal, GLuint program, const RenderState* state)
 {
-    GLint gamma_loc = glGetUniformLocation(program, "u_Gamma");
+    GLint gamma_loc = OpenGL_GetCachedUniformLocation(internal, program, "u_Gamma");
     if (gamma_loc != -1)
         glUniform1f(gamma_loc, state->settings.gamma > 0.01f ? state->settings.gamma : 2.2f);
 
-    GLint exp_loc = glGetUniformLocation(program, "u_Exposure");
+    GLint exp_loc = OpenGL_GetCachedUniformLocation(internal, program, "u_Exposure");
     if (exp_loc != -1)
         glUniform1f(exp_loc, state->settings.exposure > 0.001f ? state->settings.exposure : 1.0f);
 
-    GLint ambient_color_loc = glGetUniformLocation(program, "u_GlobalAmbientColor");
+    GLint ambient_color_loc = OpenGL_GetCachedUniformLocation(internal, program, "u_GlobalAmbientColor");
     if (ambient_color_loc != -1)
         glUniform3fv(ambient_color_loc, 1, (float*)&state->global_ambient_color);
 
-    GLint ambient_int_loc = glGetUniformLocation(program, "u_GlobalAmbientIllumination");
+    GLint ambient_int_loc = OpenGL_GetCachedUniformLocation(internal, program, "u_GlobalAmbientIllumination");
     if (ambient_int_loc != -1)
         glUniform1f(ambient_int_loc, state->global_ambient_illumination);
 }
@@ -639,76 +661,76 @@ void OpenGL_UploadCommonUniforms(GLuint program, const RenderState* state)
 
 
 // Extracts the string formatting for lights
-void OpenGL_UploadLightUniforms(GLuint program, const RenderState* state)
+void OpenGL_UploadLightUniforms(OpenGL_Backend* internal, GLuint program, const RenderState* state)
 {
-    OpenGL_UploadCommonUniforms(program, state);
+    OpenGL_UploadCommonUniforms(internal, program, state);
     char uniform_name[64];
 
     // --- Upload Directional Lights ---
-    glUniform1i(glGetUniformLocation(program, "u_DirLightCount"), state->dir_light_count);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "u_DirLightCount"), state->dir_light_count);
     for (uint32_t j = 0; j < state->dir_light_count; j++)
     {
         const DirectionalLightData* dl = &state->dir_lights[j];
         sprintf(uniform_name, "u_DirLights[%d].direction", j);
-        glUniform3fv(glGetUniformLocation(program, uniform_name), 1, (float*)&dl->direction);
+        glUniform3fv(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), 1, (float*)&dl->direction);
         sprintf(uniform_name, "u_DirLights[%d].color", j);
-        glUniform3fv(glGetUniformLocation(program, uniform_name), 1, (float*)&dl->color);
+        glUniform3fv(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), 1, (float*)&dl->color);
         sprintf(uniform_name, "u_DirLights[%d].intensity", j);
-        glUniform1f(glGetUniformLocation(program, uniform_name), dl->intensity);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), dl->intensity);
         sprintf(uniform_name, "u_DirLights[%d].ambientStrength", j); 
-        glUniform1f(glGetUniformLocation(program, uniform_name), dl->ambient_strength);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), dl->ambient_strength);
         sprintf(uniform_name, "u_DirLights[%d].castsShadows", j);
-        glUniform1i(glGetUniformLocation(program, uniform_name), dl->casts_shadows ? 1 : 0);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), dl->casts_shadows ? 1 : 0);
     }
 
 
     // --- Upload Point Lights ---
-    glUniform1i(glGetUniformLocation(program, "u_PointLightCount"), state->point_light_count);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "u_PointLightCount"), state->point_light_count);
     for (uint32_t j = 0; j < state->point_light_count; j++)
     {
         const PointLightData* pl = &state->point_lights[j];
         sprintf(uniform_name, "u_PointLights[%d].position", j);
-        glUniform3fv(glGetUniformLocation(program, uniform_name), 1, (float*)&pl->position);
+        glUniform3fv(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), 1, (float*)&pl->position);
         sprintf(uniform_name, "u_PointLights[%d].color", j);
-        glUniform3fv(glGetUniformLocation(program, uniform_name), 1, (float*)&pl->color);
+        glUniform3fv(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), 1, (float*)&pl->color);
         sprintf(uniform_name, "u_PointLights[%d].intensity", j);
-        glUniform1f(glGetUniformLocation(program, uniform_name), pl->intensity);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), pl->intensity);
         sprintf(uniform_name, "u_PointLights[%d].constant", j);
-        glUniform1f(glGetUniformLocation(program, uniform_name), pl->constant);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), pl->constant);
         sprintf(uniform_name, "u_PointLights[%d].linear", j);
-        glUniform1f(glGetUniformLocation(program, uniform_name), pl->linear);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), pl->linear);
         sprintf(uniform_name, "u_PointLights[%d].quadratic", j);
-        glUniform1f(glGetUniformLocation(program, uniform_name), pl->quadratic);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), pl->quadratic);
         sprintf(uniform_name, "u_PointLights[%d].castsShadows", j);
-        glUniform1i(glGetUniformLocation(program, uniform_name), pl->casts_shadows ? 1 : 0);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), pl->casts_shadows ? 1 : 0);
     }
 
 
     // --- Upload Spot Lights ---
-    glUniform1i(glGetUniformLocation(program, "u_SpotLightCount"), state->spot_light_count);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "u_SpotLightCount"), state->spot_light_count);
     for (uint32_t j = 0; j < state->spot_light_count; j++)
     {
         const SpotLightData* sl = &state->spot_lights[j];
         sprintf(uniform_name, "u_SpotLights[%d].position", j);
-        glUniform3fv(glGetUniformLocation(program, uniform_name), 1, (float*)&sl->position);
+        glUniform3fv(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), 1, (float*)&sl->position);
         sprintf(uniform_name, "u_SpotLights[%d].direction", j);
-        glUniform3fv(glGetUniformLocation(program, uniform_name), 1, (float*)&sl->direction);
+        glUniform3fv(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), 1, (float*)&sl->direction);
         sprintf(uniform_name, "u_SpotLights[%d].color", j);
-        glUniform3fv(glGetUniformLocation(program, uniform_name), 1, (float*)&sl->color);
+        glUniform3fv(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), 1, (float*)&sl->color);
         sprintf(uniform_name, "u_SpotLights[%d].intensity", j);
-        glUniform1f(glGetUniformLocation(program, uniform_name), sl->intensity);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), sl->intensity);
         sprintf(uniform_name, "u_SpotLights[%d].constant", j);
-        glUniform1f(glGetUniformLocation(program, uniform_name), sl->constant);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), sl->constant);
         sprintf(uniform_name, "u_SpotLights[%d].linear", j);
-        glUniform1f(glGetUniformLocation(program, uniform_name), sl->linear);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), sl->linear);
         sprintf(uniform_name, "u_SpotLights[%d].quadratic", j);
-        glUniform1f(glGetUniformLocation(program, uniform_name), sl->quadratic);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), sl->quadratic);
         sprintf(uniform_name, "u_SpotLights[%d].cutOff", j);
-        glUniform1f(glGetUniformLocation(program, uniform_name), sl->inner_cut_off);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), sl->inner_cut_off);
         sprintf(uniform_name, "u_SpotLights[%d].outerCutOff", j);
-        glUniform1f(glGetUniformLocation(program, uniform_name), sl->outer_cut_off);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), sl->outer_cut_off);
         sprintf(uniform_name, "u_SpotLights[%d].castsShadows", j);
-        glUniform1i(glGetUniformLocation(program, uniform_name), sl->casts_shadows ? 1 : 0);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), sl->casts_shadows ? 1 : 0);
     }
 }
 
@@ -722,25 +744,25 @@ void OpenGL_UploadLightUniforms(GLuint program, const RenderState* state)
 
 
 // Uploads only directional light uniforms
-void OpenGL_UploadDirectionalLightUniforms(GLuint program, const RenderState* state)
+void OpenGL_UploadDirectionalLightUniforms(OpenGL_Backend* internal, GLuint program, const RenderState* state)
 {
     char uniform_name[64];
 
     // --- Upload Directional Lights ---
-    glUniform1i(glGetUniformLocation(program, "u_DirLightCount"), state->dir_light_count);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "u_DirLightCount"), state->dir_light_count);
     for (uint32_t j = 0; j < state->dir_light_count; j++)
     {
         const DirectionalLightData* dl = &state->dir_lights[j];
         sprintf(uniform_name, "u_DirLights[%d].direction", j);
-        glUniform3fv(glGetUniformLocation(program, uniform_name), 1, (float*)&dl->direction);
+        glUniform3fv(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), 1, (float*)&dl->direction);
         sprintf(uniform_name, "u_DirLights[%d].color", j);
-        glUniform3fv(glGetUniformLocation(program, uniform_name), 1, (float*)&dl->color);
+        glUniform3fv(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), 1, (float*)&dl->color);
         sprintf(uniform_name, "u_DirLights[%d].intensity", j);
-        glUniform1f(glGetUniformLocation(program, uniform_name), dl->intensity);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), dl->intensity);
         sprintf(uniform_name, "u_DirLights[%d].ambientStrength", j); 
-        glUniform1f(glGetUniformLocation(program, uniform_name), dl->ambient_strength);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), dl->ambient_strength);
         sprintf(uniform_name, "u_DirLights[%d].castsShadows", j);
-        glUniform1i(glGetUniformLocation(program, uniform_name), dl->casts_shadows ? 1 : 0);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), dl->casts_shadows ? 1 : 0);
     }
 }
 
@@ -765,7 +787,8 @@ void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
     uint32_t current_g_shader = 0;
-    uint32_t current_texture = 999999;
+    uint32_t current_material = UINT32_MAX;
+    uint32_t current_mesh = UINT32_MAX;
     Frustum camera_frustum = OpenGL_ExtractViewFrustum(&internal->state);
 
     for (uint32_t i = 0; i < opaque_count; i++)
@@ -784,20 +807,23 @@ void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
         {
             glUseProgram(g_prog->program);
             current_g_shader = target_g_handle.id;
+            current_material = UINT32_MAX;
 
-            glUniformMatrix4fv(glGetUniformLocation(g_prog->program, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
-            glUniformMatrix4fv(glGetUniformLocation(g_prog->program, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
-            OpenGL_UploadCommonUniforms(g_prog->program, &internal->state);
+            glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, g_prog->program, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
+            glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, g_prog->program, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+            OpenGL_UploadCommonUniforms(internal, g_prog->program, &internal->state);
         }
 
 
-        OpenGL_ApplyMaterial(internal, g_prog->program, cmd->material, cmd->color, true);
+        bool material_changed = current_material != cmd->material.id;
+        OpenGL_ApplyMaterial(internal, g_prog->program, cmd->material, cmd->color, true, material_changed);
+        current_material = cmd->material.id;
 
-        glUniform1f(glGetUniformLocation(g_prog->program, "u_ReceiveShadows"), (cmd->flags & RENDER_ITEM_RECEIVE_SHADOWS) ? 1.0f : 0.0f);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, g_prog->program, "u_ReceiveShadows"), (cmd->flags & RENDER_ITEM_RECEIVE_SHADOWS) ? 1.0f : 0.0f);
 
-        glUniformMatrix4fv(glGetUniformLocation(g_prog->program, "u_Model"), 1, GL_FALSE, (float*)&cmd->transform);
+        glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, g_prog->program, "u_Model"), 1, GL_FALSE, (float*)&cmd->transform);
 
-        GLint bone_loc = glGetUniformLocation(g_prog->program, "u_BoneMatrices");
+        GLint bone_loc = OpenGL_GetCachedUniformLocation(internal, g_prog->program, "u_BoneMatrices");
         if (bone_loc != -1)
         {
             if (cmd->bone_matrices != NULL && internal->mesh_pool[cmd->mesh.id].is_skinned)
@@ -820,7 +846,12 @@ void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
         }
 
         GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
-        glBindVertexArray(gl_mesh->vao);
+        if (current_mesh != cmd->mesh.id)
+        {
+            glBindVertexArray(gl_mesh->vao);
+            current_mesh = cmd->mesh.id;
+        }
+
         glDrawElements(GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
     }
 
@@ -848,8 +879,8 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
         glUseProgram(post_prog);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, internal->ssao.gAlbedoSpec);
-        glUniform1i(glGetUniformLocation(post_prog, "hdrLightingMap"), 0);
-        OpenGL_UploadCommonUniforms(post_prog, &internal->state);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, post_prog, "hdrLightingMap"), 0);
+        OpenGL_UploadCommonUniforms(internal, post_prog, &internal->state);
         glBindVertexArray(internal->quad_vao);
         glDrawArrays(GL_TRIANGLES, 0, 6);
         return;
@@ -868,35 +899,35 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     glUseProgram(def_prog);
 
     // Bind G-Buffer Textures
-    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, internal->ssao.gPosition); glUniform1i(glGetUniformLocation(def_prog, "gPosition"), 0);
-    glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, internal->ssao.gNormal); glUniform1i(glGetUniformLocation(def_prog, "gNormal"), 1);
-    glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, internal->ssao.gAlbedoSpec); glUniform1i(glGetUniformLocation(def_prog, "gAlbedoSpec"), 2);
-    glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, internal->state.settings.enable_ssao ? internal->ssao.ssaoColorBufferBlur : internal->ssao.fallbackWhiteTexture); glUniform1i(glGetUniformLocation(def_prog, "ssaoMap"), 3);
-    glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_2D_ARRAY, internal->shadow.depthMapTextureArray); glUniform1i(glGetUniformLocation(def_prog, "shadowMap"), 4);
+    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, internal->ssao.gPosition); glUniform1i(OpenGL_GetCachedUniformLocation(internal, def_prog, "gPosition"), 0);
+    glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, internal->ssao.gNormal); glUniform1i(OpenGL_GetCachedUniformLocation(internal, def_prog, "gNormal"), 1);
+    glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, internal->ssao.gAlbedoSpec); glUniform1i(OpenGL_GetCachedUniformLocation(internal, def_prog, "gAlbedoSpec"), 2);
+    glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, internal->state.settings.enable_ssao ? internal->ssao.ssaoColorBufferBlur : internal->ssao.fallbackWhiteTexture); glUniform1i(OpenGL_GetCachedUniformLocation(internal, def_prog, "ssaoMap"), 3);
+    glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_2D_ARRAY, internal->shadow.depthMapTextureArray); glUniform1i(OpenGL_GetCachedUniformLocation(internal, def_prog, "shadowMap"), 4);
 
     GLEnvironmentMap* global_env = OpenGL_GetEnvMap(internal, internal->state.env_map);
     bool has_global_ibl = internal->state.has_env_map && global_env && global_env->has_ibl;
 
     // Bind IBL Maps
-    glUniform1i(glGetUniformLocation(def_prog, "u_HasIBL"), has_global_ibl ? 1 : 0);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, def_prog, "u_HasIBL"), has_global_ibl ? 1 : 0);
     const int ibl_debug_mode = 0; // Set to 1 for compressed RGB irradiance or 2 for logarithmic luminance.
-    glUniform1i(glGetUniformLocation(def_prog, "u_IBLDebugMode"), ibl_debug_mode);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, def_prog, "u_IBLDebugMode"), ibl_debug_mode);
     if (has_global_ibl)
     {
-        glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_CUBE_MAP, OpenGL_TextureGL(internal, global_env->irradiance)); glUniform1i(glGetUniformLocation(def_prog, "irradianceMap"), 5);
-        glActiveTexture(GL_TEXTURE6); glBindTexture(GL_TEXTURE_CUBE_MAP, OpenGL_TextureGL(internal, global_env->prefilter)); glUniform1i(glGetUniformLocation(def_prog, "prefilterMap"), 6);
-        glActiveTexture(GL_TEXTURE7); glBindTexture(GL_TEXTURE_2D, OpenGL_TextureGL(internal, global_env->brdf_lut)); glUniform1i(glGetUniformLocation(def_prog, "brdfLUT"), 7);
+        glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_CUBE_MAP, OpenGL_TextureGL(internal, global_env->irradiance)); glUniform1i(OpenGL_GetCachedUniformLocation(internal, def_prog, "irradianceMap"), 5);
+        glActiveTexture(GL_TEXTURE6); glBindTexture(GL_TEXTURE_CUBE_MAP, OpenGL_TextureGL(internal, global_env->prefilter)); glUniform1i(OpenGL_GetCachedUniformLocation(internal, def_prog, "prefilterMap"), 6);
+        glActiveTexture(GL_TEXTURE7); glBindTexture(GL_TEXTURE_2D, OpenGL_TextureGL(internal, global_env->brdf_lut)); glUniform1i(OpenGL_GetCachedUniformLocation(internal, def_prog, "brdfLUT"), 7);
     }
     
     // Upload Uniforms
-    glUniformMatrix4fv(glGetUniformLocation(def_prog, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
-    glUniform3fv(glGetUniformLocation(def_prog, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
-    glUniform1i(glGetUniformLocation(def_prog, "u_EnableSSAO"), internal->state.settings.enable_ssao ? 1 : 0);
-    OpenGL_UploadCommonUniforms(def_prog, &internal->state);
+    glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, def_prog, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
+    glUniform3fv(OpenGL_GetCachedUniformLocation(internal, def_prog, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, def_prog, "u_EnableSSAO"), internal->state.settings.enable_ssao ? 1 : 0);
+    OpenGL_UploadCommonUniforms(internal, def_prog, &internal->state);
 
-    OpenGL_UploadShadowUniforms(def_prog, &internal->state);
+    OpenGL_UploadShadowUniforms(internal, def_prog, &internal->state);
 
-    OpenGL_UploadDirectionalLightUniforms(def_prog, &internal->state);
+    OpenGL_UploadDirectionalLightUniforms(internal, def_prog, &internal->state);
 
     glDisable(GL_DEPTH_TEST);
     glBindVertexArray(internal->quad_vao);
@@ -909,24 +940,24 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
         GLuint probe_program = internal->shader_pool[internal->deferred.probe_volume_shader.id].program;
         glUseProgram(probe_program);
 
-        glUniform1i(glGetUniformLocation(probe_program, "gPosition"), 0);
-        glUniform1i(glGetUniformLocation(probe_program, "gNormal"), 1);
-        glUniform1i(glGetUniformLocation(probe_program, "gAlbedoSpec"), 2);
-        glUniform1i(glGetUniformLocation(probe_program, "ssaoMap"), 3);
-        glUniform1i(glGetUniformLocation(probe_program, "localIrradianceMap"), 4);
-        glUniform1i(glGetUniformLocation(probe_program, "localPrefilterMap"), 5);
-        glUniform1i(glGetUniformLocation(probe_program, "globalIrradianceMap"), 6);
-        glUniform1i(glGetUniformLocation(probe_program, "globalPrefilterMap"), 7);
-        glUniform1i(glGetUniformLocation(probe_program, "brdfLUT"), 8);
-        glUniform1i(glGetUniformLocation(probe_program, "u_IBLDebugMode"), ibl_debug_mode);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, probe_program, "gPosition"), 0);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, probe_program, "gNormal"), 1);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, probe_program, "gAlbedoSpec"), 2);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, probe_program, "ssaoMap"), 3);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, probe_program, "localIrradianceMap"), 4);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, probe_program, "localPrefilterMap"), 5);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, probe_program, "globalIrradianceMap"), 6);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, probe_program, "globalPrefilterMap"), 7);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, probe_program, "brdfLUT"), 8);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, probe_program, "u_IBLDebugMode"), ibl_debug_mode);
 
-        glUniform3fv(glGetUniformLocation(probe_program, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
-        glUniform2f(glGetUniformLocation(probe_program, "u_ScreenSize"), (float)internal->state.window_width, (float)internal->state.window_height);
-        glUniform1i(glGetUniformLocation(probe_program, "u_EnableSSAO"), internal->state.settings.enable_ssao ? 1 : 0);
-        OpenGL_UploadCommonUniforms(probe_program, &internal->state);
+        glUniform3fv(OpenGL_GetCachedUniformLocation(internal, probe_program, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
+        glUniform2f(OpenGL_GetCachedUniformLocation(internal, probe_program, "u_ScreenSize"), (float)internal->state.window_width, (float)internal->state.window_height);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, probe_program, "u_EnableSSAO"), internal->state.settings.enable_ssao ? 1 : 0);
+        OpenGL_UploadCommonUniforms(internal, probe_program, &internal->state);
 
         bool has_global_ibl = internal->state.has_env_map && global_env && global_env->has_ibl;
-        glUniform1i(glGetUniformLocation(probe_program, "u_HasGlobalIBL"), has_global_ibl ? 1 : 0);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, probe_program, "u_HasGlobalIBL"), has_global_ibl ? 1 : 0);
 
         glActiveTexture(GL_TEXTURE6);
         glBindTexture(GL_TEXTURE_CUBE_MAP, has_global_ibl ? OpenGL_TextureGL(internal, global_env->irradiance) : 0);
@@ -972,10 +1003,10 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
             Vector3 box_min = Vector3Subtract(probe->position, probe->box_extents);
             Vector3 box_max = Vector3Add(probe->position, probe->box_extents);
 
-            glUniform3fv(glGetUniformLocation(probe_program, "u_ProbePosition"), 1, (float*)&probe->position);
-            glUniform3fv(glGetUniformLocation(probe_program, "u_ProbeBoxMin"), 1, (float*)&box_min);
-            glUniform3fv(glGetUniformLocation(probe_program, "u_ProbeBoxMax"), 1, (float*)&box_max);
-            glUniform1f(glGetUniformLocation(probe_program, "u_ProbeBlendDistance"), probe->blend_distance);
+            glUniform3fv(OpenGL_GetCachedUniformLocation(internal, probe_program, "u_ProbePosition"), 1, (float*)&probe->position);
+            glUniform3fv(OpenGL_GetCachedUniformLocation(internal, probe_program, "u_ProbeBoxMin"), 1, (float*)&box_min);
+            glUniform3fv(OpenGL_GetCachedUniformLocation(internal, probe_program, "u_ProbeBoxMax"), 1, (float*)&box_max);
+            glUniform1f(OpenGL_GetCachedUniformLocation(internal, probe_program, "u_ProbeBlendDistance"), probe->blend_distance);
             glDrawArrays(GL_TRIANGLES, 0, 6);
         }
 
@@ -992,17 +1023,17 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     glUseProgram(vol_prog);
 
     // Re-bind G-Buffer to the new shader (0, 1, 2)
-    glUniform1i(glGetUniformLocation(vol_prog, "gPosition"), 0);
-    glUniform1i(glGetUniformLocation(vol_prog, "gNormal"), 1);
-    glUniform1i(glGetUniformLocation(vol_prog, "gAlbedoSpec"), 2);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, vol_prog, "gPosition"), 0);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, vol_prog, "gNormal"), 1);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, vol_prog, "gAlbedoSpec"), 2);
 
-    glUniformMatrix4fv(glGetUniformLocation(vol_prog, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
-    glUniformMatrix4fv(glGetUniformLocation(vol_prog, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
-    glUniform3fv(glGetUniformLocation(vol_prog, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
-    glUniform2f(glGetUniformLocation(vol_prog, "u_ScreenSize"), (float)internal->state.window_width, (float)internal->state.window_height);
+    glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
+    glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+    glUniform3fv(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
+    glUniform2f(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_ScreenSize"), (float)internal->state.window_width, (float)internal->state.window_height);
 
     glActiveTexture(GL_TEXTURE6); 
-    glUniform1i(glGetUniformLocation(vol_prog, "pointShadowMap"), 6);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, vol_prog, "pointShadowMap"), 6);
 
 
     // --- Additive Blending ---
@@ -1021,14 +1052,14 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
         if (pl->casts_shadows && shadow_point_index < MAX_SHADOW_CASTING_POINT_LIGHTS)
         {
             glBindTexture(GL_TEXTURE_CUBE_MAP, internal->shadow.pointDepthMaps[shadow_point_index]);
-            glUniform1i(glGetUniformLocation(vol_prog, "u_ShadowIndex"), shadow_point_index);
+            glUniform1i(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_ShadowIndex"), shadow_point_index);
             shadow_point_index++;
         }
         else
         {
-            glUniform1i(glGetUniformLocation(vol_prog, "u_ShadowIndex"), -1);
+            glUniform1i(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_ShadowIndex"), -1);
         }
-        glUniform1f(glGetUniformLocation(vol_prog, "u_FarPlane"), 100.0f); // Match the projection matrix
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_FarPlane"), 100.0f); // Match the projection matrix
 
         // Calculate physical light radius mathematically based on attenuation
         float max_color = fmaxf(fmaxf(pl->color.r, pl->color.g), pl->color.b) * fmaxf(pl->intensity, 0.0f);
@@ -1053,16 +1084,16 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
         Matrix4 model = Matrix4Translate(pl->position);
         model = Matrix4Multiply(model, Matrix4Scale((Vector3){volume_radius, volume_radius, volume_radius}));
 
-        glUniformMatrix4fv(glGetUniformLocation(vol_prog, "u_Model"), 1, GL_FALSE, (float*)&model);
+        glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_Model"), 1, GL_FALSE, (float*)&model);
 
         // Upload exactly one light's data
-        glUniform3fv(glGetUniformLocation(vol_prog, "u_LightPos"), 1, (float*)&pl->position);
-        glUniform3fv(glGetUniformLocation(vol_prog, "u_LightColor"), 1, (float*)&pl->color);
-        glUniform1f(glGetUniformLocation(vol_prog, "u_Intensity"), pl->intensity);
-        glUniform1f(glGetUniformLocation(vol_prog, "u_Constant"), pl->constant);
-        glUniform1f(glGetUniformLocation(vol_prog, "u_Linear"), pl->linear);
-        glUniform1f(glGetUniformLocation(vol_prog, "u_Quadratic"), pl->quadratic);
-        glUniform1f(glGetUniformLocation(vol_prog, "u_Radius"), radius);
+        glUniform3fv(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_LightPos"), 1, (float*)&pl->position);
+        glUniform3fv(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_LightColor"), 1, (float*)&pl->color);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_Intensity"), pl->intensity);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_Constant"), pl->constant);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_Linear"), pl->linear);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_Quadratic"), pl->quadratic);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_Radius"), radius);
 
         // Draw Sphere
         glDrawElements(GL_TRIANGLES, internal->deferred.sphere_index_count, GL_UNSIGNED_INT, 0);
@@ -1075,19 +1106,19 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     GLuint spot_prog = internal->shader_pool[internal->deferred.spot_volume_shader.id].program;
     glUseProgram(spot_prog);
 
-    glUniform1i(glGetUniformLocation(spot_prog, "gPosition"), 0);
-    glUniform1i(glGetUniformLocation(spot_prog, "gNormal"), 1);
-    glUniform1i(glGetUniformLocation(spot_prog, "gAlbedoSpec"), 2);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, spot_prog, "gPosition"), 0);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, spot_prog, "gNormal"), 1);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, spot_prog, "gAlbedoSpec"), 2);
 
     // Bind the spotlight shadow map array to texture unit 5
     glActiveTexture(GL_TEXTURE5); 
     glBindTexture(GL_TEXTURE_2D_ARRAY, internal->shadow.spotDepthMapTextureArray); 
-    glUniform1i(glGetUniformLocation(spot_prog, "spotShadowMap"), 5);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, spot_prog, "spotShadowMap"), 5);
     
-    glUniformMatrix4fv(glGetUniformLocation(spot_prog, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
-    glUniformMatrix4fv(glGetUniformLocation(spot_prog, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
-    glUniform3fv(glGetUniformLocation(spot_prog, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
-    glUniform2f(glGetUniformLocation(spot_prog, "u_ScreenSize"), (float)internal->state.window_width, (float)internal->state.window_height);
+    glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
+    glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+    glUniform3fv(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
+    glUniform2f(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_ScreenSize"), (float)internal->state.window_width, (float)internal->state.window_height);
 
 
     int shadow_spot_index = 0;
@@ -1098,13 +1129,13 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
         if (sl->casts_shadows && shadow_spot_index < MAX_SHADOW_CASTING_SPOTLIGHTS)
         {
             // Upload the specific light-space matrix for this spotlight
-            glUniformMatrix4fv(glGetUniformLocation(spot_prog, "u_LightSpaceMatrix"), 1, GL_FALSE, (float*)&internal->state.spot_light_matrices[shadow_spot_index]);
-            glUniform1i(glGetUniformLocation(spot_prog, "u_ShadowIndex"), shadow_spot_index);
+            glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_LightSpaceMatrix"), 1, GL_FALSE, (float*)&internal->state.spot_light_matrices[shadow_spot_index]);
+            glUniform1i(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_ShadowIndex"), shadow_spot_index);
             shadow_spot_index++;
         }
         else
         {
-            glUniform1i(glGetUniformLocation(spot_prog, "u_ShadowIndex"), -1);
+            glUniform1i(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_ShadowIndex"), -1);
         }
 
         // Same physical radius calculation so the sphere encompasses the cone's reach
@@ -1129,18 +1160,18 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
         Matrix4 model = Matrix4Translate(sl->position);
         model = Matrix4Multiply(model, Matrix4Scale((Vector3){volume_radius, volume_radius, volume_radius}));
 
-        glUniformMatrix4fv(glGetUniformLocation(spot_prog, "u_Model"), 1, GL_FALSE, (float*)&model);
+        glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_Model"), 1, GL_FALSE, (float*)&model);
 
-        glUniform3fv(glGetUniformLocation(spot_prog, "u_LightPos"), 1, (float*)&sl->position);
-        glUniform3fv(glGetUniformLocation(spot_prog, "u_LightDir"), 1, (float*)&sl->direction);
-        glUniform3fv(glGetUniformLocation(spot_prog, "u_LightColor"), 1, (float*)&sl->color);
-        glUniform1f(glGetUniformLocation(spot_prog, "u_Intensity"), sl->intensity);
-        glUniform1f(glGetUniformLocation(spot_prog, "u_Constant"), sl->constant);
-        glUniform1f(glGetUniformLocation(spot_prog, "u_Linear"), sl->linear);
-        glUniform1f(glGetUniformLocation(spot_prog, "u_Quadratic"), sl->quadratic);
-        glUniform1f(glGetUniformLocation(spot_prog, "u_Radius"), radius);
-        glUniform1f(glGetUniformLocation(spot_prog, "u_CutOff"), sl->inner_cut_off);
-        glUniform1f(glGetUniformLocation(spot_prog, "u_OuterCutOff"), sl->outer_cut_off);
+        glUniform3fv(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_LightPos"), 1, (float*)&sl->position);
+        glUniform3fv(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_LightDir"), 1, (float*)&sl->direction);
+        glUniform3fv(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_LightColor"), 1, (float*)&sl->color);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_Intensity"), sl->intensity);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_Constant"), sl->constant);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_Linear"), sl->linear);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_Quadratic"), sl->quadratic);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_Radius"), radius);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_CutOff"), sl->inner_cut_off);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_OuterCutOff"), sl->outer_cut_off);
 
         glDrawElements(GL_TRIANGLES, internal->deferred.sphere_index_count, GL_UNSIGNED_INT, 0);
     }
@@ -1157,8 +1188,8 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     glUseProgram(post_prog);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, internal->deferred.lighting_texture);
-    glUniform1i(glGetUniformLocation(post_prog, "hdrLightingMap"), 0);
-    OpenGL_UploadCommonUniforms(post_prog, &internal->state);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, post_prog, "hdrLightingMap"), 0);
+    OpenGL_UploadCommonUniforms(internal, post_prog, &internal->state);
 
     glBindVertexArray(internal->quad_vao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -1187,16 +1218,16 @@ void ExecuteSSAOPass(OpenGL_Backend* internal)
     GLuint ssao_prog = internal->shader_pool[internal->ssao.ssao_shader.id].program;
     glUseProgram(ssao_prog);
 
-    glUniformMatrix4fv(glGetUniformLocation(ssao_prog, "projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
-    glUniformMatrix4fv(glGetUniformLocation(ssao_prog, "view"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
-    glUniform1f(glGetUniformLocation(ssao_prog, "radius"), 0.5f);
-    glUniform1f(glGetUniformLocation(ssao_prog, "bias"), 0.025f);
+    glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, ssao_prog, "projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+    glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, ssao_prog, "view"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
+    glUniform1f(OpenGL_GetCachedUniformLocation(internal, ssao_prog, "radius"), 0.5f);
+    glUniform1f(OpenGL_GetCachedUniformLocation(internal, ssao_prog, "bias"), 0.025f);
 
-    glUniform2f(glGetUniformLocation(ssao_prog, "noiseScale"), (float)internal->state.window_width / 4.0f, (float)internal->state.window_height / 4.0f);
+    glUniform2f(OpenGL_GetCachedUniformLocation(internal, ssao_prog, "noiseScale"), (float)internal->state.window_width / 4.0f, (float)internal->state.window_height / 4.0f);
 
-    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, internal->ssao.gPosition); glUniform1i(glGetUniformLocation(ssao_prog, "gPosition"), 0);
-    glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, internal->ssao.gNormal); glUniform1i(glGetUniformLocation(ssao_prog, "gNormal"), 1);
-    glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, internal->ssao.noiseTexture); glUniform1i(glGetUniformLocation(ssao_prog, "texNoise"), 2);
+    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, internal->ssao.gPosition); glUniform1i(OpenGL_GetCachedUniformLocation(internal, ssao_prog, "gPosition"), 0);
+    glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, internal->ssao.gNormal); glUniform1i(OpenGL_GetCachedUniformLocation(internal, ssao_prog, "gNormal"), 1);
+    glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, internal->ssao.noiseTexture); glUniform1i(OpenGL_GetCachedUniformLocation(internal, ssao_prog, "texNoise"), 2);
 
     glBindVertexArray(internal->quad_vao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -1210,7 +1241,7 @@ void ExecuteSSAOPass(OpenGL_Backend* internal)
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, internal->ssao.ssaoColorBuffer);
-    glUniform1i(glGetUniformLocation(blur_prog, "ssaoInput"), 0);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, blur_prog, "ssaoInput"), 0);
 
     glBindVertexArray(internal->quad_vao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -1230,7 +1261,8 @@ void ExecuteSSAOPass(OpenGL_Backend* internal)
 static void OpenGL_RenderCommandBatchMode(OpenGL_Backend* internal, uint32_t start_idx, uint32_t end_idx, bool probe_capture)
 {
     uint32_t current_shader = 0;
-    uint32_t current_texture = 0;
+    uint32_t current_material = UINT32_MAX;
+    uint32_t current_mesh = UINT32_MAX;
     Frustum view_frustum = OpenGL_ExtractViewFrustum(&internal->state);
 
     for (uint32_t i = start_idx; i < end_idx; i++)
@@ -1257,42 +1289,45 @@ static void OpenGL_RenderCommandBatchMode(OpenGL_Backend* internal, uint32_t sta
         {
             glUseProgram(gl_shader->program);
             current_shader = target_handle.id;
+            current_material = UINT32_MAX;
 
-            glUniformMatrix4fv(glGetUniformLocation(gl_shader->program, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
-            glUniformMatrix4fv(glGetUniformLocation(gl_shader->program, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
-            glUniform3fv(glGetUniformLocation(gl_shader->program, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
+            glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
+            glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+            glUniform3fv(OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
 
-            OpenGL_UploadShadowUniforms(gl_shader->program, &internal->state);
+            OpenGL_UploadShadowUniforms(internal, gl_shader->program, &internal->state);
             OpenGL_BindSSAOTexture(internal, gl_shader->program);
 
             glActiveTexture(GL_TEXTURE6);
             glBindTexture(GL_TEXTURE_2D_ARRAY, internal->shadow.depthMapTextureArray);
-            glUniform1i(glGetUniformLocation(gl_shader->program, "shadowMap"), 6);
+            glUniform1i(OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "shadowMap"), 6);
 
-            GLint enable_ssao_loc = glGetUniformLocation(gl_shader->program, "u_EnableSSAO");
+            GLint enable_ssao_loc = OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "u_EnableSSAO");
             if (enable_ssao_loc != -1)
                 glUniform1i(enable_ssao_loc, probe_capture ? 0 : (internal->state.settings.enable_ssao ? 1 : 0));
 
-            OpenGL_UploadLightUniforms(gl_shader->program, &internal->state);
+            OpenGL_UploadLightUniforms(internal, gl_shader->program, &internal->state);
 
-            GLint capture_loc = glGetUniformLocation(gl_shader->program, "u_CaptureLinearRadiance");
+            GLint capture_loc = OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "u_CaptureLinearRadiance");
             if (capture_loc != -1)
                 glUniform1i(capture_loc, probe_capture ? 1 : 0);
 
             if (probe_capture)
             {
-                GLint ambient_loc = glGetUniformLocation(gl_shader->program, "u_GlobalAmbientIllumination");
+                GLint ambient_loc = OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "u_GlobalAmbientIllumination");
                 if (ambient_loc != -1)
                     glUniform1f(ambient_loc, 0.0f);
             }
         }
 
-        OpenGL_ApplyMaterial(internal, gl_shader->program, cmd->material, cmd->color, false);
+        bool material_changed = current_material != cmd->material.id;
+        OpenGL_ApplyMaterial(internal, gl_shader->program, cmd->material, cmd->color, false, material_changed);
+        current_material = cmd->material.id;
 
-        glUniformMatrix4fv(glGetUniformLocation(gl_shader->program, "u_Model"), 1, GL_FALSE, (float*)&cmd->transform);
-        glUniform1f(glGetUniformLocation(gl_shader->program, "u_ReceiveShadows"), (!probe_capture && (cmd->flags & RENDER_ITEM_RECEIVE_SHADOWS)) ? 1.0f : 0.0f);
+        glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "u_Model"), 1, GL_FALSE, (float*)&cmd->transform);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "u_ReceiveShadows"), (!probe_capture && (cmd->flags & RENDER_ITEM_RECEIVE_SHADOWS)) ? 1.0f : 0.0f);
 
-        GLint bone_loc = glGetUniformLocation(gl_shader->program, "u_BoneMatrices");
+        GLint bone_loc = OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "u_BoneMatrices");
         if (bone_loc != -1)
         {
             // if (cmd->bone_matrices != NULL)
@@ -1317,7 +1352,12 @@ static void OpenGL_RenderCommandBatchMode(OpenGL_Backend* internal, uint32_t sta
         }
 
         GLMesh* gl_mesh = &internal->mesh_pool[cmd->mesh.id];
-        glBindVertexArray(gl_mesh->vao);
+        if (current_mesh != cmd->mesh.id)
+        {
+            glBindVertexArray(gl_mesh->vao);
+            current_mesh = cmd->mesh.id;
+        }
+
         glDrawElements(GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
     }
 }
@@ -1464,15 +1504,15 @@ static bool OpenGL_ConvolveProbeCubemap(OpenGL_Backend* internal, GLEnvironmentM
 
     GLuint program = internal->shader_pool[internal->ibl.irradiance_convolution.id].program;
     glUseProgram(program);
-    glUniform1i(glGetUniformLocation(program, "environmentMap"), 0);
-    glUniformMatrix4fv(glGetUniformLocation(program, "projection"), 1, GL_FALSE, (float*)&capture_projection);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "environmentMap"), 0);
+    glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, program, "projection"), 1, GL_FALSE, (float*)&capture_projection);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, radiance_cubemap);
     glViewport(0, 0, 32, 32);
 
     for (uint32_t face = 0; face < 6; face++)
     {
-        glUniformMatrix4fv(glGetUniformLocation(program, "view"), 1, GL_FALSE, (float*)&capture_views[face]);
+        glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, program, "view"), 1, GL_FALSE, (float*)&capture_views[face]);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, irradiance_map, 0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glBindVertexArray(internal->skybox.vao);
@@ -1495,8 +1535,8 @@ static bool OpenGL_ConvolveProbeCubemap(OpenGL_Backend* internal, GLEnvironmentM
 
     program = internal->shader_pool[internal->ibl.prefilter.id].program;
     glUseProgram(program);
-    glUniform1i(glGetUniformLocation(program, "environmentMap"), 0);
-    glUniformMatrix4fv(glGetUniformLocation(program, "projection"), 1, GL_FALSE, (float*)&capture_projection);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "environmentMap"), 0);
+    glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, program, "projection"), 1, GL_FALSE, (float*)&capture_projection);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, radiance_cubemap);
 
@@ -1508,11 +1548,11 @@ static bool OpenGL_ConvolveProbeCubemap(OpenGL_Backend* internal, GLEnvironmentM
         glBindRenderbuffer(GL_RENDERBUFFER, internal->ibl.capture_rbo);
         glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mip_width, mip_height);
         glViewport(0, 0, mip_width, mip_height);
-        glUniform1f(glGetUniformLocation(program, "roughness"), (float)mip / (float)(mip_count - 1));
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, "roughness"), (float)mip / (float)(mip_count - 1));
 
         for (uint32_t face = 0; face < 6; face++)
         {
-            glUniformMatrix4fv(glGetUniformLocation(program, "view"), 1, GL_FALSE, (float*)&capture_views[face]);
+            glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, program, "view"), 1, GL_FALSE, (float*)&capture_views[face]);
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, prefilter_map, mip);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             glBindVertexArray(internal->skybox.vao);
@@ -1650,12 +1690,12 @@ static bool OpenGL_CaptureReflectionProbe(OpenGL_Backend* internal, const Reflec
             glDepthMask(GL_FALSE);
             glDisable(GL_CULL_FACE);
             glUseProgram(sky_program);
-            glUniformMatrix4fv(glGetUniformLocation(sky_program, "u_View"), 1, GL_FALSE, (float*)&capture_views[face]);
-            glUniformMatrix4fv(glGetUniformLocation(sky_program, "u_Projection"), 1, GL_FALSE, (float*)&capture_projection);
-            glUniform1i(glGetUniformLocation(sky_program, "u_IsHDR"), probe_src->has_ibl ? 1 : 0);
+            glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, sky_program, "u_View"), 1, GL_FALSE, (float*)&capture_views[face]);
+            glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, sky_program, "u_Projection"), 1, GL_FALSE, (float*)&capture_projection);
+            glUniform1i(OpenGL_GetCachedUniformLocation(internal, sky_program, "u_IsHDR"), probe_src->has_ibl ? 1 : 0);
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_CUBE_MAP, probe_src_skybox);
-            glUniform1i(glGetUniformLocation(sky_program, "u_Skybox"), 0);
+            glUniform1i(OpenGL_GetCachedUniformLocation(internal, sky_program, "u_Skybox"), 0);
             glBindVertexArray(internal->skybox.vao);
             glDrawArrays(GL_TRIANGLES, 0, 36);
             glDepthMask(GL_TRUE);
@@ -1893,17 +1933,17 @@ void OpenGL_DrawSkybox(OpenGL_Backend* internal)
         GLuint prog = internal->shader_pool[shader_id].program;
         glUseProgram(prog);
         
-        glUniformMatrix4fv(glGetUniformLocation(prog, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
-        glUniformMatrix4fv(glGetUniformLocation(prog, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
+        glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, prog, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
+        glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, prog, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
         
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_CUBE_MAP, internal->texture_pool[tex_id].id);
 
-        glUniform1f(glGetUniformLocation(prog, "u_Gamma"), internal->state.settings.gamma);
-        glUniform1f(glGetUniformLocation(prog, "u_Exposure"), internal->state.settings.exposure > 0.001f ? internal->state.settings.exposure : 1.0f);
-        glUniform1i(glGetUniformLocation(prog, "u_IsHDR"), env->has_ibl ? 1 : 0);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, prog, "u_Gamma"), internal->state.settings.gamma);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, prog, "u_Exposure"), internal->state.settings.exposure > 0.001f ? internal->state.settings.exposure : 1.0f);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, prog, "u_IsHDR"), env->has_ibl ? 1 : 0);
 
-        GLint skybox_loc = glGetUniformLocation(prog, "u_Skybox");
+        GLint skybox_loc = OpenGL_GetCachedUniformLocation(internal, prog, "u_Skybox");
         if (skybox_loc != -1)
             glUniform1i(skybox_loc, 0);
         
@@ -2186,8 +2226,20 @@ static int CompareRenderCommands(const void* a, const void* b)
         return 0;
     }
 
-    // Sort primarily by material
-    return (int)cmdA->material.id - (int)cmdB->material.id;
+    // Opaque geometry can be reordered freely. Group by the G-buffer shader
+    // variant first, then material and mesh to reduce program, texture, and VAO changes.
+    bool a_skinned = cmdA->bone_matrices != NULL;
+    bool b_skinned = cmdB->bone_matrices != NULL;
+
+    if (a_skinned != b_skinned)
+        return (int)a_skinned - (int)b_skinned;
+
+    if (cmdA->material.id < cmdB->material.id) return -1;
+    if (cmdA->material.id > cmdB->material.id) return 1;
+    if (cmdA->mesh.id < cmdB->mesh.id) return -1;
+    if (cmdA->mesh.id > cmdB->mesh.id) return 1;
+    
+    return 0;
 }
 
 
