@@ -206,6 +206,9 @@ void Engine_ApplyFrameResults(PrismEngine* engine, Scene* scene, const RenderFra
     if (!engine || !scene || !result)
         return;
 
+    if (result->stats.frame_id != 0)
+        engine->render_worker.latest_stats = result->stats;
+
     for (uint32_t i = 0; i < result->probe_result_count; i++)
     {
         uint32_t entity_id = result->probe_results[i].entity_id;

@@ -31,6 +31,7 @@ typedef struct RenderWorkerState
     RenderFrameQueue frame_queue;
     uint64_t frame_counter;
     uint64_t last_applied_frame;
+    RenderStats latest_stats;
     PlatformThread* thread;
     PlatformMutex* start_mutex;
     PlatformCondition* start_condition;
@@ -156,6 +157,9 @@ Window* Engine_GetMainWindow(PrismEngine* engine);
 
 // Get the main renderer pointer
 Renderer* Engine_GetRenderer(PrismEngine* engine);
+
+// Copies counters and asynchronously resolved GPU timings from the latest completed frame.
+RenderStats Engine_GetRenderStats(PrismEngine* engine);
 
 // Captures the mouse to the window
 void Engine_CaptureMouse(PrismEngine* engine);

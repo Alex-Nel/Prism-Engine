@@ -22,6 +22,20 @@ Renderer* Engine_GetRenderer(PrismEngine* engine)
 
 
 
+// Returns the current stats of the renderer
+RenderStats Engine_GetRenderStats(PrismEngine* engine)
+{
+    RenderStats stats = {0};
+    if (engine)
+        stats = engine->render_worker.latest_stats;
+    
+    return stats;
+}
+
+
+
+
+
 // Captures the mouse to the window
 void Engine_CaptureMouse(PrismEngine* engine)
 {

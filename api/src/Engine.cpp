@@ -87,6 +87,8 @@ namespace Prism
         c_settings.max_draw_items = settings.max_draw_items;
         c_settings.max_shadow_cascades = settings.max_shadow_cascades;
         c_settings.max_reflection_probes = settings.max_reflection_probes;
+        c_settings.max_active_local_lights = settings.max_active_local_lights;
+
         ::Render_SetSettings(r, &c_settings);
     }
 
@@ -107,7 +109,32 @@ namespace Prism
         settings.max_draw_items = c_settings.max_draw_items;
         settings.max_shadow_cascades = c_settings.max_shadow_cascades;
         settings.max_reflection_probes = c_settings.max_reflection_probes;
+        settings.max_active_local_lights = c_settings.max_active_local_lights;
+
         return settings;
+    }
+
+    Prism::RenderStats Engine::GetRenderStats() {
+        ::RenderStats c_stats = ::Engine_GetRenderStats(&s_engine);
+        Prism::RenderStats stats;
+        stats.frame_id = c_stats.frame_id;
+        stats.gpu_timing_frame_id = c_stats.gpu_timing_frame_id;
+        stats.view_count = c_stats.view_count;
+        stats.items_submitted = c_stats.items_submitted;
+        stats.opaque_items = c_stats.opaque_items;
+        stats.transparent_items = c_stats.transparent_items;
+        stats.draw_calls = c_stats.draw_calls;
+        stats.triangles = c_stats.triangles;
+        stats.frustum_culled_items = c_stats.frustum_culled_items;
+        stats.local_lights_considered = c_stats.local_lights_considered;
+        stats.active_point_lights = c_stats.active_point_lights;
+        stats.active_spot_lights = c_stats.active_spot_lights;
+        stats.dropped_local_lights = c_stats.dropped_local_lights;
+        for (uint32_t i = 0; i < static_cast<uint32_t>(Prism::RenderTimedPass::Count); i++) {
+            stats.gpu_time_ms[i] = c_stats.gpu_time_ms[i];
+            stats.gpu_time_valid[i] = c_stats.gpu_time_valid[i];
+        }
+        return stats;
     }
 
 

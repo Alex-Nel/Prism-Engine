@@ -24,6 +24,7 @@
 #define MAX_SHADOW_CASTING_SPOTLIGHTS 8
 #define MAX_SHADOW_CASTING_POINT_LIGHTS 8
 #define MAX_SNAPSHOT_SKINNED 1024
+#define OPENGL_GPU_QUERY_RING_SIZE 4
 
 #define SHADOW_WIDTH SHADOW_MAP_RESOLUTION_DEFAULT
 #define SHADOW_HEIGHT SHADOW_MAP_RESOLUTION_DEFAULT
@@ -184,6 +185,35 @@ typedef struct GLReflectionProbe
 
 
 
+// Struct for GPU timers
+typedef struct GLGpuTimerSlot
+{
+    GLuint queries[RENDER_FRAME_MAX_VIEWS][RENDER_TIMED_PASS_COUNT];
+    bool issued[RENDER_FRAME_MAX_VIEWS][RENDER_TIMED_PASS_COUNT];
+    bool pending;
+    uint64_t frame_id;
+} GLGpuTimerSlot;
+
+
+
+// Stats for OpenGL specifically
+typedef struct GLRendererStats
+{
+    RenderStats current;
+    RenderStats published;
+    RenderStats latest_gpu;
+    GLGpuTimerSlot timer_slots[OPENGL_GPU_QUERY_RING_SIZE];
+    int32_t active_timer_slot;
+    uint32_t current_view;
+    RenderTimedPass active_pass;
+    bool frame_active;
+    bool pass_active;
+} GLRendererStats;
+
+
+
+
+
 // --- Sub-Systems for the render pipeline---
 
 typedef struct GL_ForwardPipeline
@@ -336,6 +366,7 @@ typedef struct OpenGL_Backend
     GLuint default_normal_texture;
     GLuint default_black_texture;
 
+    GLRendererStats stats;
     RenderGLSurface surface;
 } OpenGL_Backend;
 
@@ -460,6 +491,10 @@ void OpenGL_EndWorld(Renderer* r);
 void OpenGL_DrawWorld(Renderer* r, const RenderWorld* world);
 void OpenGL_DrawFrame(Renderer* r, const RenderFrame* frame);
 uint32_t OpenGL_GetProbeResults(Renderer* r, RenderProbeResult* out, uint32_t max_count);
+
+void OpenGL_GetStats(Renderer* r, RenderStats* out);
+void OpenGL_StatsInit(OpenGL_Backend* internal);
+void OpenGL_StatsShutdown(OpenGL_Backend* internal);
 
 
 

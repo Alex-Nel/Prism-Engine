@@ -5,6 +5,271 @@
 
 
 
+#define OPENGL_FORWARD_MAX_POINT_LIGHTS 8
+#define OPENGL_FORWARD_MAX_SPOT_LIGHTS 8
+
+
+
+
+
+// Struct for a local light
+typedef struct GLLocalLightCandidate
+{
+    uint32_t source_index;
+    float score;
+    bool is_spot;
+} GLLocalLightCandidate;
+
+
+
+
+
+// Poll all timers
+static void OpenGL_StatsPollTimers(OpenGL_Backend* internal)
+{
+    GLRendererStats* stats = &internal->stats;
+
+    for (uint32_t slot_index = 0; slot_index < OPENGL_GPU_QUERY_RING_SIZE; slot_index++)
+    {
+        GLGpuTimerSlot* slot = &stats->timer_slots[slot_index];
+        if (!slot->pending)
+            continue;
+
+        bool ready = true;
+        for (uint32_t view = 0; view < RENDER_FRAME_MAX_VIEWS && ready; view++)
+        {
+            for (uint32_t pass = 0; pass < RENDER_TIMED_PASS_COUNT; pass++)
+            {
+                if (!slot->issued[view][pass])
+                    continue;
+
+                GLint available = GL_FALSE;
+                glGetQueryObjectiv(slot->queries[view][pass], GL_QUERY_RESULT_AVAILABLE, &available);
+                if (available != GL_TRUE)
+                {
+                    ready = false;
+                    break;
+                }
+            }
+        }
+
+        if (!ready)
+            continue;
+        
+        RenderStats resolved = {0};
+        resolved.gpu_timing_frame_id = slot->frame_id;
+        for (uint32_t view = 0; view < RENDER_FRAME_MAX_VIEWS; view++)
+        {
+            for (uint32_t pass = 0; pass < RENDER_TIMED_PASS_COUNT; pass++)
+            {
+                if (!slot->issued[view][pass])
+                    continue;
+
+                GLuint64 elapsed_ns = 0;
+                glGetQueryObjectui64v(slot->queries[view][pass], GL_QUERY_RESULT, &elapsed_ns);
+                resolved.gpu_time_ms[pass] += (double)elapsed_ns / 1000000.0;
+                resolved.gpu_time_valid[pass] = true;
+            }
+        }
+
+        if (resolved.gpu_timing_frame_id >= stats->latest_gpu.gpu_timing_frame_id)
+            stats->latest_gpu = resolved;
+        
+        slot->pending = false;
+        memset(slot->issued, 0, sizeof(slot->issued));
+    }
+}
+
+
+
+
+
+// Initializes all stats
+void OpenGL_StatsInit(OpenGL_Backend* internal)
+{
+    if (!internal)
+        return;
+
+    memset(&internal->stats, 0, sizeof(internal->stats));
+    internal->stats.active_timer_slot = -1;
+    for (uint32_t slot = 0; slot < OPENGL_GPU_QUERY_RING_SIZE; slot++)
+    {
+        for (uint32_t view = 0; view < RENDER_FRAME_MAX_VIEWS; view++)
+            glGenQueries(RENDER_TIMED_PASS_COUNT, internal->stats.timer_slots[slot].queries[view]);
+    }
+}
+
+
+
+
+
+// Shuts down stats gathering
+void OpenGL_StatsShutdown(OpenGL_Backend* internal)
+{
+    if (!internal)
+        return;
+    
+    for (uint32_t slot = 0; slot < OPENGL_GPU_QUERY_RING_SIZE; slot++)
+    {
+        for (uint32_t view = 0; view < RENDER_FRAME_MAX_VIEWS; view++)
+            glDeleteQueries(RENDER_TIMED_PASS_COUNT, internal->stats.timer_slots[slot].queries[view]);
+    }
+    
+    memset(&internal->stats, 0, sizeof(internal->stats));
+}
+
+
+
+
+
+// Resets the statistics to begin a new frame
+static void OpenGL_StatsBeginFrame(OpenGL_Backend* internal, uint64_t frame_id)
+{
+    GLRendererStats* stats = &internal->stats;
+    OpenGL_StatsPollTimers(internal);
+
+    memset(&stats->current, 0, sizeof(stats->current));
+    stats->current.frame_id = frame_id;
+    stats->current.gpu_timing_frame_id = stats->latest_gpu.gpu_timing_frame_id;
+    memcpy(stats->current.gpu_time_ms, stats->latest_gpu.gpu_time_ms, sizeof(stats->current.gpu_time_ms));
+    memcpy(stats->current.gpu_time_valid, stats->latest_gpu.gpu_time_valid, sizeof(stats->current.gpu_time_valid));
+    
+    stats->active_timer_slot = -1;
+    for (uint32_t slot = 0; slot < OPENGL_GPU_QUERY_RING_SIZE; slot++)
+    {
+        if (!stats->timer_slots[slot].pending)
+        {
+            stats->active_timer_slot = (int32_t)slot;
+            stats->timer_slots[slot].frame_id = frame_id;
+            memset(stats->timer_slots[slot].issued, 0, sizeof(stats->timer_slots[slot].issued));
+            break;
+        }
+    }
+    
+    stats->current_view = 0;
+    stats->frame_active = true;
+    stats->pass_active = false;
+}
+
+
+
+
+
+// Begins the view for the stats
+static void OpenGL_StatsBeginView(OpenGL_Backend* internal, uint32_t view_index)
+{
+    internal->stats.current_view = view_index;
+    internal->stats.current.view_count++;
+}
+
+
+
+
+
+// Begins gathering stats for a given pass
+static void OpenGL_StatsBeginPass(OpenGL_Backend* internal, RenderTimedPass pass)
+{
+    GLRendererStats* stats = &internal->stats;
+    if (!stats->frame_active || stats->pass_active || stats->active_timer_slot < 0 || stats->current_view >= RENDER_FRAME_MAX_VIEWS)
+        return;
+
+    GLGpuTimerSlot* slot = &stats->timer_slots[stats->active_timer_slot];
+    glBeginQuery(GL_TIME_ELAPSED, slot->queries[stats->current_view][pass]);
+    
+    slot->issued[stats->current_view][pass] = true;
+    stats->active_pass = pass;
+    stats->pass_active = true;
+}
+
+
+
+
+
+// Ends gathering stats for the active pass
+static void OpenGL_StatsEndPass(OpenGL_Backend* internal)
+{
+    if (!internal->stats.pass_active)
+        return;
+
+    glEndQuery(GL_TIME_ELAPSED);
+    internal->stats.pass_active = false;
+}
+
+
+
+
+
+// Ends gathering states for the current frame
+static void OpenGL_StatsEndFrame(OpenGL_Backend* internal)
+{
+    GLRendererStats* stats = &internal->stats;
+    if (stats->pass_active)
+        OpenGL_StatsEndPass(internal);
+
+    if (stats->active_timer_slot >= 0)
+    {
+        GLGpuTimerSlot* slot = &stats->timer_slots[stats->active_timer_slot];
+        for (uint32_t view = 0; view < RENDER_FRAME_MAX_VIEWS && !slot->pending; view++)
+        {
+            for (uint32_t pass = 0; pass < RENDER_TIMED_PASS_COUNT; pass++)
+            {
+                if (slot->issued[view][pass])
+                {
+                    slot->pending = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    stats->published = stats->current;
+    stats->frame_active = false;
+    stats->active_timer_slot = -1;
+}
+
+
+
+
+
+// Tracks the given elements before drawing them
+static void OpenGL_TrackedDrawElements(OpenGL_Backend* internal, GLenum mode, GLsizei count, GLenum type, const void* indices)
+{
+    if (internal->stats.frame_active)
+    {
+        internal->stats.current.draw_calls++;
+        if (mode == GL_TRIANGLES && count > 0)
+            internal->stats.current.triangles += (uint64_t)count / 3u;
+    }
+
+    glDrawElements(mode, count, type, indices);
+}
+
+
+
+
+
+// Tracks given arrays before drawing them
+static void OpenGL_TrackedDrawArrays(OpenGL_Backend* internal, GLenum mode, GLint first, GLsizei count)
+{
+    if (internal->stats.frame_active)
+    {
+        internal->stats.current.draw_calls++;
+        if (mode == GL_TRIANGLES && count > 0)
+            internal->stats.current.triangles += (uint64_t)count / 3u;
+    }
+
+    glDrawArrays(mode, first, count);
+}
+
+
+
+
+
+
+
+
+
+
 // Extracts the view frustum from a render state
 static Frustum OpenGL_ExtractViewFrustum(const RenderState* state)
 {
@@ -20,6 +285,164 @@ static Frustum OpenGL_ExtractViewFrustum(const RenderState* state)
 static bool OpenGL_ItemInFrustum(const RenderItem* item, Frustum* frustum)
 {
     return Frustum_ContainsAABB(frustum, item->local_bounds, item->transform);
+}
+
+
+
+
+
+// Computes the effective radius used by local-light volume rendering.
+static float OpenGL_LocalLightRadius(Color color, float intensity, float constant, float linear, float quadratic)
+{
+    float max_color = fmaxf(fmaxf(color.r, color.g), color.b) * fmaxf(intensity, 0.0f);
+    if (max_color <= 0.0f)
+        return 0.0f;
+
+    const float threshold = (256.0f / 5.0f) * max_color;
+    if (quadratic > 0.0001f)
+    {
+        float discriminant = linear * linear - 4.0f * quadratic * (constant - threshold);
+        if (discriminant <= 0.0f)
+            return 0.0f;
+
+        return fmaxf(0.0f, (-linear + sqrtf(discriminant)) / (2.0f * quadratic));
+    }
+
+    if (linear > 0.0001f)
+        return fmaxf(0.0f, (threshold - constant) / linear);
+    
+    return 50.0f;
+}
+
+
+
+
+
+// Determines if a sphere intersects with a given frustum
+static bool OpenGL_SphereIntersectsFrustum(const Frustum* frustum, Vector3 center, float radius)
+{
+    for (uint32_t i = 0; i < 6; i++)
+    {
+        const FrustumPlane* plane = &frustum->planes[i];
+        
+        float distance = Vector3Dot(plane->normal, center) + plane->distance;
+        if (distance < -radius)
+            return false;
+    }
+
+    return true;
+}
+
+
+
+
+
+// Comparison function for local light candidates
+static int OpenGL_CompareLocalLightCandidates(const void* a, const void* b)
+{
+    const GLLocalLightCandidate* light_a = (const GLLocalLightCandidate*)a;
+    const GLLocalLightCandidate* light_b = (const GLLocalLightCandidate*)b;
+
+    if (light_a->score > light_b->score) return -1;
+    if (light_a->score < light_b->score) return 1;
+    if (light_a->is_spot != light_b->is_spot) return (int)light_a->is_spot - (int)light_b->is_spot;
+    if (light_a->source_index < light_b->source_index) return -1;
+    if (light_a->source_index > light_b->source_index) return 1;
+    
+    return 0;
+}
+
+
+
+
+
+// Frustum-culls and ranks point/spot lights for the current view, then compacts the selected lights so every shadow and lighting consumer shares the same order.
+static void OpenGL_ApplyLocalLightBudget(OpenGL_Backend* internal)
+{
+    GLLocalLightCandidate candidates[MAX_POINT_LIGHTS + MAX_SPOT_LIGHTS];
+    PointLightData selected_points[MAX_POINT_LIGHTS];
+    SpotLightData selected_spots[MAX_SPOT_LIGHTS];
+
+    uint32_t candidate_count = 0;
+    Frustum frustum = OpenGL_ExtractViewFrustum(&internal->state);
+    Vector3 camera = internal->state.camera_pos;
+    uint32_t considered_count = internal->state.point_light_count + internal->state.spot_light_count;
+    
+
+    // Loop through all point lights
+    for (uint32_t i = 0; i < internal->state.point_light_count; i++)
+    {
+        const PointLightData* light = &internal->state.point_lights[i];
+
+        float radius = OpenGL_LocalLightRadius(light->color, light->intensity, light->constant, light->linear, light->quadratic);
+        if (radius <= 0.0f || !OpenGL_SphereIntersectsFrustum(&frustum, light->position, radius * 1.2f))
+            continue;
+        
+        float distance_to_volume = fmaxf(0.0f, Vector3Distance(light->position, camera) - radius);
+        float power = fmaxf(fmaxf(light->color.r, light->color.g), light->color.b) * fmaxf(light->intensity, 0.0f);
+        float score = power / (1.0f + distance_to_volume * distance_to_volume);
+        
+        if (light->casts_shadows)
+            score *= 1.05f;
+        
+        candidates[candidate_count++] = (GLLocalLightCandidate){i, score, false};
+    }
+
+
+    // Loop through all spot lights
+    for (uint32_t i = 0; i < internal->state.spot_light_count; i++)
+    {
+        const SpotLightData* light = &internal->state.spot_lights[i];
+
+        float radius = OpenGL_LocalLightRadius(light->color, light->intensity, light->constant, light->linear, light->quadratic);
+        if (radius <= 0.0f || !OpenGL_SphereIntersectsFrustum(&frustum, light->position, radius * 1.2f))
+            continue;
+        
+        float distance_to_volume = fmaxf(0.0f, Vector3Distance(light->position, camera) - radius);
+        float power = fmaxf(fmaxf(light->color.r, light->color.g), light->color.b) * fmaxf(light->intensity, 0.0f);
+        float score = power / (1.0f + distance_to_volume * distance_to_volume);
+        
+        if (light->casts_shadows)
+            score *= 1.05f;
+        
+        candidates[candidate_count++] = (GLLocalLightCandidate){i, score, true};
+    }
+
+    // Sort all gathered lights
+    qsort(candidates, candidate_count, sizeof(GLLocalLightCandidate), OpenGL_CompareLocalLightCandidates);
+    
+    // Apply light budget
+    uint32_t selected_count = candidate_count;
+    uint32_t budget = internal->state.settings.max_active_local_lights;
+    if (budget > 0 && selected_count > budget)
+        selected_count = budget;
+    
+    uint32_t point_count = 0;
+    uint32_t spot_count = 0;
+    for (uint32_t i = 0; i < selected_count; i++)
+    {
+        const GLLocalLightCandidate* candidate = &candidates[i];
+        if (candidate->is_spot)
+            selected_spots[spot_count++] = internal->state.spot_lights[candidate->source_index];
+        else
+            selected_points[point_count++] = internal->state.point_lights[candidate->source_index];
+    }
+
+    if (point_count > 0)
+        memcpy(internal->state.point_lights, selected_points, point_count * sizeof(PointLightData));
+    if (spot_count > 0)
+        memcpy(internal->state.spot_lights, selected_spots, spot_count * sizeof(SpotLightData));
+
+    internal->state.point_light_count = point_count;
+    internal->state.spot_light_count = spot_count;
+    
+    if (internal->stats.frame_active)
+    {
+        internal->stats.current.local_lights_considered += considered_count;
+        internal->stats.current.active_point_lights += point_count;
+        internal->stats.current.active_spot_lights += spot_count;
+        internal->stats.current.dropped_local_lights += considered_count - selected_count;
+    }
 }
 
 
@@ -322,7 +745,7 @@ void OpenGL_DrawShadowQueue(OpenGL_Backend* internal, const Matrix4* light_space
             current_mesh = cmd->mesh.id;
         }
 
-        glDrawElements(GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
+        OpenGL_TrackedDrawElements(internal, GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
     }
 }
 
@@ -490,14 +913,7 @@ void OpenGL_ExecuteShadowPass(OpenGL_Backend* internal)
         shadowTransforms[4] = Matrix4Multiply(shadowProj, Matrix4LookAt(pos, (Vector3){pos.x, pos.y, pos.z + 1.0f}, (Vector3){0.0f, -1.0f, 0.0f}));
         shadowTransforms[5] = Matrix4Multiply(shadowProj, Matrix4LookAt(pos, (Vector3){pos.x, pos.y, pos.z - 1.0f}, (Vector3){0.0f, -1.0f, 0.0f}));
 
-        // Get the radius of the light
-        float max_color = fmaxf(fmaxf(pl->color.r, pl->color.g), pl->color.b);
-        float light_radius = 50.0f; // Safe fallback if attenuation is 0
-        
-        if (pl->quadratic > 0.0001f)
-            light_radius = (-pl->linear + sqrtf(pl->linear * pl->linear - 4 * pl->quadratic * (pl->constant - (256.0f / 5.0f) * max_color))) / (2.0f * pl->quadratic);
-        else if (pl->linear > 0.0001f)
-            light_radius = ((256.0f / 5.0f) * max_color - pl->constant) / pl->linear;
+        float light_radius = OpenGL_LocalLightRadius(pl->color, pl->intensity, pl->constant, pl->linear, pl->quadratic);
 
 
         // Draw the queue using our specialized point_shader
@@ -584,7 +1000,7 @@ void OpenGL_ExecuteShadowPass(OpenGL_Backend* internal)
                 current_point_mesh = cmd->mesh.id;
             }
 
-            glDrawElements(GL_TRIANGLES, internal->mesh_pool[cmd->mesh.id].index_count, GL_UNSIGNED_INT, 0);
+            OpenGL_TrackedDrawElements(internal, GL_TRIANGLES, internal->mesh_pool[cmd->mesh.id].index_count, GL_UNSIGNED_INT, 0);
         }
         
         shadow_point_index++;
@@ -685,8 +1101,14 @@ void OpenGL_UploadLightUniforms(OpenGL_Backend* internal, GLuint program, const 
 
 
     // --- Upload Point Lights ---
-    glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "u_PointLightCount"), state->point_light_count);
-    for (uint32_t j = 0; j < state->point_light_count; j++)
+    uint32_t forward_point_count = state->point_light_count;
+    if (forward_point_count > OPENGL_FORWARD_MAX_POINT_LIGHTS)
+        forward_point_count = OPENGL_FORWARD_MAX_POINT_LIGHTS;
+
+    glUniform1i(glGetUniformLocation(program, "u_PointLightCount"), forward_point_count);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "u_PointLightCount"), forward_point_count);
+
+    for (uint32_t j = 0; j < forward_point_count; j++)
     {
         const PointLightData* pl = &state->point_lights[j];
         sprintf(uniform_name, "u_PointLights[%d].position", j);
@@ -707,8 +1129,13 @@ void OpenGL_UploadLightUniforms(OpenGL_Backend* internal, GLuint program, const 
 
 
     // --- Upload Spot Lights ---
-    glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "u_SpotLightCount"), state->spot_light_count);
-    for (uint32_t j = 0; j < state->spot_light_count; j++)
+    uint32_t forward_spot_count = state->spot_light_count;
+    if (forward_spot_count > OPENGL_FORWARD_MAX_SPOT_LIGHTS)
+        forward_spot_count = OPENGL_FORWARD_MAX_SPOT_LIGHTS;
+
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "u_SpotLightCount"), forward_spot_count);
+    
+    for (uint32_t j = 0; j < forward_spot_count; j++)
     {
         const SpotLightData* sl = &state->spot_lights[j];
         sprintf(uniform_name, "u_SpotLights[%d].position", j);
@@ -798,7 +1225,12 @@ void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
             continue;
 
         if (!OpenGL_ItemInFrustum(cmd, &camera_frustum))
+        {
+            if (internal->stats.frame_active)
+                internal->stats.current.frustum_culled_items++;
+
             continue;
+        }
 
         ShaderHandle target_g_handle = (cmd->bone_matrices != NULL && internal->mesh_pool[cmd->mesh.id].is_skinned) ? internal->ssao.g_buffer_skinned_shader : internal->ssao.g_buffer_shader;
         GLShader* g_prog = &internal->shader_pool[target_g_handle.id];
@@ -852,7 +1284,7 @@ void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
             current_mesh = cmd->mesh.id;
         }
 
-        glDrawElements(GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
+        OpenGL_TrackedDrawElements(internal, GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
     }
 
     if (internal->state.settings.wireframe_mode)
@@ -882,7 +1314,7 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
         glUniform1i(OpenGL_GetCachedUniformLocation(internal, post_prog, "hdrLightingMap"), 0);
         OpenGL_UploadCommonUniforms(internal, post_prog, &internal->state);
         glBindVertexArray(internal->quad_vao);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+        OpenGL_TrackedDrawArrays(internal, GL_TRIANGLES, 0, 6);
         return;
     }
 
@@ -931,7 +1363,7 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
 
     glDisable(GL_DEPTH_TEST);
     glBindVertexArray(internal->quad_vao);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    OpenGL_TrackedDrawArrays(internal, GL_TRIANGLES, 0, 6);
 
 
     // --- Local IBL probe replacement volumes ---
@@ -1007,7 +1439,7 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
             glUniform3fv(OpenGL_GetCachedUniformLocation(internal, probe_program, "u_ProbeBoxMin"), 1, (float*)&box_min);
             glUniform3fv(OpenGL_GetCachedUniformLocation(internal, probe_program, "u_ProbeBoxMax"), 1, (float*)&box_max);
             glUniform1f(OpenGL_GetCachedUniformLocation(internal, probe_program, "u_ProbeBlendDistance"), probe->blend_distance);
-            glDrawArrays(GL_TRIANGLES, 0, 6);
+            OpenGL_TrackedDrawArrays(internal, GL_TRIANGLES, 0, 6);
         }
 
         glEnable(GL_CULL_FACE);
@@ -1061,19 +1493,7 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
         }
         glUniform1f(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_FarPlane"), 100.0f); // Match the projection matrix
 
-        // Calculate physical light radius mathematically based on attenuation
-        float max_color = fmaxf(fmaxf(pl->color.r, pl->color.g), pl->color.b) * fmaxf(pl->intensity, 0.0f);
-        float radius = 50.0f; // Safe fallback if attenuation is 0
-        
-        if (pl->quadratic > 0.0001f)
-        {
-            float discriminant = pl->linear * pl->linear - 4 * pl->quadratic * (pl->constant - (256.0f / 5.0f) * max_color);
-            radius = 0.0f;
-            if (discriminant > 0.0f)
-                radius = (-pl->linear + sqrtf(discriminant)) / (2.0f * pl->quadratic);
-        }
-        else if (pl->linear > 0.0001f)
-            radius = ((256.0f / 5.0f) * max_color - pl->constant) / pl->linear;
+        float radius = OpenGL_LocalLightRadius(pl->color, pl->intensity, pl->constant, pl->linear, pl->quadratic);
 
         if (radius <= 0.0f)
             continue;
@@ -1096,7 +1516,7 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
         glUniform1f(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_Radius"), radius);
 
         // Draw Sphere
-        glDrawElements(GL_TRIANGLES, internal->deferred.sphere_index_count, GL_UNSIGNED_INT, 0);
+        OpenGL_TrackedDrawElements(internal, GL_TRIANGLES, internal->deferred.sphere_index_count, GL_UNSIGNED_INT, 0);
     }
 
 
@@ -1138,19 +1558,7 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
             glUniform1i(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_ShadowIndex"), -1);
         }
 
-        // Same physical radius calculation so the sphere encompasses the cone's reach
-        float max_color = fmaxf(fmaxf(sl->color.r, sl->color.g), sl->color.b) * fmaxf(sl->intensity, 0.0f);
-        float radius = 50.0f; // Safe fallback
-        
-        if (sl->quadratic > 0.0001f)
-        {
-            float discriminant = sl->linear * sl->linear - 4 * sl->quadratic * (sl->constant - (256.0f / 5.0f) * max_color);
-            radius = 0.0f;
-            if (discriminant > 0.0f)
-                radius = (-sl->linear + sqrtf(discriminant)) / (2.0f * sl->quadratic);
-        }
-        else if (sl->linear > 0.0001f)
-            radius = ((256.0f / 5.0f) * max_color - sl->constant) / sl->linear;
+        float radius = OpenGL_LocalLightRadius(sl->color, sl->intensity, sl->constant, sl->linear, sl->quadratic);
 
         if (radius <= 0.0f)
             continue;
@@ -1173,7 +1581,7 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
         glUniform1f(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_CutOff"), sl->inner_cut_off);
         glUniform1f(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_OuterCutOff"), sl->outer_cut_off);
 
-        glDrawElements(GL_TRIANGLES, internal->deferred.sphere_index_count, GL_UNSIGNED_INT, 0);
+        OpenGL_TrackedDrawElements(internal, GL_TRIANGLES, internal->deferred.sphere_index_count, GL_UNSIGNED_INT, 0);
     }
 
 
@@ -1192,7 +1600,7 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     OpenGL_UploadCommonUniforms(internal, post_prog, &internal->state);
 
     glBindVertexArray(internal->quad_vao);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    OpenGL_TrackedDrawArrays(internal, GL_TRIANGLES, 0, 6);
 
     glEnable(GL_DEPTH_TEST);
 }
@@ -1230,7 +1638,7 @@ void ExecuteSSAOPass(OpenGL_Backend* internal)
     glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, internal->ssao.noiseTexture); glUniform1i(OpenGL_GetCachedUniformLocation(internal, ssao_prog, "texNoise"), 2);
 
     glBindVertexArray(internal->quad_vao);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    OpenGL_TrackedDrawArrays(internal, GL_TRIANGLES, 0, 6);
 
     // --- Blur Pass ---
     glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.ssaoBlurFBO);
@@ -1244,7 +1652,7 @@ void ExecuteSSAOPass(OpenGL_Backend* internal)
     glUniform1i(OpenGL_GetCachedUniformLocation(internal, blur_prog, "ssaoInput"), 0);
 
     glBindVertexArray(internal->quad_vao);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    OpenGL_TrackedDrawArrays(internal, GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
 }
 
@@ -1358,7 +1766,7 @@ static void OpenGL_RenderCommandBatchMode(OpenGL_Backend* internal, uint32_t sta
             current_mesh = cmd->mesh.id;
         }
 
-        glDrawElements(GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
+        OpenGL_TrackedDrawElements(internal, GL_TRIANGLES, gl_mesh->index_count, GL_UNSIGNED_INT, 0);
     }
 }
 
@@ -1516,7 +1924,7 @@ static bool OpenGL_ConvolveProbeCubemap(OpenGL_Backend* internal, GLEnvironmentM
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, irradiance_map, 0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glBindVertexArray(internal->skybox.vao);
-        glDrawArrays(GL_TRIANGLES, 0, 36);
+        OpenGL_TrackedDrawArrays(internal, GL_TRIANGLES, 0, 36);
     }
 
     GLuint prefilter_map = 0;
@@ -1556,7 +1964,7 @@ static bool OpenGL_ConvolveProbeCubemap(OpenGL_Backend* internal, GLEnvironmentM
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, prefilter_map, mip);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             glBindVertexArray(internal->skybox.vao);
-            glDrawArrays(GL_TRIANGLES, 0, 36);
+            OpenGL_TrackedDrawArrays(internal, GL_TRIANGLES, 0, 36);
         }
     }
 
@@ -1697,7 +2105,7 @@ static bool OpenGL_CaptureReflectionProbe(OpenGL_Backend* internal, const Reflec
             glBindTexture(GL_TEXTURE_CUBE_MAP, probe_src_skybox);
             glUniform1i(OpenGL_GetCachedUniformLocation(internal, sky_program, "u_Skybox"), 0);
             glBindVertexArray(internal->skybox.vao);
-            glDrawArrays(GL_TRIANGLES, 0, 36);
+            OpenGL_TrackedDrawArrays(internal, GL_TRIANGLES, 0, 36);
             glDepthMask(GL_TRUE);
             glDepthFunc(GL_LESS);
             glEnable(GL_CULL_FACE);
@@ -1856,15 +2264,7 @@ static void OpenGL_UpdateReflectionProbes(OpenGL_Backend* internal, uint32_t opa
             OpenGL_ReleaseProbeEnvironment(internal, slot->environment);
         slot->environment = (EnvironmentMapHandle){0};
 
-        GLuint timer_query = 0;
-        glGenQueries(1, &timer_query);
-        glBeginQuery(GL_TIME_ELAPSED, timer_query);
         bool capture_succeeded = OpenGL_CaptureReflectionProbe(internal, data, opaque_count, &slot->environment);
-        glEndQuery(GL_TIME_ELAPSED);
-
-        GLuint64 elapsed_nanoseconds = 0;
-        glGetQueryObjectui64v(timer_query, GL_QUERY_RESULT, &elapsed_nanoseconds);
-        glDeleteQueries(1, &timer_query);
 
         if (capture_succeeded)
         {
@@ -1874,15 +2274,6 @@ static void OpenGL_UpdateReflectionProbes(OpenGL_Backend* internal, uint32_t opa
             slot->captured_global_skybox_id = source_skybox_id;
 
             OpenGL_RecordProbeResult(internal, data->entity_id, data->revision, slot->environment, true);
-            
-            // Uncomment to log info about probe
-            // Log_Info(
-            //     "Captured local IBL probe %u at %u x %u in %.2f ms",
-            //     data->entity_id,
-            //     data->capture_resolution,
-            //     data->capture_resolution,
-            //     (double)elapsed_nanoseconds / 1000000.0
-            // );
         }
         else
         {
@@ -1948,7 +2339,7 @@ void OpenGL_DrawSkybox(OpenGL_Backend* internal)
             glUniform1i(skybox_loc, 0);
         
         glBindVertexArray(internal->skybox.vao);
-        glDrawArrays(GL_TRIANGLES, 0, 36); 
+        OpenGL_TrackedDrawArrays(internal, GL_TRIANGLES, 0, 36); 
         glBindVertexArray(0);
         
         glDepthFunc(GL_LESS);
@@ -2039,6 +2430,8 @@ void OpenGL_BeginWorld(Renderer* r, const RenderView* view, const RenderLighting
     for (uint32_t i = 0; i < internal->state.spot_light_count; i++)
         internal->state.spot_lights[i] = lighting->spot_lights[i];
 
+    OpenGL_ApplyLocalLightBudget(internal);
+
     internal->state.reflection_probe_count = lighting->reflection_probes ? lighting->reflection_probe_count : 0;
     if (internal->state.reflection_probe_count > MAX_REFLECTION_PROBES)
         internal->state.reflection_probe_count = MAX_REFLECTION_PROBES;
@@ -2118,14 +2511,18 @@ void OpenGL_SubmitItem(Renderer* r, const RenderItem* item)
 // Draws a render frame to an openGL context
 void OpenGL_DrawFrame(Renderer* r, const RenderFrame* frame)
 {
-    if (!r || !frame || frame->view_count == 0)
+    if (!r || !frame)
         return;
+
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    OpenGL_StatsBeginFrame(internal, frame->frame_id);
 
     RenderLighting lighting;
     RenderFrame_FillLighting(frame, &lighting);
     
     for (uint32_t v = 0; v < frame->view_count; v++)
     {
+        OpenGL_StatsBeginView(internal, v);
         const RenderFrameView* view_slot = &frame->views[v];
         RenderWorld world = {
             .view = view_slot->view,
@@ -2133,8 +2530,11 @@ void OpenGL_DrawFrame(Renderer* r, const RenderFrame* frame)
             .items = view_slot->item_count > 0 ? &frame->items[view_slot->item_start] : NULL,
             .item_count = view_slot->item_count
         };
+
         OpenGL_DrawWorld(r, &world);
     }
+
+    OpenGL_StatsEndFrame(internal);
 }
 
 
@@ -2195,6 +2595,29 @@ uint32_t OpenGL_GetProbeResults(Renderer* r, RenderProbeResult* out, uint32_t ma
         out[i] = internal->probe_results[i];
     
     return count;
+}
+
+
+
+
+
+
+
+
+
+
+// Puts all OpenGL stats into the output
+void OpenGL_GetStats(Renderer* r, RenderStats* out)
+{
+    if (!out)
+        return;
+
+    memset(out, 0, sizeof(*out));
+    if (!r || !r->backend_internal_data)
+        return;
+    
+    OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
+    *out = internal->stats.published;
 }
 
 
@@ -2272,12 +2695,25 @@ void OpenGL_EndWorld(Renderer* r)
         }
     }
 
+    if (internal->stats.frame_active)
+    {
+        internal->stats.current.items_submitted += internal->command_count;
+        internal->stats.current.opaque_items += transparent_start_idx;
+        internal->stats.current.transparent_items += internal->command_count - transparent_start_idx;
+    }
+
     // Shadows first so probe capture and deferred lighting use this frame's maps
     if (internal->state.settings.enable_shadows)
+    {
+        OpenGL_StatsBeginPass(internal, RENDER_TIMED_PASS_SHADOWS);
         OpenGL_ExecuteShadowPass(internal);
+        OpenGL_StatsEndPass(internal);
+    }
 
     // Generate dirty local probes from the complete static opaque queue before the camera's normal deferred pass consumes that queue.
+    OpenGL_StatsBeginPass(internal, RENDER_TIMED_PASS_REFLECTION_PROBES);
     OpenGL_UpdateReflectionProbes(internal, transparent_start_idx);
+    OpenGL_StatsEndPass(internal);
 
 
 
@@ -2286,19 +2722,25 @@ void OpenGL_EndWorld(Renderer* r)
     glEnable(GL_CULL_FACE);
 
     // Generate the G_Buffer for opaque objects
+    OpenGL_StatsBeginPass(internal, RENDER_TIMED_PASS_GBUFFER);
     ExecuteGBufferPass(internal, transparent_start_idx);
+    OpenGL_StatsEndPass(internal);
     
     // Calculate SSAO if enabled and shaders exist
     if (internal->state.settings.enable_ssao && internal->ssao.g_buffer_shader.id != 0 &&
         internal->ssao.ssao_shader.id != 0 && internal->ssao.blur_shader.id != 0)
     {
+        OpenGL_StatsBeginPass(internal, RENDER_TIMED_PASS_SSAO);
         ExecuteSSAOPass(internal);
+        OpenGL_StatsEndPass(internal);
     }
 
     glViewport(0, 0, internal->state.window_width, internal->state.window_height);
 
     // Deferred lighting pass
+    OpenGL_StatsBeginPass(internal, RENDER_TIMED_PASS_LIGHTING);
     ExecuteDeferredLightingPass(internal);
+    OpenGL_StatsEndPass(internal);
 
 
 
@@ -2320,6 +2762,7 @@ void OpenGL_EndWorld(Renderer* r)
     // Draw transparents using the forward renderer
     if (transparent_start_idx < internal->command_count && internal->state.settings.enable_transparency)
     {
+        OpenGL_StatsBeginPass(internal, RENDER_TIMED_PASS_TRANSPARENT);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glDepthMask(GL_FALSE); // Protect depth buffer from transparent overlap
@@ -2330,6 +2773,7 @@ void OpenGL_EndWorld(Renderer* r)
         glDisable(GL_BLEND);
         glDepthMask(GL_TRUE); // Restore depth writing
         glEnable(GL_CULL_FACE);
+        OpenGL_StatsEndPass(internal);
     }
 
     glBindVertexArray(0);

@@ -44,6 +44,7 @@ Renderer* OpenGL_Init(void* native_window, uint32_t init_width, uint32_t init_he
     internal->state.settings.max_draw_items = MAX_COMMANDS;
     internal->state.settings.max_shadow_cascades = MAX_SHADOW_CASCADES;
     internal->state.settings.max_reflection_probes = MAX_REFLECTION_PROBES;
+    internal->state.settings.max_active_local_lights = 32;
 
 
     // Initialize data pools
@@ -70,6 +71,7 @@ Renderer* OpenGL_Init(void* native_window, uint32_t init_width, uint32_t init_he
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
     glEnable(GL_CULL_FACE); // Disables drawing the inside of a mesh
+    OpenGL_StatsInit(internal);
 
     // Generate Guaranteed Default 1x1 Textures for Fallbacks & Safe Binding
     unsigned char white_pixel[4]  = { 255, 255, 255, 255 };
@@ -447,6 +449,7 @@ Renderer* OpenGL_Init(void* native_window, uint32_t init_width, uint32_t init_he
     r->DrawWorld = OpenGL_DrawWorld;
     r->DrawFrame = OpenGL_DrawFrame;
     r->GetProbeResults = OpenGL_GetProbeResults;
+    r->GetStats = OpenGL_GetStats;
 
     r->SetSettings = OpenGL_SetSettings;
     r->GetSettings = OpenGL_GetSettings;
@@ -471,6 +474,7 @@ void OpenGL_Shutdown(Renderer* r)
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
     OpenGL_OverlayShutdown(r);
+    OpenGL_StatsShutdown(internal);
 
     // Clear out any pending draw commands
     internal->command_count = 0;
@@ -812,6 +816,7 @@ void OpenGL_SetSettings(Renderer* r, const RendererSettings* settings)
     internal->state.settings.max_draw_items = max_items;
     internal->state.settings.max_shadow_cascades = MAX_SHADOW_CASCADES;
     internal->state.settings.max_reflection_probes = MAX_REFLECTION_PROBES;
+    internal->state.settings.max_active_local_lights = settings->max_active_local_lights;
 }
 
 

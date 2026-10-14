@@ -44,6 +44,7 @@ static void Headless_SetSettings(Renderer* r, const RendererSettings* settings)
         internal->settings.exposure = settings->exposure;
     if (settings->max_draw_items > 0)
         internal->settings.max_draw_items = settings->max_draw_items;
+    internal->settings.max_active_local_lights = settings->max_active_local_lights;
 }
 
 static RendererSettings Headless_GetSettings(Renderer* r)
@@ -63,6 +64,7 @@ static void Headless_EndWorld(Renderer* r) {}
 static void Headless_DrawWorld(Renderer* r, const RenderWorld* world) {}
 static void Headless_DrawFrame(Renderer* r, const RenderFrame* frame) {}
 static uint32_t Headless_GetProbeResults(Renderer* r, RenderProbeResult* out, uint32_t max_count) { return 0; }
+static void Headless_GetStats(Renderer* r, RenderStats* out) { if (out) memset(out, 0, sizeof(*out)); }
 static void Headless_DrawOverlay(Renderer* r, const OverlayDrawList* list, uint32_t width, uint32_t height) { (void)r; (void)list; (void)width; (void)height; }
 
 
@@ -188,6 +190,7 @@ Renderer* Headless_Init()
     r->DrawWorld = Headless_DrawWorld;
     r->DrawFrame = Headless_DrawFrame;
     r->GetProbeResults = Headless_GetProbeResults;
+    r->GetStats = Headless_GetStats;
 
     r->SetSettings = Headless_SetSettings;
     r->GetSettings = Headless_GetSettings;
