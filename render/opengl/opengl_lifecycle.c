@@ -32,6 +32,8 @@ Renderer* OpenGL_Init(void* native_window, uint32_t init_width, uint32_t init_he
 
     internal->state.window_width = init_width;
     internal->state.window_height = init_height;
+    internal->state.render_width = init_width;
+    internal->state.render_height = init_height;
     internal->state.settings.enable_ssao = true;
     internal->state.settings.enable_shadows = true;
     internal->state.settings.enable_lighting = true;
@@ -39,6 +41,7 @@ Renderer* OpenGL_Init(void* native_window, uint32_t init_width, uint32_t init_he
     internal->state.settings.enable_transparency = true;
     internal->state.settings.wireframe_mode = false;
     internal->state.settings.shadow_map_resolution = SHADOW_MAP_RESOLUTION_DEFAULT;
+    internal->state.settings.resolution_scale = 1.0f;
     internal->state.settings.gamma = 2.2f;
     internal->state.settings.exposure = 1.0f;
     internal->state.settings.max_draw_items = MAX_COMMANDS;
@@ -222,6 +225,25 @@ Renderer* OpenGL_Init(void* native_window, uint32_t init_width, uint32_t init_he
     uint32_t win_w = init_width;
     uint32_t win_h = init_height;
 
+    // Depth blits require matching source/destination depth-stencil formats. Mirror the actual default framebuffer layout selected by the window system.
+    GLint default_depth_bits = 24;
+    GLint default_stencil_bits = 0;
+    glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_DEPTH, GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE, &default_depth_bits);
+    glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_STENCIL, GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE, &default_stencil_bits);
+
+    if (default_stencil_bits > 0)
+    {
+        internal->ssao.gDepthFormat = default_depth_bits > 24 ? GL_DEPTH32F_STENCIL8 : GL_DEPTH24_STENCIL8;
+        internal->ssao.gDepthAttachment = GL_DEPTH_STENCIL_ATTACHMENT;
+    }
+    else
+    {
+        internal->ssao.gDepthFormat = default_depth_bits <= 16 ? GL_DEPTH_COMPONENT16 :
+                                      default_depth_bits <= 24 ? GL_DEPTH_COMPONENT24 :
+                                                                 GL_DEPTH_COMPONENT32;
+        internal->ssao.gDepthAttachment = GL_DEPTH_ATTACHMENT;
+    }
+
     glGenFramebuffers(1, &internal->ssao.gBufferFBO);
     glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.gBufferFBO);
 
@@ -258,8 +280,8 @@ Renderer* OpenGL_Init(void* native_window, uint32_t init_width, uint32_t init_he
     // Create and attach depth buffer (renderbuffer)
     glGenRenderbuffers(1, &internal->ssao.gDepth);
     glBindRenderbuffer(GL_RENDERBUFFER, internal->ssao.gDepth);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, win_w, win_h);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, internal->ssao.gDepth);
+    glRenderbufferStorage(GL_RENDERBUFFER, internal->ssao.gDepthFormat, win_w, win_h);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, internal->ssao.gDepthAttachment, GL_RENDERBUFFER, internal->ssao.gDepth);
 
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
         Log_Error("ERROR: G-Buffer Framebuffer not complete.");
@@ -271,8 +293,9 @@ Renderer* OpenGL_Init(void* native_window, uint32_t init_width, uint32_t init_he
     glGenTextures(1, &internal->deferred.lighting_texture);
     glBindTexture(GL_TEXTURE_2D, internal->deferred.lighting_texture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, win_w, win_h, 0, GL_RGBA, GL_FLOAT, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    // Linear sampling smooths the final upscale when the internal resolution is below native.
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, internal->deferred.lighting_texture, 0);
@@ -281,11 +304,16 @@ Renderer* OpenGL_Init(void* native_window, uint32_t init_width, uint32_t init_he
         Log_Error("ERROR: Deferred lighting framebuffer not complete!");
 
     // --- Generate SSAO FBOs ---
+    uint32_t initial_ssao_width = win_w / 2;
+    uint32_t initial_ssao_height = win_h / 2;
+    if (initial_ssao_width < 1) initial_ssao_width = 1;
+    if (initial_ssao_height < 1) initial_ssao_height = 1;
+
     glGenFramebuffers(1, &internal->ssao.ssaoFBO);  
     glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.ssaoFBO);
     glGenTextures(1, &internal->ssao.ssaoColorBuffer);
     glBindTexture(GL_TEXTURE_2D, internal->ssao.ssaoColorBuffer);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, win_w/2, win_h/2, 0, GL_RED, GL_FLOAT, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, initial_ssao_width, initial_ssao_height, 0, GL_RED, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, internal->ssao.ssaoColorBuffer, 0);
@@ -294,7 +322,7 @@ Renderer* OpenGL_Init(void* native_window, uint32_t init_width, uint32_t init_he
     glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.ssaoBlurFBO);
     glGenTextures(1, &internal->ssao.ssaoColorBufferBlur);
     glBindTexture(GL_TEXTURE_2D, internal->ssao.ssaoColorBufferBlur);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, win_w/2, win_h/2, 0, GL_RED, GL_FLOAT, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, initial_ssao_width, initial_ssao_height, 0, GL_RED, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, internal->ssao.ssaoColorBufferBlur, 0);
@@ -711,6 +739,88 @@ void OpenGL_InitPipelines(OpenGL_Backend* internal)
 
 
 
+// Returns one scaled render-target dimension while guaranteeing a usable texture size.
+static uint32_t OpenGL_ScaledRenderDimension(uint32_t window_dimension, float scale)
+{
+    uint32_t scaled = (uint32_t)((float)window_dimension * scale + 0.5f);
+
+    if (scaled > 0)
+        return scaled;
+    else
+        return 1;
+}
+
+
+
+
+
+
+
+
+
+
+// Reallocates all window-sized deferred targets. UI and the default framebuffer remain native resolution.
+static void OpenGL_ResizeRenderTargets(OpenGL_Backend* internal, uint32_t render_width, uint32_t render_height)
+{
+    if (!internal || render_width == 0 || render_height == 0)
+        return;
+
+    internal->state.render_width = render_width;
+    internal->state.render_height = render_height;
+
+    glBindTexture(GL_TEXTURE_2D, internal->ssao.gPosition);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, render_width, render_height, 0, GL_RGBA, GL_FLOAT, NULL);
+
+    glBindTexture(GL_TEXTURE_2D, internal->ssao.gNormal);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, render_width, render_height, 0, GL_RGBA, GL_FLOAT, NULL);
+
+    glBindTexture(GL_TEXTURE_2D, internal->ssao.gAlbedoSpec);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, render_width, render_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+    glBindRenderbuffer(GL_RENDERBUFFER, internal->ssao.gDepth);
+    glRenderbufferStorage(GL_RENDERBUFFER, internal->ssao.gDepthFormat, render_width, render_height);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.gBufferFBO);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        Log_Error("ERROR: Resized G-Buffer framebuffer is incomplete.");
+
+    glBindTexture(GL_TEXTURE_2D, internal->deferred.lighting_texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, render_width, render_height, 0, GL_RGBA, GL_FLOAT, NULL);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->deferred.lighting_fbo);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        Log_Error("ERROR: Resized deferred lighting framebuffer is incomplete.");
+
+    uint32_t ssao_width = render_width / 2;
+    uint32_t ssao_height = render_height / 2;
+    if (ssao_width < 1) ssao_width = 1;
+    if (ssao_height < 1) ssao_height = 1;
+
+    glBindTexture(GL_TEXTURE_2D, internal->ssao.ssaoColorBuffer);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, ssao_width, ssao_height, 0, GL_RED, GL_FLOAT, NULL);
+
+    glBindTexture(GL_TEXTURE_2D, internal->ssao.ssaoColorBufferBlur);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, ssao_width, ssao_height, 0, GL_RED, GL_FLOAT, NULL);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.ssaoFBO);
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    
+    glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.ssaoBlurFBO);
+    glClear(GL_COLOR_BUFFER_BIT);
+    
+    OpenGL_BindDefaultFramebuffer();
+}
+
+
+
+
+
+
+
+
+
+
 // Resizes G-buffer / SSAO / lighting targets and the default framebuffer viewport
 void OpenGL_Resize(Renderer* r, uint32_t width, uint32_t height)
 {
@@ -719,42 +829,17 @@ void OpenGL_Resize(Renderer* r, uint32_t width, uint32_t height)
 
     OpenGL_Backend* internal = (OpenGL_Backend*)r->backend_internal_data;
 
-    // Prevent redundant reallocations if the size hasn't actually changed
-    if (internal->state.window_width != width || internal->state.window_height != height)
-    {
-        internal->state.window_width = width;
-        internal->state.window_height = height;
+    internal->state.window_width = width;
+    internal->state.window_height = height;
 
-        // Resize G-Buffer Textures
-        glBindTexture(GL_TEXTURE_2D, internal->ssao.gPosition);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
+    float scale = internal->state.settings.resolution_scale;
+    if (scale <= 0.0f)
+        scale = 1.0f;
 
-        glBindTexture(GL_TEXTURE_2D, internal->ssao.gNormal);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
-
-        glBindTexture(GL_TEXTURE_2D, internal->ssao.gAlbedoSpec);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-
-        // Resize the linear HDR lighting target
-        glBindTexture(GL_TEXTURE_2D, internal->deferred.lighting_texture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
-
-        // Resize G-Buffer Depth Renderbuffer
-        glBindRenderbuffer(GL_RENDERBUFFER, internal->ssao.gDepth);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
-
-        // Resize SSAO Textures (half resolution)
-        uint32_t ssao_w = width / 2;
-        uint32_t ssao_h = height / 2;
-        if (ssao_w < 1) ssao_w = 1;
-        if (ssao_h < 1) ssao_h = 1;
-
-        glBindTexture(GL_TEXTURE_2D, internal->ssao.ssaoColorBuffer);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, ssao_w, ssao_h, 0, GL_RED, GL_FLOAT, NULL);
-
-        glBindTexture(GL_TEXTURE_2D, internal->ssao.ssaoColorBufferBlur);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, ssao_w, ssao_h, 0, GL_RED, GL_FLOAT, NULL);
-    }
+    uint32_t render_width = OpenGL_ScaledRenderDimension(width, scale);
+    uint32_t render_height = OpenGL_ScaledRenderDimension(height, scale);
+    if (internal->state.render_width != render_width || internal->state.render_height != render_height)
+        OpenGL_ResizeRenderTargets(internal, render_width, render_height);
 
     glViewport(0, 0, width, height);
 }
@@ -800,6 +885,21 @@ void OpenGL_SetSettings(Renderer* r, const RendererSettings* settings)
     internal->state.settings.enable_skybox = settings->enable_skybox;
     internal->state.settings.enable_transparency = settings->enable_transparency;
     internal->state.settings.wireframe_mode = settings->wireframe_mode;
+
+    if (settings->resolution_scale > 0.0f)
+    {
+        float new_scale = settings->resolution_scale;
+        if (new_scale < 0.25f) new_scale = 0.25f;
+        if (new_scale > 1.0f) new_scale = 1.0f;
+
+        internal->state.settings.resolution_scale = new_scale;
+        
+        uint32_t render_width = OpenGL_ScaledRenderDimension(internal->state.window_width, new_scale);
+        uint32_t render_height = OpenGL_ScaledRenderDimension(internal->state.window_height, new_scale);
+        
+        if (internal->state.render_width != render_width || internal->state.render_height != render_height)
+            OpenGL_ResizeRenderTargets(internal, render_width, render_height);
+    }
 
     if (settings->gamma > 0.01f)
         internal->state.settings.gamma = settings->gamma;

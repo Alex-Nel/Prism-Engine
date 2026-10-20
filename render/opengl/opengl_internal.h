@@ -36,6 +36,8 @@ typedef struct RenderState
 {
     uint32_t window_width;
     uint32_t window_height;
+    uint32_t render_width;
+    uint32_t render_height;
     Matrix4 view_matrix;
     Matrix4 projection_matrix;
     Vector3 camera_pos;
@@ -267,6 +269,8 @@ typedef struct GL_SSAOPipeline
     GLuint gPosition;
     GLuint gNormal;
     GLuint gDepth;
+    GLenum gDepthFormat;
+    GLenum gDepthAttachment;
     GLuint gAlbedoSpec;
 
     GLuint ssaoFBO;

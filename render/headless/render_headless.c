@@ -38,6 +38,13 @@ static void Headless_SetSettings(Renderer* r, const RendererSettings* settings)
     internal->settings.wireframe_mode = settings->wireframe_mode;
     if (settings->shadow_map_resolution > 0)
         internal->settings.shadow_map_resolution = settings->shadow_map_resolution;
+    if (settings->resolution_scale > 0.0f)
+    {
+        float scale = settings->resolution_scale;
+        if (scale < 0.25f) scale = 0.25f;
+        if (scale > 1.0f) scale = 1.0f;
+        internal->settings.resolution_scale = scale;
+    }
     if (settings->gamma > 0.01f)
         internal->settings.gamma = settings->gamma;
     if (settings->exposure > 0.001f)
@@ -152,6 +159,7 @@ Renderer* Headless_Init()
     internal->settings.enable_skybox = true;
     internal->settings.enable_transparency = true;
     internal->settings.wireframe_mode = false;
+    internal->settings.resolution_scale = 1.0f;
     internal->settings.gamma = 2.2f;
     internal->settings.exposure = 1.0f;
     internal->settings.max_draw_items = 32768;

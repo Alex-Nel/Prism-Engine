@@ -82,6 +82,7 @@ namespace Prism
         c_settings.wireframe_mode = settings.wireframe_mode;
 
         c_settings.shadow_map_resolution = settings.shadow_map_resolution;
+        c_settings.resolution_scale = settings.resolution_scale;
         c_settings.gamma = settings.gamma;
         c_settings.exposure = settings.exposure;
         c_settings.max_draw_items = settings.max_draw_items;
@@ -104,6 +105,7 @@ namespace Prism
         settings.wireframe_mode = c_settings.wireframe_mode;
 
         settings.shadow_map_resolution = c_settings.shadow_map_resolution;
+        settings.resolution_scale = c_settings.resolution_scale;
         settings.gamma = c_settings.gamma;
         settings.exposure = c_settings.exposure;
         settings.max_draw_items = c_settings.max_draw_items;

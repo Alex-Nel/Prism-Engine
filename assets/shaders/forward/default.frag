@@ -103,6 +103,7 @@ uniform float u_ShadowCameraNear;
 uniform float u_CascadeBlendFraction;
 uniform sampler2D ssaoMap;
 uniform bool u_EnableSSAO;
+uniform vec2 u_ScreenSize;
 uniform float u_ShadowMaxDistance;
 uniform float u_ReceiveShadows;
 uniform float u_Gamma;
@@ -484,7 +485,7 @@ void main()
     float ambientOcclusion = u_Material.hasAOMap ? texture(u_Material.aoMap, TexCoord).r : 1.0; 
     if (u_EnableSSAO)
     {
-        vec2 screenUV = gl_FragCoord.xy / vec2(textureSize(ssaoMap, 0));
+        vec2 screenUV = gl_FragCoord.xy / u_ScreenSize;
         ambientOcclusion *= texture(ssaoMap, screenUV).r;
     }
 

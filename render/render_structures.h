@@ -559,6 +559,7 @@ typedef struct RendererSettings
     bool wireframe_mode;            // Render opaque geometry in wireframe mode
 
     uint32_t shadow_map_resolution; // e.g., 1024, 2048, 4096
+    float resolution_scale;         // internal render scale; positive values clamp to 0.25-1.0, 0 preserves current
     float gamma;                    // e.g., 2.2f (default)
     float exposure;                 // e.g., 1.0f (default)
 

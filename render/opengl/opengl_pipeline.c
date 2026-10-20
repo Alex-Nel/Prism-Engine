@@ -1228,9 +1228,10 @@ void OpenGL_UploadDirectionalLightUniforms(OpenGL_Backend* internal, GLuint prog
 // Executes the geometry pre-pass for SSAO
 void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count)
 {
+    glViewport(0, 0, internal->state.render_width, internal->state.render_height);
     glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.gBufferFBO);
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     // If wireframe setting is enabled, render in wireframe mode
     if (internal->state.settings.wireframe_mode)
@@ -1330,6 +1331,7 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     if (!internal->state.settings.enable_lighting)
     {
         OpenGL_BindDefaultFramebuffer();
+        glViewport(0, 0, internal->state.window_width, internal->state.window_height);
         GLuint post_prog = internal->shader_pool[internal->deferred.post_shader.id].program;
         glUseProgram(post_prog);
         glActiveTexture(GL_TEXTURE0);
@@ -1343,6 +1345,7 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
 
 
     // Accumulate every light in linear HDR space. Tone mapping and gamma must happen once, after additive blending
+    glViewport(0, 0, internal->state.render_width, internal->state.render_height);
     glBindFramebuffer(GL_FRAMEBUFFER, internal->deferred.lighting_fbo);
     glDrawBuffer(GL_COLOR_ATTACHMENT0);
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -1407,7 +1410,7 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
         glUniform1i(OpenGL_GetCachedUniformLocation(internal, probe_program, "u_IBLDebugMode"), ibl_debug_mode);
 
         glUniform3fv(OpenGL_GetCachedUniformLocation(internal, probe_program, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
-        glUniform2f(OpenGL_GetCachedUniformLocation(internal, probe_program, "u_ScreenSize"), (float)internal->state.window_width, (float)internal->state.window_height);
+        glUniform2f(OpenGL_GetCachedUniformLocation(internal, probe_program, "u_ScreenSize"), (float)internal->state.render_width, (float)internal->state.render_height);
         glUniform1i(OpenGL_GetCachedUniformLocation(internal, probe_program, "u_EnableSSAO"), internal->state.settings.enable_ssao ? 1 : 0);
         OpenGL_UploadCommonUniforms(internal, probe_program, &internal->state);
 
@@ -1485,7 +1488,7 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
     glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
     glUniform3fv(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
-    glUniform2f(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_ScreenSize"), (float)internal->state.window_width, (float)internal->state.window_height);
+    glUniform2f(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_ScreenSize"), (float)internal->state.render_width, (float)internal->state.render_height);
 
     glActiveTexture(GL_TEXTURE6); 
     glUniform1i(OpenGL_GetCachedUniformLocation(internal, vol_prog, "pointShadowMap"), 6);
@@ -1561,7 +1564,7 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
     glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
     glUniform3fv(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
-    glUniform2f(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_ScreenSize"), (float)internal->state.window_width, (float)internal->state.window_height);
+    glUniform2f(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_ScreenSize"), (float)internal->state.render_width, (float)internal->state.render_height);
 
 
     int shadow_spot_index = 0;
@@ -1614,6 +1617,7 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
 
     // Convert the completed linear lighting buffer to the display color space.
     OpenGL_BindDefaultFramebuffer();
+    glViewport(0, 0, internal->state.window_width, internal->state.window_height);
 
     GLuint post_prog = internal->shader_pool[internal->deferred.post_shader.id].program;
     glUseProgram(post_prog);
@@ -1640,7 +1644,11 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
 // Computes and blurs the SSAO texture
 void ExecuteSSAOPass(OpenGL_Backend* internal)
 {
-    glViewport(0, 0, internal->state.window_width / 2, internal->state.window_height / 2);
+    uint32_t ssao_width = internal->state.render_width / 2;
+    uint32_t ssao_height = internal->state.render_height / 2;
+    if (ssao_width < 1) ssao_width = 1;
+    if (ssao_height < 1) ssao_height = 1;
+    glViewport(0, 0, ssao_width, ssao_height);
 
     // --- Compute Pass ---
     glBindFramebuffer(GL_FRAMEBUFFER, internal->ssao.ssaoFBO);
@@ -1654,7 +1662,7 @@ void ExecuteSSAOPass(OpenGL_Backend* internal)
     glUniform1f(OpenGL_GetCachedUniformLocation(internal, ssao_prog, "radius"), 0.5f);
     glUniform1f(OpenGL_GetCachedUniformLocation(internal, ssao_prog, "bias"), 0.025f);
 
-    glUniform2f(OpenGL_GetCachedUniformLocation(internal, ssao_prog, "noiseScale"), (float)internal->state.window_width / 4.0f, (float)internal->state.window_height / 4.0f);
+    glUniform2f(OpenGL_GetCachedUniformLocation(internal, ssao_prog, "noiseScale"), (float)internal->state.render_width / 4.0f, (float)internal->state.render_height / 4.0f);
 
     glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, internal->ssao.gPosition); glUniform1i(OpenGL_GetCachedUniformLocation(internal, ssao_prog, "gPosition"), 0);
     glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, internal->ssao.gNormal); glUniform1i(OpenGL_GetCachedUniformLocation(internal, ssao_prog, "gNormal"), 1);
@@ -1725,6 +1733,7 @@ static void OpenGL_RenderCommandBatchMode(OpenGL_Backend* internal, uint32_t sta
             glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "u_View"), 1, GL_FALSE, (float*)&internal->state.view_matrix);
             glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "u_Projection"), 1, GL_FALSE, (float*)&internal->state.projection_matrix);
             glUniform3fv(OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "u_ViewPos"), 1, (float*)&internal->state.camera_pos);
+            glUniform2f(OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "u_ScreenSize"), (float)internal->state.window_width, (float)internal->state.window_height);
 
             OpenGL_UploadShadowUniforms(internal, gl_shader->program, &internal->state);
             OpenGL_BindSSAOTexture(internal, gl_shader->program);
@@ -2754,8 +2763,6 @@ void OpenGL_EndWorld(Renderer* r)
         OpenGL_StatsEndPass(internal);
     }
 
-    glViewport(0, 0, internal->state.window_width, internal->state.window_height);
-
     // Deferred lighting pass
     OpenGL_StatsBeginPass(internal, RENDER_TIMED_PASS_LIGHTING);
     ExecuteDeferredLightingPass(internal);
@@ -2765,14 +2772,15 @@ void OpenGL_EndWorld(Renderer* r)
 
     // --- Forward pipeline (For Skybox and Transparent Geometry) ---
 
-    // Depth Blit. We must copy the exact depths from the G-Buffer onto the main screen so the Skybox and Transparent objects know what to hide behind
+    // Upscale opaque depth with nearest sampling so native-resolution skybox and transparents depth-test against it.
     glBindFramebuffer(GL_READ_FRAMEBUFFER, internal->ssao.gBufferFBO);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-    glBlitFramebuffer(0, 0, internal->state.window_width, internal->state.window_height,
+    glBlitFramebuffer(0, 0, internal->state.render_width, internal->state.render_height,
                       0, 0, internal->state.window_width, internal->state.window_height,
                       GL_DEPTH_BUFFER_BIT, GL_NEAREST);
 
     OpenGL_BindDefaultFramebuffer();
+    glViewport(0, 0, internal->state.window_width, internal->state.window_height);
 
     // Draw Skybox
     if (internal->state.has_env_map && internal->state.settings.enable_skybox)

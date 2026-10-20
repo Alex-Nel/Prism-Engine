@@ -35,6 +35,7 @@ namespace Prism
         bool wireframe_mode = false;           // Render opaque geometry in wireframe mode
 
         uint32_t shadow_map_resolution = 2048;
+        float resolution_scale = 1.0f;
         float gamma = 2.2f;
 
         float exposure = 1.0f;
