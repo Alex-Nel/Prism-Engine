@@ -194,6 +194,9 @@ float SampleCascadeShadow(int cascade, vec3 fragPos, vec3 normal, vec3 lightDir)
 // Calculates if the pixel is in shadow (0.0 = bright, 1.0 = shadowed)
 float ShadowCalculation(vec3 fragPos, vec3 normal, vec3 lightDir)
 {
+    if (u_ShadowCascadeCount <= 0)
+        return 0.0;
+    
     float receivesShadows = texture(gNormal, TexCoords).a;
     if (receivesShadows < 0.0) 
         return 0.0;

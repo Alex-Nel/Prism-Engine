@@ -384,7 +384,7 @@ void Scene_Update(Scene* scene)
     Scene_UpdateScripts(scene);
 
     // Update animation timelines
-    Scene_UpdateAnimators(scene, Time_DeltaTime());
+    Scene_UpdateAnimators(scene);
     
     // Cache pose bounds for skinned meshes
     Scene_UpdateSkinnedMeshBounds(scene);
@@ -835,9 +835,10 @@ static void UpdateTransformTree(Scene* scene, uint32_t entity_id, Matrix4* paren
 
 
 // Updates all animators in a scene
-void Scene_UpdateAnimators(Scene* scene, float delta_time)
+void Scene_UpdateAnimators(Scene* scene)
 {
     uint32_t required_mask = COMPONENT_TRANSFORM | COMPONENT_ANIMATOR;
+    float delta_time = Time_DeltaTime();
 
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
     {

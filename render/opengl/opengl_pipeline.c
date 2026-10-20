@@ -630,13 +630,14 @@ static void OpenGL_ApplyCascadeResult(RenderState* state, const ShadowCascadeRes
 // Uploads cascaded shadow-map uniforms to a lit shader program.
 void OpenGL_UploadShadowUniforms(OpenGL_Backend* internal, GLuint program, const RenderState* state)
 {
+    bool shadows_enabled = state->settings.enable_shadows;
     GLint loc = OpenGL_GetCachedUniformLocation(internal, program, "u_LightSpaceMatrices");
     if (loc != -1)
         glUniformMatrix4fv(loc, (GLsizei)state->shadow_cascade_count, GL_FALSE, (float*)state->light_space_matrices);
 
     loc = OpenGL_GetCachedUniformLocation(internal, program, "u_ShadowCascadeCount");
     if (loc != -1)
-        glUniform1i(loc, (GLint)state->shadow_cascade_count);
+        glUniform1i(loc, shadows_enabled ? (GLint)state->shadow_cascade_count : 0);
 
     loc = OpenGL_GetCachedUniformLocation(internal, program, "u_ShadowTexelSizes");
     if (loc != -1)
@@ -761,24 +762,30 @@ void OpenGL_DrawShadowQueue(OpenGL_Backend* internal, const Matrix4* light_space
 // Fills directional, spot, and point shadow maps from the current item queue
 void OpenGL_ExecuteShadowPass(OpenGL_Backend* internal)
 {
+    if (!internal->state.settings.enable_shadows)
+        return;
+
     bool any_dir_shadows = false;
     if (internal->state.dir_light_count > 0 && internal->state.dir_lights[0].casts_shadows)
         any_dir_shadows = true;
 
-    bool any_local_shadows = false;
-    for (uint32_t i = 0; i < internal->state.spot_light_count && !any_local_shadows; i++)
+    bool any_spot_shadows = false;
+    for (uint32_t i = 0; i < internal->state.spot_light_count && !any_spot_shadows; i++)
     {
         if (internal->state.spot_lights[i].casts_shadows)
-            any_local_shadows = true;
-    }
-    for (uint32_t i = 0; i < internal->state.point_light_count && !any_local_shadows; i++)
-    {
-        if (internal->state.point_lights[i].casts_shadows)
-            any_local_shadows = true;
+            any_spot_shadows = true;
     }
 
-    if (!any_dir_shadows && !any_local_shadows)
+    bool any_point_shadows = false;
+    for (uint32_t i = 0; i < internal->state.point_light_count && !any_point_shadows; i++)
+    {
+        if (internal->state.point_lights[i].casts_shadows)
+            any_point_shadows = true;
+    }
+
+    if (!any_dir_shadows && !any_spot_shadows && !any_point_shadows)
         return;
+
     if (any_dir_shadows)
     {
         ShadowCascadeCamera cascade_camera = {0};
@@ -802,6 +809,7 @@ void OpenGL_ExecuteShadowPass(OpenGL_Backend* internal)
     // --- Directional Light Cascades ---
     if (any_dir_shadows)
     {
+        OpenGL_StatsBeginPass(internal, RENDER_TIMED_PASS_DIRECTIONAL_SHADOWS);
         uint32_t cascade_count = internal->state.shadow_cascade_count;
         if (cascade_count < 1)
             cascade_count = 1;
@@ -818,194 +826,208 @@ void OpenGL_ExecuteShadowPass(OpenGL_Backend* internal)
             glClear(GL_DEPTH_BUFFER_BIT);
             OpenGL_DrawShadowQueue(internal, &internal->state.light_space_matrices[c]);
         }
+
+        OpenGL_StatsEndPass(internal);
     }
 
 
     
     // --- SpotLight Shadows ---
 
-    glBindFramebuffer(GL_FRAMEBUFFER, internal->shadow.spotDepthMapFBO);
-    
-    // We only process up to the max limit for shadow-casting spotlights
-    int shadow_spot_index = 0; 
-    
-    for (uint32_t i = 0; i < internal->state.spot_light_count; i++)
+    if (any_spot_shadows)
     {
-        if (shadow_spot_index >= MAX_SHADOW_CASTING_SPOTLIGHTS)
-            break; // Hard cap
-        
-        SpotLightData* sl = &internal->state.spot_lights[i];
+        OpenGL_StatsBeginPass(internal, RENDER_TIMED_PASS_SPOT_SHADOWS);
+        glBindFramebuffer(GL_FRAMEBUFFER, internal->shadow.spotDepthMapFBO);
 
-        if (!sl->casts_shadows)
-            continue;
+        // We only process up to the max limit for shadow-casting spotlights
+        int shadow_spot_index = 0;
 
-        // Make the Perspective Projection for the Spotlight. We use the outer_cut_off (in degrees) * 2 to get the full FOV of the cone
-        float fov_rad = acosf(sl->outer_cut_off) * 2.0f;
-        Matrix4 spotProj = Matrix4Perspective(fov_rad, 1.0f, 0.1f, 100.0f); // Adjust 100.0f to max distance - TODO: investigate this
+        for (uint32_t i = 0; i < internal->state.spot_light_count; i++)
+        {
+            if (shadow_spot_index >= MAX_SHADOW_CASTING_SPOTLIGHTS)
+                break; // Hard cap
 
-        // Create the View Matrix
-        Vector3 target = {
-            sl->position.x + sl->direction.x,
-            sl->position.y + sl->direction.y,
-            sl->position.z + sl->direction.z
-        };
+            SpotLightData* sl = &internal->state.spot_lights[i];
 
-        // If the light points straight down, use a different UP vector to prevent matrix singularity.
-        Vector3 up = {0.0f, 1.0f, 0.0f};
-        if (fabsf(sl->direction.y) > 0.99f)
-            up = (Vector3){0.0f, 0.0f, 1.0f};
-        
-        Matrix4 spotView = Matrix4LookAt(sl->position, target, up);
-        
-        // Save the matrix so we can pass it to the deferred shader later
-        internal->state.spot_light_matrices[shadow_spot_index] = Matrix4Multiply(spotProj, spotView);
+            if (!sl->casts_shadows)
+                continue;
 
-        // Render to the specific layer of the Texture Array
-        glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, internal->shadow.spotDepthMapTextureArray, 0, shadow_spot_index);
-        glViewport(0, 0, 1024, 1024);
-        glClear(GL_DEPTH_BUFFER_BIT);
-        
-        OpenGL_DrawShadowQueue(internal, &internal->state.spot_light_matrices[shadow_spot_index]);
-        
-        shadow_spot_index++;
+            // Make the Perspective Projection for the Spotlight. We use the outer_cut_off (in degrees) * 2 to get the full FOV of the cone
+            float fov_rad = acosf(sl->outer_cut_off) * 2.0f;
+            Matrix4 spotProj = Matrix4Perspective(fov_rad, 1.0f, 0.1f, 100.0f); // Adjust 100.0f to max distance - TODO: investigate this
+
+            // Create the View Matrix
+            Vector3 target = {
+                sl->position.x + sl->direction.x,
+                sl->position.y + sl->direction.y,
+                sl->position.z + sl->direction.z
+            };
+            
+            // If the light points straight down, use a different UP vector to prevent matrix singularity.
+            Vector3 up = {0.0f, 1.0f, 0.0f};
+            if (fabsf(sl->direction.y) > 0.99f)
+                up = (Vector3){0.0f, 0.0f, 1.0f};
+            
+            Matrix4 spotView = Matrix4LookAt(sl->position, target, up);
+            
+            // Save the matrix so we can pass it to the deferred shader later
+            internal->state.spot_light_matrices[shadow_spot_index] = Matrix4Multiply(spotProj, spotView);
+            
+            // Render to the specific layer of the Texture Array
+            glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, internal->shadow.spotDepthMapTextureArray, 0, shadow_spot_index);
+            glViewport(0, 0, 1024, 1024);
+            glClear(GL_DEPTH_BUFFER_BIT);
+            
+            OpenGL_DrawShadowQueue(internal, &internal->state.spot_light_matrices[shadow_spot_index]);
+            
+            shadow_spot_index++;
+        }
+
+        OpenGL_StatsEndPass(internal);
     }
 
 
 
     // --- Point Light Shadows ---
 
-    glBindFramebuffer(GL_FRAMEBUFFER, internal->shadow.pointDepthMapFBO);
-    glViewport(0, 0, 1024, 1024);
-    
-    int shadow_point_index = 0; 
-    uint32_t current_point_shader = 0;
-    uint32_t current_point_mesh = UINT32_MAX;
-
-    for (uint32_t i = 0; i < internal->state.point_light_count; i++)
+    if (any_point_shadows)
     {
-        if (shadow_point_index >= MAX_SHADOW_CASTING_POINT_LIGHTS)
-            break;
+        OpenGL_StatsBeginPass(internal, RENDER_TIMED_PASS_POINT_SHADOWS);
+        glBindFramebuffer(GL_FRAMEBUFFER, internal->shadow.pointDepthMapFBO);
+        glViewport(0, 0, 1024, 1024);
 
-        PointLightData* pl = &internal->state.point_lights[i];
+        int shadow_point_index = 0;
+        uint32_t current_point_shader = 0;
+        uint32_t current_point_mesh = UINT32_MAX;
 
-        if (!pl->casts_shadows)
-            continue;
-
-        // Matrices and light position change for every point light.
-        current_point_shader = 0;
-        current_point_mesh = UINT32_MAX;
-
-        // glFramebufferTexture allows the Geometry shader to route to the 6 faces via gl_Layer
-        glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, internal->shadow.pointDepthMaps[shadow_point_index], 0);        
-        glClear(GL_DEPTH_BUFFER_BIT);
-
-        // 90 Degree FOV forms a perfect box. Aspect ratio is 1.0f.
-        float fov_rad = 90.0f * (3.14159265359f / 180.0f);
-        Matrix4 shadowProj = Matrix4Perspective(fov_rad, 1.0f, 0.1f, 100.0f); // Adjust 100.0f to max distance
-        Vector3 pos = pl->position;
-
-        // The 6 directions of a Cubemap (Right, Left, Top, Bottom, Near, Far)
-        Matrix4 shadowTransforms[6];
-        shadowTransforms[0] = Matrix4Multiply(shadowProj, Matrix4LookAt(pos, (Vector3){pos.x + 1.0f, pos.y, pos.z}, (Vector3){0.0f, -1.0f, 0.0f}));
-        shadowTransforms[1] = Matrix4Multiply(shadowProj, Matrix4LookAt(pos, (Vector3){pos.x - 1.0f, pos.y, pos.z}, (Vector3){0.0f, -1.0f, 0.0f}));
-        shadowTransforms[2] = Matrix4Multiply(shadowProj, Matrix4LookAt(pos, (Vector3){pos.x, pos.y + 1.0f, pos.z}, (Vector3){0.0f,  0.0f,  1.0f}));
-        shadowTransforms[3] = Matrix4Multiply(shadowProj, Matrix4LookAt(pos, (Vector3){pos.x, pos.y - 1.0f, pos.z}, (Vector3){0.0f,  0.0f, -1.0f}));
-        shadowTransforms[4] = Matrix4Multiply(shadowProj, Matrix4LookAt(pos, (Vector3){pos.x, pos.y, pos.z + 1.0f}, (Vector3){0.0f, -1.0f, 0.0f}));
-        shadowTransforms[5] = Matrix4Multiply(shadowProj, Matrix4LookAt(pos, (Vector3){pos.x, pos.y, pos.z - 1.0f}, (Vector3){0.0f, -1.0f, 0.0f}));
-
-        float light_radius = OpenGL_LocalLightRadius(pl->color, pl->intensity, pl->constant, pl->linear, pl->quadratic);
-
-
-        // Draw the queue using our specialized point_shader
-        for (uint32_t c = 0; c < internal->command_count; c++)
+        for (uint32_t i = 0; i < internal->state.point_light_count; i++)
         {
-            RenderItem* cmd = &internal->command_queue[c];
-            
-            if (cmd->mesh.id == 0 || cmd->mesh.id >= MAX_RESOURCES || !internal->mesh_pool[cmd->mesh.id].active)
+            if (shadow_point_index >= MAX_SHADOW_CASTING_POINT_LIGHTS)
+                break;
+
+            PointLightData* pl = &internal->state.point_lights[i];
+
+            if (!pl->casts_shadows)
                 continue;
 
-            if ((cmd->flags & RENDER_ITEM_CAST_SHADOWS) == 0)
-                continue;
+            // Matrices and light position change for every point light.
+            current_point_shader = 0;
+            current_point_mesh = UINT32_MAX;
+
+            // glFramebufferTexture allows the Geometry shader to route to the 6 faces via gl_Layer
+            glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, internal->shadow.pointDepthMaps[shadow_point_index], 0);
+            glClear(GL_DEPTH_BUFFER_BIT);
+
+            // 90 Degree FOV forms a perfect box. Aspect ratio is 1.0f.
+            float fov_rad = 90.0f * (3.14159265359f / 180.0f);
+            Matrix4 shadowProj = Matrix4Perspective(fov_rad, 1.0f, 0.1f, 100.0f); // Adjust 100.0f to max distance
+            Vector3 pos = pl->position;
+
+            // The 6 directions of a Cubemap (Right, Left, Top, Bottom, Near, Far)
+            Matrix4 shadowTransforms[6];
+            shadowTransforms[0] = Matrix4Multiply(shadowProj, Matrix4LookAt(pos, (Vector3){pos.x + 1.0f, pos.y, pos.z}, (Vector3){0.0f, -1.0f, 0.0f}));
+            shadowTransforms[1] = Matrix4Multiply(shadowProj, Matrix4LookAt(pos, (Vector3){pos.x - 1.0f, pos.y, pos.z}, (Vector3){0.0f, -1.0f, 0.0f}));
+            shadowTransforms[2] = Matrix4Multiply(shadowProj, Matrix4LookAt(pos, (Vector3){pos.x, pos.y + 1.0f, pos.z}, (Vector3){0.0f,  0.0f,  1.0f}));
+            shadowTransforms[3] = Matrix4Multiply(shadowProj, Matrix4LookAt(pos, (Vector3){pos.x, pos.y - 1.0f, pos.z}, (Vector3){0.0f,  0.0f, -1.0f}));
+            shadowTransforms[4] = Matrix4Multiply(shadowProj, Matrix4LookAt(pos, (Vector3){pos.x, pos.y, pos.z + 1.0f}, (Vector3){0.0f, -1.0f, 0.0f}));
+            shadowTransforms[5] = Matrix4Multiply(shadowProj, Matrix4LookAt(pos, (Vector3){pos.x, pos.y, pos.z - 1.0f}, (Vector3){0.0f, -1.0f, 0.0f}));
+
+            float light_radius = OpenGL_LocalLightRadius(pl->color, pl->intensity, pl->constant, pl->linear, pl->quadratic);
 
 
-            // Extract Position from transform Matrix
-            Vector3 mesh_center = {
-                cmd->transform.m03, 
-                cmd->transform.m13, 
-                cmd->transform.m23
-            };
-
-            // Extract Max Scale by checking the magnitude of the X, Y, and Z axis vectors
-            float scale_x = sqrtf(cmd->transform.m00*cmd->transform.m00 + cmd->transform.m10*cmd->transform.m10 + cmd->transform.m20*cmd->transform.m20);
-            float scale_y = sqrtf(cmd->transform.m01*cmd->transform.m01 + cmd->transform.m11*cmd->transform.m11 + cmd->transform.m21*cmd->transform.m21);
-            float scale_z = sqrtf(cmd->transform.m02*cmd->transform.m02 + cmd->transform.m12*cmd->transform.m12 + cmd->transform.m22*cmd->transform.m22);
-            float max_scale = fmaxf(scale_x, fmaxf(scale_y, scale_z));
-
-            // Calculate final world-space radius
-            float world_bounding_radius = internal->mesh_pool[cmd->mesh.id].bounding_radius * max_scale;
-
-            // Calculate Distance
-            float dx = mesh_center.x - pos.x;
-            float dy = mesh_center.y - pos.y;
-            float dz = mesh_center.z - pos.z;
-            float dist = sqrtf(dx*dx + dy*dy + dz*dz);
-
-            // If the mesh is outside the light's reach, skip the Geometry Shader entirely
-            if (dist > (light_radius + world_bounding_radius))
-                continue;
-
-
-            ShaderHandle target_shader = internal->shadow.point_static_shader; 
-            if (cmd->bone_matrices != NULL && internal->mesh_pool[cmd->mesh.id].is_skinned) 
-                target_shader = internal->shadow.point_skinned_shader;
-
-            // If we swap shaders, we must re-upload the global light uniforms
-            if (current_point_shader != target_shader.id)
+            // Draw the queue using our specialized point_shader
+            for (uint32_t c = 0; c < internal->command_count; c++)
             {
-                GLuint pt_prog = internal->shader_pool[target_shader.id].program;
-                glUseProgram(pt_prog);
-                current_point_shader = target_shader.id;
+                RenderItem* cmd = &internal->command_queue[c];
 
-                glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, pt_prog, "u_ShadowMatrices"), 6, GL_FALSE, (float*)shadowTransforms);
-                glUniform3fv(OpenGL_GetCachedUniformLocation(internal, pt_prog, "u_LightPos"), 1, (float*)&pos);
-                glUniform1f(OpenGL_GetCachedUniformLocation(internal, pt_prog, "u_FarPlane"), 100.0f);
-            }
+                if (cmd->mesh.id == 0 || cmd->mesh.id >= MAX_RESOURCES || !internal->mesh_pool[cmd->mesh.id].active)
+                    continue;
 
-            GLuint prog = internal->shader_pool[target_shader.id].program;
-            glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, prog, "u_Model"), 1, GL_FALSE, (float*)&cmd->transform);
-            
-            GLint bone_loc = OpenGL_GetCachedUniformLocation(internal, prog, "u_BoneMatrices");
-            if (bone_loc != -1)
-            {
+                if ((cmd->flags & RENDER_ITEM_CAST_SHADOWS) == 0)
+                    continue;
+
+                // Extract Position from transform Matrix
+                Vector3 mesh_center = {
+                    cmd->transform.m03,
+                    cmd->transform.m13,
+                    cmd->transform.m23
+                };
+
+                 // Extract Max Scale by checking the magnitude of the X, Y, and Z axis vectors
+                float scale_x = sqrtf(cmd->transform.m00*cmd->transform.m00 + cmd->transform.m10*cmd->transform.m10 + cmd->transform.m20*cmd->transform.m20);
+                float scale_y = sqrtf(cmd->transform.m01*cmd->transform.m01 + cmd->transform.m11*cmd->transform.m11 + cmd->transform.m21*cmd->transform.m21);
+                float scale_z = sqrtf(cmd->transform.m02*cmd->transform.m02 + cmd->transform.m12*cmd->transform.m12 + cmd->transform.m22*cmd->transform.m22);
+                float max_scale = fmaxf(scale_x, fmaxf(scale_y, scale_z));
+
+                // Calculate final world-space radius
+                float world_bounding_radius = internal->mesh_pool[cmd->mesh.id].bounding_radius * max_scale;
+
+                // Calculate Distance
+                float dx = mesh_center.x - pos.x;
+                float dy = mesh_center.y - pos.y;
+                float dz = mesh_center.z - pos.z;
+                float dist = sqrtf(dx*dx + dy*dy + dz*dz);
+
+                // If the mesh is outside the light's reach, skip the Geometry Shader entirely
+                if (dist > (light_radius + world_bounding_radius))
+                    continue;
+
+                ShaderHandle target_shader = internal->shadow.point_static_shader;
                 if (cmd->bone_matrices != NULL && internal->mesh_pool[cmd->mesh.id].is_skinned)
+                    target_shader = internal->shadow.point_skinned_shader;
+
+
+                // If we swap shaders, we must re-upload the global light uniforms
+                if (current_point_shader != target_shader.id)
                 {
-                    glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)cmd->bone_matrices);
+                    GLuint pt_prog = internal->shader_pool[target_shader.id].program;
+                    glUseProgram(pt_prog);
+                    current_point_shader = target_shader.id;
+
+                    glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, pt_prog, "u_ShadowMatrices"), 6, GL_FALSE, (float*)shadowTransforms);
+                    glUniform3fv(OpenGL_GetCachedUniformLocation(internal, pt_prog, "u_LightPos"), 1, (float*)&pos);
+                    glUniform1f(OpenGL_GetCachedUniformLocation(internal, pt_prog, "u_FarPlane"), 100.0f);
                 }
-                else
+
+                GLuint prog = internal->shader_pool[target_shader.id].program;
+                glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, prog, "u_Model"), 1, GL_FALSE, (float*)&cmd->transform);
+
+                GLint bone_loc = OpenGL_GetCachedUniformLocation(internal, prog, "u_BoneMatrices");
+                if (bone_loc != -1)
                 {
-                    static Matrix4 identity_bones[MAX_BONES];
-                    static bool initialized = false;
-                    if (!initialized)
+                    if (cmd->bone_matrices != NULL && internal->mesh_pool[cmd->mesh.id].is_skinned)
                     {
-                        for (int b = 0; b < MAX_BONES; b++) identity_bones[b] = Matrix4Identity();
-                        initialized = true;
+                        glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)cmd->bone_matrices);
                     }
-                    glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)identity_bones);
+                    else
+                    {
+                        static Matrix4 identity_bones[MAX_BONES];
+                        static bool initialized = false;
+
+                        if (!initialized)
+                        {
+                            for (int b = 0; b < MAX_BONES; b++)
+                                identity_bones[b] = Matrix4Identity();
+
+                            initialized = true;
+                        }
+                        
+                        glUniformMatrix4fv(bone_loc, MAX_BONES, GL_FALSE, (float*)identity_bones);
+                    }
                 }
+
+                if (current_point_mesh != cmd->mesh.id)
+                {
+                    glBindVertexArray(internal->mesh_pool[cmd->mesh.id].vao);
+                    current_point_mesh = cmd->mesh.id;
+                }
+
+                OpenGL_TrackedDrawElements(internal, GL_TRIANGLES, internal->mesh_pool[cmd->mesh.id].index_count, GL_UNSIGNED_INT, 0);
             }
 
-            if (current_point_mesh != cmd->mesh.id)
-            {
-                glBindVertexArray(internal->mesh_pool[cmd->mesh.id].vao);
-                current_point_mesh = cmd->mesh.id;
-            }
-
-            OpenGL_TrackedDrawElements(internal, GL_TRIANGLES, internal->mesh_pool[cmd->mesh.id].index_count, GL_UNSIGNED_INT, 0);
+            shadow_point_index++;
         }
-        
-        shadow_point_index++;
     }
-
 
 
     glDisable(GL_POLYGON_OFFSET_FILL);
@@ -1081,6 +1103,7 @@ void OpenGL_UploadLightUniforms(OpenGL_Backend* internal, GLuint program, const 
 {
     OpenGL_UploadCommonUniforms(internal, program, state);
     char uniform_name[64];
+    bool shadows_enabled = state->settings.enable_shadows;
 
     // --- Upload Directional Lights ---
     glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "u_DirLightCount"), state->dir_light_count);
@@ -1096,7 +1119,7 @@ void OpenGL_UploadLightUniforms(OpenGL_Backend* internal, GLuint program, const 
         sprintf(uniform_name, "u_DirLights[%d].ambientStrength", j); 
         glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), dl->ambient_strength);
         sprintf(uniform_name, "u_DirLights[%d].castsShadows", j);
-        glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), dl->casts_shadows ? 1 : 0);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), (shadows_enabled && dl->casts_shadows) ? 1 : 0);
     }
 
 
@@ -1105,7 +1128,6 @@ void OpenGL_UploadLightUniforms(OpenGL_Backend* internal, GLuint program, const 
     if (forward_point_count > OPENGL_FORWARD_MAX_POINT_LIGHTS)
         forward_point_count = OPENGL_FORWARD_MAX_POINT_LIGHTS;
 
-    glUniform1i(glGetUniformLocation(program, "u_PointLightCount"), forward_point_count);
     glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "u_PointLightCount"), forward_point_count);
 
     for (uint32_t j = 0; j < forward_point_count; j++)
@@ -1124,7 +1146,7 @@ void OpenGL_UploadLightUniforms(OpenGL_Backend* internal, GLuint program, const 
         sprintf(uniform_name, "u_PointLights[%d].quadratic", j);
         glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), pl->quadratic);
         sprintf(uniform_name, "u_PointLights[%d].castsShadows", j);
-        glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), pl->casts_shadows ? 1 : 0);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), (shadows_enabled && pl->casts_shadows) ? 1 : 0);
     }
 
 
@@ -1157,7 +1179,7 @@ void OpenGL_UploadLightUniforms(OpenGL_Backend* internal, GLuint program, const 
         sprintf(uniform_name, "u_SpotLights[%d].outerCutOff", j);
         glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), sl->outer_cut_off);
         sprintf(uniform_name, "u_SpotLights[%d].castsShadows", j);
-        glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), sl->casts_shadows ? 1 : 0);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), (shadows_enabled && sl->casts_shadows) ? 1 : 0);
     }
 }
 
@@ -1174,6 +1196,7 @@ void OpenGL_UploadLightUniforms(OpenGL_Backend* internal, GLuint program, const 
 void OpenGL_UploadDirectionalLightUniforms(OpenGL_Backend* internal, GLuint program, const RenderState* state)
 {
     char uniform_name[64];
+    bool shadows_enabled = state->settings.enable_shadows;
 
     // --- Upload Directional Lights ---
     glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, "u_DirLightCount"), state->dir_light_count);
@@ -1189,7 +1212,7 @@ void OpenGL_UploadDirectionalLightUniforms(OpenGL_Backend* internal, GLuint prog
         sprintf(uniform_name, "u_DirLights[%d].ambientStrength", j); 
         glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), dl->ambient_strength);
         sprintf(uniform_name, "u_DirLights[%d].castsShadows", j);
-        glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), dl->casts_shadows ? 1 : 0);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, program, uniform_name), (shadows_enabled && dl->casts_shadows) ? 1 : 0);
     }
 }
 
@@ -1481,7 +1504,7 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     {
         PointLightData* pl = &internal->state.point_lights[i];
 
-        if (pl->casts_shadows && shadow_point_index < MAX_SHADOW_CASTING_POINT_LIGHTS)
+        if (internal->state.settings.enable_shadows && pl->casts_shadows && shadow_point_index < MAX_SHADOW_CASTING_POINT_LIGHTS)
         {
             glBindTexture(GL_TEXTURE_CUBE_MAP, internal->shadow.pointDepthMaps[shadow_point_index]);
             glUniform1i(OpenGL_GetCachedUniformLocation(internal, vol_prog, "u_ShadowIndex"), shadow_point_index);
@@ -1546,7 +1569,7 @@ void ExecuteDeferredLightingPass(OpenGL_Backend* internal)
     {
         SpotLightData* sl = &internal->state.spot_lights[i];
 
-        if (sl->casts_shadows && shadow_spot_index < MAX_SHADOW_CASTING_SPOTLIGHTS)
+        if (internal->state.settings.enable_shadows && sl->casts_shadows && shadow_spot_index < MAX_SHADOW_CASTING_SPOTLIGHTS)
         {
             // Upload the specific light-space matrix for this spotlight
             glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, spot_prog, "u_LightSpaceMatrix"), 1, GL_FALSE, (float*)&internal->state.spot_light_matrices[shadow_spot_index]);
@@ -2704,11 +2727,7 @@ void OpenGL_EndWorld(Renderer* r)
 
     // Shadows first so probe capture and deferred lighting use this frame's maps
     if (internal->state.settings.enable_shadows)
-    {
-        OpenGL_StatsBeginPass(internal, RENDER_TIMED_PASS_SHADOWS);
         OpenGL_ExecuteShadowPass(internal);
-        OpenGL_StatsEndPass(internal);
-    }
 
     // Generate dirty local probes from the complete static opaque queue before the camera's normal deferred pass consumes that queue.
     OpenGL_StatsBeginPass(internal, RENDER_TIMED_PASS_REFLECTION_PROBES);

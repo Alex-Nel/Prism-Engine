@@ -48,7 +48,9 @@ namespace Prism
 
     enum class RenderTimedPass : uint32_t
     {
-        Shadows = 0,
+        DirectionalShadows = 0,
+        SpotShadows,
+        PointShadows,
         ReflectionProbes,
         GBuffer,
         SSAO,

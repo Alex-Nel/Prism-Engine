@@ -239,7 +239,7 @@ float SampleCascadeShadow(int cascade, vec3 fragPos, vec3 normal, vec3 lightDir)
 // Calculates if the pixel is in shadow (0.0 = bright, 1.0 = shadowed)
 float ShadowCalculation(vec3 fragPos, vec3 normal, vec3 lightDir)
 {
-    if (u_ReceiveShadows < 0.5)
+    if (u_ShadowCascadeCount <= 0 || u_ReceiveShadows < 0.5)
         return 0.0;
     
     if (u_ShadowCascadeCount <= 1)

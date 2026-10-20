@@ -589,7 +589,9 @@ typedef struct RendererSettings
 // GPU timer categories. Timings may describe an older frame than the CPU counters because OpenGL query results are read asynchronously.
 typedef enum RenderTimedPass
 {
-    RENDER_TIMED_PASS_SHADOWS = 0,
+    RENDER_TIMED_PASS_DIRECTIONAL_SHADOWS = 0,
+    RENDER_TIMED_PASS_SPOT_SHADOWS,
+    RENDER_TIMED_PASS_POINT_SHADOWS,
     RENDER_TIMED_PASS_REFLECTION_PROBES,
     RENDER_TIMED_PASS_GBUFFER,
     RENDER_TIMED_PASS_SSAO,
