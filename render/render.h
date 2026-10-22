@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "../core/graphics_core.h"
 #include "../core/math_core.h"
@@ -78,6 +79,7 @@ typedef struct Renderer
     void (*DrawWorld)(Renderer* r, const RenderWorld* world);
     void (*DrawFrame)(Renderer* r, const RenderFrame* frame);
     uint32_t (*GetProbeResults)(Renderer* r, RenderProbeResult* out, uint32_t max_count);
+    void (*GetStats)(Renderer* r, RenderStats* out);
 
 
 
@@ -458,6 +460,18 @@ static inline uint32_t Render_GetProbeResults(Renderer* r, RenderProbeResult* ou
     if (r && r->GetProbeResults)
         return r->GetProbeResults(r, out, max_count);
     return 0;
+}
+
+// Copies renderer counters and the latest asynchronously resolved GPU timings
+static inline void Render_GetStats(Renderer* r, RenderStats* out)
+{
+    if (!out)
+        return;
+    
+    memset(out, 0, sizeof(*out));
+    
+    if (r && r->GetStats)
+        r->GetStats(r, out);
 }
 
 

@@ -38,12 +38,20 @@ static void Headless_SetSettings(Renderer* r, const RendererSettings* settings)
     internal->settings.wireframe_mode = settings->wireframe_mode;
     if (settings->shadow_map_resolution > 0)
         internal->settings.shadow_map_resolution = settings->shadow_map_resolution;
+    if (settings->resolution_scale > 0.0f)
+    {
+        float scale = settings->resolution_scale;
+        if (scale < 0.25f) scale = 0.25f;
+        if (scale > 1.0f) scale = 1.0f;
+        internal->settings.resolution_scale = scale;
+    }
     if (settings->gamma > 0.01f)
         internal->settings.gamma = settings->gamma;
     if (settings->exposure > 0.001f)
         internal->settings.exposure = settings->exposure;
     if (settings->max_draw_items > 0)
         internal->settings.max_draw_items = settings->max_draw_items;
+    internal->settings.max_active_local_lights = settings->max_active_local_lights;
 }
 
 static RendererSettings Headless_GetSettings(Renderer* r)
@@ -63,6 +71,7 @@ static void Headless_EndWorld(Renderer* r) {}
 static void Headless_DrawWorld(Renderer* r, const RenderWorld* world) {}
 static void Headless_DrawFrame(Renderer* r, const RenderFrame* frame) {}
 static uint32_t Headless_GetProbeResults(Renderer* r, RenderProbeResult* out, uint32_t max_count) { return 0; }
+static void Headless_GetStats(Renderer* r, RenderStats* out) { if (out) memset(out, 0, sizeof(*out)); }
 static void Headless_DrawOverlay(Renderer* r, const OverlayDrawList* list, uint32_t width, uint32_t height) { (void)r; (void)list; (void)width; (void)height; }
 
 
@@ -150,6 +159,7 @@ Renderer* Headless_Init()
     internal->settings.enable_skybox = true;
     internal->settings.enable_transparency = true;
     internal->settings.wireframe_mode = false;
+    internal->settings.resolution_scale = 1.0f;
     internal->settings.gamma = 2.2f;
     internal->settings.exposure = 1.0f;
     internal->settings.max_draw_items = 32768;
@@ -188,6 +198,7 @@ Renderer* Headless_Init()
     r->DrawWorld = Headless_DrawWorld;
     r->DrawFrame = Headless_DrawFrame;
     r->GetProbeResults = Headless_GetProbeResults;
+    r->GetStats = Headless_GetStats;
 
     r->SetSettings = Headless_SetSettings;
     r->GetSettings = Headless_GetSettings;

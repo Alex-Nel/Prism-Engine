@@ -8,7 +8,7 @@
 
 
 #define RENDER_MAX_SHADOW_CASCADES 4        // Compile time size of the shared cascade function. max_shadow_cascades will report the same value
-#define SHADOW_MAP_RESOLUTION_DEFAULT 4096
+#define SHADOW_MAP_RESOLUTION_DEFAULT 2048
 
 
 

@@ -493,10 +493,10 @@ EnvironmentMapHandle OpenGL_CreateEnvironmentMap(Renderer* r, const RenderEnviro
     // Convert HDR to Cubemap
     GLuint prog = internal->shader_pool[internal->ibl.equirectangular_to_cubemap.id].program;
     glUseProgram(prog);
-    glUniform1i(glGetUniformLocation(prog, "equirectangularMap"), 0);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, prog, "equirectangularMap"), 0);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, internal->texture_pool[hdr_tex.id].id);
-    glUniformMatrix4fv(glGetUniformLocation(prog, "projection"), 1, GL_FALSE, (float*)&captureProjection);
+    glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, prog, "projection"), 1, GL_FALSE, (float*)&captureProjection);
     
     glViewport(0, 0, 512, 512);
     glBindFramebuffer(GL_FRAMEBUFFER, internal->ibl.capture_fbo);
@@ -509,7 +509,7 @@ EnvironmentMapHandle OpenGL_CreateEnvironmentMap(Renderer* r, const RenderEnviro
 
     for (unsigned int i = 0; i < 6; i++)
     {
-        glUniformMatrix4fv(glGetUniformLocation(prog, "view"), 1, GL_FALSE, (float*)&captureViews[i]);
+        glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, prog, "view"), 1, GL_FALSE, (float*)&captureViews[i]);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, envCubemap, 0);
 
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
@@ -547,15 +547,15 @@ EnvironmentMapHandle OpenGL_CreateEnvironmentMap(Renderer* r, const RenderEnviro
     
     prog = internal->shader_pool[internal->ibl.irradiance_convolution.id].program;
     glUseProgram(prog);
-    glUniform1i(glGetUniformLocation(prog, "environmentMap"), 0);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, prog, "environmentMap"), 0);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, envCubemap);
-    glUniformMatrix4fv(glGetUniformLocation(prog, "projection"), 1, GL_FALSE, (float*)&captureProjection);
+    glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, prog, "projection"), 1, GL_FALSE, (float*)&captureProjection);
 
     glViewport(0, 0, 32, 32);
     for (unsigned int i = 0; i < 6; i++)
     {
-        glUniformMatrix4fv(glGetUniformLocation(prog, "view"), 1, GL_FALSE, (float*)&captureViews[i]);
+        glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, prog, "view"), 1, GL_FALSE, (float*)&captureViews[i]);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, irradianceMap, 0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -580,10 +580,10 @@ EnvironmentMapHandle OpenGL_CreateEnvironmentMap(Renderer* r, const RenderEnviro
 
     prog = internal->shader_pool[internal->ibl.prefilter.id].program;
     glUseProgram(prog);
-    glUniform1i(glGetUniformLocation(prog, "environmentMap"), 0);
+    glUniform1i(OpenGL_GetCachedUniformLocation(internal, prog, "environmentMap"), 0);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, envCubemap);
-    glUniformMatrix4fv(glGetUniformLocation(prog, "projection"), 1, GL_FALSE, (float*)&captureProjection);
+    glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, prog, "projection"), 1, GL_FALSE, (float*)&captureProjection);
 
     unsigned int maxMipLevels = 5;
     for (unsigned int mip = 0; mip < maxMipLevels; mip++)
@@ -595,10 +595,10 @@ EnvironmentMapHandle OpenGL_CreateEnvironmentMap(Renderer* r, const RenderEnviro
         glViewport(0, 0, mipWidth, mipHeight);
 
         float roughness = (float)mip / (float)(maxMipLevels - 1);
-        glUniform1f(glGetUniformLocation(prog, "roughness"), roughness);
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, prog, "roughness"), roughness);
         for (unsigned int i = 0; i < 6; i++)
         {
-            glUniformMatrix4fv(glGetUniformLocation(prog, "view"), 1, GL_FALSE, (float*)&captureViews[i]);
+            glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, prog, "view"), 1, GL_FALSE, (float*)&captureViews[i]);
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, prefilterMap, mip);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -648,6 +648,149 @@ EnvironmentMapHandle OpenGL_CreateEnvironmentMap(Renderer* r, const RenderEnviro
     return (EnvironmentMapHandle){env_id};
 }
 
+
+
+
+
+
+
+
+
+
+
+// Hashes a uniform name for the per-program location cache.
+static uint32_t OpenGL_HashUniformName(const char* name)
+{
+    uint32_t hash = 2166136261u;
+    while (*name)
+    {
+        hash ^= (uint8_t)*name++;
+        hash *= 16777619u;
+    }
+    return hash;
+}
+
+
+
+
+
+// Rebuilds a shader's open-addressed uniform table at a larger power-of-two size.
+static bool OpenGL_ReserveUniformCache(GLUniformCache* cache, uint32_t new_capacity)
+{
+    GLUniformCacheEntry* new_entries = (GLUniformCacheEntry*)calloc(new_capacity, sizeof(GLUniformCacheEntry));
+    if (!new_entries)
+        return false;
+
+    for (uint32_t i = 0; i < cache->capacity; i++)
+    {
+        GLUniformCacheEntry entry = cache->entries[i];
+        if (!entry.name)
+            continue;
+    
+        uint32_t slot = entry.hash & (new_capacity - 1);
+        while (new_entries[slot].name)
+            slot = (slot + 1) & (new_capacity - 1);
+    
+        new_entries[slot] = entry;
+    }
+    
+    free(cache->entries);
+    cache->entries = new_entries;
+    cache->capacity = new_capacity;
+    
+    return true;
+}
+
+
+
+
+
+// Releases every copied uniform name owned by a shader.
+static void OpenGL_ClearUniformCache(GLUniformCache* cache)
+{
+    if (!cache)
+        return;
+
+    for (uint32_t i = 0; i < cache->capacity; i++)
+        free(cache->entries[i].name);
+    
+    free(cache->entries);
+    memset(cache, 0, sizeof(*cache));
+}
+
+
+
+
+
+// Returns a cached uniform location, including cached -1 results for absent uniforms.
+GLint OpenGL_GetCachedUniformLocation(OpenGL_Backend* internal, GLuint program, const char* name)
+{
+    if (!internal || program == 0 || !name)
+        return -1;
+
+    GLShader* shader = internal->last_uniform_shader;
+    if (!shader || !shader->active || shader->program != program)
+    {
+        shader = NULL;
+        
+        for (uint32_t i = 1; i <= internal->shader_high_watermark; i++)
+        {
+            GLShader* candidate = &internal->shader_pool[i];
+            if (candidate->active && candidate->program == program)
+            {
+                shader = candidate;
+                break;
+            }
+        }
+
+        internal->last_uniform_shader = shader;
+    }
+
+
+    // Programs not owned by the renderer are uncommon, but remain supported.
+    if (!shader)
+        return glGetUniformLocation(program, name);
+    
+    GLUniformCache* cache = &shader->uniforms;
+    uint32_t hash = OpenGL_HashUniformName(name);
+    
+    if (cache->capacity == 0 && !OpenGL_ReserveUniformCache(cache, 32))
+        return glGetUniformLocation(program, name);
+    
+    uint32_t slot = hash & (cache->capacity - 1);
+    while (cache->entries[slot].name)
+    {
+        GLUniformCacheEntry* entry = &cache->entries[slot];
+        if (entry->hash == hash && strcmp(entry->name, name) == 0)
+            return entry->location;
+        
+        slot = (slot + 1) & (cache->capacity - 1);
+    }
+
+    if ((cache->count + 1) * 10 >= cache->capacity * 7)
+    {
+        if (!OpenGL_ReserveUniformCache(cache, cache->capacity * 2))
+            return glGetUniformLocation(program, name);
+        
+        slot = hash & (cache->capacity - 1);
+        while (cache->entries[slot].name)
+            slot = (slot + 1) & (cache->capacity - 1);
+    }
+
+    GLint location = glGetUniformLocation(program, name);
+    size_t name_length = strlen(name) + 1;
+    char* copied_name = (char*)malloc(name_length);
+    if (!copied_name)
+        return location;
+
+    memcpy(copied_name, name, name_length);
+    cache->entries[slot].name = copied_name;
+    cache->entries[slot].hash = hash;
+    cache->entries[slot].location = location;
+    cache->count++;
+    
+    return location;
+}
 
 
 
@@ -723,6 +866,7 @@ ShaderHandle OpenGL_CreateShader(Renderer* r, const RenderShaderDesc* desc)
 
     // Create complete shader
     GLShader* shader = &internal->shader_pool[id];
+    memset(shader, 0, sizeof(*shader));
     shader->active = true;
     shader->program = glCreateProgram();
     glAttachShader(shader->program, vs);
@@ -738,6 +882,9 @@ ShaderHandle OpenGL_CreateShader(Renderer* r, const RenderShaderDesc* desc)
 
     glDeleteShader(vs);
     glDeleteShader(fs);
+
+    if (id > internal->shader_high_watermark)
+        internal->shader_high_watermark = id;
 
     return (ShaderHandle){id};
 }
@@ -838,8 +985,13 @@ ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const char* 
     glDeleteShader(fragment);
 
     // Store in backend
-    internal->shader_pool[slot].program = program;
-    internal->shader_pool[slot].active = true;
+    GLShader* shader = &internal->shader_pool[slot];
+    memset(shader, 0, sizeof(*shader));
+    shader->program = program;
+    shader->active = true;
+
+    if (slot > internal->shader_high_watermark)
+        internal->shader_high_watermark = slot;
 
     return (ShaderHandle){slot};
 }
@@ -892,10 +1044,16 @@ void OpenGL_DestroyShader(Renderer* r, ShaderHandle shader)
     // Only delete if the slot is actually in use
     if (gl_shader->active)
     {
+        if (internal->last_uniform_shader == gl_shader)
+            internal->last_uniform_shader = NULL;
+
+        OpenGL_ClearUniformCache(&gl_shader->uniforms);
+
         // Tell OpenGL to free the GPU memory
         glDeleteProgram(gl_shader->program);
 
         // Mark the slot as free so Render_CreateMesh can reuse this ID later
+        gl_shader->program = 0;
         gl_shader->active = false;
     }
 }

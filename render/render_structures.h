@@ -559,13 +559,71 @@ typedef struct RendererSettings
     bool wireframe_mode;            // Render opaque geometry in wireframe mode
 
     uint32_t shadow_map_resolution; // e.g., 1024, 2048, 4096
+    float resolution_scale;         // internal render scale; positive values clamp to 0.25-1.0, 0 preserves current
     float gamma;                    // e.g., 2.2f (default)
     float exposure;                 // e.g., 1.0f (default)
 
     uint32_t max_draw_items;
     uint32_t max_shadow_cascades;
     uint32_t max_reflection_probes;
+    uint32_t max_active_local_lights; // Combined point/spot light budget per view. 0 = unlimited
 } RendererSettings;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// -------------------------------------
+// --- Structures for Renderer stats ---
+// -------------------------------------
+
+// GPU timer categories. Timings may describe an older frame than the CPU counters because OpenGL query results are read asynchronously.
+typedef enum RenderTimedPass
+{
+    RENDER_TIMED_PASS_DIRECTIONAL_SHADOWS = 0,
+    RENDER_TIMED_PASS_SPOT_SHADOWS,
+    RENDER_TIMED_PASS_POINT_SHADOWS,
+    RENDER_TIMED_PASS_REFLECTION_PROBES,
+    RENDER_TIMED_PASS_GBUFFER,
+    RENDER_TIMED_PASS_SSAO,
+    RENDER_TIMED_PASS_LIGHTING,
+    RENDER_TIMED_PASS_TRANSPARENT,
+    RENDER_TIMED_PASS_COUNT
+} RenderTimedPass;
+
+
+
+
+
+// Renderer counters for the most recently completed frame.
+typedef struct RenderStats
+{
+    uint64_t frame_id;
+    uint64_t gpu_timing_frame_id;
+    uint32_t view_count;
+    uint32_t items_submitted;
+    uint32_t opaque_items;
+    uint32_t transparent_items;
+    uint32_t draw_calls;
+    uint64_t triangles;
+    uint32_t frustum_culled_items;
+    uint32_t local_lights_considered;
+    uint32_t active_point_lights;
+    uint32_t active_spot_lights;
+    uint32_t dropped_local_lights;
+    double gpu_time_ms[RENDER_TIMED_PASS_COUNT];
+    bool gpu_time_valid[RENDER_TIMED_PASS_COUNT];
+} RenderStats;
 
 
 

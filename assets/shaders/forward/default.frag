@@ -103,6 +103,7 @@ uniform float u_ShadowCameraNear;
 uniform float u_CascadeBlendFraction;
 uniform sampler2D ssaoMap;
 uniform bool u_EnableSSAO;
+uniform vec2 u_ScreenSize;
 uniform float u_ShadowMaxDistance;
 uniform float u_ReceiveShadows;
 uniform float u_Gamma;
@@ -239,7 +240,7 @@ float SampleCascadeShadow(int cascade, vec3 fragPos, vec3 normal, vec3 lightDir)
 // Calculates if the pixel is in shadow (0.0 = bright, 1.0 = shadowed)
 float ShadowCalculation(vec3 fragPos, vec3 normal, vec3 lightDir)
 {
-    if (u_ReceiveShadows < 0.5)
+    if (u_ShadowCascadeCount <= 0 || u_ReceiveShadows < 0.5)
         return 0.0;
     
     if (u_ShadowCascadeCount <= 1)
@@ -484,7 +485,7 @@ void main()
     float ambientOcclusion = u_Material.hasAOMap ? texture(u_Material.aoMap, TexCoord).r : 1.0; 
     if (u_EnableSSAO)
     {
-        vec2 screenUV = gl_FragCoord.xy / vec2(textureSize(ssaoMap, 0));
+        vec2 screenUV = gl_FragCoord.xy / u_ScreenSize;
         ambientOcclusion *= texture(ssaoMap, screenUV).r;
     }
 

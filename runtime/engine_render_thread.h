@@ -15,6 +15,7 @@ typedef struct RenderFrameResult
 {
     uint64_t frame_id;
     void* scene_identity;
+    RenderStats stats;
     RenderProbeResult probe_results[RENDER_FRAME_MAX_PROBES];
     uint32_t probe_result_count;
 } RenderFrameResult;

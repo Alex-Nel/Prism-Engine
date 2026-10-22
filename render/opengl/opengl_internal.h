@@ -20,11 +20,11 @@
 #define MAX_COMMANDS 32768
 #define MAX_REFLECTION_PROBES 16
 #define MAX_SHADOW_CASCADES RENDER_MAX_SHADOW_CASCADES
-#define SHADOW_MAP_RESOLUTION_DEFAULT 4096
 
 #define MAX_SHADOW_CASTING_SPOTLIGHTS 8
 #define MAX_SHADOW_CASTING_POINT_LIGHTS 8
 #define MAX_SNAPSHOT_SKINNED 1024
+#define OPENGL_GPU_QUERY_RING_SIZE 4
 
 #define SHADOW_WIDTH SHADOW_MAP_RESOLUTION_DEFAULT
 #define SHADOW_HEIGHT SHADOW_MAP_RESOLUTION_DEFAULT
@@ -36,6 +36,8 @@ typedef struct RenderState
 {
     uint32_t window_width;
     uint32_t window_height;
+    uint32_t render_width;
+    uint32_t render_height;
     Matrix4 view_matrix;
     Matrix4 projection_matrix;
     Vector3 camera_pos;
@@ -102,11 +104,27 @@ typedef struct GLMesh
 
 
 
-// Struct for holding shaders for OpenGL
+// Structs for holding shaders for OpenGL
+
+typedef struct GLUniformCacheEntry
+{
+    char* name;
+    uint32_t hash;
+    GLint location;
+} GLUniformCacheEntry;
+
+typedef struct GLUniformCache
+{
+    GLUniformCacheEntry* entries;
+    uint32_t count;
+    uint32_t capacity;
+} GLUniformCache;
+
 typedef struct GLShader
 {
     GLuint program;
     bool active;
+    GLUniformCache uniforms;
 } GLShader;
 
 
@@ -169,6 +187,35 @@ typedef struct GLReflectionProbe
 
 
 
+// Struct for GPU timers
+typedef struct GLGpuTimerSlot
+{
+    GLuint queries[RENDER_FRAME_MAX_VIEWS][RENDER_TIMED_PASS_COUNT];
+    bool issued[RENDER_FRAME_MAX_VIEWS][RENDER_TIMED_PASS_COUNT];
+    bool pending;
+    uint64_t frame_id;
+} GLGpuTimerSlot;
+
+
+
+// Stats for OpenGL specifically
+typedef struct GLRendererStats
+{
+    RenderStats current;
+    RenderStats published;
+    RenderStats latest_gpu;
+    GLGpuTimerSlot timer_slots[OPENGL_GPU_QUERY_RING_SIZE];
+    int32_t active_timer_slot;
+    uint32_t current_view;
+    RenderTimedPass active_pass;
+    bool frame_active;
+    bool pass_active;
+} GLRendererStats;
+
+
+
+
+
 // --- Sub-Systems for the render pipeline---
 
 typedef struct GL_ForwardPipeline
@@ -222,6 +269,8 @@ typedef struct GL_SSAOPipeline
     GLuint gPosition;
     GLuint gNormal;
     GLuint gDepth;
+    GLenum gDepthFormat;
+    GLenum gDepthAttachment;
     GLuint gAlbedoSpec;
 
     GLuint ssaoFBO;
@@ -303,6 +352,9 @@ typedef struct OpenGL_Backend
 
     uint32_t quad_vao;
     uint32_t quad_vbo;
+
+    uint32_t shader_high_watermark;
+    GLShader* last_uniform_shader;
     
     RenderState state;
 
@@ -318,6 +370,7 @@ typedef struct OpenGL_Backend
     GLuint default_normal_texture;
     GLuint default_black_texture;
 
+    GLRendererStats stats;
     RenderGLSurface surface;
 } OpenGL_Backend;
 
@@ -400,6 +453,7 @@ ShaderHandle OpenGL_CreateShader(Renderer* r, const RenderShaderDesc* desc);
 ShaderHandle OpenGL_CompileInternalShader(OpenGL_Backend* internal, const char* name, const char* vertex_src, const char* geom_src, const char* fragment_src);
 ShaderHandle OpenGL_CompileInternalShaderFromFile(OpenGL_Backend* internal, const char* name, const char* vert_path, const char* geom_path, const char* frag_path);
 void OpenGL_DestroyShader(Renderer* r, ShaderHandle shader);
+GLint OpenGL_GetCachedUniformLocation(OpenGL_Backend* internal, GLuint program, const char* name);
 
 MaterialHandle OpenGL_CreateMaterial(Renderer* r, const RenderMaterialDesc* desc);
 void OpenGL_UpdateMaterial(Renderer* r, MaterialHandle handle, const RenderMaterialDesc* desc);
@@ -415,7 +469,7 @@ uint8_t* OpenGL_RotatePixels90CCW(const uint8_t* src, int w, int h, int c);
 // --- OpenGL Shadow Pipeline Functions ---
 
 void OpenGL_BindSSAOTexture(OpenGL_Backend* internal, GLuint program);
-void OpenGL_UploadShadowUniforms(GLuint program, const RenderState* state);
+void OpenGL_UploadShadowUniforms(OpenGL_Backend* internal, GLuint program, const RenderState* state);
 void OpenGL_DrawShadowQueue(OpenGL_Backend* internal, const Matrix4* light_space_matrix);
 void OpenGL_ExecuteShadowPass(OpenGL_Backend* internal);
 
@@ -426,9 +480,9 @@ void OpenGL_ExecuteShadowPass(OpenGL_Backend* internal);
 // --- OpenGL Render Pipeline Functions ---
 
 void OpenGL_BindDefaultFramebuffer();
-void OpenGL_UploadCommonUniforms(GLuint program, const RenderState* state);
-void OpenGL_UploadLightUniforms(GLuint program, const RenderState* state);
-void OpenGL_UploadDirectionalLightUniforms(GLuint program, const RenderState* state);
+void OpenGL_UploadCommonUniforms(OpenGL_Backend* internal, GLuint program, const RenderState* state);
+void OpenGL_UploadLightUniforms(OpenGL_Backend* internal, GLuint program, const RenderState* state);
+void OpenGL_UploadDirectionalLightUniforms(OpenGL_Backend* internal, GLuint program, const RenderState* state);
 void ExecuteGBufferPass(OpenGL_Backend* internal, uint32_t opaque_count);
 void ExecuteDeferredLightingPass(OpenGL_Backend* internal);
 void ExecuteSSAOPass(OpenGL_Backend* internal);
@@ -441,6 +495,10 @@ void OpenGL_EndWorld(Renderer* r);
 void OpenGL_DrawWorld(Renderer* r, const RenderWorld* world);
 void OpenGL_DrawFrame(Renderer* r, const RenderFrame* frame);
 uint32_t OpenGL_GetProbeResults(Renderer* r, RenderProbeResult* out, uint32_t max_count);
+
+void OpenGL_GetStats(Renderer* r, RenderStats* out);
+void OpenGL_StatsInit(OpenGL_Backend* internal);
+void OpenGL_StatsShutdown(OpenGL_Backend* internal);
 
 
 

@@ -951,6 +951,7 @@ static int EngineRenderThread_Main(void* user_data)
             Render_DrawOverlay(engine->renderer, &frame->retained_ui, output_width, output_height);
             Render_DrawOverlay(engine->renderer, &frame->immediate_ui, output_width, output_height);
             result.probe_result_count = Render_GetProbeResults(engine->renderer, result.probe_results, RENDER_FRAME_MAX_PROBES);
+            Render_GetStats(engine->renderer, &result.stats);
             Render_Present(engine->renderer);
             
             RenderFrameQueue_CompleteRead(&engine->render_worker.frame_queue, slot_index, &result);
