@@ -126,6 +126,11 @@ namespace Prism
         return Prism::Texture(c_text);
     }
 
+    Material AssetManager::GetMaterialByName(std::string name) {
+        ::Material* c_mat = ::Asset_GetMaterialByName(name.c_str());
+        return Prism::Material(c_mat);
+    }
+
     Font AssetManager::GetFontByName(const std::string& name) {
         return Prism::Font(::Asset_GetFontByName(name.c_str()));
     }
@@ -227,8 +232,8 @@ namespace Prism
     // Material Management
     // ==========================================
     
-    Material AssetManager::CreateMaterial(Texture diffuse) {
-        ::Material* h = ::Asset_CreateMaterial(NULL, (::Texture*)diffuse.GetRaw());
+    Material AssetManager::CreateMaterial(const std::string& name, Texture diffuse) {
+        ::Material* h = ::Asset_CreateMaterial(name.c_str(), (::Texture*)diffuse.GetRaw(), NULL);
         return Prism::Material(h);
     }
 

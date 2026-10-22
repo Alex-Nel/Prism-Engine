@@ -511,7 +511,7 @@ bool Scene_Load(Scene* scene, const char* filepath)
             cJSON* tex_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "texture_name");
             Texture* tex = tex_name ? Asset_GetTextureByName(tex_name->valuestring) : NULL;
             
-            r->material = Asset_CreateMaterial(NULL, tex);
+            r->material = Asset_CreateMaterial("Material", tex, NULL);
             
             cJSON* tint = cJSON_GetObjectItemCaseSensitive(comp_obj, "tint");
             if (tint) r->material->properties.albedo_tint = LoadColor(tint);
@@ -532,7 +532,7 @@ bool Scene_Load(Scene* scene, const char* filepath)
             cJSON* tex_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "texture_name");
             Texture* tex = tex_name ? Asset_GetTextureByName(tex_name->valuestring) : NULL;
             
-            r->material = Asset_CreateMaterial(NULL, tex);
+            r->material = Asset_CreateMaterial("Material", tex, NULL);
             
             cJSON* tint = cJSON_GetObjectItemCaseSensitive(comp_obj, "tint");
             if (tint) r->material->properties.albedo_tint = LoadColor(tint);

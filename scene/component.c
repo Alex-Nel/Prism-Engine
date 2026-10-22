@@ -848,7 +848,7 @@ void SpriteRenderer_SetSprite(SpriteRendererComponent* comp, Texture* sprite)
     Material* mat = comp->material;
     if (!mat)
     {
-        comp->material = Asset_CreateMaterial(NULL, sprite);
+        comp->material = Asset_CreateMaterial("DefaultSpriteMat", sprite, NULL);
         return;
     }
     else

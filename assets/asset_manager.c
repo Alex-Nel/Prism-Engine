@@ -232,16 +232,16 @@ static Material* FindFreeMaterialSlot()
 {
     for (uint32_t i = 0; i < g_asset_manager->material_count; i++)
     {
-        if (!g_asset_manager->material_pool[i].active)
+        if (!g_asset_manager->material_cache[i].active)
         {
-            g_asset_manager->material_pool[i].id = i;
-            return &g_asset_manager->material_pool[i];
+            g_asset_manager->material_cache[i].id = i;
+            return &g_asset_manager->material_cache[i];
         }
     }
 
     if (g_asset_manager->material_count < MAX_MATERIALS)
     {
-        Material* m = &g_asset_manager->material_pool[g_asset_manager->material_count];
+        Material* m = &g_asset_manager->material_cache[g_asset_manager->material_count];
         m->id = g_asset_manager->material_count++;
         return m;
     }
@@ -689,7 +689,9 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
         aiGetMaterialColor(ai_mat, AI_MATKEY_COLOR_DIFFUSE, &diffuse_color);
 
         // Create the material
-        Material* mat_ptr = Asset_CreateMaterial(model_shader, tex_ptr);
+        char new_mat_name[MAX_NAME_LENGTH] = {0};
+        snprintf(new_mat_name, sizeof(new_mat_name), "Mesh_Material_%d", i);
+        Material* mat_ptr = Asset_CreateMaterial(new_mat_name, tex_ptr, model_shader);
         
         // Update the tint color and assign PBR textures
         if (mat_ptr)
@@ -1161,7 +1163,7 @@ void Asset_SyncMaterialGPU(Material* material)
 
 
 // Creates a material from a given shader and texture (diffuse)
-Material* Asset_CreateMaterial(Shader* shader, Texture* albedo)
+Material* Asset_CreateMaterial(const char* name, Texture* albedo, Shader* shader)
 {
     Material* mat = FindFreeMaterialSlot();
     if (!mat)
@@ -1170,6 +1172,7 @@ Material* Asset_CreateMaterial(Shader* shader, Texture* albedo)
         return NULL;
     }
     
+    strncpy(mat->name, name, MAX_NAME_LENGTH);
     uint32_t id = g_asset_manager->material_count++;
     mat->active = true;
 
@@ -2242,6 +2245,22 @@ Texture* Asset_GetTextureByName(const char* name)
     {
         if (strcmp(g_asset_manager->texture_cache[i].name, name) == 0)
             return &g_asset_manager->texture_cache[i];
+    }
+
+    return NULL;
+}
+
+
+
+
+
+// Look up a texture by its string name
+Material* Asset_GetMaterialByName(const char* name)
+{
+    for (uint32_t i = 0; i < g_asset_manager->material_count; i++)
+    {
+        if (strcmp(g_asset_manager->material_cache[i].name, name) == 0)
+            return &g_asset_manager->material_cache[i];
     }
 
     return NULL;

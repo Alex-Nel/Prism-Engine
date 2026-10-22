@@ -63,6 +63,7 @@ namespace Prism
         static Mesh GetMeshByName(const std::string& name);
         static SkinnedMesh GetSkinnedMeshByName(const std::string& name);
         static Texture GetTextureByName(std::string name);
+        static Material GetMaterialByName(std::string name);
         static Font GetFontByName(const std::string& name);
 
 
@@ -101,7 +102,7 @@ namespace Prism
 
         // --- Material Management ---
         
-        static Material CreateMaterial(Texture diffuse);
+        static Material CreateMaterial(const std::string& name, Texture diffuse);
 
 
 

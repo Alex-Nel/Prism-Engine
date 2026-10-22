@@ -140,6 +140,7 @@ typedef struct MaterialProperties
 // Structure for a material
 typedef struct Material
 {
+    char name[MAX_NAME_LENGTH];
     uint32_t id;
     bool active;
     

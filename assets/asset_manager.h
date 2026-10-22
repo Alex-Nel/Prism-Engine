@@ -69,6 +69,9 @@ typedef struct AssetManager
     Texture texture_cache[MAX_CACHED_TEXTURES];
     uint32_t texture_count;
 
+    Material material_cache[MAX_MATERIALS];
+    uint32_t material_count;
+
     Mesh mesh_cache[MAX_CACHED_MESHES];
     uint32_t mesh_count;
 
@@ -80,9 +83,6 @@ typedef struct AssetManager
 
     Font font_cache[MAX_CACHED_FONTS];
     uint32_t font_count;
-
-    Material material_pool[MAX_MATERIALS];
-    uint32_t material_count;
 
     RenderMaterialDesc material_gpu_desc[MAX_MATERIALS];
     bool material_gpu_desc_valid[MAX_MATERIALS];
@@ -157,7 +157,7 @@ Texture* Asset_GetDefaultTexture();
 Texture* Asset_CreateSolidColorTexture(const char* name, Color color);
 
 // Material creation function
-Material* Asset_CreateMaterial(Shader* shader, Texture* diffuse);
+Material* Asset_CreateMaterial(const char* name, Texture* diffuse, Shader* shader);
 
 // Uploads or refreshes the GPU copy of a CPU material
 void Asset_SyncMaterialGPU(Material* material);
@@ -179,6 +179,7 @@ Model* Asset_GetModelByName(const char* name);
 Mesh* Asset_GetMeshByName(const char* name);
 SkinnedMesh* Asset_GetSkinnedMeshByName(const char* name);
 Texture* Asset_GetTextureByName(const char* name);
+Material* Asset_GetMaterialByName(const char* name);
 Font* Asset_GetFontByName(const char* name);
 
 
