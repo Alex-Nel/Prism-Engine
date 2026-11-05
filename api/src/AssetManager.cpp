@@ -11,6 +11,10 @@ extern "C"
 
 namespace Prism
 {
+    // Asset manager used by the engine instance
+    static ::AssetManager* s_asset_manager = nullptr;
+
+
 
     // ==========================================
     // Model implementation
@@ -90,12 +94,12 @@ namespace Prism
     // ==========================================
     
     Model AssetManager::LoadModel(const std::string& name, const std::string& filepath){
-        ::Model* raw_model = ::Asset_LoadModel(name.c_str(), filepath.c_str());
+        ::Model* raw_model = ::Asset_LoadModel(s_asset_manager, name.c_str(), filepath.c_str());
         return Prism::Model(raw_model);
     }
 
     Shader AssetManager::LoadShader(const std::string& name, const std::string& vertPath, const std::string& fragPath) {
-        ::Shader* h = ::Asset_LoadShader(name.c_str(), vertPath.c_str(), fragPath.c_str());
+        ::Shader* h = ::Asset_LoadShader(s_asset_manager, name.c_str(), vertPath.c_str(), fragPath.c_str());
         return Prism::Shader(h);
     }
     
@@ -107,66 +111,66 @@ namespace Prism
 
 
     Model AssetManager::GetModelByName(const std::string& name) {
-        ::Model* c_mod = ::Asset_GetModelByName(name.c_str());
+        ::Model* c_mod = ::Asset_GetModelByName(s_asset_manager, name.c_str());
         return Prism::Model(c_mod);
     }
 
     Mesh AssetManager::GetMeshByName(const std::string& name) {
-        ::Mesh* c_mesh = ::Asset_GetMeshByName(name.c_str());
+        ::Mesh* c_mesh = ::Asset_GetMeshByName(s_asset_manager, name.c_str());
         return Prism::Mesh(c_mesh);
     }
 
     SkinnedMesh AssetManager::GetSkinnedMeshByName(const std::string& name) {
-        ::SkinnedMesh* c_mesh = ::Asset_GetSkinnedMeshByName(name.c_str());
+        ::SkinnedMesh* c_mesh = ::Asset_GetSkinnedMeshByName(s_asset_manager, name.c_str());
         return Prism::SkinnedMesh(c_mesh);
     }
 
     Texture AssetManager::GetTextureByName(std::string name) {
-        ::Texture* c_text = ::Asset_GetTextureByName(name.c_str());
+        ::Texture* c_text = ::Asset_GetTextureByName(s_asset_manager, name.c_str());
         return Prism::Texture(c_text);
     }
 
     Material AssetManager::GetMaterialByName(std::string name) {
-        ::Material* c_mat = ::Asset_GetMaterialByName(name.c_str());
+        ::Material* c_mat = ::Asset_GetMaterialByName(s_asset_manager, name.c_str());
         return Prism::Material(c_mat);
     }
 
     Font AssetManager::GetFontByName(const std::string& name) {
-        return Prism::Font(::Asset_GetFontByName(name.c_str()));
+        return Prism::Font(::Asset_GetFontByName(s_asset_manager, name.c_str()));
     }
 
 
 
     void AssetManager::UnloadModel(Model model) {
-        ::Asset_UnloadModel((::Model*)model.GetRawModel());
+        ::Asset_UnloadModel(s_asset_manager, (::Model*)model.GetRawModel());
     }
 
     void AssetManager::UnloadMesh(Mesh mesh) {
-        ::Asset_UnloadMesh((::Mesh*)mesh.GetRaw());
+        ::Asset_UnloadMesh(s_asset_manager, (::Mesh*)mesh.GetRaw());
     }
 
     void AssetManager::UnloadSkinnedMesh(SkinnedMesh mesh) {
-        ::Asset_UnloadSkinnedMesh((::SkinnedMesh*)mesh.GetRaw());
+        ::Asset_UnloadSkinnedMesh(s_asset_manager, (::SkinnedMesh*)mesh.GetRaw());
     }
 
     void AssetManager::UnloadTexture(Texture texture) {
-        ::Asset_UnloadTexture((::Texture*)texture.GetRaw());
+        ::Asset_UnloadTexture(s_asset_manager, (::Texture*)texture.GetRaw());
     }
 
     void AssetManager::UnloadFont(Font font) {
-        ::Asset_UnloadFont((::Font*)font.GetRaw());
+        ::Asset_UnloadFont(s_asset_manager, (::Font*)font.GetRaw());
     }
 
     void AssetManager::UnloadShader(Shader shader) {
-        ::Asset_UnloadShader((::Shader*)shader.GetRaw());
+        ::Asset_UnloadShader(s_asset_manager, (::Shader*)shader.GetRaw());
     }
 
     void AssetManager::UnloadEnvironmentMap(EnvironmentMap env_map) {
-        ::Asset_UnloadEnvironmentMap((::EnvironmentMap*)env_map.GetRaw());
+        ::Asset_UnloadEnvironmentMap(s_asset_manager, (::EnvironmentMap*)env_map.GetRaw());
     }
 
     void AssetManager::UnloadMaterial(Material material) {
-        ::Asset_UnloadMaterial((::Material*)material.GetRaw());
+        ::Asset_UnloadMaterial(s_asset_manager, (::Material*)material.GetRaw());
     }
 
     void AssetManager::UnloadAudioClip(AudioClip clip) {
@@ -181,33 +185,33 @@ namespace Prism
     // ==========================================
 
     Texture AssetManager::LoadTexture(const std::string& name, const std::string& filepath) {
-        ::Texture* h = ::Asset_LoadTexture(name.c_str(), filepath.c_str());
+        ::Texture* h = ::Asset_LoadTexture(s_asset_manager, name.c_str(), filepath.c_str());
         return Prism::Texture(h);
     }
 
     Texture AssetManager::LoadCubemapTexture(const std::string& name, const std::string& right, const std::string& left, const std::string& top, const std::string& bottom, const std::string& front, const std::string& back) {
-        ::Texture* t = ::Asset_LoadCubemapTexture(name.c_str(), right.c_str(), left.c_str(), top.c_str(), bottom.c_str(), front.c_str(), back.c_str());
+        ::Texture* t = ::Asset_LoadCubemapTexture(s_asset_manager, name.c_str(), right.c_str(), left.c_str(), top.c_str(), bottom.c_str(), front.c_str(), back.c_str());
         return Prism::Texture(t);
     }
 
     EnvironmentMap AssetManager::LoadEnvironmentMap(const std::string& filepath) {
-        ::EnvironmentMap* c_env = ::Asset_LoadEnvironmentMap(filepath.c_str());
+        ::EnvironmentMap* c_env = ::Asset_LoadEnvironmentMap(s_asset_manager, filepath.c_str());
         return Prism::EnvironmentMap(c_env);
     }
 
     EnvironmentMap AssetManager::LoadEnvironmentMapFromSkybox(const std::string& name, const std::string& right, const std::string& left, const std::string& top, const std::string& bottom, const std::string& front, const std::string& back) {
-        ::EnvironmentMap* c_env = ::Asset_LoadEnvironmentMapFromSkybox(name.c_str(), right.c_str(), left.c_str(), top.c_str(), bottom.c_str(), front.c_str(), back.c_str());
+        ::EnvironmentMap* c_env = ::Asset_LoadEnvironmentMapFromSkybox(s_asset_manager, name.c_str(), right.c_str(), left.c_str(), top.c_str(), bottom.c_str(), front.c_str(), back.c_str());
         return Prism::EnvironmentMap(c_env);
     }
 
     Texture AssetManager::CreateSolidColorTexture(const std::string& name, Prism::Color color) {
         ::Color c_color = { color.r, color.g, color.b, color.a };
-        ::Texture* raw_tex = ::Asset_CreateSolidColorTexture(name.c_str(), c_color);
+        ::Texture* raw_tex = ::Asset_CreateSolidColorTexture(s_asset_manager, name.c_str(), c_color);
         return Prism::Texture(raw_tex);
     }
 
     Font AssetManager::LoadFont(const std::string& name, const std::string& filepath, float pixel_height) {
-        ::Font* h = ::Asset_LoadFont(name.c_str(), filepath.c_str(), pixel_height);
+        ::Font* h = ::Asset_LoadFont(s_asset_manager, name.c_str(), filepath.c_str(), pixel_height);
         return Prism::Font(h);
     }
 
@@ -218,12 +222,12 @@ namespace Prism
     // ==========================================
 
     Mesh AssetManager::CreateDynamicMesh(uint32_t max_vertices, uint32_t max_indices) {
-        ::Mesh* raw_mesh = ::Asset_CreateDynamicMesh(max_vertices, max_indices);
+        ::Mesh* raw_mesh = ::Asset_CreateDynamicMesh(s_asset_manager, max_vertices, max_indices);
         return Prism::Mesh(raw_mesh);
     }
 
     void AssetManager::UpdateDynamicMesh(Mesh mesh, Prism::Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count) {
-        ::Asset_UpdateDynamicMesh((::Mesh*)mesh.GetRaw(), (::Vertex3D*)vertices, vertex_count, indices, index_count);
+        ::Asset_UpdateDynamicMesh(s_asset_manager, (::Mesh*)mesh.GetRaw(), (::Vertex3D*)vertices, vertex_count, indices, index_count);
     }
 
 
@@ -233,7 +237,7 @@ namespace Prism
     // ==========================================
     
     Material AssetManager::CreateMaterial(const std::string& name, Texture diffuse) {
-        ::Material* h = ::Asset_CreateMaterial(name.c_str(), (::Texture*)diffuse.GetRaw(), NULL);
+        ::Material* h = ::Asset_CreateMaterial(s_asset_manager, name.c_str(), (::Texture*)diffuse.GetRaw(), NULL);
         return Prism::Material(h);
     }
 
@@ -244,21 +248,33 @@ namespace Prism
     // ==========================================
     
     Mesh AssetManager::GetBuiltinQuad() {
-        ::Mesh* h = ::Asset_GetBuiltinQuad();
+        ::Mesh* h = ::Asset_GetBuiltinQuad(s_asset_manager);
         return Prism::Mesh(h);
     }
     
     Mesh AssetManager::GetBuiltinCube() {
-        ::Mesh* h = ::Asset_GetBuiltinCube();
+        ::Mesh* h = ::Asset_GetBuiltinCube(s_asset_manager);
         return Prism::Mesh(h);
     }
     
     Mesh AssetManager::GetBuiltinSphere() {
-        ::Mesh* h = ::Asset_GetBuiltinSphere();
+        ::Mesh* h = ::Asset_GetBuiltinSphere(s_asset_manager);
         return Prism::Mesh(h);
     }
     
     Texture AssetManager::GetDefaultTexture() {
-        return Prism::Texture(::Asset_GetDefaultTexture());
+        return Prism::Texture(::Asset_GetDefaultTexture(s_asset_manager));
+    }
+
+
+
+
+
+    void* AssetManager::GetGlobalInstance() {
+        return s_asset_manager;
+    }
+
+    void AssetManager::SetGlobalInstance(void* am_instance) {
+        s_asset_manager = static_cast<::AssetManager*>(am_instance);
     }
 }

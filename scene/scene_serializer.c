@@ -437,6 +437,11 @@ bool Scene_Load(Scene* scene, const char* filepath)
 
     Scene_Clear(scene);
 
+    // Assets referenced by the file are resolved through the asset manager
+    AssetManager* am = scene->asset_manager;
+    if (!am)
+        Log_Warning("WARNING: Scene_Load called on a scene without an asset manager. Asset references will not resolve");
+
     cJSON* ambient_r = cJSON_GetObjectItemCaseSensitive(root, "ambient_r");
     cJSON* ambient_g = cJSON_GetObjectItemCaseSensitive(root, "ambient_g");
     cJSON* ambient_b = cJSON_GetObjectItemCaseSensitive(root, "ambient_b");
@@ -506,16 +511,16 @@ bool Scene_Load(Scene* scene, const char* filepath)
             
             cJSON* mesh_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "mesh_name");
 
-            r->mesh = Asset_GetMeshByName(mesh_name->valuestring);
+            r->mesh = Asset_GetMeshByName(am, mesh_name->valuestring);
             
             cJSON* tex_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "texture_name");
-            Texture* tex = tex_name ? Asset_GetTextureByName(tex_name->valuestring) : NULL;
+            Texture* tex = tex_name ? Asset_GetTextureByName(am, tex_name->valuestring) : NULL;
             
-            r->material = Asset_CreateMaterial("Material", tex, NULL);
+            r->material = Asset_CreateMaterial(am, "Material", tex, NULL);
             
             cJSON* tint = cJSON_GetObjectItemCaseSensitive(comp_obj, "tint");
             if (tint) r->material->properties.albedo_tint = LoadColor(tint);
-            Asset_SyncMaterialGPU(r->material);
+            Asset_SyncMaterialGPU(am, r->material);
         }
 
 
@@ -527,16 +532,16 @@ bool Scene_Load(Scene* scene, const char* filepath)
             
             cJSON* mesh_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "mesh_name");
 
-            r->mesh = Asset_GetSkinnedMeshByName(mesh_name->valuestring);
+            r->mesh = Asset_GetSkinnedMeshByName(am, mesh_name->valuestring);
             
             cJSON* tex_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "texture_name");
-            Texture* tex = tex_name ? Asset_GetTextureByName(tex_name->valuestring) : NULL;
+            Texture* tex = tex_name ? Asset_GetTextureByName(am, tex_name->valuestring) : NULL;
             
-            r->material = Asset_CreateMaterial("Material", tex, NULL);
+            r->material = Asset_CreateMaterial(am, "Material", tex, NULL);
             
             cJSON* tint = cJSON_GetObjectItemCaseSensitive(comp_obj, "tint");
             if (tint) r->material->properties.albedo_tint = LoadColor(tint);
-            Asset_SyncMaterialGPU(r->material);
+            Asset_SyncMaterialGPU(am, r->material);
         }
 
 
@@ -610,7 +615,7 @@ bool Scene_Load(Scene* scene, const char* filepath)
                 cJSON* mesh_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "mesh_name");
                 if (mesh_name)
                 {
-                    Mesh* mesh_ptr = Asset_GetMeshByName(mesh_name->valuestring);
+                    Mesh* mesh_ptr = Asset_GetMeshByName(am, mesh_name->valuestring);
                     Entity_AddColliderMesh(e);
                     ColliderComponent* c = Entity_GetCollider(e);
                     c->is_trigger = is_trigger;
@@ -808,7 +813,7 @@ bool Scene_Load(Scene* scene, const char* filepath)
             {
                 cJSON* tex_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "texture_name");
                 if (tex_name && cJSON_IsString(tex_name))
-                    tex = Asset_GetTextureByName(tex_name->valuestring);
+                    tex = Asset_GetTextureByName(am, tex_name->valuestring);
             }
             Entity_AddUIImage(e);
             UIImageComponent* image = Entity_GetUIImage(e);
@@ -838,7 +843,7 @@ bool Scene_Load(Scene* scene, const char* filepath)
                     text_value = text_json->valuestring;
                 cJSON* font_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "font_name");
                 if (font_name && cJSON_IsString(font_name))
-                    font = Asset_GetFontByName(font_name->valuestring);
+                    font = Asset_GetFontByName(am, font_name->valuestring);
             }
             Entity_AddUIText(e);
             UITextComponent* text = Entity_GetUIText(e);

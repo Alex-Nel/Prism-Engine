@@ -48,6 +48,7 @@ typedef struct PrismEngine
     Window* window;
     Renderer* renderer;
     Scene* active_scene;
+    AssetManager* asset_manager;
 
     // Core State
     bool is_running;
@@ -132,7 +133,7 @@ void Engine_ApplyReflectionProbeResults(PrismEngine* engine, Scene* scene);
 uint32_t Engine_GatherAndSortCameras(PrismEngine* engine, Scene* scene, ActiveCamera* active_cameras);
 
 // Extracts scene geometry into a RenderItem array for DrawWorld. Spatial culling is done by the renderer.
-uint32_t Engine_GatherVisibleGeometry(Scene* scene, Vector3 cam_pos, uint32_t culling_masks, RenderItem* out, uint32_t max, RenderFrame* frame_for_bones);
+uint32_t Engine_GatherVisibleGeometry(PrismEngine* engine, Scene* scene, Vector3 cam_pos, uint32_t culling_masks, RenderItem* out, uint32_t max, RenderFrame* frame_for_bones);
 
 // Builds an immutable render snapshot from the current scene state.
 void Engine_BuildRenderFrame(PrismEngine* engine, Scene* scene, RenderFrame* frame);
@@ -157,6 +158,9 @@ Window* Engine_GetMainWindow(PrismEngine* engine);
 
 // Get the main renderer pointer
 Renderer* Engine_GetRenderer(PrismEngine* engine);
+
+// Get the asset manager pointer
+AssetManager* Engine_GetAssetManager(PrismEngine* engine);
 
 // Copies counters and asynchronously resolved GPU timings from the latest completed frame.
 RenderStats Engine_GetRenderStats(PrismEngine* engine);

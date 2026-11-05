@@ -22,6 +22,16 @@ Renderer* Engine_GetRenderer(PrismEngine* engine)
 
 
 
+// Get a pointer to this engine's asset manager
+AssetManager* Engine_GetAssetManager(PrismEngine* engine)
+{
+    return engine->asset_manager;
+}
+
+
+
+
+
 // Returns the current stats of the renderer
 RenderStats Engine_GetRenderStats(PrismEngine* engine)
 {

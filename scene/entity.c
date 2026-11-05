@@ -1126,7 +1126,7 @@ void Entity_AddLineRenderer(Entity entity)
     line->is_loop = false;
     line->use_world_space = true;
 
-    line->dynamic_mesh = Asset_CreateDynamicMesh(MAX_LINE_POINTS * 2, MAX_LINE_POINTS * 6);
+    line->dynamic_mesh = Asset_CreateDynamicMesh(entity.scene->asset_manager, MAX_LINE_POINTS * 2, MAX_LINE_POINTS * 6);
     line->material = NULL;
 }
 
@@ -1148,7 +1148,7 @@ void Entity_AddSpriteRenderer(Entity entity)
     sprite->is_active = true;
     sprite->color = (Color){1.0f, 1.0f, 1.0f, 1.0f};
     sprite->material = NULL;
-    sprite->quad = Asset_GetBuiltinQuad();
+    sprite->quad = Asset_GetBuiltinQuad(entity.scene->asset_manager);
 }
 
 

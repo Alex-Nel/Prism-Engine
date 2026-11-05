@@ -17,37 +17,143 @@
 
 
 
-// Global asset manager
-static AssetManager* g_asset_manager = NULL;
+// Forward declaration for cleanup helper
+static void FreeSkeletonNodeChildren(SkeletonNode* node);
 
 
 
 
 
 // Initializes an empty asset manager
-void Asset_Init(Renderer* r)
+AssetManager* Asset_Init(Renderer* r)
 {
-    // Allocate and initialize global struct
-    g_asset_manager = calloc(1, sizeof(AssetManager));
+    if (!r)
+        return NULL;
 
-    g_asset_manager->renderer = r;
+    // Allocate and initialize instance
+    AssetManager* am = calloc(1, sizeof(AssetManager));
+    if (!am)
+        return NULL;
+
+    am->renderer = r;
     
     // Initialize all counts to 0
-    g_asset_manager->shader_count = 0;
-    g_asset_manager->texture_count = 0;
-    g_asset_manager->mesh_count = 0;
-    g_asset_manager->skinned_mesh_count = 0;
-    g_asset_manager->model_count = 0;
-    g_asset_manager->font_count = 0;
-    g_asset_manager->material_count = 0;
-    g_asset_manager->env_map_count = 0;
-    memset(g_asset_manager->material_gpu_desc_valid, 0, sizeof(g_asset_manager->material_gpu_desc_valid));
+    am->shader_count = 0;
+    am->texture_count = 0;
+    am->mesh_count = 0;
+    am->skinned_mesh_count = 0;
+    am->model_count = 0;
+    am->font_count = 0;
+    am->material_count = 0;
+    am->env_map_count = 0;
+    memset(am->material_gpu_desc_valid, 0, sizeof(am->material_gpu_desc_valid));
 
     // Pre-initialize default assets
-    Asset_GetBuiltinQuad();
-    Asset_GetBuiltinCube();
-    Asset_GetBuiltinSphere();
-    Asset_GetDefaultTexture();
+    Asset_GetBuiltinQuad(am);
+    Asset_GetBuiltinCube(am);
+    Asset_GetBuiltinSphere(am);
+    Asset_GetDefaultTexture(am);
+
+    return am;
+}
+
+
+
+
+
+
+
+
+
+
+// Frees all allocations owned by an asset manager instance
+void Asset_Shutdown(AssetManager* am)
+{
+    if (!am)
+        return;
+
+    // Free all models and their nodes
+    for (uint32_t i = 0; i < am->model_count; i++)
+    {
+        Model* model = am->model_cache[i];
+        if (!model)
+            continue;
+
+        if (model->nodes)
+            free(model->nodes);
+        
+        // Free all animations
+        if (model->animations)
+        {
+            for (uint32_t a = 0; a < model->animation_count; a++)
+            {
+                AnimationClip* clip = model->animations[a];
+                if (!clip)
+                    continue;
+
+                if (clip->channels)
+                {
+                    for (uint32_t c = 0; c < clip->channel_count; c++)
+                    {
+                        free(clip->channels[c].positions);
+                        free(clip->channels[c].rotations);
+                        free(clip->channels[c].scales);
+                    }
+                    free(clip->channels);
+                }
+                free(clip);
+            }
+            free(model->animations);
+        }
+
+        // Free all skeletons
+        if (model->skeleton)
+        {
+            if (model->skeleton->root_node)
+            {
+                FreeSkeletonNodeChildren(model->skeleton->root_node);
+                free(model->skeleton->root_node);
+            }
+            free(model->skeleton);
+        }
+        
+        free(model);
+        am->model_cache[i] = NULL;
+    }
+
+    // Free all meshes
+    for (uint32_t i = 0; i < am->mesh_count; i++)
+    {
+        if (am->mesh_cache[i].vertices)
+        {
+            free(am->mesh_cache[i].vertices);
+            am->mesh_cache[i].vertices = NULL;
+        }
+
+        if (am->mesh_cache[i].indices)
+        {
+            free(am->mesh_cache[i].indices);
+            am->mesh_cache[i].indices = NULL;
+        }
+    }
+
+    // Free all skinned meshes
+    for (uint32_t i = 0; i < am->skinned_mesh_count; i++)
+    {
+        if (am->skinned_mesh_cache[i].vertices)
+        {
+            free(am->skinned_mesh_cache[i].vertices);
+            am->skinned_mesh_cache[i].vertices = NULL;
+        }
+
+        if (am->skinned_mesh_cache[i].indices)
+        {
+            free(am->skinned_mesh_cache[i].indices);
+            am->skinned_mesh_cache[i].indices = NULL;
+        }
+    }
+
+    free(am);
 }
 
 
@@ -60,16 +166,16 @@ void Asset_Init(Renderer* r)
 
 
 // Finds a free slot in the cached models array
-static int FindFreeModelSlot()
+static int FindFreeModelSlot(AssetManager* am)
 {
-    for (uint32_t i = 0; i < g_asset_manager->model_count; i++)
+    for (uint32_t i = 0; i < am->model_count; i++)
     {
-        if (g_asset_manager->model_cache[i] == NULL)
+        if (am->model_cache[i] == NULL)
             return i;
     }
 
-    if (g_asset_manager->model_count < MAX_CACHED_MODELS)
-        return g_asset_manager->model_count++;
+    if (am->model_count < MAX_CACHED_MODELS)
+        return am->model_count++;
     
     return -1;
 }
@@ -79,21 +185,21 @@ static int FindFreeModelSlot()
 
 
 // Finds a free slot in the cached textures array
-static Texture* FindFreeTextureSlot()
+static Texture* FindFreeTextureSlot(AssetManager* am)
 {
-    for (uint32_t i = 0; i < g_asset_manager->texture_count; i++)
+    for (uint32_t i = 0; i < am->texture_count; i++)
     {
-        if (g_asset_manager->texture_cache[i].name[0] == '\0')
+        if (am->texture_cache[i].name[0] == '\0')
         {
-            g_asset_manager->texture_cache[i].id = i;
-            return &g_asset_manager->texture_cache[i];
+            am->texture_cache[i].id = i;
+            return &am->texture_cache[i];
         }
     }
 
-    if (g_asset_manager->texture_count < MAX_CACHED_TEXTURES)
+    if (am->texture_count < MAX_CACHED_TEXTURES)
     {
-        Texture* t = &g_asset_manager->texture_cache[g_asset_manager->texture_count];
-        t->id = g_asset_manager->texture_count++;
+        Texture* t = &am->texture_cache[am->texture_count];
+        t->id = am->texture_count++;
         return t;
     }
     
@@ -105,21 +211,21 @@ static Texture* FindFreeTextureSlot()
 
 
 // Finds a free slot in the cached shaders array
-static Shader* FindFreeShaderSlot()
+static Shader* FindFreeShaderSlot(AssetManager* am)
 {
-    for (uint32_t i = 0; i < g_asset_manager->shader_count; i++)
+    for (uint32_t i = 0; i < am->shader_count; i++)
     {
-        if (g_asset_manager->shader_cache[i].name[0] == '\0')
+        if (am->shader_cache[i].name[0] == '\0')
         {
-            g_asset_manager->shader_cache[i].id = i;
-            return &g_asset_manager->shader_cache[i];
+            am->shader_cache[i].id = i;
+            return &am->shader_cache[i];
         }
     }
 
-    if (g_asset_manager->shader_count < MAX_CACHED_SHADERS)
+    if (am->shader_count < MAX_CACHED_SHADERS)
     {
-        Shader* s = &g_asset_manager->shader_cache[g_asset_manager->shader_count];
-        s->id = g_asset_manager->shader_count++;
+        Shader* s = &am->shader_cache[am->shader_count];
+        s->id = am->shader_count++;
         return s;
     }
     
@@ -131,21 +237,21 @@ static Shader* FindFreeShaderSlot()
 
 
 // Finds a free slot in the cached meshes array
-static Mesh* FindFreeMeshSlot()
+static Mesh* FindFreeMeshSlot(AssetManager* am)
 {
-    for (uint32_t i = 0; i < g_asset_manager->mesh_count; i++)
+    for (uint32_t i = 0; i < am->mesh_count; i++)
     {
-        if (g_asset_manager->mesh_cache[i].name[0] == '\0')
+        if (am->mesh_cache[i].name[0] == '\0')
         {
-            g_asset_manager->mesh_cache[i].id = i;
-            return &g_asset_manager->mesh_cache[i];
+            am->mesh_cache[i].id = i;
+            return &am->mesh_cache[i];
         }
     }
 
-    if (g_asset_manager->mesh_count < MAX_CACHED_MESHES)
+    if (am->mesh_count < MAX_CACHED_MESHES)
     {
-        Mesh* m = &g_asset_manager->mesh_cache[g_asset_manager->mesh_count];
-        m->id = g_asset_manager->mesh_count++;
+        Mesh* m = &am->mesh_cache[am->mesh_count];
+        m->id = am->mesh_count++;
         return m;
     }
 
@@ -157,21 +263,21 @@ static Mesh* FindFreeMeshSlot()
 
 
 // Finds a free slot in the cached skinned meshes array
-static SkinnedMesh* FindFreeSkinnedMeshSlot()
+static SkinnedMesh* FindFreeSkinnedMeshSlot(AssetManager* am)
 {
-    for (uint32_t i = 0; i < g_asset_manager->skinned_mesh_count; i++)
+    for (uint32_t i = 0; i < am->skinned_mesh_count; i++)
     {
-        if (g_asset_manager->skinned_mesh_cache[i].name[0] == '\0')
+        if (am->skinned_mesh_cache[i].name[0] == '\0')
         {
-            g_asset_manager->skinned_mesh_cache[i].id = i;
-            return &g_asset_manager->skinned_mesh_cache[i];
+            am->skinned_mesh_cache[i].id = i;
+            return &am->skinned_mesh_cache[i];
         }
     }
 
-    if (g_asset_manager->skinned_mesh_count < MAX_CACHED_SKINNED_MESHES)
+    if (am->skinned_mesh_count < MAX_CACHED_SKINNED_MESHES)
     {
-        SkinnedMesh* m = &g_asset_manager->skinned_mesh_cache[g_asset_manager->skinned_mesh_count];
-        m->id = g_asset_manager->skinned_mesh_count++;
+        SkinnedMesh* m = &am->skinned_mesh_cache[am->skinned_mesh_count];
+        m->id = am->skinned_mesh_count++;
         return m;
     }
     
@@ -183,21 +289,21 @@ static SkinnedMesh* FindFreeSkinnedMeshSlot()
 
 
 // Finds a free slot in the cached environment maps array
-static EnvironmentMap* FindFreeEnvMapSlot()
+static EnvironmentMap* FindFreeEnvMapSlot(AssetManager* am)
 {
-    for (uint32_t i = 0; i < g_asset_manager->env_map_count; i++)
+    for (uint32_t i = 0; i < am->env_map_count; i++)
     {
-        if (g_asset_manager->env_map_cache[i].name[0] == '\0')
+        if (am->env_map_cache[i].name[0] == '\0')
         {
-            g_asset_manager->env_map_cache[i].id = i;
-            return &g_asset_manager->env_map_cache[i];
+            am->env_map_cache[i].id = i;
+            return &am->env_map_cache[i];
         }
     }
 
-    if (g_asset_manager->env_map_count < MAX_CACHED_TEXTURES)
+    if (am->env_map_count < MAX_CACHED_TEXTURES)
     {
-        EnvironmentMap* m = &g_asset_manager->env_map_cache[g_asset_manager->env_map_count];
-        m->id = g_asset_manager->env_map_count++;
+        EnvironmentMap* m = &am->env_map_cache[am->env_map_count];
+        m->id = am->env_map_count++;
         return m;
     }
     
@@ -209,16 +315,16 @@ static EnvironmentMap* FindFreeEnvMapSlot()
 
 
 // Finds a free slot in the cached fonts array
-static Font* FindFreeFontSlot()
+static Font* FindFreeFontSlot(AssetManager* am)
 {
-    for (uint32_t i = 0; i < g_asset_manager->font_count; i++)
+    for (uint32_t i = 0; i < am->font_count; i++)
     {
-        if (g_asset_manager->font_cache[i].name[0] == '\0')
-            return &g_asset_manager->font_cache[i];
+        if (am->font_cache[i].name[0] == '\0')
+            return &am->font_cache[i];
     }
 
-    if (g_asset_manager->font_count < MAX_CACHED_FONTS)
-        return &g_asset_manager->font_cache[g_asset_manager->font_count++];
+    if (am->font_count < MAX_CACHED_FONTS)
+        return &am->font_cache[am->font_count++];
 
     return NULL;
 }
@@ -228,21 +334,21 @@ static Font* FindFreeFontSlot()
 
 
 // Finds a free slot in the cached materials array
-static Material* FindFreeMaterialSlot()
+static Material* FindFreeMaterialSlot(AssetManager* am)
 {
-    for (uint32_t i = 0; i < g_asset_manager->material_count; i++)
+    for (uint32_t i = 0; i < am->material_count; i++)
     {
-        if (!g_asset_manager->material_cache[i].active)
+        if (!am->material_cache[i].active)
         {
-            g_asset_manager->material_cache[i].id = i;
-            return &g_asset_manager->material_cache[i];
+            am->material_cache[i].id = i;
+            return &am->material_cache[i];
         }
     }
 
-    if (g_asset_manager->material_count < MAX_MATERIALS)
+    if (am->material_count < MAX_MATERIALS)
     {
-        Material* m = &g_asset_manager->material_cache[g_asset_manager->material_count];
-        m->id = g_asset_manager->material_count++;
+        Material* m = &am->material_cache[am->material_count];
+        m->id = am->material_count++;
         return m;
     }
     
@@ -345,16 +451,19 @@ static AABB InflateAABBFromCenter(AABB bounds, float factor)
 
 
 // Creates a texture from memory
-static Texture* Asset_CreateTextureFromMemory(const char* name, const unsigned char* buffer, int length)
+static Texture* Asset_CreateTextureFromMemory(AssetManager* am, const char* name, const unsigned char* buffer, int length)
 {
-    ImageData img = Image_LoadFromMemory(buffer, length, true);
-    if (!img.pixels) return Asset_GetDefaultTexture();
+    if (!am)
+        return NULL;
 
-    TextureHandle handle = Render_CreateTexture2D(g_asset_manager->renderer, img.pixels, img.width, img.height, img.channels);
+    ImageData img = Image_LoadFromMemory(buffer, length, true);
+    if (!img.pixels) return Asset_GetDefaultTexture(am);
+
+    TextureHandle handle = Render_CreateTexture2D(am->renderer, img.pixels, img.width, img.height, img.channels);
     Image_Free(&img);
 
     // Cache it to not load the same texture twice
-    Texture* t = FindFreeTextureSlot();
+    Texture* t = FindFreeTextureSlot(am);
     if (t)
     {
         strcpy(t->name, name);
@@ -366,7 +475,7 @@ static Texture* Asset_CreateTextureFromMemory(const char* name, const unsigned c
         return t;
     }
 
-    return Asset_GetDefaultTexture();
+    return Asset_GetDefaultTexture(am);
 }
 
 
@@ -499,8 +608,11 @@ static SkeletonNode* CopyAssimpNodeTree(struct aiNode* ai_node)
 
 
 // Loads a specific texture from an AssImp material
-static Texture* Asset_LoadAssimpTexture(const struct aiScene* scene, const struct aiMaterial* ai_mat, enum aiTextureType type, unsigned int index, const char* filepath, const char* name)
+static Texture* Asset_LoadAssimpTexture(AssetManager* am, const struct aiScene* scene, const struct aiMaterial* ai_mat, enum aiTextureType type, unsigned int index, const char* filepath, const char* name)
 {
+    if (!am)
+        return NULL;
+
     struct aiString tex_path;
     if (aiGetMaterialTexture(ai_mat, type, index, &tex_path, NULL, NULL, NULL, NULL, NULL, NULL) != aiReturn_SUCCESS)
         return NULL;
@@ -537,7 +649,7 @@ static Texture* Asset_LoadAssimpTexture(const struct aiScene* scene, const struc
         {
             char tex_name[256];
             snprintf(tex_name, sizeof(tex_name), "%s_embedded_%s_%d", name, tex_path.data, (int)type);
-            return Asset_CreateTextureFromMemory(tex_name, (const unsigned char*)embedded_tex->pcData, embedded_tex->mWidth);
+            return Asset_CreateTextureFromMemory(am, tex_name, (const unsigned char*)embedded_tex->pcData, embedded_tex->mWidth);
         }
         else
         {
@@ -581,7 +693,7 @@ static Texture* Asset_LoadAssimpTexture(const struct aiScene* scene, const struc
     if (f1)
     {
         fclose(f1);
-        return Asset_LoadTexture(clean_filename, try_path_1);
+        return Asset_LoadTexture(am, clean_filename, try_path_1);
     }
     else
     {
@@ -589,7 +701,7 @@ static Texture* Asset_LoadAssimpTexture(const struct aiScene* scene, const struc
         if (f2)
         {
             fclose(f2);
-            return Asset_LoadTexture(clean_filename, try_path_2);
+            return Asset_LoadTexture(am, clean_filename, try_path_2);
         }
         else
         {
@@ -610,8 +722,11 @@ static Texture* Asset_LoadAssimpTexture(const struct aiScene* scene, const struc
 
 
 // Main model loader function
-Model* Asset_LoadModel(const char* name, const char* filepath)
+Model* Asset_LoadModel(AssetManager* am, const char* name, const char* filepath)
 {
+    if (!am)
+        return NULL;
+
     // Open the file in an aiScene
     const struct aiScene* scene = aiImportFile(filepath, 
         aiProcess_Triangulate |
@@ -644,45 +759,45 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
     for (uint32_t i = 0; i < scene->mNumMaterials; i++)
     {
         struct aiMaterial* ai_mat = scene->mMaterials[i];
-        // Texture* tex_ptr = Asset_GetDefaultTexture(); // Fallback
+        // Texture* tex_ptr = Asset_GetDefaultTexture(am); // Fallback
         Shader* model_shader = NULL;
 
         if (scene->mNumAnimations > 0)
             model_shader = NULL;
 
         // --- Albedo / Diffuse Texture ---
-        Texture* tex_ptr = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_DIFFUSE, 0, filepath, name);
+        Texture* tex_ptr = Asset_LoadAssimpTexture(am, scene, ai_mat, aiTextureType_DIFFUSE, 0, filepath, name);
 #ifdef aiTextureType_BASE_COLOR
         if (!tex_ptr)
-            tex_ptr = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_BASE_COLOR, 0, filepath, name);
+            tex_ptr = Asset_LoadAssimpTexture(am, scene, ai_mat, aiTextureType_BASE_COLOR, 0, filepath, name);
 #else
         if (!tex_ptr)
-            tex_ptr = Asset_LoadAssimpTexture(scene, ai_mat, (enum aiTextureType)12, 0, filepath, name);
+            tex_ptr = Asset_LoadAssimpTexture(am, scene, ai_mat, (enum aiTextureType)12, 0, filepath, name);
 #endif
         if (!tex_ptr)
-            tex_ptr = Asset_GetDefaultTexture(); // Fallback
+            tex_ptr = Asset_GetDefaultTexture(am); // Fallback
 
         // --- Normal Map ---
-        Texture* normal_tex = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_NORMALS, 0, filepath, name);
+        Texture* normal_tex = Asset_LoadAssimpTexture(am, scene, ai_mat, aiTextureType_NORMALS, 0, filepath, name);
         if (!normal_tex)
-            normal_tex = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_HEIGHT, 0, filepath, name);
+            normal_tex = Asset_LoadAssimpTexture(am, scene, ai_mat, aiTextureType_HEIGHT, 0, filepath, name);
 
         // --- Metallic & Roughness Maps ---
         // glTF 2.0 often stores combined pbrMetallicRoughness in aiTextureType_UNKNOWN (18) or DIFFUSE_ROUGHNESS / METALNESS
-        Texture* metallic_tex = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_METALNESS, 0, filepath, name);
+        Texture* metallic_tex = Asset_LoadAssimpTexture(am, scene, ai_mat, aiTextureType_METALNESS, 0, filepath, name);
         if (!metallic_tex)
-            metallic_tex = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_UNKNOWN, 0, filepath, name);
+            metallic_tex = Asset_LoadAssimpTexture(am, scene, ai_mat, aiTextureType_UNKNOWN, 0, filepath, name);
 
-        Texture* roughness_tex = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_DIFFUSE_ROUGHNESS, 0, filepath, name);
+        Texture* roughness_tex = Asset_LoadAssimpTexture(am, scene, ai_mat, aiTextureType_DIFFUSE_ROUGHNESS, 0, filepath, name);
         if (!roughness_tex)
-            roughness_tex = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_UNKNOWN, 0, filepath, name);
+            roughness_tex = Asset_LoadAssimpTexture(am, scene, ai_mat, aiTextureType_UNKNOWN, 0, filepath, name);
 
         // --- Ambient Occlusion Map ---
-        Texture* ao_tex = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_AMBIENT_OCCLUSION, 0, filepath, name);
+        Texture* ao_tex = Asset_LoadAssimpTexture(am, scene, ai_mat, aiTextureType_AMBIENT_OCCLUSION, 0, filepath, name);
         if (!ao_tex)
-            ao_tex = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_AMBIENT, 0, filepath, name);
+            ao_tex = Asset_LoadAssimpTexture(am, scene, ai_mat, aiTextureType_AMBIENT, 0, filepath, name);
         if (!ao_tex)
-            ao_tex = Asset_LoadAssimpTexture(scene, ai_mat, aiTextureType_LIGHTMAP, 0, filepath, name);
+            ao_tex = Asset_LoadAssimpTexture(am, scene, ai_mat, aiTextureType_LIGHTMAP, 0, filepath, name);
 
         // Extract Material Color
         struct aiColor4D diffuse_color = {1.0f, 1.0f, 1.0f, 1.0f}; // Default to white
@@ -691,7 +806,7 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
         // Create the material
         char new_mat_name[MAX_NAME_LENGTH] = {0};
         snprintf(new_mat_name, sizeof(new_mat_name), "Mesh_Material_%d", i);
-        Material* mat_ptr = Asset_CreateMaterial(new_mat_name, tex_ptr, model_shader);
+        Material* mat_ptr = Asset_CreateMaterial(am, new_mat_name, tex_ptr, model_shader);
         
         // Update the tint color and assign PBR textures
         if (mat_ptr)
@@ -714,7 +829,7 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
             mat_ptr->metallic_map = metallic_tex;
             mat_ptr->roughness_map = roughness_tex;
             mat_ptr->ao_map = ao_tex;
-            Asset_SyncMaterialGPU(mat_ptr);
+            Asset_SyncMaterialGPU(am, mat_ptr);
         }
 
         material_map[i] = mat_ptr;
@@ -747,7 +862,7 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
         // Skinned meshes
         if (is_skinned)
         {
-            SkinnedMesh* sub_mesh = FindFreeSkinnedMeshSlot();
+            SkinnedMesh* sub_mesh = FindFreeSkinnedMeshSlot(am);
             if (!sub_mesh)
             {
                 Log_Error("ERROR: Skinned mesh cache limit reached.");
@@ -817,7 +932,7 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
             }
 
             // 4. Send to GPU and Cache
-            MeshHandle mesh_handle = Render_CreateSkinnedMesh(g_asset_manager->renderer, vertices, vertex_count, indices, actual_index_count);
+            MeshHandle mesh_handle = Render_CreateSkinnedMesh(am->renderer, vertices, vertex_count, indices, actual_index_count);
             if (real_node_name[0] == '\0')
                 snprintf(sub_mesh->name, sizeof(sub_mesh->name), "%s_Mesh_%d", name, m);
             else
@@ -843,7 +958,7 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
         // Static meshes
         else 
         {
-            Mesh* sub_mesh = FindFreeMeshSlot();
+            Mesh* sub_mesh = FindFreeMeshSlot(am);
             if (!sub_mesh)
             {
                 Log_Error("ERROR: Static mesh cache limit reached.");
@@ -924,7 +1039,7 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
             }
 
             // 3. Send to GPU and Cache
-            MeshHandle mesh_handle = Render_CreateStaticMesh(g_asset_manager->renderer, vertices, vertex_count, indices, actual_index_count);
+            MeshHandle mesh_handle = Render_CreateStaticMesh(am->renderer, vertices, vertex_count, indices, actual_index_count);
             if (real_node_name[0] == '\0')
                 snprintf(sub_mesh->name, sizeof(sub_mesh->name), "%s_Mesh_%d", name, m);
             else
@@ -1031,9 +1146,9 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
     // Free Assimp's memory
     aiReleaseImport(scene);
 
-    int slot = FindFreeModelSlot();
+    int slot = FindFreeModelSlot(am);
     if (slot != -1)
-        g_asset_manager->model_cache[slot] = new_model;
+        am->model_cache[slot] = new_model;
     else
         Log_Warning("WARNING: MAX_CACHED_MODELS limit (%d) reached", MAX_CACHED_MODELS);
 
@@ -1050,13 +1165,16 @@ Model* Asset_LoadModel(const char* name, const char* filepath)
 
 
 // Creates a texture from a color
-Texture* Asset_CreateSolidColorTexture(const char* name, Color color)
+Texture* Asset_CreateSolidColorTexture(AssetManager* am, const char* name, Color color)
 {
+    if (!am)
+        return NULL;
+
     // Check if this specific color texture was already generated
-    for (uint32_t i = 0; i < g_asset_manager->texture_count; i++)
+    for (uint32_t i = 0; i < am->texture_count; i++)
     {
-        if (strcmp(g_asset_manager->texture_cache[i].name, name) == 0)
-            return &g_asset_manager->texture_cache[i]; 
+        if (strcmp(am->texture_cache[i].name, name) == 0)
+            return &am->texture_cache[i]; 
     }
 
     // Convert the float (0.0 - 1.0) Color into 8-bit (0 - 255) pixel data
@@ -1068,10 +1186,10 @@ Texture* Asset_CreateSolidColorTexture(const char* name, Color color)
     };
 
     // Create the texture from the renderer
-    TextureHandle handle = Render_CreateTexture2D(g_asset_manager->renderer, pixel, 1, 1, 4);
+    TextureHandle handle = Render_CreateTexture2D(am->renderer, pixel, 1, 1, 4);
 
     // Cache it exactly like a normal texture
-    Texture* t = FindFreeTextureSlot();
+    Texture* t = FindFreeTextureSlot(am);
     if (t)
     {
         strcpy(t->name, name);
@@ -1083,7 +1201,7 @@ Texture* Asset_CreateSolidColorTexture(const char* name, Color color)
         return t;
     }
     
-    return Asset_GetDefaultTexture();
+    return Asset_GetDefaultTexture(am);
 }
 
 
@@ -1129,27 +1247,27 @@ static RenderMaterialDesc Material_MakeDesc(Material* mat)
 
 
 // Syncs the GPU material with the cached material
-void Asset_SyncMaterialGPU(Material* material)
+void Asset_SyncMaterialGPU(AssetManager* am, Material* material)
 {
-    if (!material || !g_asset_manager->renderer)
+    if (!am || !material || !am->renderer)
         return;
     
     RenderMaterialDesc desc = Material_MakeDesc(material);
     if (material->gpu_handle.id == 0)
     {
-        material->gpu_handle = Render_CreateMaterial(g_asset_manager->renderer, &desc);
+        material->gpu_handle = Render_CreateMaterial(am->renderer, &desc);
     }
     else if (material->id >= MAX_MATERIALS ||
-             !g_asset_manager->material_gpu_desc_valid[material->id] ||
-             memcmp(&g_asset_manager->material_gpu_desc[material->id], &desc, sizeof(desc)) != 0)
+             !am->material_gpu_desc_valid[material->id] ||
+             memcmp(&am->material_gpu_desc[material->id], &desc, sizeof(desc)) != 0)
     {
-        Render_UpdateMaterial(g_asset_manager->renderer, material->gpu_handle, &desc);
+        Render_UpdateMaterial(am->renderer, material->gpu_handle, &desc);
     }
 
     if (material->id < MAX_MATERIALS)
     {
-        g_asset_manager->material_gpu_desc[material->id] = desc;
-        g_asset_manager->material_gpu_desc_valid[material->id] = true;
+        am->material_gpu_desc[material->id] = desc;
+        am->material_gpu_desc_valid[material->id] = true;
     }
 }
 
@@ -1163,9 +1281,12 @@ void Asset_SyncMaterialGPU(Material* material)
 
 
 // Creates a material from a given shader and texture (diffuse)
-Material* Asset_CreateMaterial(const char* name, Texture* albedo, Shader* shader)
+Material* Asset_CreateMaterial(AssetManager* am, const char* name, Texture* albedo, Shader* shader)
 {
-    Material* mat = FindFreeMaterialSlot();
+    if (!am)
+        return NULL;
+
+    Material* mat = FindFreeMaterialSlot(am);
     if (!mat)
     {
         Log_Error("ERROR: Material pool full");
@@ -1173,13 +1294,12 @@ Material* Asset_CreateMaterial(const char* name, Texture* albedo, Shader* shader
     }
     
     strncpy(mat->name, name, MAX_NAME_LENGTH);
-    uint32_t id = g_asset_manager->material_count++;
     mat->active = true;
 
     mat->shader = shader;
     
     if (albedo == NULL)
-        mat->albedo_texture = Asset_GetDefaultTexture();
+        mat->albedo_texture = Asset_GetDefaultTexture(am);
     else
         mat->albedo_texture = albedo;
     
@@ -1195,7 +1315,7 @@ Material* Asset_CreateMaterial(const char* name, Texture* albedo, Shader* shader
     mat->properties.roughness_factor = 0.5f;                       // Medium reflection
     mat->gpu_handle = (MaterialHandle){0};
     
-    Asset_SyncMaterialGPU(mat);
+    Asset_SyncMaterialGPU(am, mat);
     
     return mat;
 }
@@ -1210,16 +1330,19 @@ Material* Asset_CreateMaterial(const char* name, Texture* albedo, Shader* shader
 
 
 // Creates a dynamic mesh from the renderer and returns the handle to the mesh
-Mesh* Asset_CreateDynamicMesh(uint32_t max_vertices, uint32_t max_indices)
+Mesh* Asset_CreateDynamicMesh(AssetManager* am, uint32_t max_vertices, uint32_t max_indices)
 {
-    Mesh* dynamic_mesh = FindFreeMeshSlot();
+    if (!am)
+        return NULL;
+
+    Mesh* dynamic_mesh = FindFreeMeshSlot(am);
     if (!dynamic_mesh)
     {
         Log_Error("ERROR: Cannot create dynamic mesh. MAX_CACHED_MESHES (%d) reached.", MAX_CACHED_MESHES);
         return NULL;
     }
 
-    MeshHandle handle = Render_CreateDynamicMesh(g_asset_manager->renderer, max_vertices, max_indices);
+    MeshHandle handle = Render_CreateDynamicMesh(am->renderer, max_vertices, max_indices);
 
     strncpy(dynamic_mesh->name, "Dynamic_Mesh", MAX_NAME_LENGTH - 1);
     dynamic_mesh->name[MAX_NAME_LENGTH - 1] = '\0';
@@ -1246,16 +1369,16 @@ Mesh* Asset_CreateDynamicMesh(uint32_t max_vertices, uint32_t max_indices)
 
 
 // Updates a dynamic mesh from the renderer
-void Asset_UpdateDynamicMesh(Mesh* mesh, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count)
+void Asset_UpdateDynamicMesh(AssetManager* am, Mesh* mesh, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count)
 {
-    if (!mesh)
+    if (!am || !mesh)
         return;
 
     mesh->vertex_count = vertex_count;
     mesh->index_count = index_count;
 
     RenderMeshUpdate update = { vertices, vertex_count, indices, index_count };
-    Render_UpdateMesh(g_asset_manager->renderer, mesh->gpu_handle, &update);
+    Render_UpdateMesh(am->renderer, mesh->gpu_handle, &update);
 }
 
 
@@ -1268,9 +1391,9 @@ void Asset_UpdateDynamicMesh(Mesh* mesh, Vertex3D* vertices, uint32_t vertex_cou
 
 
 // Updates a static mesh with new vertices and indices
-void Asset_UpdateMesh(Mesh* mesh, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count)
+void Asset_UpdateMesh(AssetManager* am, Mesh* mesh, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count)
 {
-    if (!mesh)
+    if (!am || !mesh)
         return;
 
     mesh->vertex_count = vertex_count;
@@ -1300,7 +1423,7 @@ void Asset_UpdateMesh(Mesh* mesh, Vertex3D* vertices, uint32_t vertex_count, uin
     Mesh_CalculateBounds(mesh);
 
     RenderMeshUpdate update = { mesh->vertices, mesh->vertex_count, mesh->indices, mesh->index_count };
-    Render_UpdateMesh(g_asset_manager->renderer, mesh->gpu_handle, &update);
+    Render_UpdateMesh(am->renderer, mesh->gpu_handle, &update);
 }
 
 
@@ -1313,14 +1436,17 @@ void Asset_UpdateMesh(Mesh* mesh, Vertex3D* vertices, uint32_t vertex_count, uin
 
 
 // Loads a vertex and fragment shader from a file path and compiles it to a full shader
-Shader* Asset_LoadShader(const char* name, const char* vert_path, const char* frag_path)
+Shader* Asset_LoadShader(AssetManager* am, const char* name, const char* vert_path, const char* frag_path)
 {
+    if (!am)
+        return NULL;
+
     // Check if we already loaded this exact shader
-    for (uint32_t i = 0; i < g_asset_manager->shader_count; i++)
+    for (uint32_t i = 0; i < am->shader_count; i++)
     {
-        if (strcmp(g_asset_manager->shader_cache[i].name, name) == 0)
+        if (strcmp(am->shader_cache[i].name, name) == 0)
         {
-            return &g_asset_manager->shader_cache[i];
+            return &am->shader_cache[i];
         }
     }
 
@@ -1336,7 +1462,7 @@ Shader* Asset_LoadShader(const char* name, const char* vert_path, const char* fr
         return NULL;
     }
 
-    Shader* new_shad = FindFreeShaderSlot();
+    Shader* new_shad = FindFreeShaderSlot(am);
     if (!new_shad)
     {
         Log_Error("ERROR: Asset Manager out of shader cache space.\n");
@@ -1346,7 +1472,7 @@ Shader* Asset_LoadShader(const char* name, const char* vert_path, const char* fr
     }
 
     // Compile on GPU
-    ShaderHandle new_handle = Render_CreateShaderGLSL(g_asset_manager->renderer, v_src, f_src);
+    ShaderHandle new_handle = Render_CreateShaderGLSL(am->renderer, v_src, f_src);
 
     // Free shaders from memory
     free(v_src);
@@ -1368,14 +1494,17 @@ Shader* Asset_LoadShader(const char* name, const char* vert_path, const char* fr
 
 
 // Loads a texture from a filepath
-Texture* Asset_LoadTexture(const char* name, const char* filepath)
+Texture* Asset_LoadTexture(AssetManager* am, const char* name, const char* filepath)
 {
+    if (!am)
+        return NULL;
+
     // Check if the texture is already loaded
-    for (uint32_t i = 0; i < g_asset_manager->texture_count; i++)
+    for (uint32_t i = 0; i < am->texture_count; i++)
     {
-        if (strcmp(g_asset_manager->texture_cache[i].name, name) == 0)
+        if (strcmp(am->texture_cache[i].name, name) == 0)
         {
-            return &g_asset_manager->texture_cache[i];
+            return &am->texture_cache[i];
         }
     }
 
@@ -1388,12 +1517,12 @@ Texture* Asset_LoadTexture(const char* name, const char* filepath)
     }
 
     // Create mesh on GPU
-    TextureHandle handle = Render_CreateTexture2D(g_asset_manager->renderer, img.pixels, img.width, img.height, img.channels);
+    TextureHandle handle = Render_CreateTexture2D(am->renderer, img.pixels, img.width, img.height, img.channels);
 
     // Free image from memory
     Image_Free(&img);
 
-    Texture* new_text = FindFreeTextureSlot();
+    Texture* new_text = FindFreeTextureSlot(am);
     if (new_text)
     {
         strcpy(new_text->name, name);
@@ -1405,7 +1534,7 @@ Texture* Asset_LoadTexture(const char* name, const char* filepath)
     else
     {
         Log_Error("ERROR: Asset Manager out of texture cache space.\n");
-        Render_DestroyTexture(g_asset_manager->renderer, handle);
+        Render_DestroyTexture(am->renderer, handle);
     }
 
     return new_text;
@@ -1421,13 +1550,16 @@ Texture* Asset_LoadTexture(const char* name, const char* filepath)
 
 
 // Loads a Cube Map texture from 6 separate images
-Texture* Asset_LoadCubemapTexture(const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back)
+Texture* Asset_LoadCubemapTexture(AssetManager* am, const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back)
 {
+    if (!am)
+        return NULL;
+
     // Check if it's already loaded
-    for (uint32_t i = 0; i < g_asset_manager->texture_count; i++)
+    for (uint32_t i = 0; i < am->texture_count; i++)
     {
-        if (strcmp(g_asset_manager->texture_cache[i].name, name) == 0)
-            return &g_asset_manager->texture_cache[i];
+        if (strcmp(am->texture_cache[i].name, name) == 0)
+            return &am->texture_cache[i];
     }
 
     // Load all 6 images
@@ -1461,7 +1593,7 @@ Texture* Asset_LoadCubemapTexture(const char* name, const char* right, const cha
 
     // Send all 6 pixel arrays to the GPU (Assuming all 6 faces of a cube map have the exact same width/height/channels)
     TextureHandle handle = Render_CreateCubemap(
-        g_asset_manager->renderer,
+        am->renderer,
         images[0].pixels, // 0: Right
         images[1].pixels, // 1: Left
         images[2].pixels, // 2: Top
@@ -1476,7 +1608,7 @@ Texture* Asset_LoadCubemapTexture(const char* name, const char* right, const cha
         Image_Free(&images[i]);
 
     // Save to cache
-    Texture* new_text = FindFreeTextureSlot();
+    Texture* new_text = FindFreeTextureSlot(am);
     if (new_text)
     {
         strcpy(new_text->name, name);
@@ -1488,7 +1620,7 @@ Texture* Asset_LoadCubemapTexture(const char* name, const char* right, const cha
     else
     {
         Log_Error("ERROR: Asset Manager out of texture cache space.\n");
-        Render_DestroyTexture(g_asset_manager->renderer, handle);
+        Render_DestroyTexture(am->renderer, handle);
     }
 
     return new_text;
@@ -1504,13 +1636,16 @@ Texture* Asset_LoadCubemapTexture(const char* name, const char* right, const cha
 
 
 // Loads an environment map from an HDR file
-EnvironmentMap* Asset_LoadEnvironmentMap(const char* filepath)
+EnvironmentMap* Asset_LoadEnvironmentMap(AssetManager* am, const char* filepath)
 {
+    if (!am)
+        return NULL;
+
     // Check if it's already loaded
-    for (uint32_t i = 0; i < g_asset_manager->env_map_count; i++)
+    for (uint32_t i = 0; i < am->env_map_count; i++)
     {
-        if (strcmp(g_asset_manager->env_map_cache[i].name, filepath) == 0)
-            return &g_asset_manager->env_map_cache[i];
+        if (strcmp(am->env_map_cache[i].name, filepath) == 0)
+            return &am->env_map_cache[i];
     }
 
     ImageDataFloat img = Image_LoadFloat(filepath, true);
@@ -1521,12 +1656,12 @@ EnvironmentMap* Asset_LoadEnvironmentMap(const char* filepath)
     }
 
     RenderEnvironmentMapDesc env_desc = { img.pixels, img.width, img.height };
-    EnvironmentMapHandle handle = Render_CreateEnvironmentMap(g_asset_manager->renderer, &env_desc);
+    EnvironmentMapHandle handle = Render_CreateEnvironmentMap(am->renderer, &env_desc);
     Image_FreeFloat(&img);
     if (handle.id == 0)
         return NULL;
 
-    EnvironmentMap* m = FindFreeEnvMapSlot();
+    EnvironmentMap* m = FindFreeEnvMapSlot(am);
     if (m)
     {
         memset(m, 0, sizeof(*m));
@@ -1537,7 +1672,7 @@ EnvironmentMap* Asset_LoadEnvironmentMap(const char* filepath)
         return m;
     }
 
-    Render_DestroyEnvironmentMap(g_asset_manager->renderer, handle);
+    Render_DestroyEnvironmentMap(am->renderer, handle);
     return NULL;
 }
 
@@ -1551,26 +1686,29 @@ EnvironmentMap* Asset_LoadEnvironmentMap(const char* filepath)
 
 
 // Creates an environment map (without IBL features) from 6 standard images
-EnvironmentMap* Asset_LoadEnvironmentMapFromSkybox(const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back)
+EnvironmentMap* Asset_LoadEnvironmentMapFromSkybox(AssetManager* am, const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back)
 {
+    if (!am)
+        return NULL;
+
     // Check if it's already loaded
-    for (uint32_t i = 0; i < g_asset_manager->env_map_count; i++)
+    for (uint32_t i = 0; i < am->env_map_count; i++)
     {
-        if (strcmp(g_asset_manager->env_map_cache[i].name, name) == 0)
-            return &g_asset_manager->env_map_cache[i];
+        if (strcmp(am->env_map_cache[i].name, name) == 0)
+            return &am->env_map_cache[i];
     }
 
-    Texture* skybox_tex = Asset_LoadCubemapTexture(name, right, left, top, bottom, front, back);
+    Texture* skybox_tex = Asset_LoadCubemapTexture(am, name, right, left, top, bottom, front, back);
     if (!skybox_tex)
         return NULL;
 
     RenderEnvironmentMapDesc desc = {0};
     desc.skybox = skybox_tex->gpu_handle;
-    EnvironmentMapHandle handle = Render_CreateEnvironmentMap(g_asset_manager->renderer, &desc);
+    EnvironmentMapHandle handle = Render_CreateEnvironmentMap(am->renderer, &desc);
     if (handle.id == 0)
         return NULL;
 
-    EnvironmentMap* m = FindFreeEnvMapSlot();
+    EnvironmentMap* m = FindFreeEnvMapSlot(am);
     if (m)
     {
         memset(m, 0, sizeof(*m));
@@ -1581,7 +1719,7 @@ EnvironmentMap* Asset_LoadEnvironmentMapFromSkybox(const char* name, const char*
         return m;
     }
 
-    Render_DestroyEnvironmentMap(g_asset_manager->renderer, handle);
+    Render_DestroyEnvironmentMap(am->renderer, handle);
     return NULL;
 }
 
@@ -1595,25 +1733,25 @@ EnvironmentMap* Asset_LoadEnvironmentMapFromSkybox(const char* name, const char*
 
 
 // Loads a Font from disk
-Font* Asset_LoadFont(const char* name, const char* filepath, float pixel_height)
+Font* Asset_LoadFont(AssetManager* am, const char* name, const char* filepath, float pixel_height)
 {
-    if (!name || !filepath)
+    if (!am || !name || !filepath)
         return NULL;
 
-    for (uint32_t i = 0; i < g_asset_manager->font_count; i++)
+    for (uint32_t i = 0; i < am->font_count; i++)
     {
-        if (strcmp(g_asset_manager->font_cache[i].name, name) == 0)
-            return &g_asset_manager->font_cache[i];
+        if (strcmp(am->font_cache[i].name, name) == 0)
+            return &am->font_cache[i];
     }
 
-    Font* font = FindFreeFontSlot();
+    Font* font = FindFreeFontSlot(am);
     if (!font)
     {
         Log_Error("ERROR: Font cache is full");
         return NULL;
     }
 
-    Texture* atlas_tex = FindFreeTextureSlot();
+    Texture* atlas_tex = FindFreeTextureSlot(am);
     if (!atlas_tex)
     {
         Log_Error("ERROR: Texture cache is full while loading font");
@@ -1625,7 +1763,7 @@ Font* Asset_LoadFont(const char* name, const char* filepath, float pixel_height)
     if (!Font_BakeFromFile(&baked, filepath, pixel_height, &atlas))
         return NULL;
 
-    TextureHandle handle = Render_CreateTexture2D(g_asset_manager->renderer, atlas.pixels, atlas.width, atlas.height, atlas.channels);
+    TextureHandle handle = Render_CreateTexture2D(am->renderer, atlas.pixels, atlas.width, atlas.height, atlas.channels);
     Image_Free(&atlas);
 
     strncpy(atlas_tex->name, name, MAX_NAME_LENGTH - 1);
@@ -1674,9 +1812,9 @@ static void FreeSkeletonNodeChildren(SkeletonNode* node)
 
 
 // Unloads a model from memory
-void Asset_UnloadModel(Model* model)
+void Asset_UnloadModel(AssetManager* am, Model* model)
 {
-    if (!model)
+    if (!am || !model)
         return;
     
     // Unload all nodes (meshes)
@@ -1685,9 +1823,9 @@ void Asset_UnloadModel(Model* model)
         for (uint32_t i = 0; i < model->node_count; i++)
         {
             if (model->nodes[i].is_skinned && model->nodes[i].skinned_mesh)
-                Asset_UnloadSkinnedMesh(model->nodes[i].skinned_mesh);
+                Asset_UnloadSkinnedMesh(am, model->nodes[i].skinned_mesh);
             else if (!model->nodes[i].is_skinned && model->nodes[i].mesh)
-                Asset_UnloadMesh(model->nodes[i].mesh);
+                Asset_UnloadMesh(am, model->nodes[i].mesh);
         }
 
         free(model->nodes);
@@ -1720,11 +1858,11 @@ void Asset_UnloadModel(Model* model)
     }
     
     // Free from cache
-    for (uint32_t i = 0; i < g_asset_manager->model_count; i++)
+    for (uint32_t i = 0; i < am->model_count; i++)
     {
-        if (g_asset_manager->model_cache[i] == model)
+        if (am->model_cache[i] == model)
         {
-            g_asset_manager->model_cache[i] = NULL;
+            am->model_cache[i] = NULL;
             break;
         }
     }
@@ -1742,12 +1880,12 @@ void Asset_UnloadModel(Model* model)
 
 
 // Unloads a mesh from memory
-void Asset_UnloadMesh(Mesh* mesh)
+void Asset_UnloadMesh(AssetManager* am, Mesh* mesh)
 {
-    if (!mesh || mesh->name[0] == '\0')
+    if (!am || !mesh || mesh->name[0] == '\0')
         return;
     
-    Render_DestroyMesh(g_asset_manager->renderer, mesh->gpu_handle);
+    Render_DestroyMesh(am->renderer, mesh->gpu_handle);
     
     if (mesh->vertices) { free(mesh->vertices); mesh->vertices = NULL; }
     if (mesh->indices) { free(mesh->indices); mesh->indices = NULL; }
@@ -1765,12 +1903,12 @@ void Asset_UnloadMesh(Mesh* mesh)
 
 
 // Unloads a mesh from memory
-void Asset_UnloadSkinnedMesh(SkinnedMesh* mesh)
+void Asset_UnloadSkinnedMesh(AssetManager* am, SkinnedMesh* mesh)
 {
-    if (!mesh || mesh->name[0] == '\0')
+    if (!am || !mesh || mesh->name[0] == '\0')
         return;
     
-    Render_DestroyMesh(g_asset_manager->renderer, mesh->gpu_handle);
+    Render_DestroyMesh(am->renderer, mesh->gpu_handle);
     
     if (mesh->vertices) { free(mesh->vertices); mesh->vertices = NULL; }
     if (mesh->indices) { free(mesh->indices); mesh->indices = NULL; }
@@ -1788,12 +1926,12 @@ void Asset_UnloadSkinnedMesh(SkinnedMesh* mesh)
 
 
 // Unloads a texture from memory
-void Asset_UnloadTexture(Texture* texture)
+void Asset_UnloadTexture(AssetManager* am, Texture* texture)
 {
-    if (!texture || texture->name[0] == '\0')
+    if (!am || !texture || texture->name[0] == '\0')
         return;
     
-    Render_DestroyTexture(g_asset_manager->renderer, texture->gpu_handle);
+    Render_DestroyTexture(am->renderer, texture->gpu_handle);
     texture->name[0] = '\0';
 }
 
@@ -1807,12 +1945,12 @@ void Asset_UnloadTexture(Texture* texture)
 
 
 // Unloads environment map from memory
-void Asset_UnloadEnvironmentMap(EnvironmentMap* env_map)
+void Asset_UnloadEnvironmentMap(AssetManager* am, EnvironmentMap* env_map)
 {
-    if (!env_map || env_map->name[0] == '\0')
+    if (!am || !env_map || env_map->name[0] == '\0')
         return;
     
-    Render_DestroyEnvironmentMap(g_asset_manager->renderer, env_map->gpu_handle);
+    Render_DestroyEnvironmentMap(am->renderer, env_map->gpu_handle);
     env_map->name[0] = '\0';
 }
 
@@ -1826,13 +1964,13 @@ void Asset_UnloadEnvironmentMap(EnvironmentMap* env_map)
 
 
 // Unloads a font from memory
-void Asset_UnloadFont(Font* font)
+void Asset_UnloadFont(AssetManager* am, Font* font)
 {
-    if (!font || font->name[0] == '\0')
+    if (!am || !font || font->name[0] == '\0')
         return;
     
     if (font->texture_atlas)
-        Asset_UnloadTexture(font->texture_atlas);
+        Asset_UnloadTexture(am, font->texture_atlas);
     
     font->name[0] = '\0';
 }
@@ -1847,15 +1985,15 @@ void Asset_UnloadFont(Font* font)
 
 
 // Unloads a material from memory
-void Asset_UnloadMaterial(Material* mat)
+void Asset_UnloadMaterial(AssetManager* am, Material* mat)
 {
-    if (!mat || !mat->active)
+    if (!am || !mat || !mat->active)
         return;
 
-    Render_DestroyMaterial(g_asset_manager->renderer, mat->gpu_handle);
+    Render_DestroyMaterial(am->renderer, mat->gpu_handle);
     
     mat->active = false;
-    g_asset_manager->material_gpu_desc_valid[mat->id] = false;
+    am->material_gpu_desc_valid[mat->id] = false;
 }
 
 
@@ -1868,12 +2006,12 @@ void Asset_UnloadMaterial(Material* mat)
 
 
 // Unloads a shader from memory
-void Asset_UnloadShader(Shader* shader)
+void Asset_UnloadShader(AssetManager* am, Shader* shader)
 {
-    if (!shader || shader->name[0] == '\0')
+    if (!am || !shader || shader->name[0] == '\0')
         return;
     
-    Render_DestroyShader(g_asset_manager->renderer, shader->gpu_handle);
+    Render_DestroyShader(am->renderer, shader->gpu_handle);
     shader->name[0] = '\0';
 }
 
@@ -1887,11 +2025,14 @@ void Asset_UnloadShader(Shader* shader)
 
 
 // Generate built in quad mesh (basic square)
-Mesh* Asset_GetBuiltinQuad()
+Mesh* Asset_GetBuiltinQuad(AssetManager* am)
 {
+    if (!am)
+        return NULL;
+
     // If we already made the quad, return the ID
-    if (g_asset_manager->builtin_quad != NULL)
-        return g_asset_manager->builtin_quad;
+    if (am->builtin_quad != NULL)
+        return am->builtin_quad;
 
     // 4 corners, 2 triangles (6 indices)
     Vertex3D vertices[] = {
@@ -1915,10 +2056,10 @@ Mesh* Asset_GetBuiltinQuad()
     uint32_t* heap_indices = malloc(sizeof(indices));
     memcpy(heap_indices, indices, sizeof(indices));
 
-    MeshHandle gpu_handle = Render_CreateStaticMesh(g_asset_manager->renderer, heap_vertices, 4, heap_indices, 6);
+    MeshHandle gpu_handle = Render_CreateStaticMesh(am->renderer, heap_vertices, 4, heap_indices, 6);
 
     // Cache the mesh
-    Mesh* m = FindFreeMeshSlot();
+    Mesh* m = FindFreeMeshSlot(am);
     if (m)
     {
         strcpy(m->name, "Quad");
@@ -1930,7 +2071,7 @@ Mesh* Asset_GetBuiltinQuad()
         m->index_count = 6;
         m->local_bounds = CalculateAABB_Static(heap_vertices, 4);
 
-        g_asset_manager->builtin_quad = m;
+        am->builtin_quad = m;
     }
     else
     {
@@ -1938,7 +2079,7 @@ Mesh* Asset_GetBuiltinQuad()
         free(heap_indices);
     }
 
-    return g_asset_manager->builtin_quad;
+    return am->builtin_quad;
 }
 
 
@@ -1951,10 +2092,13 @@ Mesh* Asset_GetBuiltinQuad()
 
 
 // Generate a standard cube mesh
-Mesh* Asset_GetBuiltinCube()
+Mesh* Asset_GetBuiltinCube(AssetManager* am)
 {
-    if (g_asset_manager->builtin_cube != NULL)
-        return g_asset_manager->builtin_cube;
+    if (!am)
+        return NULL;
+
+    if (am->builtin_cube != NULL)
+        return am->builtin_cube;
 
 
     // 24 Vertices (4 per face for sharp normals and proper UVs)
@@ -2010,10 +2154,10 @@ Mesh* Asset_GetBuiltinCube()
     memcpy(heap_indices, indices, sizeof(indices));
 
 
-    MeshHandle gpu_handle = Render_CreateStaticMesh(g_asset_manager->renderer, heap_vertices, 24, heap_indices, 36);
+    MeshHandle gpu_handle = Render_CreateStaticMesh(am->renderer, heap_vertices, 24, heap_indices, 36);
     
     // Cache the mesh
-    Mesh* m = FindFreeMeshSlot();
+    Mesh* m = FindFreeMeshSlot(am);
     if (m)
     {
         strcpy(m->name, "Cube");
@@ -2025,7 +2169,7 @@ Mesh* Asset_GetBuiltinCube()
         m->index_count = 36;
         m->local_bounds = CalculateAABB_Static(heap_vertices, 24);
 
-        g_asset_manager->builtin_cube = m;
+        am->builtin_cube = m;
     }
     else
     {
@@ -2033,7 +2177,7 @@ Mesh* Asset_GetBuiltinCube()
         free(heap_indices);
     }
 
-    return g_asset_manager->builtin_cube;
+    return am->builtin_cube;
 }
 
 
@@ -2046,10 +2190,13 @@ Mesh* Asset_GetBuiltinCube()
 
 
 // Create a standard sphere
-Mesh* Asset_GetBuiltinSphere()
+Mesh* Asset_GetBuiltinSphere(AssetManager* am)
 {
-    if (g_asset_manager->builtin_sphere != NULL)
-        return g_asset_manager->builtin_sphere;
+    if (!am)
+        return NULL;
+
+    if (am->builtin_sphere != NULL)
+        return am->builtin_sphere;
 
     // The resolution of the sphere. Higher = smoother but more memory.
     const int X_SEGMENTS = 32;
@@ -2113,9 +2260,9 @@ Mesh* Asset_GetBuiltinSphere()
 
 
     // Create mesh and cache it if possible
-    MeshHandle gpu_handle = Render_CreateStaticMesh(g_asset_manager->renderer, vertices, vertex_count, indices, index_count);
+    MeshHandle gpu_handle = Render_CreateStaticMesh(am->renderer, vertices, vertex_count, indices, index_count);
 
-    Mesh* m = FindFreeMeshSlot();
+    Mesh* m = FindFreeMeshSlot(am);
     if (m)
     {
         strcpy(m->name, "Sphere");
@@ -2127,7 +2274,7 @@ Mesh* Asset_GetBuiltinSphere()
         m->index_count = index_count;
         m->local_bounds = CalculateAABB_Static(vertices, vertex_count);
 
-        g_asset_manager->builtin_sphere = m;
+        am->builtin_sphere = m;
     }
     else
     {
@@ -2135,7 +2282,7 @@ Mesh* Asset_GetBuiltinSphere()
         free(indices);
     }
 
-    return g_asset_manager->builtin_sphere;
+    return am->builtin_sphere;
 }
 
 
@@ -2149,31 +2296,34 @@ Mesh* Asset_GetBuiltinSphere()
 
 
 // Create the default texture (all white)
-Texture* Asset_GetDefaultTexture()
+Texture* Asset_GetDefaultTexture(AssetManager* am)
 {
+    if (!am)
+        return NULL;
+
     // If already made, return the handle
-    if (g_asset_manager->default_texture != NULL)
-        return g_asset_manager->default_texture;
+    if (am->default_texture != NULL)
+        return am->default_texture;
 
     TextureHandle handle = (TextureHandle){ 1 };
 
-    if (g_asset_manager->texture_count < MAX_CACHED_TEXTURES)
+    if (am->texture_count < MAX_CACHED_TEXTURES)
     {
-        Texture* t = &g_asset_manager->texture_cache[g_asset_manager->texture_count];
+        Texture* t = &am->texture_cache[am->texture_count];
         strcpy(t->name, "DefaultTexture");
-        t->id = g_asset_manager->texture_count;
+        t->id = am->texture_count;
         t->gpu_handle = handle;
         t->width = 1;
         t->height = 1;
         t->channels = 4;
 
-        g_asset_manager->default_texture = t;
+        am->default_texture = t;
 
-        g_asset_manager->texture_count++;
+        am->texture_count++;
     }
 
 
-    return g_asset_manager->default_texture;
+    return am->default_texture;
 }
 
 
@@ -2191,12 +2341,15 @@ Texture* Asset_GetDefaultTexture()
 
 
 // Look up a model by its string name
-Model* Asset_GetModelByName(const char* name)
+Model* Asset_GetModelByName(AssetManager* am, const char* name)
 {
-    for (uint32_t i = 0; i < g_asset_manager->model_count; i++)
+    if (!am || !name)
+        return NULL;
+
+    for (uint32_t i = 0; i < am->model_count; i++)
     {
-        if (g_asset_manager->model_cache[i] != NULL && strcmp(g_asset_manager->model_cache[i]->name, name) == 0)
-            return g_asset_manager->model_cache[i];
+        if (am->model_cache[i] != NULL && strcmp(am->model_cache[i]->name, name) == 0)
+            return am->model_cache[i];
     }
 
     return NULL;
@@ -2207,12 +2360,15 @@ Model* Asset_GetModelByName(const char* name)
 
 
 // Look up a mesh by its string name
-Mesh* Asset_GetMeshByName(const char* name)
+Mesh* Asset_GetMeshByName(AssetManager* am, const char* name)
 {
-    for (uint32_t i = 0; i < g_asset_manager->mesh_count; i++)
+    if (!am || !name)
+        return NULL;
+
+    for (uint32_t i = 0; i < am->mesh_count; i++)
     {
-        if (strcmp(g_asset_manager->mesh_cache[i].name, name) == 0)
-            return &g_asset_manager->mesh_cache[i];
+        if (strcmp(am->mesh_cache[i].name, name) == 0)
+            return &am->mesh_cache[i];
     }
 
     return NULL;
@@ -2223,12 +2379,15 @@ Mesh* Asset_GetMeshByName(const char* name)
 
 
 // Look up a skinned mesh by its string name
-SkinnedMesh* Asset_GetSkinnedMeshByName(const char* name)
+SkinnedMesh* Asset_GetSkinnedMeshByName(AssetManager* am, const char* name)
 {
-    for (uint32_t i = 0; i < g_asset_manager->skinned_mesh_count; i++)
+    if (!am || !name)
+        return NULL;
+
+    for (uint32_t i = 0; i < am->skinned_mesh_count; i++)
     {
-        if (strcmp(g_asset_manager->skinned_mesh_cache[i].name, name) == 0)
-            return &g_asset_manager->skinned_mesh_cache[i];
+        if (strcmp(am->skinned_mesh_cache[i].name, name) == 0)
+            return &am->skinned_mesh_cache[i];
     }
 
     return NULL;
@@ -2239,12 +2398,15 @@ SkinnedMesh* Asset_GetSkinnedMeshByName(const char* name)
 
 
 // Look up a texture by its string name
-Texture* Asset_GetTextureByName(const char* name)
+Texture* Asset_GetTextureByName(AssetManager* am, const char* name)
 {
-    for (uint32_t i = 0; i < g_asset_manager->texture_count; i++)
+    if (!am || !name)
+        return NULL;
+
+    for (uint32_t i = 0; i < am->texture_count; i++)
     {
-        if (strcmp(g_asset_manager->texture_cache[i].name, name) == 0)
-            return &g_asset_manager->texture_cache[i];
+        if (strcmp(am->texture_cache[i].name, name) == 0)
+            return &am->texture_cache[i];
     }
 
     return NULL;
@@ -2255,12 +2417,15 @@ Texture* Asset_GetTextureByName(const char* name)
 
 
 // Look up a texture by its string name
-Material* Asset_GetMaterialByName(const char* name)
+Material* Asset_GetMaterialByName(AssetManager* am, const char* name)
 {
-    for (uint32_t i = 0; i < g_asset_manager->material_count; i++)
+    if (!am || !name)
+        return NULL;
+
+    for (uint32_t i = 0; i < am->material_count; i++)
     {
-        if (strcmp(g_asset_manager->material_cache[i].name, name) == 0)
-            return &g_asset_manager->material_cache[i];
+        if (strcmp(am->material_cache[i].name, name) == 0)
+            return &am->material_cache[i];
     }
 
     return NULL;
@@ -2271,12 +2436,15 @@ Material* Asset_GetMaterialByName(const char* name)
 
 
 // Look up a Font by its string name
-Font* Asset_GetFontByName(const char* name)
+Font* Asset_GetFontByName(AssetManager* am, const char* name)
 {
-    for (uint32_t i = 0; i < g_asset_manager->font_count; i++)
+    if (!am || !name)
+        return NULL;
+
+    for (uint32_t i = 0; i < am->font_count; i++)
     {
-        if (strcmp(g_asset_manager->font_cache[i].name, name) == 0)
-            return &g_asset_manager->font_cache[i];
+        if (strcmp(am->font_cache[i].name, name) == 0)
+            return &am->font_cache[i];
     }
 
     return NULL;

@@ -1,5 +1,5 @@
 #include "../../include/core/Mesh.hpp"
-#include "../../include/core/Log.hpp"
+#include "../../include/AssetManager.hpp"
 
 
 extern "C"
@@ -103,7 +103,7 @@ namespace Prism
         if (!IsValid())
             return;
         ::Mesh* c_mesh = static_cast<::Mesh*>(m_Handle);
-        ::Asset_UpdateMesh(c_mesh, (::Vertex3D*)vertices.data(), (uint32_t)vertices.size(), (uint32_t*)indices.data(), (uint32_t)indices.size());
+        ::Asset_UpdateMesh(static_cast<::AssetManager*>(Prism::AssetManager::GetGlobalInstance()), c_mesh, (::Vertex3D*)vertices.data(), (uint32_t)vertices.size(), (uint32_t*)indices.data(), (uint32_t)indices.size());
     }
 
     void Mesh::RecalculateBounds() {
@@ -120,7 +120,7 @@ namespace Prism
         ::Mesh_CalculateNormals(c_mesh->vertices, c_mesh->vertex_count, c_mesh->indices, c_mesh->index_count);
         
         // Pushing to GPU automatically recalculates tangents inside Asset_UpdateMesh
-        ::Asset_UpdateMesh(c_mesh, c_mesh->vertices, c_mesh->vertex_count, c_mesh->indices, c_mesh->index_count);
+        ::Asset_UpdateMesh(static_cast<::AssetManager*>(Prism::AssetManager::GetGlobalInstance()), c_mesh, c_mesh->vertices, c_mesh->vertex_count, c_mesh->indices, c_mesh->index_count);
     }
 
 }

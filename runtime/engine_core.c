@@ -56,6 +56,7 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
     engine->window = NULL;
     engine->renderer = NULL;
     engine->active_scene = NULL;
+    engine->asset_manager = NULL;
     engine->render_worker.is_ready = false;
     engine->modal.is_active = false;
     engine->modal.update_performed = false;
@@ -106,10 +107,23 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
         return false;
     }
 
+    // Initialize asset manager
+    engine->asset_manager = Asset_Init(renderer);
+    if (!engine->asset_manager)
+    {
+        Log_Error("ERROR: Asset Manager failed to initialize.");
+        Audio_Shutdown();
+        UI_Shutdown();
+        Render_Shutdown(engine->renderer);
+        engine->renderer = NULL;
+        Platform_Shutdown(engine->window);
+        engine->window = NULL;
+        return false;
+    }
+
     // Core modules init
     Input_Init();
     Audio_Init();
-    Asset_Init(renderer);
     Time_Init(engine->target_fps, Platform_GetTime, Platform_Delay);
 
     engine->is_running = true;
@@ -133,6 +147,10 @@ bool Engine_Init(PrismEngine* engine, const char* window_title, uint32_t window_
         Log_Error("Render thread failed to initialize.");
         EngineRenderThread_Stop(engine);
         RenderFrameQueue_Shutdown(&engine->render_worker.frame_queue);
+        
+        // Free all assets
+        Asset_Shutdown(engine->asset_manager);
+        engine->asset_manager = NULL;
         
         UI_Shutdown();
         Audio_Shutdown();
@@ -166,6 +184,11 @@ void Engine_Shutdown(PrismEngine* engine)
     {
         RenderFrameQueue_ReleaseCompleted(&engine->render_worker.frame_queue, completed_slot);
     }
+
+    // Shutdown the asset manager
+    Asset_Shutdown(engine->asset_manager);
+    engine->asset_manager;
+
     UI_Shutdown();
 
     RenderFrameQueue_Shutdown(&engine->render_worker.frame_queue);

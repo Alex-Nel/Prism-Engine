@@ -49,6 +49,7 @@ uint32_t Scene_GetActiveEntityCount(Scene* scene);
 uint32_t Scene_GetAllEntities(Scene* scene, Entity* out_array, uint32_t max_results);
 uint32_t Scene_GetEntitiesWithTag(Scene* scene, const char* target_tag, Entity* out_array, uint32_t max_results);
 
+void Scene_SetAssetManager(Scene* scene, AssetManager* am);
 void Scene_SetMainCamera(Scene* scene, Entity camera_entity);
 void Scene_SetGravity(Scene* scene, Vector3 gravity);
 Vector3 Scene_GetGravity(Scene* scene);

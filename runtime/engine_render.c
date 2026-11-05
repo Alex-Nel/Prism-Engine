@@ -297,7 +297,7 @@ uint32_t Engine_GatherAndSortCameras(PrismEngine* engine, Scene* scene, ActiveCa
 
 
 // Sets material properties for a render item
-static void RenderItem_SetMaterial(RenderItem* item, Material* material)
+static void RenderItem_SetMaterial(AssetManager* am, RenderItem* item, Material* material)
 {
     item->material = (MaterialHandle){0};
     item->color = (Color){1.0f, 1.0f, 1.0f, 1.0f};
@@ -305,7 +305,7 @@ static void RenderItem_SetMaterial(RenderItem* item, Material* material)
     if (!material)
         return;
     
-    Asset_SyncMaterialGPU(material);
+    Asset_SyncMaterialGPU(am, material);
 
     item->material = material->gpu_handle;
     item->color = material->properties.albedo_tint;
@@ -382,11 +382,13 @@ static void Extract_TryPushSkinned(RenderItem* out, uint32_t max, uint32_t* coun
 
 
 // Extracts scene geometry into a RenderItem array for DrawWorld
-uint32_t Engine_GatherVisibleGeometry(Scene* scene, Vector3 cam_pos, uint32_t culling_masks, RenderItem* out, uint32_t max, RenderFrame* frame_for_bones)
+uint32_t Engine_GatherVisibleGeometry(PrismEngine* engine, Scene* scene, Vector3 cam_pos, uint32_t culling_masks, RenderItem* out, uint32_t max, RenderFrame* frame_for_bones)
 {
     uint32_t count = 0;
-    if (!scene || !out || max == 0)
+    if (!engine|| !scene || !out || max == 0)
         return 0;
+
+    AssetManager* am = engine->asset_manager;
 
     // --- Static Meshes ---
     uint32_t req_mesh_mask = COMPONENT_TRANSFORM | COMPONENT_MESH_RENDERER;
@@ -404,7 +406,7 @@ uint32_t Engine_GatherVisibleGeometry(Scene* scene, Vector3 cam_pos, uint32_t cu
         RenderItem item = {0};
 
         item.mesh = rc->mesh->gpu_handle;
-        RenderItem_SetMaterial(&item, rc->material);
+        RenderItem_SetMaterial(am, &item, rc->material);
         item.transform = t->world_matrix;
         item.local_bounds = rc->mesh->local_bounds;
         
@@ -444,7 +446,7 @@ uint32_t Engine_GatherVisibleGeometry(Scene* scene, Vector3 cam_pos, uint32_t cu
         RenderItem item = {0};
 
         item.mesh = rc->mesh->gpu_handle;
-        RenderItem_SetMaterial(&item, rc->material);
+        RenderItem_SetMaterial(am, &item, rc->material);
         item.transform = t->world_matrix;
         item.local_bounds = rc->pose_bounds;
         
@@ -472,7 +474,7 @@ uint32_t Engine_GatherVisibleGeometry(Scene* scene, Vector3 cam_pos, uint32_t cu
         RenderItem item = {0};
 
         item.mesh = line->dynamic_mesh->gpu_handle;
-        RenderItem_SetMaterial(&item, line->material);
+        RenderItem_SetMaterial(am, &item, line->material);
         item.color = line->color;
         item.transform = Matrix4Identity();
         item.local_bounds = line->dynamic_mesh->local_bounds;
@@ -510,7 +512,7 @@ uint32_t Engine_GatherVisibleGeometry(Scene* scene, Vector3 cam_pos, uint32_t cu
         RenderItem item = {0};
 
         item.mesh = sprite->quad->gpu_handle;
-        RenderItem_SetMaterial(&item, sprite->material);
+        RenderItem_SetMaterial(am, &item, sprite->material);
         item.color = sprite->color;
         item.transform = final_sprite_matrix;
         item.local_bounds = sprite->quad->local_bounds;
@@ -654,7 +656,7 @@ void Engine_BuildRenderFrame(PrismEngine* engine, Scene* scene, RenderFrame* fra
         uint32_t frame_capacity = RENDER_FRAME_MAX_ITEMS - frame->item_count;
         if (remaining > frame_capacity)
             remaining = frame_capacity;
-        uint32_t gathered = Engine_GatherVisibleGeometry(scene, global_pos, cam_comp->culling_masks, frame->items + frame->item_count, remaining, frame);
+        uint32_t gathered = Engine_GatherVisibleGeometry(engine, scene, global_pos, cam_comp->culling_masks, frame->items + frame->item_count, remaining, frame);
         view_slot->item_count = gathered;
         frame->item_count += gathered;
         frame->view_count++;

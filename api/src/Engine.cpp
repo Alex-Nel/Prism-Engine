@@ -1,4 +1,5 @@
 #include "../include/Platform.hpp"
+#include "../include/AssetManager.hpp"
 #include "../include/Engine.hpp"
 
 
@@ -21,7 +22,12 @@ namespace Prism
     bool Engine::Init(const std::string& title, uint32_t width, uint32_t height, uint32_t target_fps, GraphicsAPI api) 
     {
         // Safely cast our C++ enum back to the C backend's enum type
-        return ::Engine_Init(&s_engine, title.c_str(), width, height, target_fps, static_cast<::GraphicsAPI>(api));
+        bool ok = ::Engine_Init(&s_engine, title.c_str(), width, height, target_fps, static_cast<::GraphicsAPI>(api));
+
+        // Point the global asset manager to this engines instance
+        Prism::AssetManager::SetGlobalInstance(ok ? ::Engine_GetAssetManager(&s_engine) : nullptr);
+
+        return ok;
     }
 
     void Engine::Run(Scene& active_scene) 

@@ -109,78 +109,80 @@ typedef struct AssetManager
 
 
 
-// Initialize the registry arrays
-void Asset_Init(Renderer* r);
+// Initialize and shutdown the asset manager instance
+
+AssetManager* Asset_Init(Renderer* r);
+void Asset_Shutdown(AssetManager* am);
 
 
 
 // Loads assets from disk
 
-Model* Asset_LoadModel(const char* name, const char* filepath);
-Texture* Asset_LoadTexture(const char* name, const char* filepath);
-Texture* Asset_LoadCubemapTexture(const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back);
-EnvironmentMap* Asset_LoadEnvironmentMap(const char* filepath);
-EnvironmentMap* Asset_LoadEnvironmentMapFromSkybox(const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back);
-Font* Asset_LoadFont(const char* name, const char* filepath, float pixel_height);
-Shader* Asset_LoadShader(const char* name, const char* vert_path, const char* frag_path);
+Model* Asset_LoadModel(AssetManager* am, const char* name, const char* filepath);
+Texture* Asset_LoadTexture(AssetManager* am, const char* name, const char* filepath);
+Texture* Asset_LoadCubemapTexture(AssetManager* am, const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back);
+EnvironmentMap* Asset_LoadEnvironmentMap(AssetManager* am, const char* filepath);
+EnvironmentMap* Asset_LoadEnvironmentMapFromSkybox(AssetManager* am, const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back);
+Font* Asset_LoadFont(AssetManager* am, const char* name, const char* filepath, float pixel_height);
+Shader* Asset_LoadShader(AssetManager* am, const char* name, const char* vert_path, const char* frag_path);
 
 
 
 // Unload assets
 
-void Asset_UnloadModel(Model* model);
-void Asset_UnloadMesh(Mesh* mesh);
-void Asset_UnloadSkinnedMesh(SkinnedMesh* mesh);
-void Asset_UnloadTexture(Texture* texture);
-void Asset_UnloadEnvironmentMap(EnvironmentMap* env_map);
-void Asset_UnloadFont(Font* font);
-void Asset_UnloadShader(Shader* shader);
-void Asset_UnloadMaterial(Material* mat);
+void Asset_UnloadModel(AssetManager* am, Model* model);
+void Asset_UnloadMesh(AssetManager* am, Mesh* mesh);
+void Asset_UnloadSkinnedMesh(AssetManager* am, SkinnedMesh* mesh);
+void Asset_UnloadTexture(AssetManager* am, Texture* texture);
+void Asset_UnloadEnvironmentMap(AssetManager* am, EnvironmentMap* env_map);
+void Asset_UnloadFont(AssetManager* am, Font* font);
+void Asset_UnloadShader(AssetManager* am, Shader* shader);
+void Asset_UnloadMaterial(AssetManager* am, Material* mat);
 
 
 
 
 // Functions to get built in meshes
 
-Mesh* Asset_GetBuiltinQuad();
-Mesh* Asset_GetBuiltinCube();
-Mesh* Asset_GetBuiltinSphere();
+Mesh* Asset_GetBuiltinQuad(AssetManager* am);
+Mesh* Asset_GetBuiltinCube(AssetManager* am);
+Mesh* Asset_GetBuiltinSphere(AssetManager* am);
 
 
 
 // Returns the default texture
-Texture* Asset_GetDefaultTexture();
+Texture* Asset_GetDefaultTexture(AssetManager* am);
 
 
 
 // Generate a texture from a solid color
-Texture* Asset_CreateSolidColorTexture(const char* name, Color color);
+Texture* Asset_CreateSolidColorTexture(AssetManager* am, const char* name, Color color);
 
 // Material creation function
-Material* Asset_CreateMaterial(const char* name, Texture* diffuse, Shader* shader);
+Material* Asset_CreateMaterial(AssetManager* am, const char* name, Texture* diffuse, Shader* shader);
 
 // Uploads or refreshes the GPU copy of a CPU material
-void Asset_SyncMaterialGPU(Material* material);
+void Asset_SyncMaterialGPU(AssetManager* am, Material* material);
 
 // Creates a dynamic mesh from the renderer
-Mesh* Asset_CreateDynamicMesh(uint32_t max_vertices, uint32_t max_indices);
+Mesh* Asset_CreateDynamicMesh(AssetManager* am, uint32_t max_vertices, uint32_t max_indices);
 
 // Updates a dynamic mesh from the renderer
-void Asset_UpdateDynamicMesh(Mesh* mesh, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
+void Asset_UpdateDynamicMesh(AssetManager* am, Mesh* mesh, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
 
 // Updates a static mesh
-void Asset_UpdateMesh(Mesh* mesh, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
+void Asset_UpdateMesh(AssetManager* am, Mesh* mesh, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
 
 
 
 // Functions to retrieve assets by name
 
-Model* Asset_GetModelByName(const char* name);
-Mesh* Asset_GetMeshByName(const char* name);
-SkinnedMesh* Asset_GetSkinnedMeshByName(const char* name);
-Texture* Asset_GetTextureByName(const char* name);
-Material* Asset_GetMaterialByName(const char* name);
-Font* Asset_GetFontByName(const char* name);
+Model* Asset_GetModelByName(AssetManager* am, const char* name);
+Mesh* Asset_GetMeshByName(AssetManager* am, const char* name);
+SkinnedMesh* Asset_GetSkinnedMeshByName(AssetManager* am, const char* name);
+Texture* Asset_GetTextureByName(AssetManager* am, const char* name);
+Material* Asset_GetMaterialByName(AssetManager* am, const char* name);
+Font* Asset_GetFontByName(AssetManager* am, const char* name);
 
 
 

@@ -1,5 +1,6 @@
 #include "../../include/core/Material.hpp"
 #include "../../include/core/Log.hpp"
+#include "../../include/AssetManager.hpp"
 
 
 extern "C"
@@ -16,7 +17,7 @@ namespace Prism
     static void SyncMaterialGPU(::Material* raw_mat)
     {
         if (raw_mat)
-            ::Asset_SyncMaterialGPU(raw_mat);
+            ::Asset_SyncMaterialGPU(static_cast<::AssetManager*>(Prism::AssetManager::GetGlobalInstance()), raw_mat);
     }
 
 

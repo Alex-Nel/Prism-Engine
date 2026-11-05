@@ -112,5 +112,13 @@ namespace Prism
         static Mesh GetBuiltinCube();
         static Mesh GetBuiltinSphere();
         static Texture GetDefaultTexture();
+
+
+
+        static void* GetGlobalInstance();
+    
+    private:
+        static void SetGlobalInstance(void* am_instance);
+        friend class Engine;
     };
 }

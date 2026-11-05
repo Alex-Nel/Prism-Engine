@@ -845,16 +845,18 @@ void SpriteRenderer_SetSprite(SpriteRendererComponent* comp, Texture* sprite)
     if (!comp || !sprite)
         return;
 
+    AssetManager* am = comp->entity.scene ? comp->entity.scene->asset_manager : NULL;
+
     Material* mat = comp->material;
     if (!mat)
     {
-        comp->material = Asset_CreateMaterial("DefaultSpriteMat", sprite, NULL);
+        comp->material = Asset_CreateMaterial(am, "DefaultSpriteMat", sprite, NULL);
         return;
     }
     else
     {
         mat->albedo_texture = sprite;
-        Asset_SyncMaterialGPU(mat);
+        Asset_SyncMaterialGPU(am, mat);
     }
 }
 

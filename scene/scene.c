@@ -142,13 +142,6 @@ static bool ArrayContains(uint32_t* array, uint32_t count, uint32_t value)
 
 
 
-// Event dispatcher enum
-typedef enum { EVENT_ENTER, EVENT_STAY, EVENT_EXIT } CollisionEventType;
-
-
-
-
-
 // Dispatches collision events to any scripts
 static void DispatchCollisionEvent(Scene* scene, uint32_t entity_id, uint32_t other_id, CollisionEventType event_type)
 {
@@ -745,7 +738,7 @@ void Scene_UpdateLineRenderers(Scene* scene)
         }
 
         // --- Send to GPU ---
-        Asset_UpdateDynamicMesh(line->dynamic_mesh, temp_verts, vertex_count, temp_indices, index_count);
+        Asset_UpdateDynamicMesh(scene->asset_manager, line->dynamic_mesh, temp_verts, vertex_count, temp_indices, index_count);
 
         free(processed_points);
         free(temp_verts);
@@ -1321,6 +1314,17 @@ uint32_t Scene_GetEntitiesWithTag(Scene* scene, const char* target_tag, Entity* 
     }
 
     return count;
+}
+
+
+
+
+
+// Sets which asset manager this scene uses for assets
+void Scene_SetAssetManager(Scene* scene, AssetManager* am)
+{
+    if (scene)
+        scene->asset_manager = am;
 }
 
 

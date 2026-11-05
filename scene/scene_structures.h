@@ -5,6 +5,7 @@
 #include "collision_filter.h"
 #include "physics_bridge.h"
 #include "../audio/audio.h"
+#include "../assets/asset_manager.h"
 #include "../core/font_core.h"
 #include "../core/mesh_core.h"
 #include "../core/overlay_core.h"
@@ -257,6 +258,16 @@ typedef enum ColliderType
     COLLIDER_SPHERE,
     COLLIDER_MESH
 } ColliderType;
+
+
+
+// Event dispatcher enum
+typedef enum
+{
+    EVENT_ENTER,
+    EVENT_STAY,
+    EVENT_EXIT
+} CollisionEventType;
 
 
 
@@ -683,6 +694,7 @@ typedef struct Scene
 
     // Other Variables for the state of this scene
 
+    AssetManager* asset_manager;      // Asset Manager that this scene loads/creates assets through
     uint32_t main_camera_id;
     PhysicsWorldHandle physics_world;
     Vector3 gravity;
