@@ -660,10 +660,7 @@ void Entity_SetName(Entity entity, const char* name)
         return;
 
     // Copy the string into the ECS array
-    strncpy(entity.scene->names[entity.id].name, name, MAX_NAME_LENGTH - 1);
-    
-    // Guarantee it is null-terminated so printf and strcmp don't crash
-    entity.scene->names[entity.id].name[MAX_NAME_LENGTH - 1] = '\0'; 
+    snprintf(entity.scene->names[entity.id].name, MAX_NAME_LENGTH, "%s", name);
 
     // Tell ECS this entity has a name
     entity.scene->component_masks[entity.id] |= COMPONENT_NAME;
@@ -682,8 +679,7 @@ void Entity_SetTag(Entity entity, const char* tag)
     entity.scene->component_masks[entity.id] |= COMPONENT_TAG;
 
     // Copy string
-    strncpy(entity.scene->tags[entity.id].tag, tag, MAX_NAME_LENGTH - 1);
-    entity.scene->tags[entity.id].tag[MAX_NAME_LENGTH-1] = '\0';
+    snprintf(entity.scene->tags[entity.id].tag, MAX_NAME_LENGTH, "%s", tag);
 }
 
 

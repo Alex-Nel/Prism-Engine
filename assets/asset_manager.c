@@ -466,7 +466,7 @@ static Texture* Asset_CreateTextureFromMemory(AssetManager* am, const char* name
     Texture* t = FindFreeTextureSlot(am);
     if (t)
     {
-        strcpy(t->name, name);
+        snprintf(t->name, sizeof(t->name), "%s", name);
         t->gpu_handle = handle;
         t->width = img.width;
         t->height = img.height;
@@ -567,8 +567,7 @@ static int GetOrAddBone(Skeleton* skeleton, const char* bone_name, Matrix4 inver
     int new_id = skeleton->bone_count;
 
     // Add new bone
-    strncpy(skeleton->bones[new_id].name, bone_name, 63);
-    skeleton->bones[new_id].name[63] = '\0';
+    snprintf(skeleton->bones[new_id].name, MAX_NAME_LENGTH, "%s", bone_name);
     skeleton->bones[new_id].inverse_bind = inverse_bind;
     skeleton->bone_count++;
 
@@ -586,8 +585,7 @@ static SkeletonNode* CopyAssimpNodeTree(struct aiNode* ai_node)
         return NULL;
 
     SkeletonNode* new_node = malloc(sizeof(SkeletonNode));
-    strncpy(new_node->name, ai_node->mName.data, MAX_NAME_LENGTH-1);
-    new_node->name[MAX_NAME_LENGTH-1] = '\0';
+    snprintf(new_node->name, MAX_NAME_LENGTH, "%s", ai_node->mName.data);
     new_node->default_local_transform = AssimpToColumnMatrix(ai_node->mTransformation);
     
     new_node->child_count = ai_node->mNumChildren;
@@ -660,7 +658,7 @@ static Texture* Asset_LoadAssimpTexture(AssetManager* am, const struct aiScene* 
 
     // External File Fallback
     char model_dir[512] = {0};
-    strcpy(model_dir, filepath);
+    snprintf(model_dir, sizeof(model_dir), "%s", filepath);
     char* last_slash = strrchr(model_dir, '/');
     char* last_backslash = strrchr(model_dir, '\\');
     char* split = (last_slash > last_backslash) ? last_slash : last_backslash;
@@ -684,10 +682,10 @@ static Texture* Asset_LoadAssimpTexture(AssetManager* am, const struct aiScene* 
 
     // TODO: Add proper support for .dds files - for now, convert to png
     char* ext1 = strstr(try_path_1, ".dds");
-    if (ext1) strcpy(ext1, ".png");
+    if (ext1) snprintf(ext1, sizeof(ext1), ".png");
 
     char* ext2 = strstr(try_path_2, ".dds");
-    if (ext2) strcpy(ext2, ".png");
+    if (ext2) snprintf(ext1, sizeof(ext1), ".png");
 
     FILE* f1 = fopen(try_path_1, "rb");
     if (f1)
@@ -742,7 +740,7 @@ Model* Asset_LoadModel(AssetManager* am, const char* name, const char* filepath)
 
     // Allocate the Model memory
     Model* new_model = malloc(sizeof(Model));
-    strcpy(new_model->name, name);
+    snprintf(new_model->name, sizeof(new_model->name), "%s", name);
     new_model->node_count = scene->mNumMeshes;
     new_model->nodes = malloc(sizeof(ModelNode) * new_model->node_count);
 
@@ -937,8 +935,7 @@ Model* Asset_LoadModel(AssetManager* am, const char* name, const char* filepath)
                 snprintf(sub_mesh->name, sizeof(sub_mesh->name), "%s_Mesh_%d", name, m);
             else
             {
-                strncpy(sub_mesh->name, real_node_name, sizeof(sub_mesh->name) - 1);
-                sub_mesh->name[sizeof(sub_mesh->name) - 1] = '\0';
+                snprintf(sub_mesh->name, sizeof(sub_mesh->name), "%s", real_node_name);
             }
             sub_mesh->gpu_handle = mesh_handle;
             sub_mesh->vertices = vertices;
@@ -1044,8 +1041,7 @@ Model* Asset_LoadModel(AssetManager* am, const char* name, const char* filepath)
                 snprintf(sub_mesh->name, sizeof(sub_mesh->name), "%s_Mesh_%d", name, m);
             else
             {
-                strncpy(sub_mesh->name, real_node_name, sizeof(sub_mesh->name) - 1);
-                sub_mesh->name[sizeof(sub_mesh->name) - 1] = '\0';
+                snprintf(sub_mesh->name, sizeof(sub_mesh->name), "%s", real_node_name);
             }
             sub_mesh->gpu_handle = mesh_handle;
             sub_mesh->vertices = vertices;
@@ -1078,8 +1074,7 @@ Model* Asset_LoadModel(AssetManager* am, const char* name, const char* filepath)
             struct aiAnimation* ai_anim = scene->mAnimations[a];
             AnimationClip* clip = malloc(sizeof(AnimationClip));
 
-            strncpy(clip->name, ai_anim->mName.data, MAX_NAME_LENGTH-1);
-            clip->name[MAX_NAME_LENGTH-1] = '\0';
+            snprintf(clip->name, sizeof(clip->name), "%s", ai_anim->mName.data);
             clip->duration_ticks = (float)ai_anim->mDuration;
 
             if (ai_anim->mTicksPerSecond != 0)
@@ -1102,8 +1097,7 @@ Model* Asset_LoadModel(AssetManager* am, const char* name, const char* filepath)
                 struct aiNodeAnim* ai_channel = ai_anim->mChannels[c];
                 AnimationChannel* channel = &clip->channels[c];
                 
-                strncpy(channel->bone_name, ai_channel->mNodeName.data, 63);
-                channel->bone_name[63] = '\0';
+                snprintf(channel->bone_name, sizeof(channel->bone_name), "%s", ai_channel->mNodeName.data);
                 
                 // Extract Positions
                 channel->position_count = ai_channel->mNumPositionKeys;
@@ -1192,7 +1186,7 @@ Texture* Asset_CreateSolidColorTexture(AssetManager* am, const char* name, Color
     Texture* t = FindFreeTextureSlot(am);
     if (t)
     {
-        strcpy(t->name, name);
+        snprintf(t->name, sizeof(t->name), "%s", name);
         t->gpu_handle = handle;
         t->width = 1;
         t->height = 1;
@@ -1293,7 +1287,7 @@ Material* Asset_CreateMaterial(AssetManager* am, const char* name, Texture* albe
         return NULL;
     }
     
-    strncpy(mat->name, name, MAX_NAME_LENGTH);
+    snprintf(mat->name, sizeof(mat->name), "%s", name);
     mat->active = true;
 
     mat->shader = shader;
@@ -1344,8 +1338,7 @@ Mesh* Asset_CreateDynamicMesh(AssetManager* am, uint32_t max_vertices, uint32_t 
 
     MeshHandle handle = Render_CreateDynamicMesh(am->renderer, max_vertices, max_indices);
 
-    strncpy(dynamic_mesh->name, "Dynamic_Mesh", MAX_NAME_LENGTH - 1);
-    dynamic_mesh->name[MAX_NAME_LENGTH - 1] = '\0';
+    snprintf(dynamic_mesh->name, sizeof(dynamic_mesh->name), "Dynamic_Mesh");
     dynamic_mesh->gpu_handle = handle;
 
     // TODO: Add proper local bounds to dynamic meshes when the renderer gets upgraded
@@ -1478,7 +1471,7 @@ Shader* Asset_LoadShader(AssetManager* am, const char* name, const char* vert_pa
     free(v_src);
     free(f_src);
 
-    strcpy(new_shad->name, name);
+    snprintf(new_shad->name, sizeof(new_shad->name), "%s", name);
     new_shad->gpu_handle = new_handle;
 
     return new_shad;
@@ -1525,7 +1518,7 @@ Texture* Asset_LoadTexture(AssetManager* am, const char* name, const char* filep
     Texture* new_text = FindFreeTextureSlot(am);
     if (new_text)
     {
-        strcpy(new_text->name, name);
+        snprintf(new_text->name, sizeof(new_text->name), "%s", name);
         new_text->gpu_handle = handle;
         new_text->width = img.width;
         new_text->height = img.height;
@@ -1611,7 +1604,7 @@ Texture* Asset_LoadCubemapTexture(AssetManager* am, const char* name, const char
     Texture* new_text = FindFreeTextureSlot(am);
     if (new_text)
     {
-        strcpy(new_text->name, name);
+        snprintf(new_text->name, sizeof(new_text->name), "%s", name);
         new_text->gpu_handle = handle;
         new_text->width = images[0].width;
         new_text->height = images[0].height;
@@ -1665,8 +1658,7 @@ EnvironmentMap* Asset_LoadEnvironmentMap(AssetManager* am, const char* filepath)
     if (m)
     {
         memset(m, 0, sizeof(*m));
-        strncpy(m->name, filepath, MAX_NAME_LENGTH - 1);
-        m->name[MAX_NAME_LENGTH - 1] = '\0';
+        snprintf(m->name, sizeof(m->name), "%s", filepath);
         m->gpu_handle = handle;
 
         return m;
@@ -1712,8 +1704,7 @@ EnvironmentMap* Asset_LoadEnvironmentMapFromSkybox(AssetManager* am, const char*
     if (m)
     {
         memset(m, 0, sizeof(*m));
-        strncpy(m->name, name, MAX_NAME_LENGTH - 1);
-        m->name[MAX_NAME_LENGTH - 1] = '\0';
+        snprintf(m->name, sizeof(m->name), "%s", name);
         m->gpu_handle = handle;
 
         return m;
@@ -1766,16 +1757,14 @@ Font* Asset_LoadFont(AssetManager* am, const char* name, const char* filepath, f
     TextureHandle handle = Render_CreateTexture2D(am->renderer, atlas.pixels, atlas.width, atlas.height, atlas.channels);
     Image_Free(&atlas);
 
-    strncpy(atlas_tex->name, name, MAX_NAME_LENGTH - 1);
-    atlas_tex->name[MAX_NAME_LENGTH - 1] = '\0';
+    snprintf(atlas_tex->name, sizeof(atlas_tex->name), "%s", name);
     atlas_tex->gpu_handle = handle;
     atlas_tex->width = baked.atlas_width;
     atlas_tex->height = baked.atlas_height;
     atlas_tex->channels = 4;
 
     *font = baked;
-    strncpy(font->name, name, MAX_NAME_LENGTH - 1);
-    font->name[MAX_NAME_LENGTH - 1] = '\0';
+    snprintf(font->name, sizeof(font->name), "%s", name);
     font->texture_atlas = atlas_tex;
 
     return font;
@@ -2062,7 +2051,7 @@ Mesh* Asset_GetBuiltinQuad(AssetManager* am)
     Mesh* m = FindFreeMeshSlot(am);
     if (m)
     {
-        strcpy(m->name, "Quad");
+        snprintf(m->name, sizeof(m->name), "Default Quad");
         m->gpu_handle = gpu_handle;
 
         m->vertices = heap_vertices;
@@ -2160,7 +2149,7 @@ Mesh* Asset_GetBuiltinCube(AssetManager* am)
     Mesh* m = FindFreeMeshSlot(am);
     if (m)
     {
-        strcpy(m->name, "Cube");
+        snprintf(m->name, sizeof(m->name), "Default Cube");
         m->gpu_handle = gpu_handle;
 
         m->vertices = heap_vertices;
@@ -2265,7 +2254,7 @@ Mesh* Asset_GetBuiltinSphere(AssetManager* am)
     Mesh* m = FindFreeMeshSlot(am);
     if (m)
     {
-        strcpy(m->name, "Sphere");
+        snprintf(m->name, sizeof(m->name), "Default Sphere");
         m->gpu_handle = gpu_handle;
 
         m->vertices = vertices;
@@ -2310,7 +2299,7 @@ Texture* Asset_GetDefaultTexture(AssetManager* am)
     if (am->texture_count < MAX_CACHED_TEXTURES)
     {
         Texture* t = &am->texture_cache[am->texture_count];
-        strcpy(t->name, "DefaultTexture");
+        snprintf(t->name, sizeof(t->name), "Default Texture");
         t->id = am->texture_count;
         t->gpu_handle = handle;
         t->width = 1;

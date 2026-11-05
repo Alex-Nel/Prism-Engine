@@ -43,7 +43,7 @@ bool Font_Bake(Font* font, const unsigned char* ttf_data, int ttf_size, float pi
 
 	memset(font, 0, sizeof(Font));
 	if (name)
-		strncpy(font->name, name, MAX_NAME_LENGTH - 1);
+		snprintf(font->name, MAX_NAME_LENGTH, "%s", name);
 
 	font->size = pixel_height;
 

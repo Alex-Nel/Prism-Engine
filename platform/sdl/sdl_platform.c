@@ -479,7 +479,7 @@ bool Platform_PollEvents(Event* e)
                 e->window_id = (uint32_t)sdl_event.window.windowID;
 
                 // Copy the max size, with NULL terminator
-                strncpy(e->text_input.text, sdl_event.text.text, 255);
+                snprintf(e->text_input.text, 255, "%s", sdl_event.text.text);
                 e->text_input.text[255] = '\0';
                 break;
 

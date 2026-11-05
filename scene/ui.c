@@ -290,7 +290,7 @@ void UIText_SetText(Entity entity, const char* text)
 
     ui_text->text[0] = '\0';
     if (text)
-        strncpy(ui_text->text, text, 255);
+        snprintf(ui_text->text, 255, "%s", text);
     ui_text->text[255] = '\0';
 }
 

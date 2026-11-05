@@ -473,8 +473,8 @@ bool Scene_Load(Scene* scene, const char* filepath)
 
         // Load Name
         cJSON* name_json = cJSON_GetObjectItemCaseSensitive(entity_json, "name");
-        if (name_json && scene->names)
-            strncpy(scene->names[id].name, name_json->valuestring, 31);
+        if (name_json)
+            snprintf(scene->names[id].name, MAX_NAME_LENGTH, "%s", name_json->valuestring);
 
 
         // --- Load Transforms ---
@@ -847,7 +847,7 @@ bool Scene_Load(Scene* scene, const char* filepath)
             }
             Entity_AddUIText(e);
             UITextComponent* text = Entity_GetUIText(e);
-            if (text_value) strncpy(text->text, text_value, 255);
+            if (text_value) snprintf(text->text, 255, "%s", text_value);
             text->text[255] = '\0';
             text->font = font;
             text->font_size = font ? font->size : 32.0f;
