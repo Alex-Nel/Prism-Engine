@@ -246,6 +246,15 @@ typedef struct Skeleton
 // Builds a model-space AABB from the current skinned pose
 AABB SkinnedMesh_ComputePoseAABB(const SkinnedMesh* mesh, const Matrix4* bone_matrices);
 
+// Calculates the bounding box for a set of static vertices
+AABB Mesh_CalculateAABB(const Vertex3D* vertices, uint32_t vertex_count);
+
+// Calculates the bounding box for a set of skinned vertices
+AABB SkinnedMesh_CalculateAABB(const Vertex3DSkinned* vertices, uint32_t vertex_count);
+
+// Expands an AABB symmetrically around its center
+AABB AABB_InflateFromCenter(AABB bounds, float factor);
+
 // Calculates Tangest Vectors for a mesh based on its UV coordinates
 void Mesh_CalculateVertexTangents(Vertex3D* vertices, uint32_t vertex_count, const uint32_t* indices, uint32_t index_count);
 

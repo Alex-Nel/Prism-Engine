@@ -141,19 +141,36 @@ void Asset_UnloadMaterial(AssetManager* am, Material* mat);
 
 
 
-
-// Functions to get built in meshes
+// Functions to get built in meshes and textures
 
 Mesh* Asset_GetBuiltinQuad(AssetManager* am);
 Mesh* Asset_GetBuiltinCube(AssetManager* am);
 Mesh* Asset_GetBuiltinSphere(AssetManager* am);
-
-
-
-// Returns the default texture
 Texture* Asset_GetDefaultTexture(AssetManager* am);
 
 
+
+// Functions to retrieve assets by name
+
+Model* Asset_GetModelByName(AssetManager* am, const char* name);
+Mesh* Asset_GetMeshByName(AssetManager* am, const char* name);
+SkinnedMesh* Asset_GetSkinnedMeshByName(AssetManager* am, const char* name);
+Texture* Asset_GetTextureByName(AssetManager* am, const char* name);
+Material* Asset_GetMaterialByName(AssetManager* am, const char* name);
+Font* Asset_GetFontByName(AssetManager* am, const char* name);
+
+
+
+
+
+// Allocates a slot in the mesh cache
+Mesh* Asset_AllocateMesh(AssetManager* am);
+
+// Allocates a slot in the skinned mesh cache
+SkinnedMesh* Asset_AllocateSkinnedMesh(AssetManager* am);
+
+// Creates a texture from an in-memory buffer (PNG/JPG)
+Texture* Asset_CreateTextureFromMemory(AssetManager* am, const char* name, const unsigned char* buffer, int length);
 
 // Generate a texture from a solid color
 Texture* Asset_CreateSolidColorTexture(AssetManager* am, const char* name, Color color);
@@ -172,18 +189,6 @@ void Asset_UpdateDynamicMesh(AssetManager* am, Mesh* mesh, Vertex3D* vertices, u
 
 // Updates a static mesh
 void Asset_UpdateMesh(AssetManager* am, Mesh* mesh, Vertex3D* vertices, uint32_t vertex_count, uint32_t* indices, uint32_t index_count);
-
-
-
-// Functions to retrieve assets by name
-
-Model* Asset_GetModelByName(AssetManager* am, const char* name);
-Mesh* Asset_GetMeshByName(AssetManager* am, const char* name);
-SkinnedMesh* Asset_GetSkinnedMeshByName(AssetManager* am, const char* name);
-Texture* Asset_GetTextureByName(AssetManager* am, const char* name);
-Material* Asset_GetMaterialByName(AssetManager* am, const char* name);
-Font* Asset_GetFontByName(AssetManager* am, const char* name);
-
 
 
 

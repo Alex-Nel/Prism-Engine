@@ -6,6 +6,94 @@
 
 
 
+// Helper to compute an AABB from an array of vertices given stride between positions
+static AABB AABB_CalculateFromStride(const void* vertices, uint32_t vertex_count, size_t stride)
+{
+    AABB bounds = {
+        (Vector3){ FLT_MAX,  FLT_MAX,  FLT_MAX},
+        (Vector3){-FLT_MAX, -FLT_MAX, -FLT_MAX}
+    };
+
+    if (!vertices || vertex_count == 0)
+        return (AABB){ (Vector3){0, 0, 0}, (Vector3){0, 0, 0} };
+
+    const unsigned char* ptr = (const unsigned char*)vertices;
+    for (uint32_t i = 0; i < vertex_count; i++)
+    {
+        const Vector3* p = (const Vector3*)(ptr + i * stride);
+
+        if (p->x < bounds.min.x) bounds.min.x = p->x;
+        if (p->y < bounds.min.y) bounds.min.y = p->y;
+        if (p->z < bounds.min.z) bounds.min.z = p->z;
+
+        if (p->x > bounds.max.x) bounds.max.x = p->x;
+        if (p->y > bounds.max.y) bounds.max.y = p->y;
+        if (p->z > bounds.max.z) bounds.max.z = p->z;
+    }
+
+    return bounds;
+}
+
+
+
+
+
+// Calculates the bounding box for a set of static vertices
+AABB Mesh_CalculateAABB(const Vertex3D* vertices, uint32_t vertex_count)
+{
+    return AABB_CalculateFromStride(vertices, vertex_count, sizeof(Vertex3D));
+}
+
+
+
+// Calculates the bounding box for a set of skinned vertices
+AABB SkinnedMesh_CalculateAABB(const Vertex3DSkinned* vertices, uint32_t vertex_count)
+{
+    return AABB_CalculateFromStride(vertices, vertex_count, sizeof(Vertex3DSkinned));
+}
+
+
+
+
+
+// Expands an AABB symmetrically around its center
+AABB AABB_InflateFromCenter(AABB bounds, float factor)
+{
+    Vector3 center = {
+        (bounds.min.x + bounds.max.x) * 0.5f,
+        (bounds.min.y + bounds.max.y) * 0.5f,
+        (bounds.min.z + bounds.max.z) * 0.5f
+    };
+
+    Vector3 half = {
+        (bounds.max.x - bounds.min.x) * 0.5f * factor,
+        (bounds.max.y - bounds.min.y) * 0.5f * factor,
+        (bounds.max.z - bounds.min.z) * 0.5f * factor
+    };
+
+    AABB out;
+    out.min = (Vector3){ center.x - half.x, center.y - half.y, center.z - half.z };
+    out.max = (Vector3){ center.x + half.x, center.y + half.y, center.z + half.z };
+    return out;
+}
+
+
+
+
+
+// Recalculates the bounding box for a static mesh based on its vertex positions
+void Mesh_CalculateBounds(Mesh* mesh)
+{
+    if (!mesh || mesh->vertex_count == 0)
+        return;
+
+    mesh->local_bounds = Mesh_CalculateAABB(mesh->vertices, mesh->vertex_count);
+}
+
+
+
+
+
 // Computes the AABB for a skinned meshes current pose
 AABB SkinnedMesh_ComputePoseAABB(const SkinnedMesh* mesh, const Matrix4* bone_matrices)
 {
@@ -42,6 +130,7 @@ AABB SkinnedMesh_ComputePoseAABB(const SkinnedMesh* mesh, const Matrix4* bone_ma
         if (skinned_pos.x < bounds.min.x) bounds.min.x = skinned_pos.x;
         if (skinned_pos.y < bounds.min.y) bounds.min.y = skinned_pos.y;
         if (skinned_pos.z < bounds.min.z) bounds.min.z = skinned_pos.z;
+        
         if (skinned_pos.x > bounds.max.x) bounds.max.x = skinned_pos.x;
         if (skinned_pos.y > bounds.max.y) bounds.max.y = skinned_pos.y;
         if (skinned_pos.z > bounds.max.z) bounds.max.z = skinned_pos.z;
@@ -82,10 +171,7 @@ void Mesh_CalculateVertexTangents(Vertex3D* vertices, uint32_t vertex_count, con
         Vector2 deltaUV2 = {v2->uv.x - v0->uv.x, v2->uv.y - v0->uv.y};
 
         // The Tangent Math
-        float denom = (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
-        if (denom > -1e-6f && denom < 1e-6f)
-            continue;
-        float f = 1.0f / denom;
+        float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y + 0.0001f);
 
         Vector3 tangent;
         tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
@@ -152,7 +238,7 @@ void Mesh_CalculateVertexSkinnedTangents(Vertex3DSkinned* vertices, uint32_t ver
         Vector2 deltaUV2 = {v2->uv.x - v0->uv.x, v2->uv.y - v0->uv.y};
 
         // The Tangent Math
-        float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+        float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y + 0.0001f);
 
         Vector3 tangent;
         tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
@@ -168,31 +254,6 @@ void Mesh_CalculateVertexSkinnedTangents(Vertex3DSkinned* vertices, uint32_t ver
     // Normalize all tangents at the end
     for (uint32_t i = 0; i < vertex_count; i++)
         vertices[i].tangent = Vector3Normalize(vertices[i].tangent);
-}
-
-
-
-
-
-// Recalculates the bounding box for a static mesh
-void Mesh_CalculateBounds(Mesh* mesh)
-{
-    if (!mesh || mesh->vertex_count == 0)
-        return;
-
-    mesh->local_bounds.min = (Vector3){ 999999.0f,  999999.0f,  999999.0f};
-    mesh->local_bounds.max = (Vector3){-999999.0f, -999999.0f, -999999.0f};
-
-    for (uint32_t i = 0; i < mesh->vertex_count; i++)
-    {
-        Vector3 pos = mesh->vertices[i].position;
-        if (pos.x < mesh->local_bounds.min.x) mesh->local_bounds.min.x = pos.x;
-        if (pos.y < mesh->local_bounds.min.y) mesh->local_bounds.min.y = pos.y;
-        if (pos.z < mesh->local_bounds.min.z) mesh->local_bounds.min.z = pos.z;
-        if (pos.x > mesh->local_bounds.max.x) mesh->local_bounds.max.x = pos.x;
-        if (pos.y > mesh->local_bounds.max.y) mesh->local_bounds.max.y = pos.y;
-        if (pos.z > mesh->local_bounds.max.z) mesh->local_bounds.max.z = pos.z;
-    }
 }
 
 
