@@ -629,6 +629,51 @@ bool Platform_IsWindowMinimized(Window* window)
 
 
 
+// Sets the window's icon from raw pixel data
+bool Platform_SetWindowIcon(Window* window, const void* pixels, uint32_t width, uint32_t height, uint32_t channels)
+{
+    if (!window || !window->sdl_window || !pixels || width == 0 || height == 0)
+        return false;
+
+    SDL_PixelFormat format;
+    int pitch;
+    if (channels == 4)
+    {
+        format = SDL_PIXELFORMAT_RGBA32;
+        pitch = (int)(width * 4);
+    }
+    else if (channels == 3)
+    {
+        format = SDL_PIXELFORMAT_RGB24;
+        pitch = (int)(width * 3);
+    }
+    else
+    {
+        Log_Error("ERROR: Unsupported channel count for window icon: %u (expected 3 or 4)\n", channels);
+        return false;
+    }
+
+    SDL_Surface* surface = SDL_CreateSurfaceFrom((int)width, (int)height, format, (void*)pixels, pitch);
+    if (!surface)
+    {
+        Log_Error("ERROR: Failed to create surface for window icon: %s\n", SDL_GetError());
+        return false;
+    }
+
+    bool success = SDL_SetWindowIcon(window->sdl_window, surface);
+    if (!success)
+    {
+        Log_Error("ERROR: Failed to set window icon: %s\n", SDL_GetError());
+    }
+
+    SDL_DestroySurface(surface);
+    return success;
+}
+
+
+
+
+
 // Uses SDL_GetPerformanceCounter, a high-resolution timer
 double Platform_GetTime()
 {

@@ -92,7 +92,7 @@ namespace Prism
 
         // --- Lifecycle ---
 
-        static bool Init(const std::string& title, uint32_t width, uint32_t height, uint32_t target_fps = 60, GraphicsAPI api = GraphicsAPI::OPENGL);
+        static bool Init(const std::string& title, uint32_t width, uint32_t height, uint32_t target_fps = 60, GraphicsAPI api = GraphicsAPI::OPENGL, const std::string& icon_path = "");
         static void Run(Scene& active_scene);
         static void Shutdown();
 

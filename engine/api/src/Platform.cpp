@@ -4,6 +4,7 @@
 extern "C"
 {
     #include "platform/platform_core.h"
+    #include "core/image_core.h"
 }
 
 
@@ -45,5 +46,40 @@ namespace Prism
 
     bool Platform::IsWindowMinimized() {
         return ::Platform_IsWindowMinimized(static_cast<::Window*>(GetActiveWindow()));
+    }
+
+    bool Platform::SetWindowIcon(const std::string& filepath) {
+        // Window icons expect top-down orientation (Y=0 at top), so inverted must be false.
+        ::ImageData raw = ::Image_Load(filepath.c_str(), false);
+        if (!raw.pixels)
+            return false;
+
+        bool result = ::Platform_SetWindowIcon(
+            static_cast<::Window*>(GetActiveWindow()),
+            raw.pixels,
+            static_cast<uint32_t>(raw.width),
+            static_cast<uint32_t>(raw.height),
+            static_cast<uint32_t>(raw.channels)
+        );
+
+        ::Image_Free(&raw);
+        return result;
+    }
+
+    bool Platform::SetWindowIcon(const Image& image) {
+        if (!image.pixels || image.width <= 0 || image.height <= 0 || image.channels <= 0)
+            return false;
+
+        return ::Platform_SetWindowIcon(
+            static_cast<::Window*>(GetActiveWindow()),
+            image.pixels,
+            static_cast<uint32_t>(image.width),
+            static_cast<uint32_t>(image.height),
+            static_cast<uint32_t>(image.channels)
+        );
+    }
+
+    bool Platform::SetWindowIcon(const void* pixels, uint32_t width, uint32_t height, uint32_t channels) {
+        return ::Platform_SetWindowIcon(static_cast<::Window*>(GetActiveWindow()), pixels, width, height, channels);
     }
 }

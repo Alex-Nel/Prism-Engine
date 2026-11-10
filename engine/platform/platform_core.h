@@ -68,6 +68,9 @@ void Platform_SetWindowMinimized(Window* window, bool minimized);
 // Returns whether the window is currently minimized
 bool Platform_IsWindowMinimized(Window* window);
 
+// Sets the window's icon from raw 32-bit RGBA pixel data
+bool Platform_SetWindowIcon(Window* window, const void* pixels, uint32_t width, uint32_t height, uint32_t channels);
+
 
 
 

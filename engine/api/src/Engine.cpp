@@ -19,13 +19,16 @@ namespace Prism
 
     // --- Lifecycle ---
 
-    bool Engine::Init(const std::string& title, uint32_t width, uint32_t height, uint32_t target_fps, GraphicsAPI api) 
+    bool Engine::Init(const std::string& title, uint32_t width, uint32_t height, uint32_t target_fps, GraphicsAPI api, const std::string& icon_path) 
     {
         // Safely cast our C++ enum back to the C backend's enum type
         bool ok = ::Engine_Init(&s_engine, title.c_str(), width, height, target_fps, static_cast<::GraphicsAPI>(api));
 
         // Point the global asset manager to this engines instance
         Prism::AssetManager::SetGlobalInstance(ok ? ::Engine_GetAssetManager(&s_engine) : nullptr);
+
+        if (ok && !icon_path.empty())
+            Platform::SetWindowIcon(icon_path);
 
         return ok;
     }

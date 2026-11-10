@@ -1,7 +1,9 @@
 #pragma once
 
 #include "PrismAPI.hpp"
+#include "core/Image.hpp"
 #include <string>
+#include <cstdint>
 
 
 
@@ -44,6 +46,15 @@ namespace Prism
 
         // Returns whether the window is currently minimized
         static bool IsWindowMinimized();
+
+        // Sets the window icon from an image file path
+        static bool SetWindowIcon(const std::string& filepath);
+
+        // Sets the window icon from an Image object
+        static bool SetWindowIcon(const Image& image);
+
+        // Sets the window icon from raw pixel data
+        static bool SetWindowIcon(const void* pixels, uint32_t width, uint32_t height, uint32_t channels = 4);
 
     private:
         // Gets the active window pointer from the backend
