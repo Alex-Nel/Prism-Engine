@@ -1,5 +1,5 @@
 #include "scene.h"
-#include <cJSON.h>
+#include <cJSON/cJSON.h>
 #include <stdlib.h>
 #include <string.h>
 

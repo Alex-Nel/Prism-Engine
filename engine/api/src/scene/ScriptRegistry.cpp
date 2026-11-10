@@ -1,7 +1,7 @@
 #include "scene/ScriptRegistry.hpp"
 #include "core/Log.hpp"
 
-#include <cJSON.h>
+#include <cJSON/cJSON.h>
 
 
 extern "C"

@@ -23,7 +23,7 @@ endif()
 
 
 # --- User Options ---
-option(PRISM_BUILD_TEST "Build the main.c test executable (if it exists)" ON)
+option(PRISM_BUILD_TEST "Build the test executables (if they exist)" ON)
 option(PRISM_BUILD_SHARED_LIBS "Build PrismEngine as a shared library (.dll / .so)" ON)
 
 
@@ -36,6 +36,12 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE) # Force all dependencies below to
 
 # --- Dependency Fetching ---
 include(FetchContent)
+
+
+
+find_package(OpenGL REQUIRED)
+
+
 
 message(STATUS "Fetching SDL3 from GitHub...")
 FetchContent_Declare(
@@ -67,22 +73,6 @@ set(BOX3D_UNIT_TESTS OFF CACHE BOOL "" FORCE)
 set(BOX3D_BENCHMARKS OFF CACHE BOOL "" FORCE)
 set(BOX3D_DOCS OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(box3d)
-
-
-
-message(STATUS "Fetching cJSON from GitHub...")
-FetchContent_Declare(
-    cJSON
-    GIT_REPOSITORY https://github.com/DaveGamble/cJSON.git
-    GIT_TAG v1.7.18
-    GIT_SHALLOW TRUE
-)
-set(ENABLE_CJSON_UNINSTALL OFF CACHE BOOL "" FORCE) # Prevent cJSON from creating an "uninstall" target that collides with SDL3's
-set(ENABLE_CJSON_TEST OFF CACHE BOOL "" FORCE) # Turn off internal tests
-set(ENABLE_CUSTOM_COMPILER_FLAGS OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(cJSON)
-
-find_package(OpenGL REQUIRED)
 
 
 
@@ -123,6 +113,7 @@ file(GLOB_RECURSE ENGINE_SRCS
     "engine/assets/*.c" "engine/assets/*.cpp"
     "engine/runtime/*.c"
     "external/glad/*.c"
+    "external/cJSON/*.c"
 )
 
 # 2. The Public API Implementation (C++ headers)
@@ -153,7 +144,6 @@ target_include_directories(PrismEngineLib PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/engine   # Allows engine modules to include each other
     ${CMAKE_CURRENT_SOURCE_DIR}/external # Allows direct inclusion of third-party headers
     ${box3d_SOURCE_DIR}/src              # Hides physics library
-    ${cjson_SOURCE_DIR}                  # Hides JSON library
 )
 
 # PRIVATE: The engine uses these libraries natively.
@@ -161,7 +151,6 @@ target_link_libraries(PrismEngineLib PRIVATE
     SDL3::SDL3
     box3d::box3d
     OpenGL::GL
-    cjson
     assimp
 )
 
