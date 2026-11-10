@@ -1,4 +1,3 @@
-#define PRISM_EDITOR
 #include "Prism.hpp"
 
 
@@ -12,14 +11,14 @@ public:
 
     RotationScript()
     {
-        this->script_class_name = "RotationScript";
+        this->script_name = "RotationScript";
         ExposeVariable("Speed", &speed);
     }
 
     void OnUpdate()
     {
-        this->entity.GetTransform()->RotateEuler(Prism::Vector3{0.0f, speed * Prism::Time::DeltaTime(), 0.0f});
-        this->entity.GetTransform()->RotateEuler(Prism::Vector3{0.0f, 0.0f, speed * Prism::Time::DeltaTime()});
+        this->entity.GetComponent<Prism::Transform>()->RotateEuler(Prism::Vector3{0.0f, speed * Prism::Time::DeltaTime(), 0.0f});
+        this->entity.GetComponent<Prism::Transform>()->RotateEuler(Prism::Vector3{0.0f, 0.0f, speed * Prism::Time::DeltaTime()});
     }
 
     void OnTriggerEnter(Prism::Entity other)
@@ -112,7 +111,7 @@ void DrawEditorUI(void* userdata)
             Prism::UI::LayoutRowDynamic(2, 1);
             Prism::UI::Separator(Prism::Color::White());
 
-            Prism::Transform* t = selected_entity.GetTransform();
+            Prism::Transform* t = selected_entity.GetComponent<Prism::Transform>();
             if (t != nullptr)
             {
                 Prism::UI::LayoutRowDynamic(20, 1);
@@ -157,17 +156,20 @@ int main()
     // Create an Editor Camera
     Prism::Entity editor_camera = editor_scene.CreateEntity("Editor Camera");
     editor_camera.SetTag("EditorOnly");
-    editor_camera.AddCamera(90.0f);
-    editor_camera.GetTransform()->SetLocalPosition(Prism::Vector3{0.0f, 0.0f, 5.0f});
+    editor_camera.AddComponent<Prism::CameraComponent>();
+    editor_camera.GetComponent<Prism::CameraComponent>()->fov = 90.0f;
+    editor_camera.GetComponent<Prism::Transform>()->SetLocalPosition(Prism::Vector3{0.0f, 0.0f, 5.0f});
 
     // Create an Editor Default Light
     Prism::Entity editor_light = editor_scene.CreateEntity("Editor Light");
     editor_light.SetTag("EditorOnly");
-    editor_light.AddLight(Prism::LightType::Directional, Prism::Color::White());
-    editor_light.GetTransform()->SetLocalRotationEuler(Prism::Vector3{-45.0f, 45.0f, 0.0f});
-    editor_light.GetLight()->SetIntensity(1.0f);
-    editor_light.GetLight()->SetAmbientStrength(0.1f);
-    editor_light.GetLight()->SetCastsShadows(true);
+    editor_light.AddComponent<Prism::LightComponent>();
+    editor_light.GetComponent<Prism::LightComponent>()->type = Prism::LightType::Directional;
+    editor_light.GetComponent<Prism::LightComponent>()->color = Prism::Color::White();
+    editor_light.GetComponent<Prism::Transform>()->SetLocalRotationEuler(Prism::Vector3{-45.0f, 45.0f, 0.0f});
+    editor_light.GetComponent<Prism::LightComponent>()->intensity = 1.0f;
+    editor_light.GetComponent<Prism::LightComponent>()->ambient_strength = 0.1f;
+    editor_light.GetComponent<Prism::LightComponent>()->casts_shadows = true;
 
 
     // Set up environment map
@@ -184,10 +186,12 @@ int main()
 
     // ----- Rotating Cube -----
     Prism::Mesh cube = Prism::AssetManager::GetBuiltinCube();
-    Prism::Material default_mat = Prism::AssetManager::CreateMaterial(Prism::AssetManager::CreateSolidColorTexture("Red", Prism::Color::Red()));
+    Prism::Material default_mat = Prism::AssetManager::CreateMaterial("Default Material", Prism::AssetManager::CreateSolidColorTexture("Red", Prism::Color::Red()));
     Prism::Entity box3 = editor_scene.CreateEntity("Box3");
-    box3.GetTransform()->local_position = Prism::Vector3{0, 0, 0};
-    box3.AddMeshRenderer(cube, default_mat);
+    box3.GetComponent<Prism::Transform>()->local_position = Prism::Vector3{0, 0, 0};
+    box3.AddComponent<Prism::MeshRendererComponent>();
+    box3.GetComponent<Prism::MeshRendererComponent>()->SetMesh(cube);
+    box3.GetComponent<Prism::MeshRendererComponent>()->SetMaterial(default_mat);
     RotationScript* rot = box3.AddScript<RotationScript>();
     Prism::ScriptRegistry::Register<RotationScript>("RotationScript");
 
@@ -195,9 +199,9 @@ int main()
     // ----- Static Model -----
     Prism::Model dragonStan = Prism::AssetManager::LoadModel("Dragon Stan", "assets/SampleObjects/StanfordDragon.stl");
     Prism::Entity staticModel = editor_scene.CreateEntity("Static Model");
-    staticModel.GetTransform()->SetLocalPosition(Prism::Vector3{2, 0, 0});
-    staticModel.GetTransform()->SetLocalScale(Prism::Vector3{0.02f, 0.02f, 0.02f});
-    staticModel.GetTransform()->SetLocalRotationEuler(Prism::Vector3{-90, 0, 0});
+    staticModel.GetComponent<Prism::Transform>()->SetLocalPosition(Prism::Vector3{2, 0, 0});
+    staticModel.GetComponent<Prism::Transform>()->SetLocalScale(Prism::Vector3{0.02f, 0.02f, 0.02f});
+    staticModel.GetComponent<Prism::Transform>()->SetLocalRotationEuler(Prism::Vector3{-90, 0, 0});
     staticModel.AddModel(dragonStan);
 
 
@@ -238,14 +242,14 @@ int main()
         {
             if (e.id != editor_light.id && e.HasComponent<Prism::LightComponent>())
             {
-                if (e.GetLight()->type == Prism::LightType::Directional)
+                if (e.GetComponent<Prism::LightComponent>()->type == Prism::LightType::Directional)
                 {
                     has_real_light = true;
                     break;
                 }
             }
         }
-        editor_light.GetLight()->SetActive(!has_real_light);
+        editor_light.GetComponent<Prism::LightComponent>()->SetActive(!has_real_light);
 
 
 
@@ -265,7 +269,7 @@ int main()
             if (cam_pitch > 89.0f) cam_pitch = 89.0f;
             if (cam_pitch < -89.0f) cam_pitch = -89.0f;
 
-            Prism::Transform* cam_t = editor_camera.GetTransform();
+            Prism::Transform* cam_t = editor_camera.GetComponent<Prism::Transform>();
             cam_t->SetLocalRotationEuler(Prism::Vector3{cam_pitch, cam_yaw, 0.0f});
 
             // Move
