@@ -23,7 +23,8 @@ typedef enum ModelFormat
     MODEL_FORMAT_OBJ,
     MODEL_FORMAT_FBX,
     MODEL_FORMAT_STL,
-    MODEL_FORMAT_GLTF, // Covers both .gltf and .glb
+    MODEL_FORMAT_GLTF,
+    MODEL_FORMAT_GLB,
     MODEL_FORMAT_DAE
 } ModelFormat;
 

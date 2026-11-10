@@ -135,8 +135,10 @@ ModelFormat ModelLoader_DetectFormat(const char* filepath)
         return MODEL_FORMAT_FBX;
     if (StrEqualsIgnoreCase(ext, ".stl"))
         return MODEL_FORMAT_STL;
-    if (StrEqualsIgnoreCase(ext, ".gltf") || StrEqualsIgnoreCase(ext, ".glb"))
+    if (StrEqualsIgnoreCase(ext, ".gltf"))
         return MODEL_FORMAT_GLTF;
+    if (StrEqualsIgnoreCase(ext, ".glb"))
+        return MODEL_FORMAT_GLB;
     if (StrEqualsIgnoreCase(ext, ".dae"))
         return MODEL_FORMAT_DAE;
     
@@ -165,6 +167,7 @@ ModelFormatConfig ModelLoader_GetFormatConfig(ModelFormat format)
             cfg.supports_materials = true;
             cfg.has_uvs = true;
             break;
+
         case MODEL_FORMAT_FBX:
             cfg.format_name = "Autodesk FBX (.fbx)";
             cfg.assimp_flags = aiProcess_Triangulate |
@@ -176,6 +179,7 @@ ModelFormatConfig ModelLoader_GetFormatConfig(ModelFormat format)
             cfg.supports_materials = true;
             cfg.has_uvs = true;
             break;
+
         case MODEL_FORMAT_STL:
             cfg.format_name = "Stereolithography (.stl)";
             cfg.assimp_flags = aiProcess_Triangulate |
@@ -185,6 +189,7 @@ ModelFormatConfig ModelLoader_GetFormatConfig(ModelFormat format)
             cfg.supports_materials = false;
             cfg.has_uvs = false;
             break;
+
         case MODEL_FORMAT_GLTF:
             cfg.format_name = "glTF / GLB (.gltf, .glb)";
             cfg.assimp_flags = aiProcess_Triangulate |
@@ -195,6 +200,18 @@ ModelFormatConfig ModelLoader_GetFormatConfig(ModelFormat format)
             cfg.supports_materials = true;
             cfg.has_uvs = true;
             break;
+
+        case MODEL_FORMAT_GLB:
+            cfg.format_name = "glTF Binary (.glb)";
+            cfg.assimp_flags = aiProcess_Triangulate |
+                               aiProcess_CalcTangentSpace |
+                               aiProcess_LimitBoneWeights |
+                               aiProcess_GenSmoothNormals;
+            cfg.supports_skeletal_data = true;
+            cfg.supports_materials = true;
+            cfg.has_uvs = true;
+            break;
+
         case MODEL_FORMAT_DAE:
             cfg.format_name = "Collada DAE (.dae)";
             cfg.assimp_flags = aiProcess_Triangulate |
@@ -205,6 +222,7 @@ ModelFormatConfig ModelLoader_GetFormatConfig(ModelFormat format)
             cfg.supports_materials = true;
             cfg.has_uvs = true;
             break;
+            
         case MODEL_FORMAT_UNKNOWN:
         default:
             cfg.format_name = "Generic / Unknown Format";
@@ -593,7 +611,7 @@ static Material** ModelLoader_ProcessMaterials(AssetManager* am, const struct ai
             mat_ptr->properties.albedo_tint = (Color){ diffuse_color.r, diffuse_color.g, diffuse_color.b, diffuse_color.a };
 
             // Format-specific physical parameters mapping
-            if (format == MODEL_FORMAT_GLTF)
+            if (format == MODEL_FORMAT_GLTF || format == MODEL_FORMAT_GLB)
             {
                 // Native glTF 2.0 PBR factors
                 float metallic_val = 0.0f;
@@ -1043,8 +1061,9 @@ Model* ModelLoader_Load(AssetManager* am, const char* name, const char* filepath
 
     if (format == MODEL_FORMAT_UNKNOWN)
         Log_Warning("MODEL LOADER: Unrecognized or unsupported file extension for '%s'. Attempting default Assimp import.", filepath);
-    else
-        Log_Info("MODEL LOADER: Loading '%s' [%s] from '%s'", name, config.format_name, filepath);
+    // --- Uncomment else branch to log what model is being loaded ---
+    // else
+    //     Log_Info("MODEL LOADER: Loading '%s' [%s] from '%s'", name, config.format_name, filepath);
 
 
     // Ingest file using format specific Assimp post-processing flags

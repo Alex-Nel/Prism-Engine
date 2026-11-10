@@ -77,18 +77,8 @@ typedef struct Entity
 
 // --- Function pointers for custom scripts ---
 
-// On Update function
-typedef void (*ScriptUpdateFunc)(Entity entity, void* instance_data);
-// On Update function
-typedef void (*ScriptFixedUpdateFunc)(Entity entity, void* instance_data);
-// On Start function
-typedef void (*ScriptStartFunc)(Entity entity, void* instance_data);
-// On Destroy function
-typedef void (*ScriptDestroyFunc)(Entity entity, void* instance_data);
-// On Enable function
-typedef void (*ScriptEnableFunc)(Entity entity, void* instance_data);
-// On Disable function
-typedef void (*ScriptDisableFunc)(Entity entity, void* instance_data);
+// Script callback (Start, Update, FixedUpdate, Destroy, Enable, Disable)
+typedef void (*ScriptCallback)(Entity entity, void* instance_data);
 // On Collision function (any kind)
 typedef void (*CollisionCallback)(Entity self, Entity other, void* instance_data);
 // Pointer / UI event function
@@ -574,12 +564,12 @@ typedef struct ScriptInstance
     bool has_started;
     void* instance_data;
 
-    ScriptStartFunc OnStart;
-    ScriptUpdateFunc OnUpdate;
-    ScriptFixedUpdateFunc OnFixedUpdate;
-    ScriptDestroyFunc OnDestroy;
-    ScriptEnableFunc OnEnable;
-    ScriptDisableFunc OnDisable;
+    ScriptCallback OnStart;
+    ScriptCallback OnUpdate;
+    ScriptCallback OnFixedUpdate;
+    ScriptCallback OnDestroy;
+    ScriptCallback OnEnable;
+    ScriptCallback OnDisable;
 
     CollisionCallback OnTriggerEnter;
     CollisionCallback OnTriggerStay;

@@ -171,8 +171,8 @@ namespace Prism
         script.instance_data = instance;
         
         script.OnStart = Bridge_OnStart;
-        script.OnUpdate = reinterpret_cast<::ScriptUpdateFunc>(Bridge_OnUpdate);
-        script.OnFixedUpdate = reinterpret_cast<::ScriptFixedUpdateFunc>(Bridge_OnFixedUpdate);
+        script.OnUpdate = Bridge_OnUpdate;
+        script.OnFixedUpdate = Bridge_OnFixedUpdate;
         script.OnDestroy = Bridge_OnDestroy;
         script.OnEnable = Bridge_OnEnable;
         script.OnDisable = Bridge_OnDisable;

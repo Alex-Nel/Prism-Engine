@@ -76,7 +76,7 @@ Renderer* Render_Init(GraphicsAPI api, void* native_window, uint32_t init_width,
     switch (api)
     {
         case GRAPHICS_API_OPENGL:
-            Log_Info("Initializing OpenGL...");
+            // Log_Info("Initializing OpenGL...");
             return OpenGL_Init(native_window, init_width, init_height);
         case GRAPHICS_API_VULKAN:
             Log_Info("Vulkan not implemented yet");
@@ -85,7 +85,7 @@ Renderer* Render_Init(GraphicsAPI api, void* native_window, uint32_t init_width,
             Log_Info("DirectX not implemented yet");
             return NULL;
         case GRAPHICS_API_NONE:
-            Log_Info("Initializing Headless mode...");
+            // Log_Info("Initializing Headless mode...");
             return Headless_Init();
         default:
             Log_Info("Default renderer not implemented yet");

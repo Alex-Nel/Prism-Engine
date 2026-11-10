@@ -501,8 +501,6 @@ void Engine_Run(PrismEngine* engine)
         return;
     }
 
-    Log_Info("Running Scene");
-
     engine->accumulator = 0.0f;
 
     while (engine->is_running)
