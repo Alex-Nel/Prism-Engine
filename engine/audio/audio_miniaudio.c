@@ -1,10 +1,10 @@
 #include "audio.h"
-#include "../core/log_core.h"
+#include "core/log_core.h"
 #include <stdlib.h>
 #include <string.h>
 
 #define MINIAUDIO_IMPLEMENTATION
-#include "../external/miniaudio.h"
+#include "external/miniaudio.h"
 
 
 

@@ -5,11 +5,11 @@
 #include "model_loader.h"
 
 #include "asset_manager.h"
-#include "../core/io_core.h"
-#include "../core/mesh_core.h"
-#include "../core/image_core.h"
-#include "../core/log_core.h"
-#include "../core/font_core.h"
+#include "core/io_core.h"
+#include "core/mesh_core.h"
+#include "core/image_core.h"
+#include "core/log_core.h"
+#include "core/font_core.h"
 
 
 

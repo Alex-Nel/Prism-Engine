@@ -1,11 +1,11 @@
-#include "../../include/core/Mesh.hpp"
-#include "../../include/AssetManager.hpp"
+#include "core/Mesh.hpp"
+#include "AssetManager.hpp"
 
 
 extern "C"
 {
-    #include "../../../core/mesh_core.h"
-    #include "../../../assets/asset_manager.h"
+    #include "core/mesh_core.h"
+    #include "assets/asset_manager.h"
 }
 
 

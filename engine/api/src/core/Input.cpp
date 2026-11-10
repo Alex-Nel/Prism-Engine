@@ -1,10 +1,10 @@
-#include "../../include/core/Input.hpp"
+#include "core/Input.hpp"
 
 
 extern "C"
 {
-    #include "../../../core/input_core.h" 
-    #include "../../../core/event_core.h"
+    #include "core/input_core.h" 
+    #include "core/event_core.h"
 }
 
 

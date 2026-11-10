@@ -1,9 +1,10 @@
-#include "../../core/log_core.h"
-#include "../../external/glad/glad.h"
-#include "../render.h"
-#include "../render_frame.h"
-#include "../render_surface.h"
-#include "../shadow_cascades.h"
+#include "core/log_core.h"
+#include "external/glad/glad.h"
+
+#include "render/render.h"
+#include "render/render_frame.h"
+#include "render/render_surface.h"
+#include "render/shadow_cascades.h"
 
 #include <stddef.h>
 #include <stdlib.h>

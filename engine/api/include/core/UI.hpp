@@ -1,4 +1,4 @@
-#include "../PrismAPI.hpp"
+#include "PrismAPI.hpp"
 #include "Color.hpp"
 #include <string>
 #include <vector>

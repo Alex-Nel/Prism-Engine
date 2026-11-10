@@ -1,8 +1,8 @@
-#include "../include/Audio.hpp"
+#include "Audio.hpp"
 
 extern "C"
 {
-    #include "../../audio/audio.h" 
+    #include "audio/audio.h" 
 }
 
 namespace Prism 

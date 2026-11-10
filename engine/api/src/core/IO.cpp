@@ -1,9 +1,9 @@
-#include "../../include/core/IO.hpp"
+#include "core/IO.hpp"
 
 
 extern "C"
 {
-    #include "../../../core/io_core.h"
+    #include "core/io_core.h"
     #include <stdlib.h> 
 }
 

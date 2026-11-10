@@ -1,10 +1,10 @@
-#include "../include/core/UI.hpp"
+#include "core/UI.hpp"
 
 
 
 extern "C"
 {
-    #include "../../../core/ui_core.h"
+    #include "core/ui_core.h"
 }
 
 

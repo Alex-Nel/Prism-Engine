@@ -5,13 +5,14 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include "../core/graphics_core.h"
-#include "../core/math_core.h"
-#include "../core/mesh_core.h"
-#include "../core/log_core.h"
-#include "../core/io_core.h"
-#include "../core/overlay_core.h"
-#include "../core/frustum_core.h"
+#include "core/graphics_core.h"
+#include "core/math_core.h"
+#include "core/mesh_core.h"
+#include "core/log_core.h"
+#include "core/io_core.h"
+#include "core/overlay_core.h"
+#include "core/frustum_core.h"
+
 #include "render_structures.h"
 
 

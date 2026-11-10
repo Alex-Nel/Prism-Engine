@@ -3,9 +3,10 @@
 
 
 
-#include "../core/math_core.h"
-#include "../core/mesh_core.h"
-#include "../core/color_core.h"
+#include "core/math_core.h"
+#include "core/mesh_core.h"
+#include "core/color_core.h"
+
 #include <stdint.h>
 #include <stdbool.h>
 

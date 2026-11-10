@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <string>
 #include <functional>
-#include "../PrismAPI.hpp"
+#include "PrismAPI.hpp"
 
 
 // Forward decleration

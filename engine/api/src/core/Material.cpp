@@ -1,12 +1,12 @@
-#include "../../include/core/Material.hpp"
-#include "../../include/core/Log.hpp"
-#include "../../include/AssetManager.hpp"
+#include "core/Material.hpp"
+#include "core/Log.hpp"
+#include "AssetManager.hpp"
 
 
 extern "C"
 {
-    #include "../../../core/mesh_core.h"
-    #include "../../../assets/asset_manager.h"
+    #include "core/mesh_core.h"
+    #include "assets/asset_manager.h"
 }
 
 

@@ -1,11 +1,11 @@
-#include "../include/Platform.hpp"
-#include "../include/AssetManager.hpp"
-#include "../include/Engine.hpp"
+#include "Platform.hpp"
+#include "AssetManager.hpp"
+#include "Engine.hpp"
 
 
 extern "C"
 {
-    #include "../../runtime/engine_runtime.h"
+    #include "runtime/engine_runtime.h"
     #include "cstring"
 }
 

@@ -3,8 +3,8 @@
 
 
 
-#include "../core/mesh_core.h"
-#include "../core/font_core.h"
+#include "core/mesh_core.h"
+#include "core/font_core.h"
 #include "render/render.h"
 
 

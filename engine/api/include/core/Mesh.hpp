@@ -2,9 +2,9 @@
 
 #include "Math.hpp"
 #include "Color.hpp"
+#include "PrismAPI.hpp"
 #include <cstdint>
 #include <vector>
-#include "../PrismAPI.hpp"
 
 
 

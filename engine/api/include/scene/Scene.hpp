@@ -2,7 +2,7 @@
 
 #include "Entity.hpp"
 #include "Components.hpp"
-#include "../PrismAPI.hpp"
+#include "PrismAPI.hpp"
 
 namespace Prism
 {

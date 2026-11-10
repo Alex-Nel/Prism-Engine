@@ -1,5 +1,5 @@
 #include "shadow_cascades.h"
-#include "../core/frustum_core.h"
+#include "core/frustum_core.h"
 
 #include <math.h>
 #include <string.h>

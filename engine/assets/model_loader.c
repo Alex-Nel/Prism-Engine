@@ -11,9 +11,9 @@
 
 #include "model_loader.h"
 #include "asset_manager.h"
-#include "../core/mesh_core.h"
-#include "../core/log_core.h"
-#include "../render/render.h"
+#include "core/mesh_core.h"
+#include "core/log_core.h"
+#include "render/render.h"
 
 
 

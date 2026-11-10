@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <variant>
 #include <vector>
-#include "../PrismAPI.hpp"
+#include "PrismAPI.hpp"
 
 
 // Forward decleration

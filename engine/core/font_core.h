@@ -2,7 +2,7 @@
 #define FONT_H
 
 
-#include "../external/stb_truetype.h"
+#include "external/stb_truetype.h"
 #include "mesh_core.h"
 #include "image_core.h"
 #include <stdbool.h>

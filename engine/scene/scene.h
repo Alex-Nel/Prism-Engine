@@ -6,13 +6,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../core/math_core.h"
-#include "../core/time_core.h"
-#include "../core/log_core.h"
-#include "../audio/audio.h"
-#include "../assets/asset_manager.h"
+#include "core/math_core.h"
+#include "core/time_core.h"
+#include "core/log_core.h"
+#include "core/frustum_core.h"
+
+#include "audio/audio.h"
+#include "assets/asset_manager.h"
+
 #include "physics_bridge.h"
-#include "../core/frustum_core.h"
 #include "scene_structures.h"
 
 

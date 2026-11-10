@@ -9,11 +9,6 @@
 
 
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-
 
 
 // Supported 3D model formats
@@ -56,14 +51,6 @@ bool ModelLoader_IsFormatSupported(ModelFormat format);
 
 // Main loader function: loads and constructs a Model from disk
 Model* ModelLoader_Load(AssetManager* am, const char* name, const char* filepath);
-
-
-
-
-
-#ifdef __cplusplus
-}
-#endif
 
 
 

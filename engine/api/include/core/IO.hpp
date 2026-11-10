@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-#include "../PrismAPI.hpp"
+#include "PrismAPI.hpp"
 
 
 namespace Prism

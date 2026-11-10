@@ -1,12 +1,12 @@
-#include "../include/scene/ScriptRegistry.hpp"
-#include "../include/core/Log.hpp"
+#include "scene/ScriptRegistry.hpp"
+#include "core/Log.hpp"
 
 #include <cJSON.h>
 
 
 extern "C"
 {
-    #include "../../../scene/scene.h"
+    #include "scene/scene.h"
 }
 
 

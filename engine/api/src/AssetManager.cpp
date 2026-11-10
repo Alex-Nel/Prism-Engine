@@ -1,11 +1,11 @@
-#include "../include/AssetManager.hpp"
+#include "AssetManager.hpp"
 
 
 extern "C"
 {
     #include <string.h>
-    #include "../../assets/asset_manager.h"
-    #include "../../audio/audio.h"
+    #include "assets/asset_manager.h"
+    #include "audio/audio.h"
 }
 
 

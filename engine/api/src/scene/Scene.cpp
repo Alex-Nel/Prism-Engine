@@ -1,9 +1,9 @@
-#include "../../include/scene/Scene.hpp"
+#include "scene/Scene.hpp"
 
 
 extern "C"
 {
-    #include "../../../scene/scene.h"
+    #include "scene/scene.h"
 }
 
 

@@ -1,4 +1,4 @@
-#include "../core/input_core.h"
+#include "core/input_core.h"
 #include "scene.h"
 #include <stdlib.h>
 

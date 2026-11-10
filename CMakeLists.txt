@@ -113,20 +113,20 @@ set(BUILD_SHARED_LIBS ${PRISM_BUILD_SHARED_LIBS} CACHE BOOL "" FORCE)
 
 # 1. Internal systems
 file(GLOB_RECURSE ENGINE_SRCS
-    "core/*.c" "core/*.cpp"
-    "audio/*.c" "audio/*.cpp"
-    "platform/sdl/*.c" "platform/sdl/*.cpp"
-    "render/*.c" "render/*.cpp"
-    "render/opengl/*.c" "render/opengl/*.cpp"
-    "render/headless/*.c" "render/headless/*.cpp"
-    "scene/*.c" "scene/*.cpp"
-    "assets/*.c" "assets/*.cpp"
+    "engine/core/*.c" "engine/core/*.cpp"
+    "engine/audio/*.c" "engine/audio/*.cpp"
+    "engine/platform/sdl/*.c" "engine/platform/sdl/*.cpp"
+    "engine/render/*.c" "engine/render/*.cpp"
+    "engine/render/opengl/*.c" "engine/render/opengl/*.cpp"
+    "engine/render/headless/*.c" "engine/render/headless/*.cpp"
+    "engine/scene/*.c" "engine/scene/*.cpp"
+    "engine/assets/*.c" "engine/assets/*.cpp"
+    "engine/runtime/*.c"
     "external/glad/*.c"
-    "runtime/*.c"
 )
 
 # 2. The Public API Implementation (C++ headers)
-file(GLOB_RECURSE API_SRCS "api/src/*.cpp")
+file(GLOB_RECURSE API_SRCS "engine/api/src/*.cpp")
 
 
 
@@ -144,13 +144,14 @@ endif()
 
 # PUBLIC: The user is ONLY allowed to use the C++ headers
 target_include_directories(PrismEngineLib PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/api/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/engine/api/include
 )
 
 # PRIVATE: These are needed to compile, but they're blocked from the user.
 target_include_directories(PrismEngineLib PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}          # Allows api source to include needed headers
-    ${CMAKE_CURRENT_SOURCE_DIR}/external # Hides internal vendor headers (glad, stb)
+    ${CMAKE_CURRENT_SOURCE_DIR}/engine   # Allows engine modules to include each other
+    ${CMAKE_CURRENT_SOURCE_DIR}/external # Allows direct inclusion of third-party headers
     ${box3d_SOURCE_DIR}/src              # Hides physics library
     ${cjson_SOURCE_DIR}                  # Hides JSON library
 )
@@ -166,16 +167,28 @@ target_link_libraries(PrismEngineLib PRIVATE
 
 
 
-# --- Target 2: Test Executable ---
+# --- Target 2: Test Executables ---
+# Compiles each .cpp file in tests/ as its own executable
 if(PRISM_BUILD_TEST)
-    # Only try to build the test if a main.cpp exists
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
-        add_executable(PrismTest main.cpp)
-        
-        # When we link PrismEngineLib, CMake automatically gives PUBLIC includes (api/include)
-        target_link_libraries(PrismTest PRIVATE PrismEngineLib)
+    file(GLOB TEST_SOURCES CONFIGURE_DEPENDS "tests/*.cpp")
+
+    if(TEST_SOURCES)
+        foreach(TEST_SRC ${TEST_SOURCES})
+            # Get the filename without extension
+            get_filename_component(TEST_NAME ${TEST_SRC} NAME_WE)
+
+            # If there's a file named "main", rename it to "MainTest", and keep others named after their file
+            if(TEST_NAME STREQUAL "main")
+                set(TARGET_NAME "MainTest")
+            else()
+                set(TARGET_NAME "${TEST_NAME}")
+            endif()
+
+            add_executable(${TARGET_NAME} ${TEST_SRC})
+            target_link_libraries(${TARGET_NAME} PRIVATE PrismEngineLib)
+        endforeach()
     else()
-        message(STATUS "main.cpp not found. Skipping test executable build.")
+        message(STATUS "No .cpp files found in tests/. Skipping test executables.")
     endif()
 endif()
 
@@ -183,8 +196,10 @@ endif()
 
 # --- Target 3: Editor Application ---
 # Create an Editor target that links to the engine but defines PRISM_EDITOR
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/editor/src/main.cpp")
-    file(GLOB_RECURSE EDITOR_SRCS "editor/src/*.cpp" "editor/src/*.c")
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/editor/main.cpp")
+    file(GLOB_RECURSE EDITOR_SRCS
+        "tools/editor/*.cpp" "tools/editor/*.c"
+    )
     add_executable(PrismEditor ${EDITOR_SRCS})
     
     target_link_libraries(PrismEditor PRIVATE PrismEngineLib)

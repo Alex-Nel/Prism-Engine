@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "../core/math_core.h"
+#include "core/math_core.h"
 #include "collision_filter.h"
 
 

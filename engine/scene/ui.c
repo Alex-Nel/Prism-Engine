@@ -1,7 +1,7 @@
 #include "scene.h"
 
-#include "../core/input_core.h"
-#include "../core/log_core.h"
+#include "core/input_core.h"
+#include "core/log_core.h"
 
 #include <stdlib.h>
 #include <string.h>

@@ -1,9 +1,9 @@
-#include "../include/Platform.hpp"
+#include "Platform.hpp"
 
 
 extern "C"
 {
-    #include "../../platform/platform_core.h"
+    #include "platform/platform_core.h"
 }
 
 

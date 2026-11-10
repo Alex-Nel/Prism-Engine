@@ -1,11 +1,11 @@
-#include "../../include/Engine.hpp"
-#include "../../include/scene/Entity.hpp"
-#include "../../include/scene/Scene.hpp" // Needed for Scene::GetActive()
+#include "Engine.hpp"
+#include "scene/Entity.hpp"
+#include "scene/Scene.hpp" // Needed for Scene::GetActive()
 
 
 extern "C"
 {
-    #include "../../../scene/scene.h"
+    #include "scene/scene.h"
 }
 
 

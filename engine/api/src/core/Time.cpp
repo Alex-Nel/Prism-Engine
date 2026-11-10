@@ -1,9 +1,9 @@
-#include "../../include/core/Time.hpp"
+#include "core/Time.hpp"
 
 
 extern "C"
 {
-    #include "../../../core/time_core.h"
+    #include "core/time_core.h"
 }
 
 

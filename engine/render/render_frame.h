@@ -4,7 +4,7 @@
 
 
 #include "render.h"
-#include "../core/mesh_core.h"
+#include "core/mesh_core.h"
 
 
 

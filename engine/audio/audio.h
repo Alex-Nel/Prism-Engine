@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "../core/math_core.h" // To have Vector3 for 3D audio
+#include "core/math_core.h" // To have Vector3 for 3D audio
 
 
 

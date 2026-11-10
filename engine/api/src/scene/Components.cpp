@@ -1,10 +1,10 @@
-#include "../../include/scene/Components.hpp"
-#include "../../include/scene/Scene.hpp"
+#include "scene/Components.hpp"
+#include "scene/Scene.hpp"
 
 
 extern "C"
 {
-    #include "../../../scene/scene.h"
+    #include "scene/scene.h"
     #include <cstring>
     #include <cstddef>
 }

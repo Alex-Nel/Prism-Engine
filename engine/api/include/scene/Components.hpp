@@ -1,9 +1,9 @@
 #pragma once
 
 #include "Entity.hpp"
-#include "../core/Log.hpp"
-#include "../core/Math.hpp"
-#include "../PrismAPI.hpp"
+#include "core/Log.hpp"
+#include "core/Math.hpp"
+#include "PrismAPI.hpp"
 #include <cstdint>
 
 

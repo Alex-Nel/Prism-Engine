@@ -1,5 +1,5 @@
 #include "render_surface.h"
-#include "../platform/platform_core.h"
+#include "platform/platform_core.h"
 
 
 

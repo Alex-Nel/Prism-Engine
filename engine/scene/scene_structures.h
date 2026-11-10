@@ -2,13 +2,16 @@
 #define SCENE_STRUCTURES_H
 
 #include <stdint.h>
+
+#include "core/font_core.h"
+#include "core/mesh_core.h"
+#include "core/overlay_core.h"
+
+#include "audio/audio.h"
+#include "assets/asset_manager.h"
+
 #include "collision_filter.h"
 #include "physics_bridge.h"
-#include "../audio/audio.h"
-#include "../assets/asset_manager.h"
-#include "../core/font_core.h"
-#include "../core/mesh_core.h"
-#include "../core/overlay_core.h"
 
 
 

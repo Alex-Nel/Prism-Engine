@@ -1,5 +1,5 @@
-#include "../platform_core.h"
 #include "core/event_core.h"
+#include "platform/platform_core.h"
 
 #include "SDL3/SDL.h"
 

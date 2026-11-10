@@ -6,6 +6,7 @@
 
 build*/
 lib*/
+tests/
 
 *.exe
 *.dll

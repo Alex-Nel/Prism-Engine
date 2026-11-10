@@ -1,9 +1,9 @@
-#include "../../include/core/Image.hpp"
+#include "core/Image.hpp"
 
 
 extern "C"
 {
-    #include "../../../core/image_core.h"
+    #include "core/image_core.h"
 }
 
 

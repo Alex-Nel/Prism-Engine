@@ -4,10 +4,10 @@
 #include <cstdint>
 #include <utility>
 #include <vector>
-#include "../core/Math.hpp"
-#include "../AssetManager.hpp"
-#include "../Audio.hpp"
-#include "../PrismAPI.hpp"
+#include "core/Math.hpp"
+#include "AssetManager.hpp"
+#include "Audio.hpp"
+#include "PrismAPI.hpp"
 
 
 namespace Prism

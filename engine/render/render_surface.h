@@ -3,7 +3,7 @@
 
 
 
-#include "../core/graphics_core.h"
+#include "core/graphics_core.h"
 #include <stdbool.h>
 
 

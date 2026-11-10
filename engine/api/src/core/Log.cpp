@@ -1,11 +1,11 @@
-#include "../../include/core/Log.hpp"
+#include "core/Log.hpp"
 #include <cstdarg>
 #include <cstdio>
 
 
 extern "C"
 {
-    #include "../../../core/log_core.h"
+    #include "core/log_core.h"
 }
 
 

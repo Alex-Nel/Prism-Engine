@@ -1,5 +1,6 @@
-#include "../render.h"
-#include "../render_frame.h"
+#include "render/render.h"
+#include "render/render_frame.h"
+
 #include <stdlib.h>
 #include <string.h>
 
