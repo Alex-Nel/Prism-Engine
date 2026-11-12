@@ -772,7 +772,7 @@ bool Scene_Load(Scene* scene, const char* filepath)
                 cJSON* font_size = cJSON_GetObjectItemCaseSensitive(comp_obj, "font_size");
                 if (font_size) text->scope.font_size = (float)font_size->valuedouble;
                 cJSON* size_scale = cJSON_GetObjectItemCaseSensitive(comp_obj, "size_scale");
-                if (size_scale) TextRenderer_SetSizeScale(text, (float)size_scale->valuedouble);
+                if (size_scale) text->size_scale = (float)size_scale->valuedouble;
                 cJSON* h_align = cJSON_GetObjectItemCaseSensitive(comp_obj, "horizontal_align");
                 if (h_align) text->horizontal_align = (TextHorizontalAlign)h_align->valueint;
                 cJSON* v_align = cJSON_GetObjectItemCaseSensitive(comp_obj, "vertical_align");

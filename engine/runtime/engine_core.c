@@ -564,6 +564,10 @@ void Engine_SetActiveScene(PrismEngine* engine, Scene* active_scene)
         Log_Error("ERROR: Invalid scene");
         return;
     }
+
+    // Scenes created without an asset manager still need one
+    if (!active_scene->asset_manager)
+        Scene_SetAssetManager(active_scene, engine->asset_manager);
     
     engine->active_scene = active_scene;
 }

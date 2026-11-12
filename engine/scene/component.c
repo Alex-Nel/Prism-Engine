@@ -900,36 +900,6 @@ void TextRenderer_SetFont(TextRendererComponent* text, Font* font)
 
 
 
-// Sets the size scale of a text renderer (0 = hidden, 1 = default, 2 = double)
-void TextRenderer_SetSizeScale(TextRendererComponent* text, float size_scale)
-{
-    if (!text)
-        return;
-
-    if (size_scale < 0.0f) size_scale = 0.0f;
-    if (size_scale > 2.0f) size_scale = 2.0f;
-    
-    text->size_scale = size_scale;
-}
-
-
-
-
-
-// Sets how a text renderer's text is placed around the entity's origin
-void TextRenderer_SetAlignment(TextRendererComponent* text, TextHorizontalAlign horizontal, TextVerticalAlign vertical)
-{
-    if (!text)
-        return;
-
-    text->horizontal_align = horizontal;
-    text->vertical_align = vertical;
-}
-
-
-
-
-
 // Frees the GPU mesh and material owned by a text renderer
 void TextRenderer_ReleaseResources(Entity entity)
 {

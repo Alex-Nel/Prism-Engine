@@ -1,4 +1,5 @@
 #include "scene/Scene.hpp"
+#include "AssetManager.hpp"
 
 
 extern "C"
@@ -17,6 +18,7 @@ namespace Prism
 
     Scene Scene::Create() {
         ::Scene* newScene = ::Scene_Create();
+        ::Scene_SetAssetManager(newScene, static_cast<::AssetManager*>(Prism::AssetManager::GetGlobalInstance()));
         GlobalActiveScene = newScene;
         return Scene(newScene);
     }

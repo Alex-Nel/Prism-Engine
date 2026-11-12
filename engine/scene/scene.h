@@ -287,8 +287,6 @@ void SpriteRenderer_SetSprite(SpriteRendererComponent* comp, Texture* sprite);
 
 void TextRenderer_SetText(TextRendererComponent* text, const char* value);
 void TextRenderer_SetFont(TextRendererComponent* text, Font* font);
-void TextRenderer_SetSizeScale(TextRendererComponent* text, float size_scale);
-void TextRenderer_SetAlignment(TextRendererComponent* text, TextHorizontalAlign horizontal, TextVerticalAlign vertical);
 void TextRenderer_ReleaseResources(Entity entity);
 
 

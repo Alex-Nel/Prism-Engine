@@ -1125,6 +1125,9 @@ void Entity_AddLineRenderer(Entity entity)
 
     line->dynamic_mesh = Asset_CreateDynamicMesh(entity.scene->asset_manager, MAX_LINE_POINTS * 2, MAX_LINE_POINTS * 6);
     line->material = NULL;
+
+    if (!line->dynamic_mesh)
+        Log_Error("ERROR: Line renderer on entity %u has no mesh and will not draw.", id);
 }
 
 
@@ -1146,6 +1149,9 @@ void Entity_AddSpriteRenderer(Entity entity)
     sprite->color = (Color){1.0f, 1.0f, 1.0f, 1.0f};
     sprite->material = NULL;
     sprite->quad = Asset_GetBuiltinQuad(entity.scene->asset_manager);
+
+    if (!sprite->quad)
+        Log_Error("ERROR: Sprite renderer on entity %u has no quad and will not draw.", id);
 }
 
 
@@ -1157,6 +1163,9 @@ void Entity_AddTextRenderer(Entity entity)
 {
     if (!Entity_IsValid(entity))
         return;
+
+    uint32_t id = entity.id;
+    entity.scene->component_masks[id] |= COMPONENT_TEXT_RENDERER;
 
     TextRendererComponent* text = &entity.scene->text_renderers[entity.id];
     text->entity = entity;
@@ -1173,8 +1182,9 @@ void Entity_AddTextRenderer(Entity entity)
     // Re-adding keeps the existing GPU mesh and material instead of leaking them
     if (!text->dynamic_mesh)
         text->dynamic_mesh = Asset_CreateDynamicMesh(entity.scene->asset_manager, MAX_TEXT_LENGTH * 4, MAX_TEXT_LENGTH * 6);
-    
-    entity.scene->component_masks[entity.id] |= COMPONENT_TEXT_RENDERER;
+
+    if (!text->dynamic_mesh)
+        Log_Error("ERROR: Text renderer on entity %u has no mesh and will not draw.", entity.id);
 }
 
 

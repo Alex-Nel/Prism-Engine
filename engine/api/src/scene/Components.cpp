@@ -407,12 +407,6 @@ namespace Prism
     void TextRendererComponent::SetFont(Prism::Font font) {
         ::TextRenderer_SetFont(reinterpret_cast<::TextRendererComponent*>(this), static_cast<::Font*>(font.GetRaw()));
     }
-    void TextRendererComponent::SetSizeScale(float scale) {
-        ::TextRenderer_SetSizeScale(reinterpret_cast<::TextRendererComponent*>(this), scale);
-    }
-    void TextRendererComponent::SetAlignment(TextHorizontalAlign horizontal, TextVerticalAlign vertical) {
-        ::TextRenderer_SetAlignment(reinterpret_cast<::TextRendererComponent*>(this), static_cast<::TextHorizontalAlign>(horizontal), static_cast<::TextVerticalAlign>(vertical));
-    }
 
 
 
