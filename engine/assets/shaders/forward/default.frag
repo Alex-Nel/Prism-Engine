@@ -14,6 +14,10 @@ in mat3 v_TBN;
 
 uniform vec3 u_ViewPos;
 uniform bool u_CaptureLinearRadiance;
+uniform bool u_Unlit;
+uniform bool u_SDFAlpha;
+
+const float SDF_EDGE = 128.0 / 255.0;   // Must match FONT_SDF_ONEDGE in font_core.h
 
 
 
@@ -466,9 +470,24 @@ void main()
 {
     // Final Pixel Color
     vec4 texColor = texture(u_Material.diffuse, TexCoord);
-    float alpha = texColor.a * u_Material.tintAlpha;
+    float coverage = texColor.a;
+    if (u_SDFAlpha)
+    {
+        // Derivatives keep the antialiased edge about one screen pixel wide at any magnification
+        float edgeWidth = max(length(vec2(dFdx(texColor.a), dFdy(texColor.a))) * 0.70710678, 0.0001);
+        coverage = smoothstep(SDF_EDGE - edgeWidth, SDF_EDGE + edgeWidth, texColor.a);
+    }
+
+    float alpha = coverage * u_Material.tintAlpha;
     if (alpha < 0.01)
         discard;
+
+    if (u_Unlit)
+    {
+        FragColor = vec4(texColor.rgb * u_Material.tint, alpha);
+        return;
+    }
+    
     float gamma = u_Gamma > 0.01 ? u_Gamma : 2.2;
     vec3 linearAlbedo = pow(texColor.rgb, vec3(gamma)) * u_Material.tint;
 

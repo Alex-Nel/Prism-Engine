@@ -612,6 +612,7 @@ namespace Prism
         float size_scale;                         // 0 = hidden, 1 = default size, 2 = double size (clamped when drawn)
         TextHorizontalAlign horizontal_align;
         TextVerticalAlign vertical_align;
+        bool is_lit;                              // false draws the exact text color, true shades it with scene lights and shadows
     private:
         void* raw_dynamic_mesh;
         void* raw_material;

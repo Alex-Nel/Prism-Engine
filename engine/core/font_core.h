@@ -8,6 +8,11 @@
 #include <stdbool.h>
 
 
+
+// Atlas value of a glyph edge in SDF fonts. Shaders sampling SDF atlases must use the same threshold (128 / 255).
+#define FONT_SDF_ONEDGE 128
+
+
 // Font structure for holding baked ASCII data
 typedef struct Font
 {
@@ -24,6 +29,8 @@ typedef struct Font
 	int atlas_height;
 	float ascent;
 	float line_height;
+
+	bool is_sdf;
 } Font;
 
 
@@ -72,6 +79,12 @@ bool Font_Bake(Font* font, const unsigned char* ttf_data, int ttf_size, float pi
 
 // Loads a TTF from disk and bakes it. Caller must Image_Free the atlas.
 bool Font_BakeFromFile(Font* font, const char* filepath, float pixel_height, ImageData* out_atlas);
+
+// Bakes ASCII 32-126 as signed distance fields, which stay sharp when magnified far past pixel_height.
+bool Font_BakeSDF(Font* font, const unsigned char* ttf_data, int ttf_size, float pixel_height, const char* name, ImageData* out_atlas);
+
+// Loads a TTF from disk and bakes it as signed distance fields. Caller must Image_Free the atlas.
+bool Font_BakeSDFFromFile(Font* font, const char* filepath, float pixel_height, ImageData* out_atlas);
 
 // Advances xpos/ypos along the baseline and returns a screen-space glyph quad. Scale is relative to the baked pixel size (1 = baked size).
 bool Font_GetGlyphQuad(const Font* font, int codepoint, float* xpos, float* ypos, float scale, float* x0, float* y0, float* x1, float* y1, float* u0, float* v0, float* u1, float* v1);

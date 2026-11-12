@@ -109,7 +109,150 @@ bool Font_Bake(Font* font, const unsigned char* ttf_data, int ttf_size, float pi
 
 
 
-bool Font_BakeFromFile(Font* font, const char* filepath, float pixel_height, ImageData* out_atlas)
+// Packs glyph rectangles into rows with a 1px gutter so filtering never pulls in a neighbouring glyph
+static bool Font_PackSDFGlyphs(Font* font, const int* widths, const int* heights, int atlas_w, int atlas_h)
+{
+	int x = 1;
+	int y = 1;
+	int row_height = 0;
+
+	for (int i = 0; i < 96; i++)
+	{
+		if (widths[i] <= 0 || heights[i] <= 0)
+			continue;
+
+		if (x + widths[i] + 1 > atlas_w)
+		{
+			x = 1;
+			y += row_height + 1;
+			row_height = 0;
+		}
+		
+		if (widths[i] + 2 > atlas_w || y + heights[i] + 1 > atlas_h)
+			return false;
+		
+		font->cdata[i].x0 = (unsigned short)x;
+		font->cdata[i].y0 = (unsigned short)y;
+		font->cdata[i].x1 = (unsigned short)(x + widths[i]);
+		font->cdata[i].y1 = (unsigned short)(y + heights[i]);
+		
+		x += widths[i] + 1;
+		if (heights[i] > row_height)
+			row_height = heights[i];
+	}
+
+	return true;
+}
+
+
+
+
+
+bool Font_BakeSDF(Font* font, const unsigned char* ttf_data, int ttf_size, float pixel_height, const char* name, ImageData* out_atlas)
+{
+	if (!font || !ttf_data || ttf_size <= 0 || pixel_height <= 0.0f || !out_atlas)
+		return false;
+
+	stbtt_fontinfo info;
+	if (!stbtt_InitFont(&info, ttf_data, stbtt_GetFontOffsetForIndex(ttf_data, 0)))
+	{
+		Log_Error("ERROR: Failed to read font data for SDF baking");
+		return false;
+	}
+	
+	memset(font, 0, sizeof(Font));
+	if (name)
+		snprintf(font->name, MAX_NAME_LENGTH, "%s", name);
+	
+	font->size = pixel_height;
+	font->is_sdf = true;
+	
+	// Padding is how far outside the glyph edge the distance field reaches, which bounds how soft or thick an edge can get
+	float scale = stbtt_ScaleForPixelHeight(&info, pixel_height);
+	int padding = (int)(pixel_height * 0.125f + 0.5f);
+	if (padding < 4)
+		padding = 4;
+
+	float pixel_dist_scale = (float)FONT_SDF_ONEDGE / (float)padding;
+	
+	unsigned char* glyphs[96] = {0};
+	int widths[96] = {0};
+	int heights[96] = {0};
+	
+	for (int i = 0; i < 96; i++)
+	{
+		int xoff = 0, yoff = 0;
+		glyphs[i] = stbtt_GetCodepointSDF(&info, scale, 32 + i, padding, FONT_SDF_ONEDGE, pixel_dist_scale, &widths[i], &heights[i], &xoff, &yoff);
+		if (!glyphs[i])
+			widths[i] = heights[i] = 0;
+
+		int advance = 0, left_bearing = 0;
+		stbtt_GetCodepointHMetrics(&info, 32 + i, &advance, &left_bearing);
+		
+		font->cdata[i].xoff = (float)xoff;
+		font->cdata[i].yoff = (float)yoff;
+		font->cdata[i].xadvance = (float)advance * scale;
+	}
+
+	int atlas_w = 512;
+	int atlas_h = 512;
+	bool packed = false;
+	for (int attempt = 0; attempt < 4 && !packed; attempt++)
+	{
+		packed = Font_PackSDFGlyphs(font, widths, heights, atlas_w, atlas_h);
+		if (!packed)
+		{
+			atlas_w *= 2;
+			atlas_h *= 2;
+		}
+	}
+
+	unsigned char* bitmap = packed ? (unsigned char*)calloc((size_t)atlas_w * (size_t)atlas_h, 1) : NULL;
+	if (bitmap)
+	{
+		for (int i = 0; i < 96; i++)
+		{
+			if (!glyphs[i])
+				continue;
+
+			for (int row = 0; row < heights[i]; row++)
+				memcpy(bitmap + (size_t)(font->cdata[i].y0 + row) * atlas_w + font->cdata[i].x0, glyphs[i] + (size_t)row * widths[i], (size_t)widths[i]);
+		}
+	}
+
+	for (int i = 0; i < 96; i++)
+	{
+		if (glyphs[i])
+			stbtt_FreeSDF(glyphs[i], NULL);
+	}
+	
+	if (!bitmap)
+	{
+		Log_Error("ERROR: Failed to build SDF font atlas");
+		return false;
+	}
+
+	bool expanded = Font_ExpandAtlas(bitmap, atlas_w, atlas_h, out_atlas);
+	free(bitmap);
+	if (!expanded)
+		return false;
+	
+	font->atlas_width = atlas_w;
+	font->atlas_height = atlas_h;
+	
+	int ascent = 0, descent = 0, line_gap = 0;
+	stbtt_GetFontVMetrics(&info, &ascent, &descent, &line_gap);
+	font->ascent = (float)ascent * scale;
+	font->line_height = (float)(ascent - descent + line_gap) * scale;
+	
+	return true;
+}
+
+
+
+
+
+static bool Font_BakeFileWith(Font* font, const char* filepath, float pixel_height, ImageData* out_atlas, bool sdf)
 {
 	int size = 0;
 	unsigned char* data = IO_ReadBinaryFile(filepath, &size);
@@ -124,10 +267,33 @@ bool Font_BakeFromFile(Font* font, const char* filepath, float pixel_height, Ima
 	if (slash)
 		name = slash + 1;
 
-	bool ok = Font_Bake(font, data, size, pixel_height, name, out_atlas);
+	bool ok = false;
+	if (sdf)
+		ok = Font_BakeSDF(font, data, size, pixel_height, name, out_atlas);
+	else
+		ok = Font_Bake(font, data, size, pixel_height, name, out_atlas);
+
 	free(data);
 
 	return ok;
+}
+
+
+
+
+
+bool Font_BakeFromFile(Font* font, const char* filepath, float pixel_height, ImageData* out_atlas)
+{
+	return Font_BakeFileWith(font, filepath, pixel_height, out_atlas, false);
+}
+
+
+
+
+
+bool Font_BakeSDFFromFile(Font* font, const char* filepath, float pixel_height, ImageData* out_atlas)
+{
+	return Font_BakeFileWith(font, filepath, pixel_height, out_atlas, true);
 }
 
 
@@ -147,7 +313,28 @@ bool Font_GetGlyphQuad(const Font* font, int codepoint, float* xpos, float* ypos
 	float x = *xpos;
 	float y = *ypos;
 	stbtt_aligned_quad q;
-	stbtt_GetBakedQuad(font->cdata, font->atlas_width, font->atlas_height, codepoint - 32, &x, &y, &q, 1);
+	
+	if (font->is_sdf)
+	{
+		// stbtt_GetBakedQuad snaps to whole pixels, which shows up as uneven spacing once SDF text is magnified
+		const stbtt_bakedchar* glyph = &font->cdata[codepoint - 32];
+		q.x0 = x + glyph->xoff;
+		q.y0 = y + glyph->yoff;
+
+		q.x1 = q.x0 + (float)(glyph->x1 - glyph->x0);
+		q.y1 = q.y0 + (float)(glyph->y1 - glyph->y0);
+		
+		q.s0 = (float)glyph->x0 / (float)font->atlas_width;
+		q.t0 = (float)glyph->y0 / (float)font->atlas_height;
+		q.s1 = (float)glyph->x1 / (float)font->atlas_width;
+		q.t1 = (float)glyph->y1 / (float)font->atlas_height;
+		
+		x += glyph->xadvance;
+	}
+	else
+	{
+		stbtt_GetBakedQuad(font->cdata, font->atlas_width, font->atlas_height, codepoint - 32, &x, &y, &q, 1);
+	}
 
 	*x0 = start_x + (q.x0 - start_x) * scale;
 	*y0 = start_y + (q.y0 - start_y) * scale;

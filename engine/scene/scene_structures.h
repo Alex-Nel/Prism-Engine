@@ -414,6 +414,7 @@ typedef struct TextRendererComponent
     float size_scale;                     // 0 = hidden, 1 = default size, 2 = double size
     TextHorizontalAlign horizontal_align;
     TextVerticalAlign vertical_align;
+    bool is_lit;                          // false draws the exact text color, true shades it with the scene lights and shadows
     
     Mesh* dynamic_mesh;
     Material* material;

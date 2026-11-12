@@ -298,6 +298,7 @@ bool Scene_Save(Scene* scene, const char* filepath)
             cJSON_AddNumberToObject(comp_obj, "size_scale", text->size_scale);
             cJSON_AddNumberToObject(comp_obj, "horizontal_align", text->horizontal_align);
             cJSON_AddNumberToObject(comp_obj, "vertical_align", text->vertical_align);
+            cJSON_AddBoolToObject(comp_obj, "lit", text->is_lit);
         }
 
         // --- Save Local IBL Probes ---
@@ -777,6 +778,8 @@ bool Scene_Load(Scene* scene, const char* filepath)
                 if (h_align) text->horizontal_align = (TextHorizontalAlign)h_align->valueint;
                 cJSON* v_align = cJSON_GetObjectItemCaseSensitive(comp_obj, "vertical_align");
                 if (v_align) text->vertical_align = (TextVerticalAlign)v_align->valueint;
+                cJSON* lit = cJSON_GetObjectItemCaseSensitive(comp_obj, "lit");
+                if (lit) text->is_lit = cJSON_IsTrue(lit);
             }
         }
 

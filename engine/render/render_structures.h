@@ -380,7 +380,9 @@ enum
     RENDER_ITEM_TRANSPARENT     = 1u << 0,
     RENDER_ITEM_CAST_SHADOWS    = 1u << 1,
     RENDER_ITEM_RECEIVE_SHADOWS = 1u << 2,
-    RENDER_ITEM_PROBE_CAPTURE   = 1u << 3
+    RENDER_ITEM_PROBE_CAPTURE   = 1u << 3,
+    RENDER_ITEM_UNLIT           = 1u << 4,  // Forward only: outputs albedo * tint with no lighting or tone mapping
+    RENDER_ITEM_SDF_ALPHA       = 1u << 5   // Forward only: albedo alpha is a signed distance field (SDF fonts)
 };
 
 

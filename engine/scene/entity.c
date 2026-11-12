@@ -1174,6 +1174,7 @@ void Entity_AddTextRenderer(Entity entity)
     text->size_scale = 1.0f;
     text->horizontal_align = TEXT_ALIGN_H_CENTER;
     text->vertical_align = TEXT_ALIGN_V_CENTER;
+    text->is_lit = false;
     text->layout_hash = 0;
     
     // Re-adding keeps the existing GPU mesh and material instead of leaking them

@@ -111,6 +111,20 @@ static void EmitText(Scene* scene, uint32_t id, OverlayDrawList* list, float cli
     if (!text->is_active || !text->font || !text->font->texture_atlas || text->text[0] == '\0')
         return;
 
+    // The overlay shader reads atlas alpha as coverage, so an SDF atlas would draw as blurry blobs
+    if (text->font->is_sdf)
+    {
+        static bool warned = false;
+
+        if (!warned)
+        {
+            Log_Warning("UI text cannot use SDF font '%s'. Load a separate font with Asset_LoadFont for UI.", text->font->name);
+            warned = true;
+        }
+        
+        return;
+    }
+
     RectTransformComponent* rect = &scene->ui_rect_transforms[id];
     Font* font = text->font;
     float scale = font->size > 0.0f ? text->font_size / font->size : 1.0f;

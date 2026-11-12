@@ -663,7 +663,7 @@ EnvironmentMap* Asset_LoadEnvironmentMapFromSkybox(AssetManager* am, const char*
 
 
 // Loads a Font from disk
-Font* Asset_LoadFont(AssetManager* am, const char* name, const char* filepath, float pixel_height)
+static Font* Asset_LoadFontInternal(AssetManager* am, const char* name, const char* filepath, float pixel_height, bool sdf)
 {
     if (!am || !name || !filepath)
         return NULL;
@@ -690,7 +690,13 @@ Font* Asset_LoadFont(AssetManager* am, const char* name, const char* filepath, f
 
     ImageData atlas = {0};
     Font baked = {0};
-    if (!Font_BakeFromFile(&baked, filepath, pixel_height, &atlas))
+    bool baked_ok = false;
+    if (sdf)
+        baked_ok = Font_BakeSDFFromFile(&baked, filepath, pixel_height, &atlas);
+    else
+        baked_ok = Font_BakeFromFile(&baked, filepath, pixel_height, &atlas);
+
+    if (!baked_ok)
         return NULL;
 
     TextureHandle handle = Render_CreateTexture2D(am->renderer, atlas.pixels, atlas.width, atlas.height, atlas.channels);
@@ -707,6 +713,26 @@ Font* Asset_LoadFont(AssetManager* am, const char* name, const char* filepath, f
     font->texture_atlas = atlas_tex;
 
     return font;
+}
+
+
+
+
+
+// Loads a Font from disk
+Font* Asset_LoadFont(AssetManager* am, const char* name, const char* filepath, float pixel_height)
+{
+    return Asset_LoadFontInternal(am, name, filepath, pixel_height, false);
+}
+
+
+
+
+
+// Loads a Font from disk as signed distance fields for sharp world-space text. UI text cannot draw SDF fonts.
+Font* Asset_LoadFontSDF(AssetManager* am, const char* name, const char* filepath, float pixel_height)
+{
+    return Asset_LoadFontInternal(am, name, filepath, pixel_height, true);
 }
 
 

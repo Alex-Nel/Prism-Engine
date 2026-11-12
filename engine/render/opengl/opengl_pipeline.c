@@ -1770,6 +1770,8 @@ static void OpenGL_RenderCommandBatchMode(OpenGL_Backend* internal, uint32_t sta
 
         glUniformMatrix4fv(OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "u_Model"), 1, GL_FALSE, (float*)&cmd->transform);
         glUniform1f(OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "u_ReceiveShadows"), (!probe_capture && (cmd->flags & RENDER_ITEM_RECEIVE_SHADOWS)) ? 1.0f : 0.0f);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "u_Unlit"), (cmd->flags & RENDER_ITEM_UNLIT) ? 1 : 0);
+        glUniform1i(OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "u_SDFAlpha"), (cmd->flags & RENDER_ITEM_SDF_ALPHA) ? 1 : 0);
 
         GLint bone_loc = OpenGL_GetCachedUniformLocation(internal, gl_shader->program, "u_BoneMatrices");
         if (bone_loc != -1)

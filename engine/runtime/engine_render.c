@@ -557,6 +557,9 @@ uint32_t Engine_GatherVisibleGeometry(PrismEngine* engine, Scene* scene, Vector3
         item.local_bounds = text->dynamic_mesh->local_bounds;
         item.depth_distance = (dx * dx) + (dy * dy) + (dz * dz);
         item.flags = RENDER_ITEM_TRANSPARENT;
+        item.flags |= text->is_lit ? RENDER_ITEM_RECEIVE_SHADOWS : RENDER_ITEM_UNLIT;
+        if (text->scope.font && text->scope.font->is_sdf)
+            item.flags |= RENDER_ITEM_SDF_ALPHA;
         
         Extract_TryPush(out, max, &count, &item);
     }
