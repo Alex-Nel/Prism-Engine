@@ -285,8 +285,6 @@ void SpriteRenderer_SetSprite(SpriteRendererComponent* comp, Texture* sprite);
 
 // --- Text Renderer Functions ---
 
-void TextRenderer_SetText(TextRendererComponent* text, const char* value);
-void TextRenderer_SetFont(TextRendererComponent* text, Font* font);
 void TextRenderer_ReleaseResources(Entity entity);
 
 

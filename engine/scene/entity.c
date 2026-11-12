@@ -1170,10 +1170,7 @@ void Entity_AddTextRenderer(Entity entity)
     TextRendererComponent* text = &entity.scene->text_renderers[entity.id];
     text->entity = entity;
     text->is_active = true;
-    text->scope.text[0] = '\0';
-    text->scope.color = (Color){1.0f, 1.0f, 1.0f, 1.0f};
-    text->scope.font = NULL;
-    text->scope.font_size = 32.0f;
+    TextScope_Init(&text->scope);
     text->size_scale = 1.0f;
     text->horizontal_align = TEXT_ALIGN_H_CENTER;
     text->vertical_align = TEXT_ALIGN_V_CENTER;

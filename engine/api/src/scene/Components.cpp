@@ -400,13 +400,6 @@ namespace Prism
 
     static_assert(sizeof(Prism::TextScope) == sizeof(::TextScope), "Prism::TextScope must mirror the core TextScope layout");
     static_assert(sizeof(Prism::TextRendererComponent) == sizeof(::TextRendererComponent), "Prism::TextRendererComponent must mirror the core layout");
-    
-    void TextRendererComponent::SetText(const std::string& value) {
-        ::TextRenderer_SetText(reinterpret_cast<::TextRendererComponent*>(this), value.c_str());
-    }
-    void TextRendererComponent::SetFont(Prism::Font font) {
-        ::TextRenderer_SetFont(reinterpret_cast<::TextRendererComponent*>(this), static_cast<::Font*>(font.GetRaw()));
-    }
 
 
 

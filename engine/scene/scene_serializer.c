@@ -763,7 +763,7 @@ bool Scene_Load(Scene* scene, const char* filepath)
                 if (active) text->is_active = active->valueint != 0;
                 cJSON* text_json = cJSON_GetObjectItemCaseSensitive(comp_obj, "text");
                 if (text_json && cJSON_IsString(text_json))
-                    TextRenderer_SetText(text, text_json->valuestring);
+                    TextScope_SetText(&text->scope, text_json->valuestring);
                 cJSON* font_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "font_name");
                 if (font_name && cJSON_IsString(font_name))
                     text->scope.font = Asset_GetFontByName(am, font_name->valuestring);

@@ -609,7 +609,7 @@ namespace Prism
         Prism::Entity entity;
         bool is_active;
         Prism::TextScope text_scope;
-        float size_scale;                     // 0 = hidden, 1 = default size, 2 = double size
+        float size_scale;                         // 0 = hidden, 1 = default size, 2 = double size (clamped when drawn)
         TextHorizontalAlign horizontal_align;
         TextVerticalAlign vertical_align;
     private:
@@ -620,11 +620,6 @@ namespace Prism
     public:
         void SetActive(bool active) { this->is_active = active; }
         bool IsActive() const { return this->is_active; }
-        void SetText(const std::string& value);
-        void SetFont(Prism::Font font);
-        void SetColor(const Prism::Color& color) { this->text_scope.color = color; }
-        void SetFontSize(float font_size) { this->text_scope.font_size = font_size; }
-        std::string GetText() const { return this->text_scope.GetText(); }
     };
 
 

@@ -261,6 +261,48 @@ void Font_MeasureText(const Font* font, const char* text, float font_size, float
 
 
 
+
+// Resets a text scope to empty white text with no font at a 32px font size
+void TextScope_Init(TextScope* scope)
+{
+	if (!scope)
+		return;
+
+	scope->text[0] = '\0';
+	scope->color = (Color){1.0f, 1.0f, 1.0f, 1.0f};
+	scope->font = NULL;
+	scope->font_size = 32.0f;
+}
+
+
+
+
+
+// Copies text into the scope, truncating anything past MAX_TEXT_LENGTH - 1 characters. NULL clears the text.
+void TextScope_SetText(TextScope* scope, const char* text)
+{
+	if (!scope)
+		return;
+
+	if (!text)
+	{
+		scope->text[0] = '\0';
+		return;
+	}
+	
+	size_t length = strlen(text);
+	if (length > MAX_TEXT_LENGTH - 1)
+		length = MAX_TEXT_LENGTH - 1;
+	
+	// memmove so a substring of the scope's own buffer can be passed in
+	memmove(scope->text, text, length);
+	scope->text[length] = '\0';
+}
+
+
+
+
+
 // Builds one quad per visible glyph in the XY plane facing +Z, positioned around the origin by the alignment.
 uint32_t Font_BuildTextMesh(const TextScope* scope, TextHorizontalAlign horizontal_align, TextVerticalAlign vertical_align, float units_per_pixel, Vertex3D* out_vertices, uint32_t* out_indices, uint32_t max_glyphs)
 {

@@ -874,32 +874,6 @@ void SpriteRenderer_SetSprite(SpriteRendererComponent* comp, Texture* sprite)
 
 
 
-// Sets the text a text renderer draws
-void TextRenderer_SetText(TextRendererComponent* text, const char* value)
-{
-    if (!text)
-        return;
-
-    snprintf(text->scope.text, MAX_TEXT_LENGTH, "%s", value ? value : "");
-}
-
-
-
-
-
-// Sets the font of a text renderer. The material picks up the new atlas on the next scene update.
-void TextRenderer_SetFont(TextRendererComponent* text, Font* font)
-{
-    if (!text)
-        return;
-
-    text->scope.font = font;
-}
-
-
-
-
-
 // Frees the GPU mesh and material owned by a text renderer
 void TextRenderer_ReleaseResources(Entity entity)
 {

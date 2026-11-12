@@ -79,6 +79,12 @@ bool Font_GetGlyphQuad(const Font* font, int codepoint, float* xpos, float* ypos
 // Measures unwrapped text. If wrap_width > 0, wraps on spaces and reports wrapped size.
 void Font_MeasureText(const Font* font, const char* text, float font_size, float wrap_width, float* out_width, float* out_height);
 
+// Resets a text scope to empty white text with no font at a 32px font size
+void TextScope_Init(TextScope* scope);
+
+// Copies text into the scope, truncating anything past MAX_TEXT_LENGTH - 1 characters. NULL clears the text.
+void TextScope_SetText(TextScope* scope, const char* text);
+
 // Builds one quad per visible glyph in the XY plane facing +Z, positioned around the origin by the alignment.
 uint32_t Font_BuildTextMesh(const TextScope* scope, TextHorizontalAlign horizontal_align, TextVerticalAlign vertical_align, float units_per_pixel, Vertex3D* out_vertices, uint32_t* out_indices, uint32_t max_glyphs);
 
