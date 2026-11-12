@@ -33,6 +33,7 @@ namespace Prism
     struct BoneAttachmentComponent;
     struct LineRendererComponent;
     struct SpriteRendererComponent;
+    struct TextRendererComponent;
     struct ReflectionProbeComponent;
     struct UICanvasComponent;
     struct RectTransformComponent;
@@ -129,6 +130,7 @@ namespace Prism
         Prism::LineRendererComponent* AddLineRenderer();
         Prism::SpriteRendererComponent* AddSpriteRenderer();
         Prism::ReflectionProbeComponent* AddReflectionProbe();
+        Prism::TextRendererComponent* AddTextRenderer();
         Prism::UICanvasComponent* AddUICanvas();
         Prism::RectTransformComponent* AddRectTransform();
         Prism::UIImageComponent* AddUIImage();
@@ -152,6 +154,7 @@ namespace Prism
         Prism::BoneAttachmentComponent* GetBoneAttachment();
         Prism::LineRendererComponent* GetLineRenderer();
         Prism::SpriteRendererComponent* GetSpriteRenderer();
+        Prism::TextRendererComponent* GetTextRenderer();
         Prism::ReflectionProbeComponent* GetReflectionProbe();
         Prism::UICanvasComponent* GetUICanvas();
         Prism::RectTransformComponent* GetRectTransform();
@@ -176,6 +179,7 @@ namespace Prism
         std::vector<Prism::BoneAttachmentComponent*> GetBoneAttachmentsInChildren(bool recursive = true);
         std::vector<Prism::LineRendererComponent*> GetLineRenderersInChildren(bool recursive = true);
         std::vector<Prism::SpriteRendererComponent*> GetSpriteRenderersInChildren(bool recursive = true);
+        std::vector<Prism::TextRendererComponent*> GetTextRenderersInChildren(bool recursive = true);
         std::vector<Prism::ReflectionProbeComponent*> GetReflectionProbesInChildren(bool recursive = true);
         std::vector<Prism::UICanvasComponent*> GetUICanvasesInChildren(bool recursive = true);
         std::vector<Prism::RectTransformComponent*> GetRectTransformsInChildren(bool recursive = true);
@@ -198,6 +202,7 @@ namespace Prism
         Prism::BoneAttachmentComponent* GetBoneAttachmentInParent();
         Prism::LineRendererComponent* GetLineRendererInParent();
         Prism::SpriteRendererComponent* GetSpriteRendererInParent();
+        Prism::TextRendererComponent* GetTextRendererInParent();
         Prism::ReflectionProbeComponent* GetReflectionProbeInParent();
         Prism::UICanvasComponent* GetUICanvasInParent();
         Prism::RectTransformComponent* GetRectTransformInParent();
@@ -220,6 +225,7 @@ namespace Prism
         void RemoveAnimator();
         void RemoveLineRenderer();
         void RemoveSpriteRenderer();
+        void RemoveTextRenderer();
         void RemoveReflectionProbe();
         void RemoveUICanvas();
         void RemoveRectTransform();
@@ -483,6 +489,17 @@ namespace Prism
             static SpriteRendererComponent* Get(Entity& entity) { return entity.GetSpriteRenderer(); }
             static SpriteRendererComponent* Add(Entity& entity) { return entity.AddSpriteRenderer(); }
             static void Remove(Entity& entity) { entity.RemoveSpriteRenderer(); }
+        };
+
+        template<>
+        struct PRISM_API EntityComponentAccess<TextRendererComponent>
+        {
+            static constexpr bool supported = true;
+            static constexpr bool addable = true;
+            static constexpr bool removable = true;
+            static TextRendererComponent* Get(Entity& entity) { return entity.GetTextRenderer(); }
+            static TextRendererComponent* Add(Entity& entity) { return entity.AddTextRenderer(); }
+            static void Remove(Entity& entity) { entity.RemoveTextRenderer(); }
         };
 
         template<>

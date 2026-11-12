@@ -34,6 +34,7 @@ struct Material
     bool hasAOMap;
 
     vec3 tint;
+    float tintAlpha;
     float metallicFactor;
     float roughnessFactor;
 };
@@ -465,7 +466,8 @@ void main()
 {
     // Final Pixel Color
     vec4 texColor = texture(u_Material.diffuse, TexCoord);
-    if (texColor.a < 0.1)
+    float alpha = texColor.a * u_Material.tintAlpha;
+    if (alpha < 0.01)
         discard;
     float gamma = u_Gamma > 0.01 ? u_Gamma : 2.2;
     vec3 linearAlbedo = pow(texColor.rgb, vec3(gamma)) * u_Material.tint;
@@ -536,5 +538,5 @@ void main()
         totalLight = pow(totalLight, vec3(1.0 / gamma));
     }
 
-    FragColor = vec4(totalLight, texColor.a);
+    FragColor = vec4(totalLight, alpha);
 }

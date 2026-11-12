@@ -569,10 +569,11 @@ void Entity_RemoveComponent(Entity entity, ComponentMask component)
         }
     }
 
+    if ((component & COMPONENT_TEXT_RENDERER) && (entity.scene->component_masks[entity.id] & COMPONENT_TEXT_RENDERER))
+        TextRenderer_ReleaseResources(entity);
+
     if (component & COMPONENT_UI_RECT_TRANSFORM)
-    {
         component |= COMPONENT_UI_CANVAS | COMPONENT_UI_IMAGE | COMPONENT_UI_TEXT | COMPONENT_UI_BUTTON;
-    }
 
     Scene* scene = entity.scene;
     const ComponentMask ui_components = COMPONENT_UI_CANVAS | COMPONENT_UI_RECT_TRANSFORM | COMPONENT_UI_IMAGE | COMPONENT_UI_TEXT | COMPONENT_UI_BUTTON;
@@ -1151,6 +1152,35 @@ void Entity_AddSpriteRenderer(Entity entity)
 
 
 
+// Adds a 3D text renderer to an entity
+void Entity_AddTextRenderer(Entity entity)
+{
+    if (!Entity_IsValid(entity))
+        return;
+
+    TextRendererComponent* text = &entity.scene->text_renderers[entity.id];
+    text->entity = entity;
+    text->is_active = true;
+    text->scope.text[0] = '\0';
+    text->scope.color = (Color){1.0f, 1.0f, 1.0f, 1.0f};
+    text->scope.font = NULL;
+    text->scope.font_size = 32.0f;
+    text->size_scale = 1.0f;
+    text->horizontal_align = TEXT_ALIGN_H_CENTER;
+    text->vertical_align = TEXT_ALIGN_V_CENTER;
+    text->layout_hash = 0;
+    
+    // Re-adding keeps the existing GPU mesh and material instead of leaking them
+    if (!text->dynamic_mesh)
+        text->dynamic_mesh = Asset_CreateDynamicMesh(entity.scene->asset_manager, MAX_TEXT_LENGTH * 4, MAX_TEXT_LENGTH * 6);
+    
+    entity.scene->component_masks[entity.id] |= COMPONENT_TEXT_RENDERER;
+}
+
+
+
+
+
 // Adds a local reflection/irradiance probe volume.
 void Entity_AddReflectionProbe(Entity entity)
 {
@@ -1688,6 +1718,22 @@ SpriteRendererComponent* Entity_GetSpriteRenderer(Entity entity)
     if ((entity.scene->component_masks[entity.id] & COMPONENT_SPRITE_RENDERER) == COMPONENT_SPRITE_RENDERER)
         return &entity.scene->sprite_renderers[entity.id];
 
+    return NULL;
+}
+
+
+
+
+
+// Returns an entities text renderer
+TextRendererComponent* Entity_GetTextRenderer(Entity entity)
+{
+    if (!Entity_IsValid(entity))
+        return NULL;
+
+    if ((entity.scene->component_masks[entity.id] & COMPONENT_TEXT_RENDERER) == COMPONENT_TEXT_RENDERER)
+        return &entity.scene->text_renderers[entity.id];
+    
     return NULL;
 }
 

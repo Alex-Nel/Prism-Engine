@@ -284,6 +284,22 @@ bool Scene_Save(Scene* scene, const char* filepath)
 
         // TODO: add line and sprite renderers
 
+        // --- Save Text Renderer ---
+        if (scene->component_masks[i] & COMPONENT_TEXT_RENDERER)
+        {
+            TextRendererComponent* text = Entity_GetTextRenderer((Entity){i, scene});
+            cJSON* comp_obj = cJSON_AddObjectToObject(entity_obj, "text_renderer");
+            cJSON_AddBoolToObject(comp_obj, "active", text->is_active);
+            cJSON_AddStringToObject(comp_obj, "text", text->scope.text);
+            if (text->scope.font)
+                cJSON_AddStringToObject(comp_obj, "font_name", text->scope.font->name);
+            cJSON_AddItemToObject(comp_obj, "color", SaveColor(text->scope.color));
+            cJSON_AddNumberToObject(comp_obj, "font_size", text->scope.font_size);
+            cJSON_AddNumberToObject(comp_obj, "size_scale", text->size_scale);
+            cJSON_AddNumberToObject(comp_obj, "horizontal_align", text->horizontal_align);
+            cJSON_AddNumberToObject(comp_obj, "vertical_align", text->vertical_align);
+        }
+
         // --- Save Local IBL Probes ---
         if (scene->component_masks[i] & COMPONENT_REFLECTION_PROBE)
         {
@@ -734,6 +750,35 @@ bool Scene_Load(Scene* scene, const char* filepath)
 
 
         // TODO: Add sprite and line renderers
+
+        // --- Loads a Text Renderer ---
+        if (mask & COMPONENT_TEXT_RENDERER)
+        {
+            cJSON* comp_obj = cJSON_GetObjectItemCaseSensitive(entity_json, "text_renderer");
+            Entity_AddTextRenderer(e);
+            TextRendererComponent* text = Entity_GetTextRenderer(e);
+            if (comp_obj && text)
+            {
+                cJSON* active = cJSON_GetObjectItemCaseSensitive(comp_obj, "active");
+                if (active) text->is_active = active->valueint != 0;
+                cJSON* text_json = cJSON_GetObjectItemCaseSensitive(comp_obj, "text");
+                if (text_json && cJSON_IsString(text_json))
+                    TextRenderer_SetText(text, text_json->valuestring);
+                cJSON* font_name = cJSON_GetObjectItemCaseSensitive(comp_obj, "font_name");
+                if (font_name && cJSON_IsString(font_name))
+                    text->scope.font = Asset_GetFontByName(am, font_name->valuestring);
+                cJSON* color = cJSON_GetObjectItemCaseSensitive(comp_obj, "color");
+                if (color) text->scope.color = LoadColor(color);
+                cJSON* font_size = cJSON_GetObjectItemCaseSensitive(comp_obj, "font_size");
+                if (font_size) text->scope.font_size = (float)font_size->valuedouble;
+                cJSON* size_scale = cJSON_GetObjectItemCaseSensitive(comp_obj, "size_scale");
+                if (size_scale) TextRenderer_SetSizeScale(text, (float)size_scale->valuedouble);
+                cJSON* h_align = cJSON_GetObjectItemCaseSensitive(comp_obj, "horizontal_align");
+                if (h_align) text->horizontal_align = (TextHorizontalAlign)h_align->valueint;
+                cJSON* v_align = cJSON_GetObjectItemCaseSensitive(comp_obj, "vertical_align");
+                if (v_align) text->vertical_align = (TextVerticalAlign)v_align->valueint;
+            }
+        }
 
 
         // --- Load Local IBL Probes ---

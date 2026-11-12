@@ -36,6 +36,7 @@ void Scene_UpdateScripts(Scene* scene);
 void Scene_FixedUpdateScripts(Scene* scene);
 void Scene_UpdateAudio(Scene* scene);
 void Scene_UpdateLineRenderers(Scene* scene);
+void Scene_UpdateTextRenderers(Scene* scene);
 void Scene_UpdateAnimators(Scene* scene);
 void Scene_UpdateSkinnedMeshBounds(Scene* scene);
 void Scene_UpdateBoneAttachments(Scene* scene);
@@ -132,6 +133,7 @@ void Entity_AddAnimator(Entity entity);
 void Entity_AddBoneAttachment(Entity entity);
 void Entity_AddLineRenderer(Entity entity);
 void Entity_AddSpriteRenderer(Entity entity);
+void Entity_AddTextRenderer(Entity entity);
 void Entity_AddReflectionProbe(Entity entity);
 void Entity_AddUICanvas(Entity entity);
 void Entity_AddRectTransform(Entity entity);
@@ -164,6 +166,7 @@ AnimatorComponent* Entity_GetAnimator(Entity entity);
 BoneAttachmentComponent* Entity_GetBoneAttachment(Entity entity);
 LineRendererComponent* Entity_GetLineRenderer(Entity entity);
 SpriteRendererComponent* Entity_GetSpriteRenderer(Entity entity);
+TextRendererComponent* Entity_GetTextRenderer(Entity entity);
 ReflectionProbeComponent* Entity_GetReflectionProbe(Entity entity);
 UICanvasComponent* Entity_GetUICanvas(Entity entity);
 RectTransformComponent* Entity_GetRectTransform(Entity entity);
@@ -277,6 +280,16 @@ void LineRenderer_SetPoints(LineRendererComponent* line, Vector3* points, uint32
 // --- Sprite Renderer Function ---
 
 void SpriteRenderer_SetSprite(SpriteRendererComponent* comp, Texture* sprite);
+
+
+
+// --- Text Renderer Functions ---
+
+void TextRenderer_SetText(TextRendererComponent* text, const char* value);
+void TextRenderer_SetFont(TextRendererComponent* text, Font* font);
+void TextRenderer_SetSizeScale(TextRendererComponent* text, float size_scale);
+void TextRenderer_SetAlignment(TextRendererComponent* text, TextHorizontalAlign horizontal, TextVerticalAlign vertical);
+void TextRenderer_ReleaseResources(Entity entity);
 
 
 

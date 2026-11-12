@@ -314,6 +314,7 @@ static void Engine_AdvanceSceneState(PrismEngine* engine, bool update_text_input
         Scene_UpdateBoneAttachments(engine->active_scene);
         Scene_UpdateSkinnedMeshBounds(engine->active_scene);
         Scene_UpdateLineRenderers(engine->active_scene);
+        Scene_UpdateTextRenderers(engine->active_scene);
     }
 
     if (update_text_input)

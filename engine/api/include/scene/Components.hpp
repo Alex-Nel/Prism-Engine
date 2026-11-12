@@ -600,6 +600,38 @@ namespace Prism
 
 
     // ==========================================
+    // Text Renderer Wrapper
+    // ==========================================
+
+    struct PRISM_API TextRendererComponent
+    {
+    public:
+        Prism::Entity entity;
+        bool is_active;
+        Prism::TextScope scope;
+        float size_scale;                     // 0 = hidden, 1 = default size, 2 = double size
+        TextHorizontalAlign horizontal_align;
+        TextVerticalAlign vertical_align;
+    private:
+        void* raw_dynamic_mesh;
+        void* raw_material;
+        uint32_t layout_hash;
+        
+    public:
+        void SetActive(bool active) { this->is_active = active; }
+        bool IsActive() const { return this->is_active; }
+        void SetText(const std::string& value);
+        void SetFont(Prism::Font font);
+        void SetColor(const Prism::Color& color) { this->scope.color = color; }
+        void SetFontSize(float font_size) { this->scope.font_size = font_size; }
+        void SetSizeScale(float scale);
+        void SetAlignment(TextHorizontalAlign horizontal, TextVerticalAlign vertical);
+        std::string GetText() const { return this->scope.GetText(); }
+    };
+
+
+
+    // ==========================================
     // Local Reflection / Irradiance Probe
     // ==========================================
 

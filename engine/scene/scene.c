@@ -73,18 +73,23 @@ void Scene_Init(Scene* scene)
 // Clears a scene
 void Scene_Clear(Scene* scene)
 {
-    if (!scene) return;
+    if (!scene)
+        return;
 
     for (uint32_t i = 0; i < MAX_ENTITIES; i++)
     {
-        if (!scene->is_active_in_hierarchy[i]) continue;
-
         Entity e = { i, scene };
 
         // Dismantle physics components
         if (scene->component_masks[i] & COMPONENT_COLLIDER)
             Entity_RemovePhysics(e); 
 
+        // Disabled entities are skipped, but their text GPU resources still have to go
+        if (scene->component_masks[i] & COMPONENT_TEXT_RENDERER)
+            TextRenderer_ReleaseResources(e);
+
+        if (!scene->is_active_in_hierarchy[i])
+            continue;
 
         // Free any custom script memory
         if (scene->component_masks[i] & COMPONENT_SCRIPT)
@@ -390,6 +395,9 @@ void Scene_Update(Scene* scene)
 
     // Update all line renderers
     Scene_UpdateLineRenderers(scene);
+
+    // Rebuild any text renderers whose layout changed
+    Scene_UpdateTextRenderers(scene);
 
     // Update all audio components
     Scene_UpdateAudio(scene);
@@ -743,6 +751,99 @@ void Scene_UpdateLineRenderers(Scene* scene)
         free(processed_points);
         free(temp_verts);
         free(temp_indices);
+    }
+}
+
+
+
+
+
+// Folds raw bytes into an FNV-1a hash
+static uint32_t HashBytes(uint32_t hash, const void* data, size_t size)
+{
+    const uint8_t* bytes = (const uint8_t*)data;
+    
+    for (size_t i = 0; i < size; i++)
+    {
+        hash ^= bytes[i];
+        hash *= 16777619u;
+    }
+
+    return hash;
+}
+
+
+
+
+
+// Hashes every input that affects a text renderer's glyph mesh
+static uint32_t TextRenderer_LayoutHash(const TextRendererComponent* text)
+{
+    uint32_t hash = HashBytes(2166136261u, text->scope.text, strlen(text->scope.text));
+
+    hash = HashBytes(hash, &text->scope.font, sizeof(text->scope.font));
+    hash = HashBytes(hash, &text->scope.font_size, sizeof(text->scope.font_size));
+    hash = HashBytes(hash, &text->horizontal_align, sizeof(text->horizontal_align));
+    hash = HashBytes(hash, &text->vertical_align, sizeof(text->vertical_align));
+    
+    return hash;
+}
+
+
+
+
+
+// Keeps text renderer materials in sync with their font and rebuilds glyph meshes only when the layout changed
+void Scene_UpdateTextRenderers(Scene* scene)
+{
+    if (!scene)
+        return;
+
+    AssetManager* am = scene->asset_manager;
+    
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i])
+            continue;
+
+        if (!(scene->component_masks[i] & COMPONENT_TEXT_RENDERER))
+            continue;
+        
+        TextRendererComponent* text = &scene->text_renderers[i];
+        if (!text->dynamic_mesh)
+            continue;
+        
+        // Scripts can write the text buffer directly, so never trust it to be terminated
+        text->scope.text[MAX_TEXT_LENGTH - 1] = '\0';
+        
+        Font* font = text->scope.font;
+        if (font && font->texture_atlas)
+        {
+            if (!text->material)
+            {
+                text->material = Asset_CreateMaterial(am, "TextRendererMat", font->texture_atlas, NULL);
+            }
+            else if (text->material->albedo_texture != font->texture_atlas)
+            {
+                text->material->albedo_texture = font->texture_atlas;
+                Asset_SyncMaterialGPU(am, text->material);
+            }
+        }
+
+        uint32_t hash = TextRenderer_LayoutHash(text);
+        if (hash == text->layout_hash)
+            continue;
+        
+        text->layout_hash = hash;
+        
+        Vertex3D vertices[MAX_TEXT_LENGTH * 4];
+        uint32_t indices[MAX_TEXT_LENGTH * 6];
+        uint32_t glyph_count = Font_BuildTextMesh(&text->scope, text->horizontal_align, text->vertical_align, TEXT_RENDERER_UNITS_PER_PIXEL, vertices, indices, MAX_TEXT_LENGTH);
+
+        // An empty update leaves the GPU buffers untouched, so the zero index count is what hides the old glyphs
+        Asset_UpdateDynamicMesh(am, text->dynamic_mesh, vertices, glyph_count * 4, indices, glyph_count * 6);
+        if (glyph_count > 0)
+            text->dynamic_mesh->local_bounds = Mesh_CalculateAABB(vertices, glyph_count * 4);
     }
 }
 

@@ -256,3 +256,96 @@ void Font_MeasureText(const Font* font, const char* text, float font_size, float
 	if (out_height)
 		*out_height = height;
 }
+
+
+
+
+
+// Builds one quad per visible glyph in the XY plane facing +Z, positioned around the origin by the alignment.
+uint32_t Font_BuildTextMesh(const TextScope* scope, TextHorizontalAlign horizontal_align, TextVerticalAlign vertical_align, float units_per_pixel, Vertex3D* out_vertices, uint32_t* out_indices, uint32_t max_glyphs)
+{
+	if (!scope || !scope->font || !out_vertices || !out_indices || max_glyphs == 0)
+		return 0;
+
+	const Font* font = scope->font;
+	float scale = (font->size > 0.0f) ? (scope->font_size / font->size) : 1.0f;
+	float line_height = font->line_height * scale;
+	if (line_height <= 0.0f)
+		line_height = scope->font_size;
+	
+	uint32_t line_count = 1;
+	for (const char* p = scope->text; *p; p++)
+	{
+		if (*p == '\n')
+			line_count++;
+	}
+
+	// Layout happens in Y-down pixel space with the top of the block at y = 0
+	float block_height = line_height * (float)line_count;
+	float offset_y = 0.0f;
+	if (vertical_align == TEXT_ALIGN_V_CENTER)
+		offset_y = -block_height * 0.5f;
+	else if (vertical_align == TEXT_ALIGN_V_BOTTOM)
+		offset_y = -block_height;
+
+	uint32_t glyph_count = 0;
+	float baseline = font->ascent * scale + offset_y;
+	const char* line_start = scope->text;
+	
+	while (glyph_count < max_glyphs)
+	{
+		const char* line_end = line_start;
+		float line_width = 0.0f;
+
+		while (*line_end && *line_end != '\n')
+		{
+			line_width += Font_GlyphAdvance(font, (unsigned char)*line_end, scale);
+			line_end++;
+		}
+		
+		float cursor_x = 0.0f;
+		if (horizontal_align == TEXT_ALIGN_H_CENTER)
+			cursor_x = -line_width * 0.5f;
+		else if (horizontal_align == TEXT_ALIGN_H_RIGHT)
+			cursor_x = -line_width;
+		
+		for (const char* c = line_start; c < line_end && glyph_count < max_glyphs; c++)
+		{
+			float x0, y0, x1, y1, u0, v0, u1, v1;
+			float ypos = baseline;
+			if (!Font_GetGlyphQuad(font, (unsigned char)*c, &cursor_x, &ypos, scale, &x0, &y0, &x1, &y1, &u0, &v0, &u1, &v1))
+				continue;
+
+			// Whitespace only advances the cursor
+			if (x1 <= x0 || y1 <= y0)
+				continue;
+			
+			// Pixel space is Y-down while world space is Y-up, so pixel y0 (glyph top) becomes the higher world y
+			float left = x0 * units_per_pixel;
+			float right = x1 * units_per_pixel;
+			float top = -y0 * units_per_pixel;
+			float bottom = -y1 * units_per_pixel;
+			
+			uint32_t base = glyph_count * 4;
+			Vertex3D* v = &out_vertices[base];
+			v[0] = (Vertex3D){ {left,  bottom, 0.0f}, {0.0f, 0.0f, 1.0f}, {u0, v1}, {1.0f, 0.0f, 0.0f} };
+			v[1] = (Vertex3D){ {right, bottom, 0.0f}, {0.0f, 0.0f, 1.0f}, {u1, v1}, {1.0f, 0.0f, 0.0f} };
+			v[2] = (Vertex3D){ {right, top,    0.0f}, {0.0f, 0.0f, 1.0f}, {u1, v0}, {1.0f, 0.0f, 0.0f} };
+			v[3] = (Vertex3D){ {left,  top,    0.0f}, {0.0f, 0.0f, 1.0f}, {u0, v0}, {1.0f, 0.0f, 0.0f} };
+			
+			uint32_t* idx = &out_indices[glyph_count * 6];
+			idx[0] = base;     idx[1] = base + 1; idx[2] = base + 2;
+			idx[3] = base + 2; idx[4] = base + 3; idx[5] = base;
+
+			glyph_count++;
+		}
+
+		if (*line_end == '\0')
+			break;
+		
+		line_start = line_end + 1;
+		baseline += line_height;
+	}
+	
+	return glyph_count;
+}

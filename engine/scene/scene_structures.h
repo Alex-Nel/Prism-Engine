@@ -48,13 +48,14 @@ typedef enum
     COMPONENT_BONE_ATTACHMENT          = 1 << 12,
     COMPONENT_LINE_RENDERER            = 1 << 13,
     COMPONENT_SPRITE_RENDERER          = 1 << 14,
-    COMPONENT_REFLECTION_PROBE         = 1 << 15,
-    COMPONENT_UI_CANVAS                = 1 << 16,
-    COMPONENT_UI_RECT_TRANSFORM        = 1 << 17,
-    COMPONENT_UI_IMAGE                 = 1 << 18,
-    COMPONENT_UI_TEXT                  = 1 << 19,
-    COMPONENT_UI_BUTTON                = 1 << 20,
-    COMPONENT_SCRIPT                   = 1 << 21
+    COMPONENT_TEXT_RENDERER            = 1 << 15,
+    COMPONENT_REFLECTION_PROBE         = 1 << 16,
+    COMPONENT_UI_CANVAS                = 1 << 17,
+    COMPONENT_UI_RECT_TRANSFORM        = 1 << 18,
+    COMPONENT_UI_IMAGE                 = 1 << 19,
+    COMPONENT_UI_TEXT                  = 1 << 20,
+    COMPONENT_UI_BUTTON                = 1 << 21,
+    COMPONENT_SCRIPT                   = 1 << 22
 } ComponentMask;
 
 
@@ -400,6 +401,27 @@ typedef struct SpriteRendererComponent
 
 
 
+// World units covered by one pixel of font size (font_size 100 is one unit tall at size_scale 1)
+#define TEXT_RENDERER_UNITS_PER_PIXEL 0.01f
+
+// Renders a text scope in 3D space, aligned around the entity's origin
+typedef struct TextRendererComponent
+{
+    Entity entity;
+    bool is_active;
+
+    TextScope scope;
+    float size_scale;                     // 0 = hidden, 1 = default size, 2 = double size
+    TextHorizontalAlign horizontal_align;
+    TextVerticalAlign vertical_align;
+    
+    Mesh* dynamic_mesh;
+    Material* material;
+    uint32_t layout_hash;                 // The glyph mesh is rebuilt when this no longer matches the layout inputs
+} TextRendererComponent;
+
+
+
 // A local IBL volume. Its radiance cubemap is captured once and regenerated whenever the probe revision changes.
 typedef struct ReflectionProbeComponent
 {
@@ -671,6 +693,7 @@ typedef struct Scene
     BoneAttachmentComponent bone_attachments[MAX_ENTITIES];
     LineRendererComponent line_renderers[MAX_ENTITIES];
     SpriteRendererComponent sprite_renderers[MAX_ENTITIES];
+    TextRendererComponent text_renderers[MAX_ENTITIES];
     ReflectionProbeComponent reflection_probes[MAX_ENTITIES];
     
     UICanvasComponent ui_canvases[MAX_ENTITIES];

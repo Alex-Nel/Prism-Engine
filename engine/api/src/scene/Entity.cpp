@@ -191,6 +191,10 @@ namespace Prism
         ::Entity_AddSpriteRenderer(ToCore(*this));
         return this->GetSpriteRenderer();
     }
+    Prism::TextRendererComponent* Entity::AddTextRenderer() {
+        ::Entity_AddTextRenderer(ToCore(*this));
+        return this->GetTextRenderer();
+    }
     Prism::ReflectionProbeComponent* Entity::AddReflectionProbe() {
         ::Entity_AddReflectionProbe(ToCore(*this));
         return this->GetReflectionProbe();
@@ -265,6 +269,9 @@ namespace Prism
     }
     Prism::SpriteRendererComponent* Entity::GetSpriteRenderer() {
         return reinterpret_cast<Prism::SpriteRendererComponent*>(::Entity_GetSpriteRenderer(ToCore(*this)));
+    }
+    Prism::TextRendererComponent* Entity::GetTextRenderer() {
+        return reinterpret_cast<Prism::TextRendererComponent*>(::Entity_GetTextRenderer(ToCore(*this)));
     }
     Prism::ReflectionProbeComponent* Entity::GetReflectionProbe() {
         return reinterpret_cast<Prism::ReflectionProbeComponent*>(::Entity_GetReflectionProbe(ToCore(*this)));
@@ -442,6 +449,18 @@ namespace Prism
         for (Prism::Entity& child : children)
         {
             Prism::SpriteRendererComponent* comp = child.GetSpriteRenderer();
+            if (comp != nullptr) result.push_back(comp);
+        }
+        return result;
+    }
+
+    std::vector<Prism::TextRendererComponent*> Entity::GetTextRenderersInChildren(bool recursive) {
+        std::vector<Prism::TextRendererComponent*> result;
+        std::vector<Prism::Entity> children = GetChildren(recursive);
+
+        for (Prism::Entity& child : children)
+        {
+            Prism::TextRendererComponent* comp = child.GetTextRenderer();
             if (comp != nullptr) result.push_back(comp);
         }
         return result;
@@ -708,6 +727,20 @@ namespace Prism
         return nullptr; // Not found in any parent
     }
 
+    Prism::TextRendererComponent* Entity::GetTextRendererInParent() {
+        Prism::Entity current = this->GetParent();
+
+        // Walk up the tree until we hit the root
+        while (current.IsValid())
+        {
+            Prism::TextRendererComponent* comp = current.GetTextRenderer();
+            if (comp != nullptr) return comp;
+
+            current = current.GetParent(); // Move up one level
+        }
+        return nullptr; // Not found in any parent
+    }
+
     Prism::ReflectionProbeComponent* Entity::GetReflectionProbeInParent() {
         Prism::Entity current = this->GetParent();
 
@@ -830,6 +863,9 @@ namespace Prism
     }
     void Entity::RemoveSpriteRenderer() {
         ::Entity_RemoveComponent(ToCore(*this), COMPONENT_SPRITE_RENDERER);
+    }
+    void Entity::RemoveTextRenderer() {
+        ::Entity_RemoveComponent(ToCore(*this), COMPONENT_TEXT_RENDERER);
     }
     void Entity::RemoveReflectionProbe() {
         ::Entity_RemoveComponent(ToCore(*this), COMPONENT_REFLECTION_PROBE);

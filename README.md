@@ -21,17 +21,17 @@ A 3D engine aimed at being minimal, yet comprehensive for real projects. It incl
 ```
 Prism Engine/
 ├── engine/                 # Core engine library
-│	├── api/                # Headers and implementation for the C++ API
-│	├── assets/             # Asset manager (models, materials, textures, shaders, fonts)
-│	├── audio/              # Audio clip and source Management
-│	├── core/               # Core utilities: Events, Time, Log, I/O, Color, Math, Mesh, Input, UI
-│	├── platform/           # Windowing and OS management
-│	├── render/             # Renderer interface and backend implementation
-│	├── runtime/            # Engine runtime for initialization, main loop, and basic utilities
-│	└── scene/              # Scene system, Components, UI overlays, serialization, and physics integration
+│   ├── api/                # Headers and implementation for the C++ API
+│   ├── assets/             # Asset manager (models, materials, textures, shaders, fonts)
+│   ├── audio/              # Audio clip and source Management
+│   ├── core/               # Core utilities: Events, Time, Log, I/O, Color, Math, Mesh, Input, UI
+│   ├── platform/           # Windowing and OS management
+│   ├── render/             # Renderer interface and backend implementation
+│   ├── runtime/            # Engine runtime for initialization, main loop, and basic utilities
+│   └── scene/              # Scene system, Components, UI overlays, serialization, and physics integration
 ├── external/               # Vendored third-party headers - GLAD, CJSON, miniaudio, nuklear, stb_image, stb_truetype
 ├── tools/                  # Developer tools built on the engine
-│	└── editor/             # Editor application
+│   └── editor/             # Editor application
 └── CMakeLists.txt          # CMake build script
 ```
 

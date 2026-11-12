@@ -522,6 +522,45 @@ uint32_t Engine_GatherVisibleGeometry(PrismEngine* engine, Scene* scene, Vector3
         Extract_TryPush(out, max, &count, &item);
     }
 
+
+
+    // --- Text Renderers ---
+    uint32_t req_text_mask = COMPONENT_TRANSFORM | COMPONENT_TEXT_RENDERER;
+    for (uint32_t i = 0; i < MAX_ENTITIES; i++)
+    {
+        if (!scene->is_active_in_hierarchy[i] || (scene->component_masks[i] & req_text_mask) != req_text_mask)
+            continue;
+
+        TextRendererComponent* text = &scene->text_renderers[i];
+        if (!text->is_active || text->size_scale <= 0.0f || !text->dynamic_mesh || !text->material || text->dynamic_mesh->index_count == 0)
+            continue;
+        
+        Transform* t = &scene->transforms[i];
+        
+        Vector3 text_pos = Transform_GetGlobalPosition(t);
+        float dx = cam_pos.x - text_pos.x;
+        float dy = cam_pos.y - text_pos.y;
+        float dz = cam_pos.z - text_pos.z;
+        float size_scale = text->size_scale > 2.0f ? 2.0f : text->size_scale;
+        
+        Matrix4 scale_matrix = Matrix4Identity();
+        scale_matrix.m00 = size_scale;
+        scale_matrix.m11 = size_scale;
+        scale_matrix.m22 = size_scale;
+        
+        RenderItem item = {0};
+        
+        item.mesh = text->dynamic_mesh->gpu_handle;
+        RenderItem_SetMaterial(am, &item, text->material);
+        item.color = text->scope.color;
+        item.transform = Matrix4Multiply(t->world_matrix, scale_matrix);
+        item.local_bounds = text->dynamic_mesh->local_bounds;
+        item.depth_distance = (dx * dx) + (dy * dy) + (dz * dz);
+        item.flags = RENDER_ITEM_TRANSPARENT;
+        
+        Extract_TryPush(out, max, &count, &item);
+    }
+
     return count;
 }
 

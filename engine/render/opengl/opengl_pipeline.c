@@ -563,6 +563,10 @@ static void OpenGL_ApplyMaterial(OpenGL_Backend* internal, GLuint program, Mater
 
     const char* tint_name = gbuffer_tint ? "u_Material.albedoTint" : "u_Material.tint";
     glUniform3fv(OpenGL_GetCachedUniformLocation(internal, program, tint_name), 1, (float*)&instance_color);
+
+    // Kept separate from the vec3 tint so custom forward shaders without it keep working
+    if (!gbuffer_tint)
+        glUniform1f(OpenGL_GetCachedUniformLocation(internal, program, "u_Material.tintAlpha"), instance_color.a);
 }
 
 

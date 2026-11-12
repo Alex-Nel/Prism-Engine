@@ -395,6 +395,28 @@ namespace Prism
 
 
     // ==========================================
+    // Text Renderer Implementation
+    // ==========================================
+
+    static_assert(sizeof(Prism::TextScope) == sizeof(::TextScope), "Prism::TextScope must mirror the core TextScope layout");
+    static_assert(sizeof(Prism::TextRendererComponent) == sizeof(::TextRendererComponent), "Prism::TextRendererComponent must mirror the core layout");
+    
+    void TextRendererComponent::SetText(const std::string& value) {
+        ::TextRenderer_SetText(reinterpret_cast<::TextRendererComponent*>(this), value.c_str());
+    }
+    void TextRendererComponent::SetFont(Prism::Font font) {
+        ::TextRenderer_SetFont(reinterpret_cast<::TextRendererComponent*>(this), static_cast<::Font*>(font.GetRaw()));
+    }
+    void TextRendererComponent::SetSizeScale(float scale) {
+        ::TextRenderer_SetSizeScale(reinterpret_cast<::TextRendererComponent*>(this), scale);
+    }
+    void TextRendererComponent::SetAlignment(TextHorizontalAlign horizontal, TextVerticalAlign vertical) {
+        ::TextRenderer_SetAlignment(reinterpret_cast<::TextRendererComponent*>(this), static_cast<::TextHorizontalAlign>(horizontal), static_cast<::TextVerticalAlign>(vertical));
+    }
+
+
+
+    // ==========================================
     // Reflection Probe Component Implementation
     // ==========================================
 

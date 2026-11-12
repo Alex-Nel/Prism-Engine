@@ -30,6 +30,43 @@ typedef struct Font
 
 
 
+#define MAX_TEXT_LENGTH 256
+
+
+
+// Horizontal placement of each text line relative to the origin
+typedef enum TextHorizontalAlign
+{
+	TEXT_ALIGN_H_LEFT = 0,
+	TEXT_ALIGN_H_CENTER = 1,
+	TEXT_ALIGN_H_RIGHT = 2
+} TextHorizontalAlign;
+
+
+
+// Vertical placement of the whole text block relative to the origin
+typedef enum TextVerticalAlign
+{
+	TEXT_ALIGN_V_TOP = 0,
+	TEXT_ALIGN_V_CENTER = 1,
+	TEXT_ALIGN_V_BOTTOM = 2
+} TextVerticalAlign;
+
+
+
+// Describes a piece of text and how it should look. Field order is mirrored by Prism::TextScope.
+typedef struct TextScope
+{
+	char text[MAX_TEXT_LENGTH];
+	Color color;
+	Font* font;
+	float font_size;
+} TextScope;
+
+
+
+
+
 // Bakes ASCII 32-126 into an RGBA atlas.
 bool Font_Bake(Font* font, const unsigned char* ttf_data, int ttf_size, float pixel_height, const char* name, ImageData* out_atlas);
 
@@ -41,6 +78,11 @@ bool Font_GetGlyphQuad(const Font* font, int codepoint, float* xpos, float* ypos
 
 // Measures unwrapped text. If wrap_width > 0, wraps on spaces and reports wrapped size.
 void Font_MeasureText(const Font* font, const char* text, float font_size, float wrap_width, float* out_width, float* out_height);
+
+// Builds one quad per visible glyph in the XY plane facing +Z, positioned around the origin by the alignment.
+uint32_t Font_BuildTextMesh(const TextScope* scope, TextHorizontalAlign horizontal_align, TextVerticalAlign vertical_align, float units_per_pixel, Vertex3D* out_vertices, uint32_t* out_indices, uint32_t max_glyphs);
+
+
 
 
 
