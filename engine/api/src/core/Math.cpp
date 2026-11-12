@@ -185,10 +185,6 @@ namespace Prism
         return m;
     }
 
-    Matrix4::Matrix4() {
-        *this = Identity();
-    }
-
     Matrix4 Matrix4::operator*(const Matrix4& b) const {
         return FromCore(::Matrix4Multiply(ToCore(*this), ToCore(b)));
     }
@@ -228,7 +224,7 @@ namespace Prism
     }
 
     Matrix4 Matrix4::Identity() {
-        return FromCore(::Matrix4Identity());
+        return Matrix4();
     }
     Matrix4 Matrix4::Translate(const Vector3& t) {
         return FromCore(::Matrix4Translate({t.x, t.y, t.z}));
