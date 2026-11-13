@@ -157,6 +157,7 @@ bool Scene_Save(Scene* scene, const char* filepath)
             cJSON_AddNumberToObject(comp_obj, "nearZ", cam->nearZ);
             cJSON_AddNumberToObject(comp_obj, "farZ", cam->farZ);
             cJSON_AddNumberToObject(comp_obj, "culling_masks", cam->culling_masks);
+            cJSON_AddNumberToObject(comp_obj, "clear_flags", (int)cam->clear_flags);
         }
 
 
@@ -522,6 +523,8 @@ bool Scene_Load(Scene* scene, const char* filepath)
             cam->farZ = (float)cJSON_GetObjectItemCaseSensitive(comp_obj, "farZ")->valuedouble;
             cJSON* cull_json = cJSON_GetObjectItemCaseSensitive(comp_obj, "culling_masks");
             cam->culling_masks = cull_json ? (uint32_t)cull_json->valueint : ALL_LAYERS_MASK;
+            cJSON* clear_json = cJSON_GetObjectItemCaseSensitive(comp_obj, "clear_flags");
+            cam->clear_flags = clear_json ? (CameraClearFlags)clear_json->valueint : (CLEAR_COLOR | CLEAR_DEPTH);
             cam->is_dirty = true;
         }
 

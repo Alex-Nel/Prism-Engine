@@ -365,9 +365,10 @@ typedef struct RenderEnvironmentMapDesc
 // What the backend should wipe before drawing this view
 typedef enum RenderClearFlags
 {
-    RENDER_CLEAR_COLOR_AND_DEPTH = 0,
-    RENDER_CLEAR_DEPTH_ONLY = 1,
-    RENDER_CLEAR_NONE = 2
+    RENDER_CLEAR_NONE    = 0,
+    RENDER_CLEAR_COLOR   = 1 << 0,
+    RENDER_CLEAR_DEPTH   = 1 << 1,
+    RENDER_CLEAR_STENCIL = 1 << 2
 } RenderClearFlags;
 
 

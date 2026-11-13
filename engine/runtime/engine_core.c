@@ -187,7 +187,6 @@ void Engine_Shutdown(PrismEngine* engine)
 
     // Shutdown the asset manager
     Asset_Shutdown(engine->asset_manager);
-    engine->asset_manager;
 
     UI_Shutdown();
 

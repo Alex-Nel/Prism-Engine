@@ -689,7 +689,7 @@ void Engine_BuildRenderFrame(PrismEngine* engine, Scene* scene, RenderFrame* fra
         view_slot->view.view_matrix = Matrix4Inverse(cam_transform->world_matrix);
         view_slot->view.projection_matrix = cam_comp->projection_matrix;
         view_slot->view.camera_pos = global_pos;
-        view_slot->view.has_env_map = (cam_comp->clear_flags == CLEAR_COLOR_AND_DEPTH) ? scene->has_env_map : false;
+        view_slot->view.has_env_map = (cam_comp->clear_flags & CLEAR_COLOR) ? scene->has_env_map : false;
         view_slot->view.window_width = viewport_w;
         view_slot->view.window_height = viewport_h;
         view_slot->view.clear_flags = (RenderClearFlags)cam_comp->clear_flags;

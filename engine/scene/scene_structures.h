@@ -173,10 +173,12 @@ typedef struct SkinnedMeshRendererComponent
 
 
 // Defines what the camera wipes before drawing
-typedef enum CameraClearFlags {
-    CLEAR_COLOR_AND_DEPTH = 0,
-    CLEAR_DEPTH_ONLY = 1,
-    CLEAR_NONE = 2
+typedef enum CameraClearFlags
+{
+    CLEAR_NONE    = 0,
+    CLEAR_COLOR   = 1 << 0,
+    CLEAR_DEPTH   = 1 << 1,
+    CLEAR_STENCIL = 1 << 2
 } CameraClearFlags;
 
 

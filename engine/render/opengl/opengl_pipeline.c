@@ -2409,14 +2409,23 @@ void OpenGL_BeginWorld(Renderer* r, const RenderView* view, const RenderLighting
     internal->state.has_env_map = view->has_env_map;
 
     OpenGL_BindDefaultFramebuffer();
-    if (view->clear_flags == RENDER_CLEAR_COLOR_AND_DEPTH)
+    GLbitfield clear_mask = 0;
+    if (view->clear_flags & RENDER_CLEAR_COLOR)
     {
         glClearColor(view->clear_color.r, view->clear_color.g, view->clear_color.b, view->clear_color.a);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        clear_mask |= GL_COLOR_BUFFER_BIT;
     }
-    else if (view->clear_flags == RENDER_CLEAR_DEPTH_ONLY)
+    if (view->clear_flags & RENDER_CLEAR_DEPTH)
     {
-        glClear(GL_DEPTH_BUFFER_BIT);
+        clear_mask |= GL_DEPTH_BUFFER_BIT;
+    }
+    if (view->clear_flags & RENDER_CLEAR_STENCIL)
+    {
+        clear_mask |= GL_STENCIL_BUFFER_BIT;
+    }
+    if (clear_mask != 0)
+    {
+        glClear(clear_mask);
     }
 
     // Bind the shadow map texture array to texture unit 1

@@ -12,15 +12,6 @@
 
 namespace Prism
 {
-    // Defines what the camera wipes before drawing
-    enum class CameraClearFlags
-    {
-        CLEAR_COLOR_AND_DEPTH = 0,
-        CLEAR_DEPTH_ONLY = 1,
-        CLEAR_NONE = 2
-    };
-
-
 
     // ==========================================
     // Transform Wrapper
@@ -170,6 +161,38 @@ namespace Prism
     // ==========================================
     // Camera Component Wrapper
     // ==========================================
+
+    // Defines what the camera wipes before drawing
+    enum class CameraClearFlags : uint32_t
+    {
+        None    = 0,
+        Color   = 1 << 0,
+        Depth   = 1 << 1,
+        Stencil = 1 << 2
+    };
+
+
+    inline constexpr CameraClearFlags operator|(CameraClearFlags a, CameraClearFlags b) {
+        return static_cast<CameraClearFlags>(static_cast<uint32_t>(a) | static_cast<uint32_t>(b));
+    }
+    inline constexpr CameraClearFlags operator&(CameraClearFlags a, CameraClearFlags b) {
+        return static_cast<CameraClearFlags>(static_cast<uint32_t>(a) & static_cast<uint32_t>(b));
+    }
+    inline constexpr CameraClearFlags operator^(CameraClearFlags a, CameraClearFlags b) {
+        return static_cast<CameraClearFlags>(static_cast<uint32_t>(a) ^ static_cast<uint32_t>(b));
+    }
+    inline constexpr CameraClearFlags operator~(CameraClearFlags a) {
+        return static_cast<CameraClearFlags>(~static_cast<uint32_t>(a));
+    }
+    inline CameraClearFlags& operator|=(CameraClearFlags& a, CameraClearFlags b) {
+        a = a | b;
+        return a;
+    }
+    inline CameraClearFlags& operator&=(CameraClearFlags& a, CameraClearFlags b) {
+        a = a & b;
+        return a;
+    }
+
 
     struct PRISM_API CameraComponent
     {

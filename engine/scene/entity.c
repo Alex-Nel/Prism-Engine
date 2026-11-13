@@ -923,7 +923,7 @@ void Entity_AddCamera(Entity entity)
     cam->is_dirty = true;
     cam->culling_masks = 0xFFFFFFFF;
     cam->render_order = 0;
-    cam->clear_flags = CLEAR_COLOR_AND_DEPTH;
+    cam->clear_flags = CLEAR_COLOR | CLEAR_DEPTH;
     cam->viewport_x = 0;
     cam->viewport_y = 0;
     cam->viewport_width = 0;
