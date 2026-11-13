@@ -351,6 +351,7 @@ bool UI_BuildDrawList(OverlayDrawList* draw_list)
                 output->clip_y = command->clip_rect.y;
                 output->clip_w = command->clip_rect.w;
                 output->clip_h = command->clip_rect.h;
+                output->flags = 0;
                 index_offset += command->elem_count;
             }
 

@@ -88,12 +88,12 @@ static bool OverlayClipEqual(const OverlayDrawCmd* cmd, float clip_x, float clip
 
 
 
-static OverlayDrawCmd* OverlayDrawList_BeginBatch(OverlayDrawList* list, TextureHandle texture, float clip_x, float clip_y, float clip_w, float clip_h)
+static OverlayDrawCmd* OverlayDrawList_BeginBatch(OverlayDrawList* list, TextureHandle texture, float clip_x, float clip_y, float clip_w, float clip_h, uint32_t flags)
 {
     if (list->command_count > 0)
     {
         OverlayDrawCmd* last = &list->commands[list->command_count - 1];
-        if (last->texture.id == texture.id && OverlayClipEqual(last, clip_x, clip_y, clip_w, clip_h))
+        if (last->texture.id == texture.id && last->flags == flags && OverlayClipEqual(last, clip_x, clip_y, clip_w, clip_h))
             return last;
     }
 
@@ -108,6 +108,8 @@ static OverlayDrawCmd* OverlayDrawList_BeginBatch(OverlayDrawList* list, Texture
     cmd->clip_y = clip_y;
     cmd->clip_w = clip_w;
     cmd->clip_h = clip_h;
+    cmd->flags = flags;
+
     return cmd;
 }
 
@@ -210,7 +212,8 @@ void OverlayDrawList_AddQuad(OverlayDrawList* list,
     float u0, float v0, float u1, float v1, float u2, float v2, float u3, float v3,
     uint8_t r, uint8_t g, uint8_t b, uint8_t a,
     TextureHandle texture,
-    float clip_x, float clip_y, float clip_w, float clip_h)
+    float clip_x, float clip_y, float clip_w, float clip_h,
+    uint32_t flags)
 {
     if (!list)
         return;
@@ -221,7 +224,7 @@ void OverlayDrawList_AddQuad(OverlayDrawList* list,
         return;
     }
 
-    OverlayDrawCmd* cmd = OverlayDrawList_BeginBatch(list, texture, clip_x, clip_y, clip_w, clip_h);
+    OverlayDrawCmd* cmd = OverlayDrawList_BeginBatch(list, texture, clip_x, clip_y, clip_w, clip_h, flags);
     if (!cmd)
         return;
 
@@ -264,5 +267,5 @@ void OverlayDrawList_AddRect(OverlayDrawList* list,
         x + w, y + h,
         x, y + h,
         u0, v0, u1, v0, u1, v1, u0, v1,
-        r, g, b, a, texture, clip_x, clip_y, clip_w, clip_h);
+        r, g, b, a, texture, clip_x, clip_y, clip_w, clip_h, 0);
 }

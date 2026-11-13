@@ -215,8 +215,8 @@ namespace Prism
         return Prism::Font(h);
     }
 
-    Font AssetManager::LoadFontSDF(const std::string& name, const std::string& filepath, float pixel_height) {
-        ::Font* h = ::Asset_LoadFontSDF(s_asset_manager, name.c_str(), filepath.c_str(), pixel_height);
+    Font AssetManager::LoadFontBitmap(const std::string& name, const std::string& filepath, float pixel_height) {
+        ::Font* h = ::Asset_LoadFontBitmap(s_asset_manager, name.c_str(), filepath.c_str(), pixel_height);
         return Prism::Font(h);
     }
 

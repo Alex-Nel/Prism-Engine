@@ -89,8 +89,8 @@ namespace Prism
         static EnvironmentMap LoadEnvironmentMap(const std::string& filepath);
         static EnvironmentMap LoadEnvironmentMapFromSkybox(const std::string& name, const std::string& right, const std::string& left, const std::string& top, const std::string& bottom, const std::string& front, const std::string& back);
         static Texture CreateSolidColorTexture(const std::string& name, Prism::Color color);
-        static Font LoadFont(const std::string& name, const std::string& filepath, float pixel_height = 32.0f);
-        static Font LoadFontSDF(const std::string& name, const std::string& filepath, float pixel_height = 64.0f); // Sharp at any size, for TextRendererComponent only for now
+        static Font LoadFont(const std::string& name, const std::string& filepath, float pixel_height = 64.0f);
+        static Font LoadFontBitmap(const std::string& name, const std::string& filepath, float pixel_height = 32.0f);
 
 
 

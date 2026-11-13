@@ -282,7 +282,7 @@ static bool Font_BakeFileWith(Font* font, const char* filepath, float pixel_heig
 
 
 
-bool Font_BakeFromFile(Font* font, const char* filepath, float pixel_height, ImageData* out_atlas)
+bool Font_BakeBitmapFromFile(Font* font, const char* filepath, float pixel_height, ImageData* out_atlas)
 {
 	return Font_BakeFileWith(font, filepath, pixel_height, out_atlas, false);
 }

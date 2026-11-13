@@ -111,20 +111,6 @@ static void EmitText(Scene* scene, uint32_t id, OverlayDrawList* list, float cli
     if (!text->is_active || !text->font || !text->font->texture_atlas || text->text[0] == '\0')
         return;
 
-    // The overlay shader reads atlas alpha as coverage, so an SDF atlas would draw as blurry blobs
-    if (text->font->is_sdf)
-    {
-        static bool warned = false;
-
-        if (!warned)
-        {
-            Log_Warning("UI text cannot use SDF font '%s'. Load a separate font with Asset_LoadFont for UI.", text->font->name);
-            warned = true;
-        }
-        
-        return;
-    }
-
     RectTransformComponent* rect = &scene->ui_rect_transforms[id];
     Font* font = text->font;
     float scale = font->size > 0.0f ? text->font_size / font->size : 1.0f;
@@ -138,6 +124,7 @@ static void EmitText(Scene* scene, uint32_t id, OverlayDrawList* list, float cli
     uint8_t b = ColorChannelToByte(text->color.b);
     uint8_t a = ColorChannelToByte(text->color.a);
     TextureHandle texture = font->texture_atlas->gpu_handle;
+    uint32_t draw_flags = font->is_sdf ? OVERLAY_CMD_SDF : 0;
 
     float intersect_x = rect->screen_x > clip_x ? rect->screen_x : clip_x;
     float intersect_y = rect->screen_y > clip_y ? rect->screen_y : clip_y;
@@ -211,7 +198,7 @@ static void EmitText(Scene* scene, uint32_t id, OverlayDrawList* list, float cli
 
             OverlayDrawList_AddQuad(list, x0, y0, x1, y0, x1, y1, x0, y1,
                 u0, v0, u1, v0, u1, v1, u0, v1,
-                r, g, b, a, texture, intersect_x, intersect_y, intersect_w, intersect_h);
+                r, g, b, a, texture, intersect_x, intersect_y, intersect_w, intersect_h, draw_flags);
             cursor_x = xpos;
         }
 

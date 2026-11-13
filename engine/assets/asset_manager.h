@@ -124,7 +124,7 @@ Texture* Asset_LoadCubemapTexture(AssetManager* am, const char* name, const char
 EnvironmentMap* Asset_LoadEnvironmentMap(AssetManager* am, const char* filepath);
 EnvironmentMap* Asset_LoadEnvironmentMapFromSkybox(AssetManager* am, const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back);
 Font* Asset_LoadFont(AssetManager* am, const char* name, const char* filepath, float pixel_height);
-Font* Asset_LoadFontSDF(AssetManager* am, const char* name, const char* filepath, float pixel_height);
+Font* Asset_LoadFontBitmap(AssetManager* am, const char* name, const char* filepath, float pixel_height);
 Shader* Asset_LoadShader(AssetManager* am, const char* name, const char* vert_path, const char* frag_path);
 
 

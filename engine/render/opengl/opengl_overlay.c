@@ -13,6 +13,7 @@ void OpenGL_OverlayInit(Renderer* r)
 
     overlay->uniform_tex = glGetUniformLocation(program, "Texture");
     overlay->uniform_proj = glGetUniformLocation(program, "ProjMtx");
+    overlay->uniform_sdf = glGetUniformLocation(program, "u_SDF");
     overlay->attrib_pos = glGetAttribLocation(program, "Position");
     overlay->attrib_uv = glGetAttribLocation(program, "TexCoord");
     overlay->attrib_col = glGetAttribLocation(program, "Color");
@@ -131,6 +132,7 @@ void OpenGL_DrawOverlay(Renderer* r, const OverlayDrawList* list, uint32_t width
         if (command->texture.id != 0 && command->texture.id < MAX_RESOURCES && internal->texture_pool[command->texture.id].active)
             texture = internal->texture_pool[command->texture.id].id;
         glBindTexture(GL_TEXTURE_2D, texture);
+        glUniform1i(internal->overlay.uniform_sdf, (command->flags & OVERLAY_CMD_SDF) ? 1 : 0);
 
         float clip_x = command->clip_w > 0.0f ? command->clip_x : 0.0f;
         float clip_y = command->clip_h > 0.0f ? command->clip_y : 0.0f;

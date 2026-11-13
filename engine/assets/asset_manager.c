@@ -694,7 +694,7 @@ static Font* Asset_LoadFontInternal(AssetManager* am, const char* name, const ch
     if (sdf)
         baked_ok = Font_BakeSDFFromFile(&baked, filepath, pixel_height, &atlas);
     else
-        baked_ok = Font_BakeFromFile(&baked, filepath, pixel_height, &atlas);
+        baked_ok = Font_BakeBitmapFromFile(&baked, filepath, pixel_height, &atlas);
 
     if (!baked_ok)
         return NULL;
@@ -719,20 +719,20 @@ static Font* Asset_LoadFontInternal(AssetManager* am, const char* name, const ch
 
 
 
-// Loads a Font from disk
+// Loads a Font from disk as signed distance fields
 Font* Asset_LoadFont(AssetManager* am, const char* name, const char* filepath, float pixel_height)
 {
-    return Asset_LoadFontInternal(am, name, filepath, pixel_height, false);
+    return Asset_LoadFontInternal(am, name, filepath, pixel_height, true);
 }
 
 
 
 
 
-// Loads a Font from disk as signed distance fields for sharp world-space text. UI text cannot draw SDF fonts.
-Font* Asset_LoadFontSDF(AssetManager* am, const char* name, const char* filepath, float pixel_height)
+// Loads a Font from disk as a plain bitmap atlas, which is only pixel-exact when drawn at pixel_height
+Font* Asset_LoadFontBitmap(AssetManager* am, const char* name, const char* filepath, float pixel_height)
 {
-    return Asset_LoadFontInternal(am, name, filepath, pixel_height, true);
+    return Asset_LoadFontInternal(am, name, filepath, pixel_height, false);
 }
 
 

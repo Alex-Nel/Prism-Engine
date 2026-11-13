@@ -309,6 +309,7 @@ typedef struct GL_OverlayPipeline
 
     GLint uniform_tex;
     GLint uniform_proj;
+    GLint uniform_sdf;
 } GL_OverlayPipeline;
 
 

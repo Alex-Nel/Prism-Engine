@@ -18,6 +18,14 @@ typedef struct OverlayVertex
 
 
 
+// Flags for an overlay draw command
+enum
+{
+    OVERLAY_CMD_SDF = 1u << 0   // Texture alpha is a signed distance field (SDF font atlas)
+};
+
+
+
 // A command to draw an overlay
 typedef struct OverlayDrawCmd
 {
@@ -28,6 +36,7 @@ typedef struct OverlayDrawCmd
     float clip_y;
     float clip_w;
     float clip_h;
+    uint32_t flags;
 } OverlayDrawCmd;
 
 
@@ -80,7 +89,8 @@ void OverlayDrawList_AddQuad(OverlayDrawList* list,
     float u0, float v0, float u1, float v1, float u2, float v2, float u3, float v3,
     uint8_t r, uint8_t g, uint8_t b, uint8_t a,
     TextureHandle texture,
-    float clip_x, float clip_y, float clip_w, float clip_h);
+    float clip_x, float clip_y, float clip_w, float clip_h,
+    uint32_t flags);
 
 // Adds a rectangle of specific dimensions to the draw list
 void OverlayDrawList_AddRect(OverlayDrawList* list,

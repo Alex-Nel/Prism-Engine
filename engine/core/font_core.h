@@ -78,7 +78,7 @@ typedef struct TextScope
 bool Font_Bake(Font* font, const unsigned char* ttf_data, int ttf_size, float pixel_height, const char* name, ImageData* out_atlas);
 
 // Loads a TTF from disk and bakes it. Caller must Image_Free the atlas.
-bool Font_BakeFromFile(Font* font, const char* filepath, float pixel_height, ImageData* out_atlas);
+bool Font_BakeBitmapFromFile(Font* font, const char* filepath, float pixel_height, ImageData* out_atlas);
 
 // Bakes ASCII 32-126 as signed distance fields, which stay sharp when magnified far past pixel_height.
 bool Font_BakeSDF(Font* font, const unsigned char* ttf_data, int ttf_size, float pixel_height, const char* name, ImageData* out_atlas);
