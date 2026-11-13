@@ -477,23 +477,23 @@ void Collider_SetTrigger(Entity entity, bool is_trigger)
 
 
 
-// Recalculates a cameras projection matrix when needed
-void Camera_RecalculateProjectionIfNeeded(CameraComponent* cam)
+// Returns the camera's perspective projection matrix based on its current parameters
+Matrix4 Camera_GetProjectionMatrix(CameraComponent* cam)
 {
-    // If the fov is 0, it means the camera component was just created and is uninitialized.
-    if (cam->fov <= 0.0f) {
-        cam->fov = 60.0f;
-        cam->nearZ = 0.1f;
-        cam->farZ = 1000.0f;
-        cam->is_dirty = true;
-    }
+    if (!cam)
+        return Matrix4Identity();
+
+    float fov = (cam->fov > 0.0f) ? cam->fov : 60.0f;
+    float near_z = (cam->nearZ > 0.0f) ? cam->nearZ : 0.1f;
+    float far_z = (cam->farZ > near_z) ? cam->farZ : (near_z + 1000.0f);
+
+    float aspect = 1.0f;
 
     if (cam->viewport_height > 0)
-    {
-        float aspect = (float)cam->viewport_width / (float)cam->viewport_height;
-        float fov_radians = cam->fov * (3.14159265358979323846f / 180.0f);
-        cam->projection_matrix = Matrix4Perspective(fov_radians, aspect, cam->nearZ, cam->farZ);
-    }
+        aspect = (float)cam->viewport_width / (float)cam->viewport_height;
+
+    float fov_radians = fov * (3.14159265358979323846f / 180.0f);
+    return Matrix4Perspective(fov_radians, aspect, near_z, far_z);
 }
 
 
@@ -512,9 +512,6 @@ Ray Camera_ScreenPointToRay(CameraComponent* cam, Transform* cam_transform, floa
     if (cam->viewport_width == 0 || cam->viewport_height == 0) 
         return (Ray){ Transform_GetGlobalPosition(cam_transform), {0.0f, 0.0f, 1.0f} };
 
-    // If the matrix is empty, rebuild it
-    Camera_RecalculateProjectionIfNeeded(cam);
-
     // Convert Screen Coordinates to Normalized Device Coordinates
     // Assuming (0,0) is top-left of the window
     float x = (2.0f * (mouse_x - (float)cam->viewport_x)) / (float)cam->viewport_width - 1.0f;
@@ -525,7 +522,8 @@ Ray Camera_ScreenPointToRay(CameraComponent* cam, Transform* cam_transform, floa
     Vector4 far_clip  = { x, y, 0.9999f, 1.0f };
     
     // Eye Space (Reverse the Projection)
-    Matrix4 inv_proj = Matrix4Inverse(cam->projection_matrix);
+    Matrix4 proj = Camera_GetProjectionMatrix(cam);
+    Matrix4 inv_proj = Matrix4Inverse(proj);
     Vector3 cam_pos = Transform_GetGlobalPosition(cam_transform);
     Matrix4 view_matrix = Matrix4CreateView(cam_pos, cam_transform->local_rotation);
     Matrix4 inv_view = Matrix4Inverse(view_matrix); // Restore Inverse View!
@@ -569,9 +567,6 @@ Vector2 Camera_WorldToScreenPoint(CameraComponent* cam, Transform* cam_transform
     if (cam->viewport_width == 0 || cam->viewport_height == 0) 
         return (Vector2){ 0.0f, 0.0f };
 
-    // If the matrix is empty, rebuild it
-    Camera_RecalculateProjectionIfNeeded(cam);
-    
     // 1. Generate the exact View Matrix the renderer uses
     Vector3 cam_pos = Transform_GetGlobalPosition(cam_transform);
     Matrix4 view_matrix = Matrix4CreateView(cam_pos, cam_transform->local_rotation);
@@ -581,7 +576,8 @@ Vector2 Camera_WorldToScreenPoint(CameraComponent* cam, Transform* cam_transform
     clip_space = Matrix4MultiplyVector4(view_matrix, clip_space);
 
     // 3. Transform Eye to Clip Space
-    clip_space = Matrix4MultiplyVector4(cam->projection_matrix, clip_space);
+    Matrix4 proj = Camera_GetProjectionMatrix(cam);
+    clip_space = Matrix4MultiplyVector4(proj, clip_space);
 
     // 4. Frustum Culling 
     // If w is less than a tiny positive number, it is touching the camera lens or behind it!
@@ -633,7 +629,7 @@ void Camera_SetCullingMask(CameraComponent* cam, uint32_t mask)
 
 
 // Gets the culling mask of a camera
-uint32_t Camera_GetCullingMask(const CameraComponent* cam)
+uint32_t Camera_GetCullingMask(CameraComponent* cam)
 {
     if (!cam)
         return 0;
@@ -672,7 +668,7 @@ void Camera_RemoveLayerFromMask(CameraComponent* cam, uint8_t layer_index)
 
 
 // Checks if a camera's culling mask includes a specific layer
-bool Camera_HasCullingLayer(const CameraComponent* cam, uint8_t layer_index)
+bool Camera_HasCullingLayer(CameraComponent* cam, uint8_t layer_index)
 {
     if (!cam || layer_index >= 32)
         return false;

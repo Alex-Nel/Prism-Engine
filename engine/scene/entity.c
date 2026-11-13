@@ -920,7 +920,6 @@ void Entity_AddCamera(Entity entity)
     cam->fov = 80;
     cam->nearZ = 0.1f;
     cam->farZ = 1000.0f;
-    cam->is_dirty = true;
     cam->culling_masks = 0xFFFFFFFF;
     cam->render_order = 0;
     cam->clear_flags = CLEAR_COLOR | CLEAR_DEPTH;

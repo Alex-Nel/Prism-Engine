@@ -154,6 +154,17 @@ namespace Prism
     // Camera Component Implementation
     // ==========================================
 
+    Prism::Matrix4 CameraComponent::GetProjectionMatrix() const {
+        ::Entity e = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
+        ::CameraComponent* cam = &static_cast<::Scene*>(e.scene)->cameras[e.id];
+        ::Matrix4 raw = ::Camera_GetProjectionMatrix(cam);
+        Prism::Matrix4 m;
+        m.m00 = raw.m00; m.m10 = raw.m10; m.m20 = raw.m20; m.m30 = raw.m30;
+        m.m01 = raw.m01; m.m11 = raw.m11; m.m21 = raw.m21; m.m31 = raw.m31;
+        m.m02 = raw.m02; m.m12 = raw.m12; m.m22 = raw.m22; m.m32 = raw.m32;
+        m.m03 = raw.m03; m.m13 = raw.m13; m.m23 = raw.m23; m.m33 = raw.m33;
+        return m;
+    }
     Prism::Ray CameraComponent::ScreenPointToRay(const Prism::Vector2& screenPoint) const {
         ::Entity e = { this->entity.id, static_cast<::Scene*>(this->entity.scene_ptr) };
         ::CameraComponent* cam = &static_cast<::Scene*>(e.scene)->cameras[e.id];
@@ -175,9 +186,6 @@ namespace Prism
     }
     void CameraComponent::SetCullingMask(uint32_t mask) {
         this->culling_masks = mask;
-    }
-    uint32_t CameraComponent::GetCullingMask() const {
-        return this->culling_masks;
     }
     void CameraComponent::AddLayerToMask(uint8_t layer_index) {
         if (layer_index < 32)

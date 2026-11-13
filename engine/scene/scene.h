@@ -251,15 +251,15 @@ void Collider_SetTrigger(Entity entity, bool is_trigger);
 
 
 // --- Camera setters and functions ---
-void Camera_RecalculateProjectionIfNeeded(CameraComponent* cam);
+Matrix4 Camera_GetProjectionMatrix(CameraComponent* cam);
 Ray Camera_ScreenPointToRay(CameraComponent* cam, Transform* cam_transform, float mouse_x, float mouse_y);
 Vector2 Camera_WorldToScreenPoint(CameraComponent* cam, Transform* cam_transform, Vector3 world_pos);
 void Camera_SetFOV(CameraComponent* cam, float FOV);
 void Camera_SetCullingMask(CameraComponent* cam, uint32_t mask);
-uint32_t Camera_GetCullingMask(const CameraComponent* cam);
+uint32_t Camera_GetCullingMask(CameraComponent* cam);
 void Camera_AddLayerToMask(CameraComponent* cam, uint8_t layer_index);
 void Camera_RemoveLayerFromMask(CameraComponent* cam, uint8_t layer_index);
-bool Camera_HasCullingLayer(const CameraComponent* cam, uint8_t layer_index);
+bool Camera_HasCullingLayer(CameraComponent* cam, uint8_t layer_index);
 
 
 

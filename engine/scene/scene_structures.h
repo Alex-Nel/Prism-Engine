@@ -191,8 +191,6 @@ typedef struct CameraComponent
     float fov;
     float nearZ;
     float farZ;
-    Matrix4 projection_matrix; // Projection matrix is cached to prevent recalculations
-    bool is_dirty;
 
     uint32_t culling_masks; // Can be several layer masks
 

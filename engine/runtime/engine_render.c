@@ -637,7 +637,6 @@ void Engine_BuildRenderFrame(PrismEngine* engine, Scene* scene, RenderFrame* fra
         main_cam->viewport_width = frame->width;
         main_cam->viewport_height = frame->height;
     }
-    Camera_RecalculateProjectionIfNeeded(main_cam);
     frame->shadow_camera_pos = Transform_GetGlobalPosition(main_cam_t);
     frame->camera_forward = Transform_GetForwardVector(main_cam_t);
     frame->camera_right = Transform_GetRightVector(main_cam_t);
@@ -675,7 +674,6 @@ void Engine_BuildRenderFrame(PrismEngine* engine, Scene* scene, RenderFrame* fra
             cam_comp->viewport_width = frame->width;
             cam_comp->viewport_height = frame->height;
         }
-        Camera_RecalculateProjectionIfNeeded(cam_comp);
 
         RenderFrameView* view_slot = &frame->views[frame->view_count];
         view_slot->item_start = frame->item_count;
@@ -687,7 +685,7 @@ void Engine_BuildRenderFrame(PrismEngine* engine, Scene* scene, RenderFrame* fra
         uint32_t viewport_h = cam_comp->viewport_height;
 
         view_slot->view.view_matrix = Matrix4Inverse(cam_transform->world_matrix);
-        view_slot->view.projection_matrix = cam_comp->projection_matrix;
+        view_slot->view.projection_matrix = Camera_GetProjectionMatrix(cam_comp);
         view_slot->view.camera_pos = global_pos;
         view_slot->view.has_env_map = (cam_comp->clear_flags & CLEAR_COLOR) ? scene->has_env_map : false;
         view_slot->view.window_width = viewport_w;

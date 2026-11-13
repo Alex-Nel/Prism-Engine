@@ -201,11 +201,7 @@ namespace Prism
         float fov;
         float nearZ;
         float farZ;
-    private:
-        Prism::Matrix4 projection_matrix; 
-        bool is_dirty;
         uint32_t culling_masks;
-    public:
         int render_order;
         CameraClearFlags clear_flags;
         uint32_t viewport_x;
@@ -217,11 +213,11 @@ namespace Prism
         void SetActive(bool active) { this->is_active = active; }
         bool IsActive() const { return this->is_active; }
 
+        Prism::Matrix4 GetProjectionMatrix() const;
         Prism::Ray ScreenPointToRay(const Prism::Vector2& screenPoint) const;
         Prism::Vector2 WorldToScreenPoint(const Prism::Vector3& worldPosition) const;
 
         void SetCullingMask(uint32_t mask);
-        uint32_t GetCullingMask() const;
         void AddLayerToMask(uint8_t layer_index);
         void RemoveLayerFromMask(uint8_t layer_index);
         bool HasCullingLayer(uint8_t layer_index) const;

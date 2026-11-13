@@ -525,7 +525,6 @@ bool Scene_Load(Scene* scene, const char* filepath)
             cam->culling_masks = cull_json ? (uint32_t)cull_json->valueint : ALL_LAYERS_MASK;
             cJSON* clear_json = cJSON_GetObjectItemCaseSensitive(comp_obj, "clear_flags");
             cam->clear_flags = clear_json ? (CameraClearFlags)clear_json->valueint : (CLEAR_COLOR | CLEAR_DEPTH);
-            cam->is_dirty = true;
         }
 
 
