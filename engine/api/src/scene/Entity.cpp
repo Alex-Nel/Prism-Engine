@@ -123,6 +123,40 @@ namespace Prism
 
 
 
+    // ==============================
+    // --- Layer & Mask Functions ---
+    // ==============================
+
+    void Entity::SetLayer(uint8_t layer_index) {
+        ::Entity_SetLayer(ToCore(*this), layer_index);
+    }
+    uint8_t Entity::GetLayer() const {
+        return ::Entity_GetLayer(ToCore(*this));
+    }
+    void Entity::SetLayerMask(uint32_t mask) {
+        ::Entity_SetLayerMask(ToCore(*this), mask);
+    }
+    uint32_t Entity::GetLayerMask() const {
+        return ::Entity_GetLayerMask(ToCore(*this));
+    }
+    void Entity::AddLayer(uint8_t layer_index) {
+        ::Entity_AddLayer(ToCore(*this), layer_index);
+    }
+    void Entity::RemoveLayer(uint8_t layer_index) {
+        ::Entity_RemoveLayer(ToCore(*this), layer_index);
+    }
+    bool Entity::HasLayer(uint8_t layer_index) const {
+        return ::Entity_HasLayer(ToCore(*this), layer_index);
+    }
+    void Entity::SetLayerRecursively(uint8_t layer_index) {
+        ::Entity_SetLayerRecursively(ToCore(*this), layer_index);
+    }
+    void Entity::SetLayerMaskRecursively(uint32_t mask) {
+        ::Entity_SetLayerMaskRecursively(ToCore(*this), mask);
+    }
+
+
+
     // ==========================================
     // Component Setters
     // ==========================================

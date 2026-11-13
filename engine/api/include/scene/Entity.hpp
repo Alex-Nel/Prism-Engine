@@ -53,6 +53,12 @@ namespace Prism
 
 
 
+    inline constexpr uint8_t DefaultLayer = 0;
+    inline constexpr uint32_t DefaultLayerMask = 1u << 0;
+    inline constexpr uint32_t AllLayersMask = 0xFFFFFFFF;
+
+
+
     namespace Detail
     {
         template<typename...>
@@ -102,6 +108,20 @@ namespace Prism
         void AddModel(Prism::Model model);
         std::vector<Prism::Entity> GetChildren(bool recursive = true);
         Prism::Entity FindChildByName(const std::string& name) const;
+
+
+
+        // --- Layer & Mask Functions ---
+
+        void SetLayer(uint8_t layer_index);
+        uint8_t GetLayer() const;
+        void SetLayerMask(uint32_t mask);
+        uint32_t GetLayerMask() const;
+        void AddLayer(uint8_t layer_index);
+        void RemoveLayer(uint8_t layer_index);
+        bool HasLayer(uint8_t layer_index) const;
+        void SetLayerRecursively(uint8_t layer_index);
+        void SetLayerMaskRecursively(uint32_t mask);
 
 
 

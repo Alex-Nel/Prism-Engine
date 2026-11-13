@@ -124,7 +124,6 @@ namespace Prism
         void* raw_mesh_ptr;
         void* raw_material_ptr;
     public:
-        uint32_t layer_mask;
         bool casts_shadows;
         bool receives_shadows;
 
@@ -134,8 +133,6 @@ namespace Prism
 
         void SetMesh(Prism::Mesh mesh);
         void SetMaterial(Prism::Material material);
-
-        void SetLayerMask(uint8_t mask);
     };
 
 
@@ -152,7 +149,6 @@ namespace Prism
         void* raw_mesh_ptr;
         void* raw_material_ptr;
     public:
-        uint32_t layer_mask;
         bool casts_shadows;
         bool receives_shadows;
     private:
@@ -166,7 +162,6 @@ namespace Prism
         void SetMesh(Prism::SkinnedMesh mesh);
         void SetMaterial(Prism::Material material);
 
-        void SetLayerMask(uint8_t mask);
         void SetRootAnimator(Prism::Entity entity);
     };
 
@@ -202,9 +197,11 @@ namespace Prism
         Prism::Ray ScreenPointToRay(const Prism::Vector2& screenPoint) const;
         Prism::Vector2 WorldToScreenPoint(const Prism::Vector3& worldPosition) const;
 
-        void SetCullingMask(uint32_t layer_index);
+        void SetCullingMask(uint32_t mask);
+        uint32_t GetCullingMask() const;
         void AddLayerToMask(uint8_t layer_index);
         void RemoveLayerFromMask(uint8_t layer_index);
+        bool HasCullingLayer(uint8_t layer_index) const;
         void SetViewportPosition(uint32_t x, uint32_t y);
         void SetViewportSize(uint32_t width, uint32_t height);
         void SetFOV(float fov);

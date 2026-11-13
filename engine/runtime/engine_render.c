@@ -398,7 +398,7 @@ uint32_t Engine_GatherVisibleGeometry(PrismEngine* engine, Scene* scene, Vector3
             continue;
         
         MeshRendererComponent* rc = &scene->mesh_renderers[i];
-        if (!rc->is_active || !rc->mesh || !rc->material || (rc->layer_mask & culling_masks) == 0)
+        if (!rc->is_active || !rc->mesh || !rc->material || (scene->layer_masks[i] & culling_masks) == 0)
             continue;
 
         Transform* t = &scene->transforms[i];
@@ -430,7 +430,7 @@ uint32_t Engine_GatherVisibleGeometry(PrismEngine* engine, Scene* scene, Vector3
             continue;
 
         SkinnedMeshRendererComponent* rc = &scene->skinned_mesh_renderers[i];
-        if (!rc->is_active || !rc->mesh || !rc->material || (rc->layer_mask & culling_masks) == 0)
+        if (!rc->is_active || !rc->mesh || !rc->material || (scene->layer_masks[i] & culling_masks) == 0)
             continue;
 
         Transform* t = &scene->transforms[i];
@@ -468,7 +468,7 @@ uint32_t Engine_GatherVisibleGeometry(PrismEngine* engine, Scene* scene, Vector3
             continue;
         
         LineRendererComponent* line = &scene->line_renderers[i];
-        if (!line->is_active || line->point_count < 2 || !line->dynamic_mesh || !line->material)
+        if (!line->is_active || line->point_count < 2 || !line->dynamic_mesh || !line->material || (scene->layer_masks[i] & culling_masks) == 0)
             continue;
 
         RenderItem item = {0};
@@ -492,7 +492,7 @@ uint32_t Engine_GatherVisibleGeometry(PrismEngine* engine, Scene* scene, Vector3
             continue;
         
         SpriteRendererComponent* sprite = &scene->sprite_renderers[i];
-        if (!sprite->is_active || !sprite->quad || !sprite->material)
+        if (!sprite->is_active || !sprite->quad || !sprite->material || (scene->layer_masks[i] & culling_masks) == 0)
             continue;
 
         Transform* t = &scene->transforms[i];
@@ -532,7 +532,7 @@ uint32_t Engine_GatherVisibleGeometry(PrismEngine* engine, Scene* scene, Vector3
             continue;
 
         TextRendererComponent* text = &scene->text_renderers[i];
-        if (!text->is_active || text->size_scale <= 0.0f || !text->dynamic_mesh || !text->material || text->dynamic_mesh->index_count == 0)
+        if (!text->is_active || text->size_scale <= 0.0f || !text->dynamic_mesh || !text->material || text->dynamic_mesh->index_count == 0 || (scene->layer_masks[i] & culling_masks) == 0)
             continue;
         
         Transform* t = &scene->transforms[i];

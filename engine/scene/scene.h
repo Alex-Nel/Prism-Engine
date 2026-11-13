@@ -106,6 +106,20 @@ void Entity_RemoveRigidbody(Entity entity);
 
 
 
+// --- Entity Layer and mask functions ---
+
+void Entity_SetLayer(Entity entity, uint8_t layer_index);
+uint8_t Entity_GetLayer(Entity entity);
+void Entity_SetLayerMask(Entity entity, uint32_t mask);
+uint32_t Entity_GetLayerMask(Entity entity);
+void Entity_AddLayer(Entity entity, uint8_t layer_index);
+void Entity_RemoveLayer(Entity entity, uint8_t layer_index);
+bool Entity_HasLayer(Entity entity, uint8_t layer_index);
+void Entity_SetLayerRecursively(Entity entity, uint8_t layer_index);
+void Entity_SetLayerMaskRecursively(Entity entity, uint32_t mask);
+
+
+
 // --- Removing components ---
 
 void Entity_RemoveComponent(Entity entity, ComponentMask component);
@@ -241,7 +255,11 @@ void Camera_RecalculateProjectionIfNeeded(CameraComponent* cam);
 Ray Camera_ScreenPointToRay(CameraComponent* cam, Transform* cam_transform, float mouse_x, float mouse_y);
 Vector2 Camera_WorldToScreenPoint(CameraComponent* cam, Transform* cam_transform, Vector3 world_pos);
 void Camera_SetFOV(CameraComponent* cam, float FOV);
-// TODO: Implement camera culling masks
+void Camera_SetCullingMask(CameraComponent* cam, uint32_t mask);
+uint32_t Camera_GetCullingMask(const CameraComponent* cam);
+void Camera_AddLayerToMask(CameraComponent* cam, uint8_t layer_index);
+void Camera_RemoveLayerFromMask(CameraComponent* cam, uint8_t layer_index);
+bool Camera_HasCullingLayer(const CameraComponent* cam, uint8_t layer_index);
 
 
 

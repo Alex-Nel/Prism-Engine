@@ -619,6 +619,72 @@ void Camera_SetFOV(CameraComponent* cam, float FOV)
 
 
 
+// Sets the culling mask of a camera
+void Camera_SetCullingMask(CameraComponent* cam, uint32_t mask)
+{
+    if (!cam)
+        return;
+
+    cam->culling_masks = mask;
+}
+
+
+
+
+
+// Gets the culling mask of a camera
+uint32_t Camera_GetCullingMask(const CameraComponent* cam)
+{
+    if (!cam)
+        return 0;
+
+    return cam->culling_masks;
+}
+
+
+
+
+
+// Adds a layer to a camera's culling mask
+void Camera_AddLayerToMask(CameraComponent* cam, uint8_t layer_index)
+{
+    if (!cam || layer_index >= 32)
+        return;
+
+    cam->culling_masks |= (1u << layer_index);
+}
+
+
+
+
+
+// Removes a layer from a camera's culling mask
+void Camera_RemoveLayerFromMask(CameraComponent* cam, uint8_t layer_index)
+{
+    if (!cam || layer_index >= 32)
+        return;
+
+    cam->culling_masks &= ~(1u << layer_index);
+}
+
+
+
+
+
+// Checks if a camera's culling mask includes a specific layer
+bool Camera_HasCullingLayer(const CameraComponent* cam, uint8_t layer_index)
+{
+    if (!cam || layer_index >= 32)
+        return false;
+
+    return (cam->culling_masks & (1u << layer_index)) != 0;
+}
+
+
+
+
+
+
 
 
 

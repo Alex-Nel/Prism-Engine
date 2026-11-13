@@ -25,6 +25,10 @@
 #define MAX_LINE_POINTS 1024
 #define SHADOW_CASCADE_COUNT_DEFAULT 1
 
+#define DEFAULT_ENTITY_LAYER 0
+#define DEFAULT_ENTITY_LAYER_MASK (1u << 0)
+#define ALL_LAYERS_MASK 0xFFFFFFFF
+
 
 
 
@@ -143,7 +147,6 @@ typedef struct MeshRendererComponent
     Mesh* mesh;
     Material* material;
 
-    uint32_t layer_mask; // Only one layer mask
     bool casts_shadows;
     bool receives_shadows;
 } MeshRendererComponent;
@@ -159,7 +162,6 @@ typedef struct SkinnedMeshRendererComponent
     SkinnedMesh* mesh;
     Material* material;
 
-    uint32_t layer_mask; // Only one layer mask
     bool casts_shadows;
     bool receives_shadows;
 
@@ -674,6 +676,7 @@ typedef struct Scene
     uint32_t component_masks[MAX_ENTITIES];
     bool is_active_self[MAX_ENTITIES];
     bool is_active_in_hierarchy[MAX_ENTITIES];
+    uint32_t layer_masks[MAX_ENTITIES];
     
 
 

@@ -130,9 +130,6 @@ namespace Prism
     void MeshRendererComponent::SetMaterial(Prism::Material material) {
         ::MeshRenderer_SetMaterial(reinterpret_cast<::MeshRendererComponent*>(this), static_cast<::Material*>(material.GetRaw()));
     }
-    void MeshRendererComponent::SetLayerMask(uint8_t layer_index) {
-        this->layer_mask = (1u << layer_index); // Sets the object to a specific layer (0 through 31)
-    }
 
 
 
@@ -145,9 +142,6 @@ namespace Prism
     }
     void SkinnedMeshRendererComponent::SetMaterial(Prism::Material material) {
         ::SkinnedMeshRenderer_SetMaterial(reinterpret_cast<::SkinnedMeshRendererComponent*>(this), static_cast<::Material*>(material.GetRaw()));
-    }
-    void SkinnedMeshRendererComponent::SetLayerMask(uint8_t layer_index) {
-        this->layer_mask = (1u << layer_index); // Sets the object to a specific layer (0 through 31)
     }
     void SkinnedMeshRendererComponent::SetRootAnimator(Prism::Entity entity) {
         ::Entity raw_e = { entity.id, static_cast<::Scene*>(entity.scene_ptr) };
@@ -180,13 +174,23 @@ namespace Prism
         return Prism::Vector2(screen_pos.x, screen_pos.y);
     }
     void CameraComponent::SetCullingMask(uint32_t mask) {
-        this->culling_masks = mask; // Shift a '1' over by 'layer_index' spaces
+        this->culling_masks = mask;
+    }
+    uint32_t CameraComponent::GetCullingMask() const {
+        return this->culling_masks;
     }
     void CameraComponent::AddLayerToMask(uint8_t layer_index) {
-        this->culling_masks |= (1u << layer_index); // Add a specific layer to the camera's sight
+        if (layer_index < 32)
+            this->culling_masks |= (1u << layer_index); // Add a specific layer to the camera's sight
     }
     void CameraComponent::RemoveLayerFromMask(uint8_t layer_index) {
-        this->culling_masks &= ~(1u << layer_index); // Remove a specific layer from the camera's sight
+        if (layer_index < 32)
+            this->culling_masks &= ~(1u << layer_index); // Remove a specific layer from the camera's sight
+    }
+    bool CameraComponent::HasCullingLayer(uint8_t layer_index) const {
+        if (layer_index >= 32)
+            return false;
+        return (this->culling_masks & (1u << layer_index)) != 0;
     }
     void CameraComponent::SetViewportPosition(uint32_t x, uint32_t y) {
         this->viewport_x = x;

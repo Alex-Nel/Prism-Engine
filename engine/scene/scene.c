@@ -1542,6 +1542,7 @@ void Scene_ProcessDestroyQueue(Scene* scene)
         scene->is_active_self[id] = false;
         scene->is_active_in_hierarchy[id] = false;
         scene->is_pending_destroy[id] = false;
+        scene->layer_masks[id] = DEFAULT_ENTITY_LAYER_MASK;
 
         scene->names[id].name[0] = '\0';
     }

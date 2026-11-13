@@ -27,6 +27,7 @@ Entity Entity_Create(Scene* scene, const char* name)
             // Set the entity active in the scene
             scene->is_active_self[new_entity.id] = true;
             scene->is_active_in_hierarchy[new_entity.id] = true;
+            scene->layer_masks[new_entity.id] = DEFAULT_ENTITY_LAYER_MASK;
 
             return new_entity;
         }
@@ -535,6 +536,153 @@ void Entity_RemoveRigidbody(Entity entity)
 
 
 
+// Sets the single layer of an entity (clears other layers)
+void Entity_SetLayer(Entity entity, uint8_t layer_index)
+{
+    if (!Entity_IsValid(entity) || layer_index >= 32)
+        return;
+
+    entity.scene->layer_masks[entity.id] = (1u << layer_index);
+}
+
+
+
+
+
+// Gets the first active layer index of an entity (0-31)
+uint8_t Entity_GetLayer(Entity entity)
+{
+    if (!Entity_IsValid(entity))
+        return 0;
+
+    uint32_t mask = entity.scene->layer_masks[entity.id];
+    for (uint8_t i = 0; i < 32; i++)
+    {
+        if (mask & (1u << i))
+            return i;
+    }
+
+    return 0;
+}
+
+
+
+
+
+// Sets the full layer bitmask of an entity (supports multiple layers)
+void Entity_SetLayerMask(Entity entity, uint32_t mask)
+{
+    if (!Entity_IsValid(entity))
+        return;
+
+    entity.scene->layer_masks[entity.id] = mask;
+}
+
+
+
+
+
+// Gets the full layer bitmask of an entity
+uint32_t Entity_GetLayerMask(Entity entity)
+{
+    if (!Entity_IsValid(entity))
+        return 0;
+
+    return entity.scene->layer_masks[entity.id];
+}
+
+
+
+
+
+// Adds a layer to an entity's mask
+void Entity_AddLayer(Entity entity, uint8_t layer_index)
+{
+    if (!Entity_IsValid(entity) || layer_index >= 32)
+        return;
+
+    entity.scene->layer_masks[entity.id] |= (1u << layer_index);
+}
+
+
+
+
+
+
+// Removes a layer from an entity's mask
+void Entity_RemoveLayer(Entity entity, uint8_t layer_index)
+{
+    if (!Entity_IsValid(entity) || layer_index >= 32)
+        return;
+
+    entity.scene->layer_masks[entity.id] &= ~(1u << layer_index);
+}
+
+
+
+
+
+
+// Checks if an entity belongs to a specific layer
+bool Entity_HasLayer(Entity entity, uint8_t layer_index)
+{
+    if (!Entity_IsValid(entity) || layer_index >= 32)
+        return false;
+
+    return (entity.scene->layer_masks[entity.id] & (1u << layer_index)) != 0;
+}
+
+
+
+
+
+// Sets a single layer for an entity and all its descendants
+void Entity_SetLayerRecursively(Entity entity, uint8_t layer_index)
+{
+    if (!Entity_IsValid(entity) || layer_index >= 32)
+        return;
+
+    Entity_SetLayer(entity, layer_index);
+
+    uint32_t child_buffer[MAX_ENTITIES];
+    uint32_t child_count = Entity_GetChildren(entity, child_buffer, MAX_ENTITIES, true);
+
+    for (uint32_t i = 0; i < child_count; i++)
+    {
+        Entity_SetLayer((Entity){child_buffer[i], entity.scene}, layer_index);
+    }
+}
+
+
+
+
+
+// Sets a layer bitmask for an entity and all its descendants
+void Entity_SetLayerMaskRecursively(Entity entity, uint32_t mask)
+{
+    if (!Entity_IsValid(entity))
+        return;
+
+    Entity_SetLayerMask(entity, mask);
+
+    uint32_t child_buffer[MAX_ENTITIES];
+    uint32_t child_count = Entity_GetChildren(entity, child_buffer, MAX_ENTITIES, true);
+    
+    for (uint32_t i = 0; i < child_count; i++)
+    {
+        Entity_SetLayerMask((Entity){child_buffer[i], entity.scene}, mask);
+    }
+}
+
+
+
+
+
+
+
+
+
+
 // Remove a specified component from an entity
 void Entity_RemoveComponent(Entity entity, ComponentMask component)
 {
@@ -729,7 +877,6 @@ void Entity_AddMeshRenderer(Entity entity)
     r->is_active = true;
     r->mesh = NULL;
     r->material = NULL;
-    r->layer_mask = 1; // 1 is the default layer (layer 0)
     r->casts_shadows = true;
     r->receives_shadows = true;
 
@@ -750,7 +897,6 @@ void Entity_AddSkinnedMeshRenderer(Entity entity)
     r->is_active = true;
     r->mesh = NULL;
     r->material = NULL;
-    r->layer_mask = 1; // 1 is the default layer (layer 0)
     r->casts_shadows = true;
     r->receives_shadows = true;
     r->pose_bounds = (AABB){ {0, 0, 0}, {0, 0, 0} };
@@ -1443,6 +1589,8 @@ bool Script_IsActive(Entity entity, void* instance_data)
             return script_comp->instances[s].is_active;
         }
     }
+
+    return false;
 }
 
 

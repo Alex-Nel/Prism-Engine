@@ -70,7 +70,7 @@ static Quaternion LoadQuat(cJSON* arr)
     if (!arr || cJSON_GetArraySize(arr) < 4)
         return (Quaternion){0,0,0,1};
     
-        return (Quaternion){
+    return (Quaternion){
         cJSON_GetArrayItem(arr, 0)->valuedouble,
         cJSON_GetArrayItem(arr, 1)->valuedouble,
         cJSON_GetArrayItem(arr, 2)->valuedouble,
@@ -131,10 +131,10 @@ bool Scene_Save(Scene* scene, const char* filepath)
         cJSON* entity_obj = cJSON_CreateObject();
         cJSON_AddNumberToObject(entity_obj, "id", i);
         cJSON_AddNumberToObject(entity_obj, "component_mask", scene->component_masks[i]);
+        cJSON_AddNumberToObject(entity_obj, "layer_mask", scene->layer_masks[i]);
 
         // --- Save Names ---
-        if (scene->names && scene->names[i].name)
-            cJSON_AddStringToObject(entity_obj, "name", scene->names[i].name);
+        cJSON_AddStringToObject(entity_obj, "name", scene->names[i].name);
 
 
         // --- Save Transforms ---
@@ -156,6 +156,7 @@ bool Scene_Save(Scene* scene, const char* filepath)
             cJSON_AddNumberToObject(comp_obj, "fov", cam->fov);
             cJSON_AddNumberToObject(comp_obj, "nearZ", cam->nearZ);
             cJSON_AddNumberToObject(comp_obj, "farZ", cam->farZ);
+            cJSON_AddNumberToObject(comp_obj, "culling_masks", cam->culling_masks);
         }
 
 
@@ -488,6 +489,9 @@ bool Scene_Load(Scene* scene, const char* filepath)
         scene->is_active_in_hierarchy[id] = true;
         scene->component_masks[id] = mask;
 
+        cJSON* layer_mask_json = cJSON_GetObjectItemCaseSensitive(entity_json, "layer_mask");
+        scene->layer_masks[id] = layer_mask_json ? (uint32_t)layer_mask_json->valueint : DEFAULT_ENTITY_LAYER_MASK;
+
         // Load Name
         cJSON* name_json = cJSON_GetObjectItemCaseSensitive(entity_json, "name");
         if (name_json)
@@ -516,6 +520,8 @@ bool Scene_Load(Scene* scene, const char* filepath)
             cam->fov = (float)cJSON_GetObjectItemCaseSensitive(comp_obj, "fov")->valuedouble;
             cam->nearZ = (float)cJSON_GetObjectItemCaseSensitive(comp_obj, "nearZ")->valuedouble;
             cam->farZ = (float)cJSON_GetObjectItemCaseSensitive(comp_obj, "farZ")->valuedouble;
+            cJSON* cull_json = cJSON_GetObjectItemCaseSensitive(comp_obj, "culling_masks");
+            cam->culling_masks = cull_json ? (uint32_t)cull_json->valueint : ALL_LAYERS_MASK;
             cam->is_dirty = true;
         }
 
