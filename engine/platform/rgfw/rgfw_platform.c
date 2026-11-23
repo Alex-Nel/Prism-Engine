@@ -109,10 +109,8 @@ static void OnRGFWWindowRefresh(RGFW_window* rgfw_win);
 
 
 // Translate RGFW keys to Engine Key enums
-static KeyCode TranslateKey(RGFW_key rgfw_key, RGFW_keymod mod)
+static KeyCode TranslateKey(RGFW_key rgfw_key)
 {
-	bool shift = (mod & RGFW_modShift) != 0;
-
 	switch (rgfw_key)
 	{
 		case RGFW_a: return KEYCODE_A;
@@ -142,16 +140,16 @@ static KeyCode TranslateKey(RGFW_key rgfw_key, RGFW_keymod mod)
         case RGFW_y: return KEYCODE_Y;
         case RGFW_z: return KEYCODE_Z;
         
-        case RGFW_0: return shift ? KEYCODE_RIGHTPAREN   : KEYCODE_0;
-        case RGFW_1: return shift ? KEYCODE_EXCLAMATION  : KEYCODE_1;
-        case RGFW_2: return shift ? KEYCODE_AT           : KEYCODE_2;
-        case RGFW_3: return shift ? KEYCODE_HASH         : KEYCODE_3;
-        case RGFW_4: return shift ? KEYCODE_DOLLAR       : KEYCODE_4;
-        case RGFW_5: return shift ? KEYCODE_PERCENT      : KEYCODE_5;
-        case RGFW_6: return shift ? KEYCODE_CARET        : KEYCODE_6;
-        case RGFW_7: return shift ? KEYCODE_AMPERSAND    : KEYCODE_7;
-        case RGFW_8: return shift ? KEYCODE_ASTERISK     : KEYCODE_8;
-        case RGFW_9: return shift ? KEYCODE_LEFTPAREN    : KEYCODE_9;
+        case RGFW_0: return KEYCODE_0;
+        case RGFW_1: return KEYCODE_1;
+        case RGFW_2: return KEYCODE_2;
+        case RGFW_3: return KEYCODE_3;
+        case RGFW_4: return KEYCODE_4;
+        case RGFW_5: return KEYCODE_5;
+        case RGFW_6: return KEYCODE_6;
+        case RGFW_7: return KEYCODE_7;
+        case RGFW_8: return KEYCODE_8;
+        case RGFW_9: return KEYCODE_9;
         
         case RGFW_escape: return KEYCODE_ESCAPE;
         case RGFW_F1:     return KEYCODE_F1;
@@ -168,33 +166,32 @@ static KeyCode TranslateKey(RGFW_key rgfw_key, RGFW_keymod mod)
         case RGFW_F12:    return KEYCODE_F12;
         case RGFW_delete: return KEYCODE_DELETE;
 
-        case RGFW_backtick:     return shift ? KEYCODE_TILDE : KEYCODE_GRAVE;
-        case RGFW_minus:      return shift ? KEYCODE_UNDERSCORE : KEYCODE_MINUS;
-        case RGFW_equals:     return shift ? KEYCODE_PLUS       : KEYCODE_EQUALS;
-        case RGFW_backSpace:  return KEYCODE_BACKSPACE;
+        case RGFW_backtick:  return KEYCODE_GRAVE;
+        case RGFW_minus:     return KEYCODE_MINUS;
+        case RGFW_equals:    return KEYCODE_EQUALS;
+        case RGFW_backSpace: return KEYCODE_BACKSPACE;
 
-        case RGFW_tab:          return KEYCODE_TAB;
-        case RGFW_bracket:  return shift ? KEYCODE_LEFTBRACE  : KEYCODE_LEFTBRACKET;
-        case RGFW_closeBracket: return shift ? KEYCODE_RIGHTBRACE : KEYCODE_RIGHTBRACKET;
-        case RGFW_backSlash:    return shift ? KEYCODE_PIPE       : KEYCODE_BACKSLASH;
+        case RGFW_bracket:      return KEYCODE_LEFTBRACKET;
+        case RGFW_closeBracket: return KEYCODE_RIGHTBRACKET;
+        case RGFW_backSlash:    return KEYCODE_BACKSLASH;
 
-        case RGFW_capsLock:      return KEYCODE_CAPSLOCK;
-        case RGFW_semicolon:     return shift ? KEYCODE_COLON : KEYCODE_SEMICOLON;
-        case RGFW_apostrophe:    return shift ? KEYCODE_QUOTE : KEYCODE_APOSTROPHE;
-        case RGFW_return:        return KEYCODE_ENTER;
+        case RGFW_capsLock:   return KEYCODE_CAPSLOCK;
+        case RGFW_semicolon:  return KEYCODE_SEMICOLON;
+        case RGFW_apostrophe: return KEYCODE_APOSTROPHE;
+        case RGFW_return:     return KEYCODE_ENTER;
 
-        case RGFW_comma:    return shift ? KEYCODE_LESS     : KEYCODE_COMMA;
-        case RGFW_period:   return shift ? KEYCODE_GREATER  : KEYCODE_PERIOD;
-        case RGFW_slash:    return shift ? KEYCODE_QUESTION : KEYCODE_SLASH;
+        case RGFW_comma:  return KEYCODE_COMMA;
+        case RGFW_period: return KEYCODE_PERIOD;
+        case RGFW_slash:  return KEYCODE_SLASH;
 
         case RGFW_space:  return KEYCODE_SPACE;
 
-        case RGFW_shiftL: return KEYCODE_LEFTSHIFT;
-        case RGFW_shiftR: return KEYCODE_RIGHTSHIFT;
+        case RGFW_shiftL:    return KEYCODE_LEFTSHIFT;
+        case RGFW_shiftR:    return KEYCODE_RIGHTSHIFT;
         case RGFW_controlL:  return KEYCODE_LEFTCTRL;
         case RGFW_controlR:  return KEYCODE_RIGHTCTRL;
-        case RGFW_altL:   return KEYCODE_LEFTALT;
-        case RGFW_altR:   return KEYCODE_RIGHTALT;
+        case RGFW_altL:      return KEYCODE_LEFTALT;
+        case RGFW_altR:      return KEYCODE_RIGHTALT;
 
         case RGFW_up:    return KEYCODE_UPARROW;
         case RGFW_right: return KEYCODE_RIGHTARROW;
@@ -554,7 +551,7 @@ bool Platform_PollEvents(Event* e)
 	            case RGFW_keyPressed:
 	            case RGFW_keyReleased:
 	            {
-	                KeyCode translatedKey = TranslateKey(rgfw_event.key.value, rgfw_event.key.mod);
+	                KeyCode translatedKey = TranslateKey(rgfw_event.key.value);
 
 	                // Synthesize EVENT_TEXT_INPUT for printable characters when text input is active
 	                bool emit_text = false;
