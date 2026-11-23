@@ -25,6 +25,13 @@ endif()
 # --- User Options ---
 option(PRISM_BUILD_TEST "Build the test executables (if they exist)" ON)
 option(PRISM_BUILD_SHARED_LIBS "Build PrismEngine as a shared library (.dll / .so)" ON)
+set(PRISM_PLATFORM_BACKEND "SDL" CACHE STRING "Platform backend (SDL or RGFW)")
+set_property(CACHE PRISM_PLATFORM_BACKEND PROPERTY STRINGS "SDL" "RGFW")
+
+if(NOT PRISM_PLATFORM_BACKEND STREQUAL "SDL" AND NOT PRISM_PLATFORM_BACKEND STREQUAL "RGFW")
+    message(FATAL_ERROR "Unsupported PRISM_PLATFORM_BACKEND: '${PRISM_PLATFORM_BACKEND}'. Expected 'SDL' or 'RGFW'.")
+endif()
+message(STATUS "Prism platform backend: ${PRISM_PLATFORM_BACKEND}")
 
 
 # --- Dependency Packing ---
@@ -43,22 +50,42 @@ find_package(OpenGL REQUIRED)
 
 
 
-message(STATUS "Fetching SDL3 from GitHub...")
-FetchContent_Declare(
-    SDL3
-    GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-    GIT_TAG release-3.4.10
-    GIT_SHALLOW TRUE
-)
-set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-set(SDL_STATIC ON CACHE BOOL "" FORCE)
-set(SDL_TEST OFF CACHE BOOL "" FORCE)
-set(SDL_TESTS OFF CACHE BOOL "" FORCE)
-set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
-set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(SDL_X11_XTEST OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(SDL3)
+if(PRISM_PLATFORM_BACKEND STREQUAL "SDL")
+    message(STATUS "Fetching SDL3 from GitHub...")
+    FetchContent_Declare(
+        SDL3
+        GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
+        GIT_TAG release-3.4.10
+        GIT_SHALLOW TRUE
+    )
+    set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+    set(SDL_STATIC ON CACHE BOOL "" FORCE)
+    set(SDL_TEST OFF CACHE BOOL "" FORCE)
+    set(SDL_TESTS OFF CACHE BOOL "" FORCE)
+    set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
+    set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(SDL_X11_XTEST OFF CACHE BOOL "" FORCE)
 
+    # Disable unused SDL3 subsystems to minimize compile time and binary size
+    set(SDL_AUDIO OFF CACHE BOOL "" FORCE)
+    set(SDL_GPU OFF CACHE BOOL "" FORCE)
+    set(SDL_RENDER OFF CACHE BOOL "" FORCE)
+    set(SDL_CAMERA OFF CACHE BOOL "" FORCE)
+    set(SDL_JOYSTICK OFF CACHE BOOL "" FORCE)
+    set(SDL_HAPTIC OFF CACHE BOOL "" FORCE)
+    set(SDL_HIDAPI OFF CACHE BOOL "" FORCE)
+    set(SDL_POWER OFF CACHE BOOL "" FORCE)
+    set(SDL_SENSOR OFF CACHE BOOL "" FORCE)
+    set(SDL_DIALOG OFF CACHE BOOL "" FORCE)
+    set(SDL_TRAY OFF CACHE BOOL "" FORCE)
+    set(SDL_OPENGLES OFF CACHE BOOL "" FORCE)
+    set(SDL_VULKAN OFF CACHE BOOL "" FORCE)
+    set(SDL_METAL OFF CACHE BOOL "" FORCE)
+    set(SDL_OFFSCREEN OFF CACHE BOOL "" FORCE)
+    set(SDL_DUMMYVIDEO OFF CACHE BOOL "" FORCE)
+
+    FetchContent_MakeAvailable(SDL3)
+endif()
 
 
 message(STATUS "Fetching Box3D from GitHub...")
@@ -105,7 +132,6 @@ set(BUILD_SHARED_LIBS ${PRISM_BUILD_SHARED_LIBS} CACHE BOOL "" FORCE)
 file(GLOB_RECURSE ENGINE_SRCS
     "engine/core/*.c" "engine/core/*.cpp"
     "engine/audio/*.c" "engine/audio/*.cpp"
-    "engine/platform/sdl/*.c" "engine/platform/sdl/*.cpp"
     "engine/render/*.c" "engine/render/*.cpp"
     "engine/render/opengl/*.c" "engine/render/opengl/*.cpp"
     "engine/render/headless/*.c" "engine/render/headless/*.cpp"
@@ -115,6 +141,18 @@ file(GLOB_RECURSE ENGINE_SRCS
     "external/glad/*.c"
     "external/cJSON/*.c"
 )
+
+if(PRISM_PLATFORM_BACKEND STREQUAL "SDL")
+    file(GLOB_RECURSE PLATFORM_SRCS
+        "engine/platform/sdl/*.c" "engine/platform/sdl/*.cpp"
+    )
+elseif(PRISM_PLATFORM_BACKEND STREQUAL "RGFW")
+    file(GLOB_RECURSE PLATFORM_SRCS
+        "engine/platform/rgfw/*.c" "engine/platform/rgfw/*.cpp"
+        "external/tinycthreads/*.c"
+    )
+endif()
+list(APPEND ENGINE_SRCS ${PLATFORM_SRCS})
 
 # 2. The Public API Implementation (C++ headers)
 file(GLOB_RECURSE API_SRCS "engine/api/src/*.cpp")
@@ -148,11 +186,28 @@ target_include_directories(PrismEngineLib PRIVATE
 
 # PRIVATE: The engine uses these libraries natively.
 target_link_libraries(PrismEngineLib PRIVATE
-    SDL3::SDL3
     box3d::box3d
     OpenGL::GL
     assimp
 )
+
+if(PRISM_PLATFORM_BACKEND STREQUAL "SDL")
+    target_link_libraries(PrismEngineLib PRIVATE SDL3::SDL3)
+elseif(PRISM_PLATFORM_BACKEND STREQUAL "RGFW")
+    if(WIN32)
+        target_link_libraries(PrismEngineLib PRIVATE gdi32 user32 shell32)
+    elseif(APPLE)
+        target_link_libraries(PrismEngineLib PRIVATE
+            "-framework Cocoa"
+            "-framework CoreVideo"
+            "-framework OpenGL"
+            "-framework IOKit"
+        )
+    elseif(UNIX)
+        find_package(Threads REQUIRED)
+        target_link_libraries(PrismEngineLib PRIVATE X11 Xrandr Threads::Threads m dl)
+    endif()
+endif()
 
 
 

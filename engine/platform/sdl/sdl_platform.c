@@ -3,8 +3,8 @@
 
 #include "SDL3/SDL.h"
 
+#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 
 
@@ -17,7 +17,6 @@ struct Window
     uint32_t height;
     bool is_mouse_captured;
     bool is_minimized;
-    bool should_close;
     PlatformEventWatchCallback watch_callback;
     void* watch_userdata;
 };
@@ -25,6 +24,14 @@ struct Window
 
 
 #define PRISM_WINDOW_POINTER_PROPERTY "PrismEngine.Window"
+
+
+
+// Static SDL lifecycle tracking
+
+static uint32_t g_open_window_count = 0;
+static bool g_event_watch_registered = false;
+static bool g_sdl_initialized = false;
 
 
 
@@ -184,27 +191,36 @@ void Platform_SetGLAttribute(GraphicsGLAttribute attr, int value)
         case GRAPHICS_GL_ATTR_CONTEXT_MAJOR_VERSION:
             sdl_attr = SDL_GL_CONTEXT_MAJOR_VERSION;
             break;
+
         case GRAPHICS_GL_ATTR_CONTEXT_MINOR_VERSION:
             sdl_attr = SDL_GL_CONTEXT_MINOR_VERSION;
             break;
+        
         case GRAPHICS_GL_ATTR_CONTEXT_PROFILE_MASK:
             sdl_attr = SDL_GL_CONTEXT_PROFILE_MASK;
             if (value == GRAPHICS_GL_PROFILE_CORE)
+            {
                 value = SDL_GL_CONTEXT_PROFILE_CORE;
+                SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG); // Required on macOS to get OpenGL 3.2+ core contexts instead of legacy 2.1
+            }
             else if (value == GRAPHICS_GL_PROFILE_COMPATABILITY)
                 value = SDL_GL_CONTEXT_PROFILE_COMPATIBILITY;
             else if (value == GRAPHICS_GL_PROFILE_ES)
                 value = SDL_GL_CONTEXT_PROFILE_ES;
             break;
+        
         case GRAPHICS_GL_ATTR_DOUBLEBUFFER:
             sdl_attr = SDL_GL_DOUBLEBUFFER;
             break;
+        
         case GRAPHICS_GL_ATTR_DEPTH_SIZE:
             sdl_attr = SDL_GL_DEPTH_SIZE;
             break;
+        
         case GRAPHICS_GL_ATTR_STENCIL_SIZE:
             sdl_attr = SDL_GL_STENCIL_SIZE;
             break;
+        
         default:
             return;
     }
@@ -226,26 +242,28 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
 {
     if (api == GRAPHICS_API_NONE)
     {
-        if (!SDL_Init(SDL_INIT_EVENTS))
+        if (!SDL_InitSubSystem(SDL_INIT_EVENTS))
         {
             Log_Error("ERROR: SDL Headless Init Error: %s\n", SDL_GetError());
             return NULL;
         }
 
-
+        g_sdl_initialized = true;
         Log_Info("INFO: SDL Initialized in headless mode (No Video).");
         return NULL;
     }
 
 
-    if (!SDL_Init(SDL_INIT_VIDEO))
+    if (!SDL_InitSubSystem(SDL_INIT_VIDEO))
     {
         Log_Error("ERROR: SDL_Init Error: %s\n", SDL_GetError());
         return NULL;
     }
+    g_sdl_initialized = true;
 
     Window* win = (Window*)malloc(sizeof(Window));
-    if (!win) return NULL;
+    if (!win)
+        return NULL;
 
     // Specify SDL window flags
     SDL_WindowFlags window_flags = SDL_WINDOW_RESIZABLE;
@@ -266,7 +284,7 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
     }
 
 
-    win->sdl_window = SDL_CreateWindow(title, width, height, window_flags);
+    win->sdl_window = SDL_CreateWindow(title ? title : "Prism Engine", (int)width, (int)height, window_flags);
     if (!win->sdl_window)
     {
         Log_Error("ERROR: SDL_CreateWindow Error: %s\n", SDL_GetError());
@@ -274,13 +292,17 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
         return NULL;
     }
 
+    // Seed dimensions from the actual created window size
+    int actual_w = (int)width;
+    int actual_h = (int)height;
+    SDL_GetWindowSize(win->sdl_window, &actual_w, &actual_h);
+
     // Set window parameters
     win->id = (uint32_t)SDL_GetWindowID(win->sdl_window);
-    win->width = width;
-    win->height = height;
+    win->width = actual_w > 0 ? (uint32_t)actual_w : width;
+    win->height = actual_h > 0 ? (uint32_t)actual_h : height;
     win->is_mouse_captured = false;
     win->is_minimized = false;
-    win->should_close = false;
     win->watch_callback = NULL;
     win->watch_userdata = NULL;
 
@@ -294,7 +316,12 @@ Window* Platform_Init(const char* title, uint32_t width, uint32_t height, Graphi
         return NULL;
     }
 
-    SDL_AddEventWatch(WindowEventWatcher, NULL);
+    g_open_window_count++;
+    if (!g_event_watch_registered)
+    {
+        SDL_AddEventWatch(WindowEventWatcher, NULL);
+        g_event_watch_registered = true;
+    }
 
     return win;
 }
@@ -346,8 +373,11 @@ static bool SDLCALL WindowEventWatcher(void* userdata, SDL_Event* event)
     // Resize events update only the window that generated them
     if (event->type == SDL_EVENT_WINDOW_RESIZED || event->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED)
     {
-        window->width = (uint32_t)event->window.data1;
-        window->height = (uint32_t)event->window.data2;
+        if (event->window.data1 > 0 && event->window.data2 > 0)
+        {
+            window->width = (uint32_t)event->window.data1;
+            window->height = (uint32_t)event->window.data2;
+        }
     }
     
     // Scene-facing modal work must stay on SDL's main event thread
@@ -378,17 +408,20 @@ void Platform_SetEventWatchCallback(Window* window, PlatformEventWatchCallback c
 
 
 
-// Polls all SDL platform events and turns them into and engine specific event
-// Returns true if an event happened
+// Polls all SDL platform events and turns them into an engine specific event. Returns true if an event happened
 bool Platform_PollEvents(Event* e)
 {
+    if (!e)
+        return false;
+
     SDL_Event sdl_event;
     
     // Loop until we find a relevant event, or the queue is empty.
     while (SDL_PollEvent(&sdl_event))
     {
         e->type = EVENT_NONE;
-        e->window_id = 0;
+        SDL_Window* sdl_win = SDL_GetWindowFromEvent(&sdl_event);
+        e->window_id = sdl_win ? (uint32_t)SDL_GetWindowID(sdl_win) : 0;
 
         switch (sdl_event.type)
         {
@@ -398,34 +431,31 @@ bool Platform_PollEvents(Event* e)
 
             case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
                 e->type = EVENT_WINDOW_CLOSE;
-                e->window_id = (uint32_t)sdl_event.window.windowID;
                 break;
 
             case SDL_EVENT_WINDOW_RESIZED:
-                e->type = EVENT_WINDOW_RESIZE;
-                e->window_id = (uint32_t)sdl_event.window.windowID;
-                e->window_resize.width = (uint32_t)sdl_event.window.data1;
-                e->window_resize.height = (uint32_t)sdl_event.window.data2;
+                if (sdl_event.window.data1 > 0 && sdl_event.window.data2 > 0)
+                {
+                    e->type = EVENT_WINDOW_RESIZE;
+                    e->window_resize.width = (uint32_t)sdl_event.window.data1;
+                    e->window_resize.height = (uint32_t)sdl_event.window.data2;
+                }
                 break;
 
             case SDL_EVENT_WINDOW_FOCUS_GAINED:
                 e->type = EVENT_WINDOW_FOCUS_GAINED;
-                e->window_id = (uint32_t)sdl_event.window.windowID;
                 break;
 
             case SDL_EVENT_WINDOW_FOCUS_LOST:
                 e->type = EVENT_WINDOW_FOCUS_LOST;
-                e->window_id = (uint32_t)sdl_event.window.windowID;
                 break;
 
             case SDL_EVENT_WINDOW_MINIMIZED:
                 e->type = EVENT_WINDOW_MINIMIZED;
-                e->window_id = (uint32_t)sdl_event.window.windowID;
                 break;
 
             case SDL_EVENT_WINDOW_RESTORED:
                 e->type = EVENT_WINDOW_RESTORED;
-                e->window_id = (uint32_t)sdl_event.window.windowID;
                 break;
 
             case SDL_EVENT_KEY_DOWN:
@@ -435,7 +465,6 @@ bool Platform_PollEvents(Event* e)
                 else
                     e->type = EVENT_KEY_RELEASED;
                 
-                e->window_id = (uint32_t)sdl_event.window.windowID;
                 e->key.key = TranslateKey(sdl_event.key.key, sdl_event.key.mod);
                 
                 // If it's an unsupported key, ignore it
@@ -446,7 +475,6 @@ bool Platform_PollEvents(Event* e)
 
             case SDL_EVENT_MOUSE_MOTION:
                 e->type = EVENT_MOUSE_MOVED;
-                e->window_id = (uint32_t)sdl_event.window.windowID;
                 e->mouse_state.x = sdl_event.motion.x;
                 e->mouse_state.y = sdl_event.motion.y;
                 e->mouse_state.dx = sdl_event.motion.xrel;
@@ -460,7 +488,6 @@ bool Platform_PollEvents(Event* e)
                 else
                     e->type = EVENT_MOUSE_BUTTON_RELEASED;
 
-                e->window_id = (uint32_t)sdl_event.window.windowID;
                 e->mouse_button.button = TranslateMouseButton(sdl_event.button.button);
                 
                 if (e->mouse_button.button == MOUSE_BUTTON_MAX)
@@ -470,17 +497,15 @@ bool Platform_PollEvents(Event* e)
 
             case SDL_EVENT_MOUSE_WHEEL:
                 e->type = EVENT_MOUSEWHEEL_SCROLLED;
-                e->window_id = (uint32_t)sdl_event.window.windowID;
+                e->mouse_scroll.delta_x = sdl_event.wheel.x;
                 e->mouse_scroll.delta_y = sdl_event.wheel.y;
                 break;
 
             case SDL_EVENT_TEXT_INPUT:
                 e->type = EVENT_TEXT_INPUT;
-                e->window_id = (uint32_t)sdl_event.window.windowID;
 
-                // Copy the max size, with NULL terminator
-                snprintf(e->text_input.text, 255, "%s", sdl_event.text.text);
-                e->text_input.text[255] = '\0';
+                // Copy up to buffer capacity with NULL terminator
+                snprintf(e->text_input.text, sizeof(e->text_input.text), "%s", sdl_event.text.text);
                 break;
 
             default:
@@ -502,18 +527,33 @@ bool Platform_PollEvents(Event* e)
 
 
 
-// Shutdowns platform window
+// Shuts down a platform window. Shuts down SDL once no windows remain
 void Platform_Shutdown(Window* window)
 {
-    SDL_RemoveEventWatch(WindowEventWatcher, NULL);
-
     if (window)
     {
-        if (window->sdl_window) SDL_DestroyWindow(window->sdl_window);
+        if (window->sdl_window)
+            SDL_DestroyWindow(window->sdl_window);
+        
         free(window);
+
+        if (g_open_window_count > 0)
+            g_open_window_count--;
     }
 
-    SDL_Quit();
+    if (g_open_window_count == 0)
+    {
+        if (g_event_watch_registered)
+        {
+            SDL_RemoveEventWatch(WindowEventWatcher, NULL);
+            g_event_watch_registered = false;
+        }
+        if (g_sdl_initialized)
+        {
+            SDL_Quit();
+            g_sdl_initialized = false;
+        }
+    }
 }
 
 
@@ -548,6 +588,9 @@ uint32_t Platform_GetWindowID(Window* window)
 // Gets the x and y position of the window (from the top left)
 void Platform_GetWindowPosition(Window* window, int* x, int* y)
 {
+    if (!window || !window->sdl_window)
+        return;
+
     SDL_GetWindowPosition(window->sdl_window, x, y);
 }
 
@@ -584,7 +627,7 @@ uint32_t Platform_GetWindowHeight(Window* window)
 // Sets a windows width
 void Platform_SetWindowSize(Window* window, uint32_t width, uint32_t height)
 {
-    if (!window)
+    if (!window || !window->sdl_window)
         return;
     
     window->width = width;
@@ -700,6 +743,9 @@ void Platform_Delay(uint32_t ms)
 // Raises the window to the foreground
 bool Platform_RaiseWindow(Window* window)
 {
+    if (!window || !window->sdl_window)
+        return false;
+
     return SDL_RaiseWindow(window->sdl_window);
 }
 
@@ -710,6 +756,9 @@ bool Platform_RaiseWindow(Window* window)
 // Returns whether the mouse is captured
 bool Platform_IsMouseCaptured(Window* window)
 {
+    if (!window)
+        return false;
+
     return window->is_mouse_captured;
 }
 
@@ -732,7 +781,10 @@ void Platform_SetRelativeMouseMode(Window* window, bool enabled)
 // Moves mouse to the middle of the screen
 void Platform_WarpMouseToMiddle(Window* window)
 {
-    SDL_WarpMouseInWindow(window->sdl_window, window->width/2, window->height/2);
+    if (!window || !window->sdl_window)
+        return;
+
+    SDL_WarpMouseInWindow(window->sdl_window, (float)window->width/2, (float)window->height/2);
 }
 
 
