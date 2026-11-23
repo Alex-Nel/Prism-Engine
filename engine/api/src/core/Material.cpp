@@ -30,8 +30,9 @@ namespace Prism
         if (m_Handle != nullptr) {
             ::Material* raw_mat = static_cast<::Material*>(m_Handle);
             raw_mat->properties.albedo_tint.r = color.r;
-            raw_mat->properties.albedo_tint.b = color.b;
             raw_mat->properties.albedo_tint.g = color.g;
+            raw_mat->properties.albedo_tint.b = color.b;
+            raw_mat->properties.albedo_tint.a = color.a;
             SyncMaterialGPU(raw_mat);
         }
         else {
@@ -183,6 +184,42 @@ namespace Prism
         else {
             Debug_Warning("Attempted to set specular strength on an invalid Material");
         }
+    }
+
+
+
+
+
+    std::string Material::GetName() const {
+        if (m_Handle != nullptr) {
+            ::Material* raw_mat = static_cast<::Material*>(m_Handle);
+            return std::string(raw_mat->name);
+        }
+        return "";
+    }
+
+    Prism::Color Material::GetTintColor() const {
+        if (m_Handle != nullptr) {
+            ::Material* raw_mat = static_cast<::Material*>(m_Handle);
+            return Prism::Color(raw_mat->properties.albedo_tint.r, raw_mat->properties.albedo_tint.g, raw_mat->properties.albedo_tint.b, raw_mat->properties.albedo_tint.a);
+        }
+        return Prism::Color();
+    }
+
+    float Material::GetMetallic() const {
+        if (m_Handle != nullptr) {
+            ::Material* raw_mat = static_cast<::Material*>(m_Handle);
+            return raw_mat->properties.metallic_factor;
+        }
+        return 0.0f;
+    }
+
+    float Material::GetRoughness() const {
+        if (m_Handle != nullptr) {
+            ::Material* raw_mat = static_cast<::Material*>(m_Handle);
+            return raw_mat->properties.roughness_factor;
+        }
+        return 0.0f;
     }
 
 }

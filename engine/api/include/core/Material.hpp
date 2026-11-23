@@ -2,6 +2,7 @@
 
 #include "PrismAPI.hpp"
 #include "Color.hpp"
+#include <string>
 
 
 
@@ -103,7 +104,9 @@ namespace Prism
             return m_Handle != nullptr;
         }
 
+
         // --- Setters for Material Properties ---
+
         void SetTintColor(const Prism::Color& color);
         void SetShininess(float shininess);
         void SetSpecularStrength(float strength);
@@ -115,6 +118,14 @@ namespace Prism
         void SetRoughnessMap(Prism::Texture roughness);
         void SetAOMap(Prism::Texture ao);
         void SetShader(Prism::Shader shader);
+
+
+        // --- Getters for Material Properties ---
+
+        std::string GetName() const;
+        Prism::Color GetTintColor() const;
+        float GetMetallic() const;
+        float GetRoughness() const;
     };
 
 }

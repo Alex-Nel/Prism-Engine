@@ -269,9 +269,9 @@ namespace Prism
         template<typename T>
         bool HasComponent();
 
-        // Returns matching components on child entities. The entity itself is not included.
+        // Returns matching components on child entities. Optionally includes this entity if include_self is true.
         template<typename T>
-        std::vector<T*> GetComponentsInChildren(bool recursive = true);
+        std::vector<T*> GetComponentsInChildren(bool recursive = true, bool include_self = false);
 
         // Walks up the hierarchy and returns the first matching component.
         template<typename T>
@@ -644,9 +644,15 @@ namespace Prism
 
 
     template<typename T>
-    std::vector<T*> Entity::GetComponentsInChildren(bool recursive)
+    std::vector<T*> Entity::GetComponentsInChildren(bool recursive, bool include_self)
     {
         std::vector<T*> result;
+        if (include_self)
+        {
+            if (T* component = this->GetComponent<T>())
+                result.push_back(component);
+        }
+        
         std::vector<Entity> children = GetChildren(recursive);
 
         for (Entity& child : children)

@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <math.h>
 #include <float.h>
 #include "model_loader.h"
@@ -429,6 +430,140 @@ static Material* FindFreeMaterialSlot(AssetManager* am)
 
 
 
+// Compares two strings while ignoring their case
+static bool StrEqualsIgnoreCase(const char* a, const char* b)
+{
+    if (!a || !b)
+        return false;
+
+    while (*a && *b)
+    {
+        if (tolower((unsigned char)*a) != tolower((unsigned char)*b))
+            return false;
+        a++;
+        b++;
+    }
+
+    return (*a == '\0' && *b == '\0');
+}
+
+
+
+
+
+
+
+
+
+
+// Normalizes a file path
+static void NormalizePath(const char* input, char* output, size_t out_size)
+{
+    if (!input || !output || out_size == 0)
+        return;
+
+    char temp[1024];
+    size_t in_len = strlen(input);
+
+    if (in_len >= sizeof(temp))
+        in_len = sizeof(temp) - 1;
+
+    for (size_t i = 0; i < in_len; i++)
+        temp[i] = (input[i] == '\\') ? '/' : input[i];
+
+    temp[in_len] = '\0';
+
+    char prefix[8] = {0};
+    size_t prefix_len = 0;
+    const char* start = temp;
+
+    if (isalpha((unsigned char)start[0]) && start[1] == ':')
+    {
+        prefix[0] = start[0];
+        prefix[1] = ':';
+        prefix_len = 2;
+        start += 2;
+        if (*start == '/')
+        {
+            prefix[prefix_len++] = '/';
+            start++;
+        }
+        prefix[prefix_len] = '\0';
+    }
+    else if (*start == '/')
+    {
+        prefix[0] = '/';
+        prefix[1] = '\0';
+        prefix_len = 1;
+        while (*start == '/') start++;
+    }
+
+    char* segments[64];
+    int seg_count = 0;
+
+    char buf[1024];
+    snprintf(buf, sizeof(buf), "%s", start);
+
+    char* token = strtok(buf, "/");
+    while (token && seg_count < 64)
+    {
+        if (strcmp(token, ".") == 0 || token[0] == '\0')
+        {
+        }
+        else if (strcmp(token, "..") == 0)
+        {
+            if (seg_count > 0 && strcmp(segments[seg_count - 1], "..") != 0)
+                seg_count--;
+            else if (prefix_len == 0)
+                segments[seg_count++] = token;
+        }
+        else
+        {
+            segments[seg_count++] = token;
+        }
+        token = strtok(NULL, "/");
+    }
+
+    output[0] = '\0';
+    if (prefix_len > 0)
+        snprintf(output, out_size, "%s", prefix);
+
+    size_t cur_len = strlen(output);
+    for (int i = 0; i < seg_count; i++)
+    {
+        if (i > 0 || (prefix_len > 0 && output[cur_len - 1] != '/'))
+        {
+            if (cur_len + 1 < out_size)
+            {
+                output[cur_len++] = '/';
+                output[cur_len] = '\0';
+            }
+        }
+        size_t seg_l = strlen(segments[i]);
+        if (cur_len + seg_l < out_size)
+        {
+            memcpy(output + cur_len, segments[i], seg_l);
+            cur_len += seg_l;
+            output[cur_len] = '\0';
+        }
+    }
+
+    if (cur_len == 0 && out_size > 1)
+    {
+        output[0] = '.';
+        output[1] = '\0';
+    }
+}
+
+
+
+
+
+
+
+
+
+
 // Main model loader function
 Model* Asset_LoadModel(AssetManager* am, const char* name, const char* filepath)
 {
@@ -481,21 +616,7 @@ Texture* Asset_LoadTexture(AssetManager* am, const char* name, const char* filep
 
     char canonical[1024] = {0};
     if (filepath && filepath[0] != '\0')
-    {
-#ifdef _WIN32
-        char temp[1024];
-        if (_fullpath(temp, filepath, sizeof(temp)))
-        {
-            for (char* p = temp; *p; p++)
-            {
-                if (*p == '\\') *p = '/';
-            }
-            snprintf(canonical, sizeof(canonical), "%s", temp);
-        }
-#else
-        realpath(filepath, canonical);
-#endif
-    }
+        NormalizePath(filepath, canonical, sizeof(canonical));
 
     // Check if the texture is already loaded
     for (uint32_t i = 0; i < am->texture_count; i++)
@@ -504,13 +625,8 @@ Texture* Asset_LoadTexture(AssetManager* am, const char* name, const char* filep
         {
             if (canonical[0] != '\0' && am->texture_source_paths[i])
             {
-#ifdef _WIN32
-                if (_stricmp(am->texture_source_paths[i], canonical) == 0)
+                if (StrEqualsIgnoreCase(am->texture_source_paths[i], canonical))
                     return &am->texture_cache[i];
-#else
-                if (strcmp(am->texture_source_paths[i], canonical) == 0)
-                    return &am->texture_cache[i];
-#endif
             }
             else if (canonical[0] == '\0' && strcmp(am->texture_cache[i].name, name) == 0)
             {
@@ -850,22 +966,8 @@ Shader* Asset_LoadShader(AssetManager* am, const char* name, const char* vert_pa
 
     if (vert_path && frag_path && vert_path[0] != '\0' && frag_path[0] != '\0')
     {
-#ifdef _WIN32
-        char temp_v[1024], temp_f[1024];
-        if (_fullpath(temp_v, vert_path, sizeof(temp_v)))
-        {
-            for (char* p = temp_v; *p; p++) if (*p == '\\') *p = '/';
-            snprintf(can_vert, sizeof(can_vert), "%s", temp_v);
-        }
-        if (_fullpath(temp_f, frag_path, sizeof(temp_f)))
-        {
-            for (char* p = temp_f; *p; p++) if (*p == '\\') *p = '/';
-            snprintf(can_frag, sizeof(can_frag), "%s", temp_f);
-        }
-#else
-        realpath(vert_path, can_vert);
-        realpath(frag_path, can_frag);
-#endif
+        NormalizePath(vert_path, can_vert, sizeof(can_vert));
+        NormalizePath(frag_path, can_frag, sizeof(can_frag));
     }
 
     // Check if we already loaded this exact shader
@@ -873,18 +975,10 @@ Shader* Asset_LoadShader(AssetManager* am, const char* name, const char* vert_pa
     {
         if (am->shader_cache[i].name[0] != '\0')
         {
-            if (can_vert[0] != '\0' && can_frag[0] != '\0' &&
-                am->shader_vertex_paths[i] && am->shader_fragment_paths[i])
+            if (can_vert[0] != '\0' && can_frag[0] != '\0' && am->shader_vertex_paths[i] && am->shader_fragment_paths[i])
             {
-#ifdef _WIN32
-                if (_stricmp(am->shader_vertex_paths[i], can_vert) == 0 &&
-                    _stricmp(am->shader_fragment_paths[i], can_frag) == 0)
+                if (StrEqualsIgnoreCase(am->shader_vertex_paths[i], can_vert) && StrEqualsIgnoreCase(am->shader_fragment_paths[i], can_frag))
                     return &am->shader_cache[i];
-#else
-                if (strcmp(am->shader_vertex_paths[i], can_vert) == 0 &&
-                    strcmp(am->shader_fragment_paths[i], can_frag) == 0)
-                    return &am->shader_cache[i];
-#endif
             }
             else if (can_vert[0] == '\0' && strcmp(am->shader_cache[i].name, name) == 0)
             {

@@ -13,14 +13,6 @@
 #include <math.h>
 #include <stdbool.h>
 
-#ifdef _WIN32
-#include <windows.h>
-#include <direct.h>
-#else
-#include <unistd.h>
-#include <limits.h>
-#endif
-
 
 
 
@@ -37,6 +29,32 @@ static char* DuplicateString(const char* s)
         memcpy(copy, s, len);
     
     return copy;
+}
+
+
+
+
+
+
+
+
+
+
+static bool StrEqualsIgnoreCase(const char* a, const char* b)
+{
+    if (!a || !b)
+    	return false;
+
+    while (*a && *b)
+    {
+        if (tolower((unsigned char)*a) != tolower((unsigned char)*b))
+            return false;
+
+        a++;
+        b++;
+    }
+
+    return (*a == '\0' && *b == '\0');
 }
 
 
@@ -163,56 +181,118 @@ static bool FileExists(const char* path)
 
 
 
-static bool NormalizeAndCanonicalize(const char* path, char* out, size_t out_size)
+static void NormalizePath(const char* input, char* output, size_t out_size)
 {
-    if (!path || !out || out_size == 0)
-    	return false;
+    if (!input || !output || out_size == 0)
+    	return;
 
-#ifdef _WIN32
     char temp[1024];
-    
-    if (_fullpath(temp, path, sizeof(temp)) == NULL)
-        return false;
+    size_t in_len = strlen(input);
 
-    for (char* p = temp; *p; p++)
+    if (in_len >= sizeof(temp))
+    	in_len = sizeof(temp) - 1;
+
+
+    // 1. Copy and convert all backslashes to forward slashes
+    for (size_t i = 0; i < in_len; i++)
     {
-        if (*p == '\\') *p = '/';
+        temp[i] = (input[i] == '\\') ? '/' : input[i];
     }
-    
-    snprintf(out, out_size, "%s", temp);
-    return true;
-#else
-    char temp[PATH_MAX];
-    
-    if (realpath(path, temp) == NULL)
+    temp[in_len] = '\0';
+
+
+    // 2. Identify prefix (drive letter "C:/" or root "/")
+    char prefix[8] = {0};
+    size_t prefix_len = 0;
+    const char* start = temp;
+
+    if (isalpha((unsigned char)start[0]) && start[1] == ':')
     {
-        return false;
+        prefix[0] = start[0];
+        prefix[1] = ':';
+        prefix_len = 2;
+        start += 2;
+
+        if (*start == '/')
+        {
+            prefix[prefix_len++] = '/';
+            start++;
+        }
+
+        prefix[prefix_len] = '\0';
     }
-    
-    snprintf(out, out_size, "%s", temp);
-    return true;
-#endif
-}
+    else if (*start == '/')
+    {
+        prefix[0] = '/';
+        prefix[1] = '\0';
+        prefix_len = 1;
+
+        while (*start == '/')
+        	start++;
+    }
 
 
+    // 3. Tokenize by '/' and process segments
+    char* segments[64];
+    int seg_count = 0;
+
+    char buf[1024];
+    snprintf(buf, sizeof(buf), "%s", start);
+
+    char* token = strtok(buf, "/");
+    while (token && seg_count < 64)
+    {
+        if (strcmp(token, ".") == 0 || token[0] == '\0')
+        {
+            // Skip '.' and empty tokens
+        }
+        else if (strcmp(token, "..") == 0)
+        {
+            if (seg_count > 0 && strcmp(segments[seg_count - 1], "..") != 0)
+                seg_count--; // Pop parent segment
+            else if (prefix_len == 0)
+                segments[seg_count++] = token; // Keep leading '..' for relative paths
+        }
+        else
+        {
+            segments[seg_count++] = token;
+        }
+        token = strtok(NULL, "/");
+    }
 
 
+    // 4. Reconstruct normalized path
+    output[0] = '\0';
+    if (prefix_len > 0)
+        snprintf(output, out_size, "%s", prefix);
 
+    size_t cur_len = strlen(output);
+    for (int i = 0; i < seg_count; i++)
+    {
+        if (i > 0 || (prefix_len > 0 && output[cur_len - 1] != '/'))
+        {
+            if (cur_len + 1 < out_size)
+            {
+                output[cur_len++] = '/';
+                output[cur_len] = '\0';
+            }
+        }
 
+        size_t seg_l = strlen(segments[i]);
 
+        if (cur_len + seg_l < out_size)
+        {
+            memcpy(output + cur_len, segments[i], seg_l);
+            cur_len += seg_l;
+            output[cur_len] = '\0';
+        }
+    }
 
-
-
-static bool PathsEqual(const char* a, const char* b)
-{
-    if (!a || !b)
-    	return false;
-
-#ifdef _WIN32
-    return _stricmp(a, b) == 0;
-#else
-    return strcmp(a, b) == 0;
-#endif
+    if (cur_len == 0 && out_size > 1)
+    {
+        output[0] = '.';
+        output[1] = '\0';
+    }
 }
 
 
@@ -314,8 +394,7 @@ static Texture* ResolveFileTexture(AssetManager* am, const char* mat_dir, const 
     snprintf(combined, sizeof(combined), "%s%s", mat_dir, rel_path);
 
     char canonical[1024];
-    if (!NormalizeAndCanonicalize(combined, canonical, sizeof(canonical)))
-        return NULL;
+    NormalizePath(combined, canonical, sizeof(canonical));
     
     if (!FileExists(canonical))
         return NULL;
@@ -325,7 +404,7 @@ static Texture* ResolveFileTexture(AssetManager* am, const char* mat_dir, const 
     {
         if (am->texture_cache[i].name[0] != '\0' && am->texture_source_paths[i])
         {
-            if (PathsEqual(am->texture_source_paths[i], canonical))
+            if (StrEqualsIgnoreCase(am->texture_source_paths[i], canonical))
             {
                 return &am->texture_cache[i];
             }
@@ -432,15 +511,14 @@ Material* MaterialLoader_Load(AssetManager* am, const char* filepath)
         return NULL;
     
     char canonical_mat_path[1024];
-    if (!NormalizeAndCanonicalize(filepath, canonical_mat_path, sizeof(canonical_mat_path)))
-        return NULL;
+    NormalizePath(filepath, canonical_mat_path, sizeof(canonical_mat_path));
     
     // Check if this material is already loaded
     for (uint32_t i = 0; i < am->material_count; i++)
     {
         if (am->material_cache[i].active && am->material_source_paths[i])
         {
-            if (PathsEqual(am->material_source_paths[i], canonical_mat_path))
+            if (StrEqualsIgnoreCase(am->material_source_paths[i], canonical_mat_path))
             {
                 return &am->material_cache[i];
             }
@@ -558,12 +636,7 @@ Material* MaterialLoader_Load(AssetManager* am, const char* filepath)
     }
 
     char mat_dir[1024] = {0};
-    char can_save_path[1024];
-    
-    if (NormalizeAndCanonicalize(filepath, can_save_path, sizeof(can_save_path)))
-        GetDirectoryPath(can_save_path, mat_dir, sizeof(mat_dir));
-    else
-        GetDirectoryPath(filepath, mat_dir, sizeof(mat_dir));
+    GetDirectoryPath(filepath, mat_dir, sizeof(mat_dir));
 
 
     // Shader validation
@@ -734,18 +807,6 @@ Material* MaterialLoader_Load(AssetManager* am, const char* filepath)
                     cJSON_Delete(root);
                     return NULL;
                 }
-
-            #ifndef _WIN32
-                char comb[1024];
-                snprintf(comb, sizeof(comb), "%s%s", mat_dir, child->valuestring);
-                char can[PATH_MAX];
-
-                if (realpath(comb, can) == NULL)
-                {
-                    cJSON_Delete(root);
-                    return NULL;
-                }
-            #endif
             }
             else if (cJSON_IsObject(child))
             {
@@ -806,9 +867,10 @@ Material* MaterialLoader_Load(AssetManager* am, const char* filepath)
         char can_vert[1024];
         char can_frag[1024];
         
-        if (!NormalizeAndCanonicalize(vert_comb, can_vert, sizeof(can_vert)) ||
-            !NormalizeAndCanonicalize(frag_comb, can_frag, sizeof(can_frag)) ||
-            !FileExists(can_vert) || !FileExists(can_frag))
+        NormalizePath(vert_comb, can_vert, sizeof(can_vert));
+        NormalizePath(frag_comb, can_frag, sizeof(can_frag));
+
+        if (!FileExists(can_vert) || !FileExists(can_frag))
         {
             cJSON_Delete(root);
             return NULL;
@@ -819,7 +881,7 @@ Material* MaterialLoader_Load(AssetManager* am, const char* filepath)
         {
             if (am->shader_cache[i].name[0] != '\0' && am->shader_vertex_paths[i] && am->shader_fragment_paths[i])
             {
-                if (PathsEqual(am->shader_vertex_paths[i], can_vert) && PathsEqual(am->shader_fragment_paths[i], can_frag))
+                if (StrEqualsIgnoreCase(am->shader_vertex_paths[i], can_vert) && StrEqualsIgnoreCase(am->shader_fragment_paths[i], can_frag))
                 {
                     target_shader = &am->shader_cache[i];
                     break;
@@ -1002,45 +1064,35 @@ static void MakePathRelative(const char* base_dir, const char* target_path, char
         return;
     }
 
-    char can_base[1024];
-    char can_target[1024];
+    char norm_base[1024];
+    char norm_target[1024];
 
-    if (!NormalizeAndCanonicalize(base_dir, can_base, sizeof(can_base)))
-        snprintf(can_base, sizeof(can_base), "%s", base_dir);
+    NormalizePath(base_dir, norm_base, sizeof(norm_base));
+    NormalizePath(target_path, norm_target, sizeof(norm_target));
 
-    if (!NormalizeAndCanonicalize(target_path, can_target, sizeof(can_target)))
-        snprintf(can_target, sizeof(can_target), "%s", target_path);
-
-    size_t b_len = strlen(can_base);
-    if (b_len > 0 && can_base[b_len - 1] != '/' && can_base[b_len - 1] != '\\')
+    size_t b_len = strlen(norm_base);
+    if (b_len > 0 && norm_base[b_len - 1] != '/')
     {
-        if (b_len + 1 < sizeof(can_base))
+        if (b_len + 1 < sizeof(norm_base))
         {
-            can_base[b_len] = '/';
-            can_base[b_len + 1] = '\0';
+            norm_base[b_len] = '/';
+            norm_base[b_len + 1] = '\0';
             b_len++;
         }
     }
 
-#ifdef _WIN32
-    if (can_base[1] == ':' && can_target[1] == ':' && tolower((unsigned char)can_base[0]) != tolower((unsigned char)can_target[0]))
-    {
-        snprintf(out_rel, out_size, "%s", can_target);
-        return;
-    }
-#endif
     size_t common_slash = 0;
     size_t i = 0;
-    while (can_base[i] && can_target[i])
+
+    while (norm_base[i] && norm_target[i])
     {
-#ifdef _WIN32
-        if (tolower((unsigned char)can_base[i]) != tolower((unsigned char)can_target[i]))
+        if (tolower((unsigned char)norm_base[i]) != tolower((unsigned char)norm_target[i]))
             break;
-#else
-        if (can_base[i] != can_target[i])
+
+        if (norm_base[i] != norm_target[i])
             break;
-#endif
-        if (can_base[i] == '/')
+        
+        if (norm_base[i] == '/')
             common_slash = i + 1;
 
         i++;
@@ -1048,7 +1100,7 @@ static void MakePathRelative(const char* base_dir, const char* target_path, char
 
     if (common_slash == 0)
     {
-        snprintf(out_rel, out_size, "%s", can_target);
+        snprintf(out_rel, out_size, "%s", norm_target);
         return;
     }
 
@@ -1057,20 +1109,21 @@ static void MakePathRelative(const char* base_dir, const char* target_path, char
 
     for (size_t j = common_slash; j < b_len; j++)
     {
-        if (can_base[j] == '/')
+        if (norm_base[j] == '/')
         {
             if (out_len + 3 < out_size)
             {
-                strcat(out_rel, "../");
+                memcpy(out_rel + out_len, "../", 3);
                 out_len += 3;
+                out_rel[out_len] = '\0';
             }
         }
     }
 
-    const char* remainder = can_target + common_slash;
+    const char* remainder = norm_target + common_slash;
     
     if (out_len + strlen(remainder) < out_size)
-        strcat(out_rel, remainder);
+        memcpy(out_rel + out_len, remainder, strlen(remainder) + 1);
 }
 
 
@@ -1137,12 +1190,7 @@ bool MaterialLoader_Save(AssetManager* am, Material* material, const char* filep
     cJSON_AddStringToObject(root, "name", material->name);
 
     char mat_dir[1024] = {0};
-    char can_save_path[1024];
-    
-    if (NormalizeAndCanonicalize(filepath, can_save_path, sizeof(can_save_path)))
-        GetDirectoryPath(can_save_path, mat_dir, sizeof(mat_dir));
-    else
-        GetDirectoryPath(filepath, mat_dir, sizeof(mat_dir));
+    GetDirectoryPath(filepath, mat_dir, sizeof(mat_dir));
 
     if (material->shader == NULL)
     {
