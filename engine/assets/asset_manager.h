@@ -91,6 +91,12 @@ typedef struct AssetManager
     uint32_t env_map_count;
 
 
+    char* material_source_paths[MAX_MATERIALS];
+    char* texture_source_paths[MAX_CACHED_TEXTURES];
+    char* shader_vertex_paths[MAX_CACHED_SHADERS];
+    char* shader_fragment_paths[MAX_CACHED_SHADERS];
+
+
 
     // --- Default assets ---
 
@@ -119,6 +125,7 @@ void Asset_Shutdown(AssetManager* am);
 // Loads assets from disk
 
 Model* Asset_LoadModel(AssetManager* am, const char* name, const char* filepath);
+Material* Asset_LoadMaterial(AssetManager* am, const char* filepath);
 Texture* Asset_LoadTexture(AssetManager* am, const char* name, const char* filepath);
 Texture* Asset_LoadCubemapTexture(AssetManager* am, const char* name, const char* right, const char* left, const char* top, const char* bottom, const char* front, const char* back);
 EnvironmentMap* Asset_LoadEnvironmentMap(AssetManager* am, const char* filepath);
@@ -178,6 +185,9 @@ Texture* Asset_CreateSolidColorTexture(AssetManager* am, const char* name, Color
 
 // Material creation function
 Material* Asset_CreateMaterial(AssetManager* am, const char* name, Texture* diffuse, Shader* shader);
+
+// Save a material to disk
+bool Asset_SaveMaterial(AssetManager* am, Material* material, const char* filepath);
 
 // Uploads or refreshes the GPU copy of a CPU material
 void Asset_SyncMaterialGPU(AssetManager* am, Material* material);

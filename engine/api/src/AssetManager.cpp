@@ -98,6 +98,11 @@ namespace Prism
         return Prism::Model(raw_model);
     }
 
+    Material AssetManager::LoadMaterial(const std::string& filepath) {
+        ::Material* c_mat = ::Asset_LoadMaterial(s_asset_manager, filepath.c_str());
+        return Prism::Material(c_mat);
+    }
+
     Shader AssetManager::LoadShader(const std::string& name, const std::string& vertPath, const std::string& fragPath) {
         ::Shader* h = ::Asset_LoadShader(s_asset_manager, name.c_str(), vertPath.c_str(), fragPath.c_str());
         return Prism::Shader(h);
@@ -244,6 +249,11 @@ namespace Prism
     Material AssetManager::CreateMaterial(const std::string& name, Texture diffuse) {
         ::Material* h = ::Asset_CreateMaterial(s_asset_manager, name.c_str(), (::Texture*)diffuse.GetRaw(), NULL);
         return Prism::Material(h);
+    }
+
+    bool AssetManager::SaveMaterial(Material material, const std::string& filepath) {
+        if (!s_asset_manager || !material.IsValid()) return false;
+        return ::Asset_SaveMaterial(s_asset_manager, static_cast<::Material*>(material.GetRaw()), filepath.c_str());
     }
 
 
